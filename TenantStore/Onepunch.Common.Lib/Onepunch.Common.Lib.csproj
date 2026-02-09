@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<RootNamespace>Onepunch.Common.Lib</RootNamespace>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="BuzlinkRepository" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+		<PackageReference Include="Pomelo.EntityFrameworkCore.MySql" />
+		<PackageReference Include="Microsoft.Extensions.Configuration" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
+		<PackageReference Include="Newtonsoft.Json" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+		<PackageReference Include="System.Management" />
+		<PackageReference Include="RabbitMQ.Client" />
+		<PackageReference Include="Microsoft.Extensions.Hosting " />
+		<PackageReference Include="Serilog.Sinks.Console" />
+		<PackageReference Include="Serilog.Sinks.File" />
+		<PackageReference Include="Serilog.Sinks.Seq" />
+	</ItemGroup>
+
+
+</Project>

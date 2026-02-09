@@ -1,0 +1,23 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="../DTR.Core/DTR.Core.csproj">
+    <Platform Solution="*|x64" Project="x64" />
+    <Platform Solution="*|x86" Project="x86" />
+  </Project>
+  <Project Path="../DTR.Infrastructure.Models/DTR.Models.csproj">
+    <Platform Solution="*|x64" Project="x64" />
+    <Platform Solution="*|x86" Project="x86" />
+  </Project>
+  <Project Path="../DTR.Infrastructure/DTR.Infrastructure.csproj">
+    <Platform Solution="*|x64" Project="x64" />
+    <Platform Solution="*|x86" Project="x86" />
+  </Project>
+  <Project Path="DTR.API/DTR.API.csproj">
+    <Platform Solution="*|x64" Project="x64" />
+    <Platform Solution="*|x86" Project="x86" />
+  </Project>
+</Solution>

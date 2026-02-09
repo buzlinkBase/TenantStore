@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+	<ItemGroup>
+		<PackageReference Include="BuzlinkRepository" />
+	</ItemGroup>
+	<ItemGroup>
+	  <ProjectReference Include="..\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
+	</ItemGroup>
+</Project>

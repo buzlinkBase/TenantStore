@@ -1,0 +1,76 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Invitation to Join {{OrganizationName}}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f6f8;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 40px auto;
+            background: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            background: #004aad;
+            color: #ffffff;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .content {
+            padding: 30px;
+            color: #333333;
+            line-height: 1.6;
+        }
+
+        .button {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 12px 24px;
+            background: #004aad;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #888888;
+            padding: 20px;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>Welcome to {{OrganizationName}}</h2>
+        </div>
+        <div class="content">
+            <p>Hello <strong>{{UserName}}</strong>,</p>
+            <p>
+                You’ve been invited to join <strong>{{OrganizationName}}</strong>.
+                By accepting this invitation, you’ll gain access to your organization’s system where you can use the available features and functions to collaborate, manage resources, and streamline operations.
+            </p>
+            <p>Click the button below to accept your invitation and activate your account:</p>
+            <a href="{{InviteLink}}/{{token}}" class="button">Join</a>
+            <p>If you weren’t expecting this invitation, you can safely ignore this email.</p>
+        </div>
+        <div class="footer">
+            <p>&copy; {{CurrentYear}} {{OrganizationName}}. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

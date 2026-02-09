@@ -1,0 +1,53 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<RootNamespace>DTR.Core</RootNamespace>
+	</PropertyGroup>
+
+	<ItemGroup>
+	  <Compile Remove="Messaging\**" />
+	  <EmbeddedResource Remove="Messaging\**" />
+	  <None Remove="Messaging\**" />
+	</ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="MessagePack" />
+		<PackageReference Include="Refit.HttpClientFactory" />
+		<PackageReference Include="AutoMapper" />
+		<PackageReference Include="BuzlinkRepository" />
+		<PackageReference Include="ExcelMapper" />
+		<PackageReference Include="Google.Protobuf" />
+		<PackageReference Include="Grpc.AspNetCore" />
+		<PackageReference Include="Grpc.Tools">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.EntityFrameworkCore" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Abstractions" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Analyzers" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Proxies" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+		<PackageReference Include="Pomelo.EntityFrameworkCore.MySql" />
+
+		<PackageReference Include="Microsoft.Extensions.Configuration" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
+		<PackageReference Include="Newtonsoft.Json" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+		<PackageReference Include="System.Management" />
+	</ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\DTR.Infrastructure.Models\DTR.Models.csproj" />
+		<ProjectReference Include="..\DTR.Infrastructure\DTR.Infrastructure.csproj" />
+	</ItemGroup>
+</Project>

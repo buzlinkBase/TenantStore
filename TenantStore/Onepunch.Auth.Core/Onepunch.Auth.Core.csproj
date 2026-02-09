@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+	<ItemGroup>
+		<PackageReference Include="FluentValidation" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+		<PackageReference Include="Newtonsoft.Json" />
+		<PackageReference Include="AutoMapper" />
+
+		<PackageReference Include="Microsoft.IdentityModel.Tokens" />
+		<PackageReference Include="System.IdentityModel.Tokens.Jwt" />
+
+		<PackageReference Include="Microsoft.Extensions.Hosting" />
+		<PackageReference Include="RabbitMQ.Client" />
+		<PackageReference Include="Serilog.AspNetCore" />
+		<PackageReference Include="Serilog.Sinks.Console" />
+		<PackageReference Include="Serilog.Sinks.File" />
+		<PackageReference Include="Serilog.Sinks.Seq" />
+	</ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\Onepunch.Auth.Domain\Onepunch.Auth.Domain.csproj" />
+		<ProjectReference Include="..\Onepunch.Auth.Infrastructure\Onepunch.Auth.Infrastructure.csproj" />
+		<ProjectReference Include="..\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
+	</ItemGroup>
+</Project>

@@ -1,0 +1,12 @@
+@hrms.auth.api_HostAddress = http://localhost:5034
+
+POST {{hrms.auth.api_HostAddress}}/api/v1/user/register
+Accept: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwOGRlNjA2ZC0zMTkzLTQ2NTEtODJiYS02YmM5NzNjOGY1ZmQiLCJUZW5hbnRJZCI6IjA4ZGU2MDZkLTMwYzItNGEyZi04NDE3LWM2NTNmODNiZTFhYiIsImVtYWlsIjoianRAZ21haWwuY29tIiwiZXhwIjoxNzcwNDc1MzUzLCJpc3MiOiJPbmVwdW5jaCIsImF1ZCI6Ik9uZXB1bmNoLkF1dGgifQ.8QDxlTUL-nenWh7noGyPEN4M8Ic3cLM_Tq7DCevvJMA
+Content-Type: application/json
+
+{
+  "token":"eyJUZW5hbnRJZCI6IjA4ZGU2MDZkLTMwYzItNGEyZi04NDE3LWM2NTNmODNiZTFhYiIsIlRva2VuIjoiSTNyREMwWEFCS3pKU2h2MXA3cFFRZz09IiwiRW1haWwiOiJkZEBnbWFpbC5jb20ifQ==",
+  "password":"CodeCodeCodezero234@#$"
+}
+###

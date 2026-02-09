@@ -1,0 +1,75 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<RootNamespace>OnePunch.Notification</RootNamespace>
+	</PropertyGroup>
+	<ItemGroup>
+	  <Compile Remove="Core\Utilities\**" />
+	  <Content Remove="Core\Utilities\**" />
+	  <EmbeddedResource Remove="Core\Utilities\**" />
+	  <None Remove="Core\Utilities\**" />
+	</ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="Microsoft.IdentityModel.Tokens" />
+		<PackageReference Include="Newtonsoft.Json" />
+		<PackageReference Include="RabbitMQ.Client" />
+		<PackageReference Include="Swashbuckle.AspNetCore" />
+		<PackageReference Include="Asp.Versioning.Http" />
+		<PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" />
+		<PackageReference Include="AutoMapper" />
+		<PackageReference Include="System.IdentityModel.Tokens.Jwt" /> 
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="FluentValidation" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" />
+
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="BuzlinkRepository" />
+		<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Abstractions" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Analyzers" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Proxies" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+		<PackageReference Include="Pomelo.EntityFrameworkCore.MySql" />
+		<PackageReference Include="Microsoft.Extensions.Configuration" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+		<PackageReference Include="System.Management" />
+
+		<PackageReference Include="Serilog.Sinks.Console" />
+		<PackageReference Include="Serilog.Sinks.File" />
+		<PackageReference Include="Serilog.Sinks.Seq" />
+	</ItemGroup>
+	 
+	
+	<ItemGroup>
+	  <ProjectReference Include="..\..\TenantStore\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
+	</ItemGroup>
+	 
+	
+	<ItemGroup>
+	  <None Update="Core\Templates\AccountConfirmation.html">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
+	  <None Update="Core\Templates\UserInvitation.html">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
+	</ItemGroup>
+</Project>
