@@ -16,7 +16,7 @@ public class SendTenantConfirmationEmailHandler : IMessageHandler
 
     public async Task Handle(string message)
     {
-        var model = ObjectSerializer.DeSerialized<RMQPayload<NotifTenantForConfirmation>>(message);
+        var model = ObjectSerializer.DeSerialized<MessagePayload<NotifTenantForConfirmation>>(message);
         if (model == null)
         {
             Log.Logger.Error("Unable to deserialize tenant confirmation email payload");
@@ -42,16 +42,16 @@ public class SendTenantConfirmationEmailHandler : IMessageHandler
         }
     }
 
-    private static async Task SendConfirmationEmailAsync(EmailNotificationService notifService, RMQPayload<NotifTenantForConfirmation> model)
+    private static async Task SendConfirmationEmailAsync(EmailNotificationService notifService, MessagePayload<NotifTenantForConfirmation> model)
     {
         var mailPayload = new Domain.DTO.MailPayload(model.Data.Email, model.Data.Token);
         notifService.SendTenantConfirmation(mailPayload, model.Data.ConfirmationRoute);
         await Task.CompletedTask;
     }
 
-    private async Task PublishSuccessAsync(IUnitOfWorkService uow, RMQPayload<NotifTenantForConfirmation> model, OutBoxService outboxService)
+    private async Task PublishSuccessAsync(IUnitOfWorkService uow, MessagePayload<NotifTenantForConfirmation> model, OutBoxService outboxService)
     {
-        var payload = new RMQPayload<NoticationResponse>
+        var payload = new MessagePayload<NoticationResponse>
         {
             EventId = Guid.NewGuid(),
             CausationId = model.EventId,

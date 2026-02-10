@@ -11,7 +11,7 @@ public class TenantActivatedHandler : IMessageHandler
     }
     public async Task Handle(string message)
     {
-        var model = JsonConvert.DeserializeObject<RMQPayload<TenantActivatdPayload>>(message);
+        var model = JsonConvert.DeserializeObject<MessagePayload<TenantActivatdPayload>>(message);
         if (model == null) return;
         using var scope = _scopeFactory.CreateScope();
         var Uow = scope.ServiceProvider.GetRequiredService<IUnitOfWorkService>();

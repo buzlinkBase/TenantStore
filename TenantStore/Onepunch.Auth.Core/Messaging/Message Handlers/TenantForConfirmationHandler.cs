@@ -23,7 +23,7 @@ public class TenantForConfirmationHandler : IMessageHandler
 
     public async Task Handle(string message)
     {
-        var model = ObjectSerializer.DeSerialized<RMQPayload<TenantForConfirmation>>(message);
+        var model = ObjectSerializer.DeSerialized<MessagePayload<TenantForConfirmation>>(message);
         if (model == null) return;
         using var scope = _scopeFactory.CreateScope();
 
@@ -79,7 +79,7 @@ public class TenantForConfirmationHandler : IMessageHandler
 
     }
 
-    private void StoreToken(IUnitOfWorkService uow, RMQPayload<TenantForConfirmation> payload, string token)
+    private void StoreToken(IUnitOfWorkService uow, MessagePayload<TenantForConfirmation> payload, string token)
     {
         var tokenModel = new EmailToken
         {
@@ -99,9 +99,9 @@ public class TenantForConfirmationHandler : IMessageHandler
 
     private string GenerateEmailToken(TenantForConfirmation model) => TokenGenerator.Generate(model.TenantId, model.Email); 
 
-    private RMQPayload<NotifTenantForConfirmation> ComposePayload(RMQPayload<TenantForConfirmation> model, string token)
+    private MessagePayload<NotifTenantForConfirmation> ComposePayload(MessagePayload<TenantForConfirmation> model, string token)
     {
-        return new RMQPayload<NotifTenantForConfirmation>
+        return new MessagePayload<NotifTenantForConfirmation>
         {
             EventId = Guid.NewGuid(),
             CausationId = model.EventId,

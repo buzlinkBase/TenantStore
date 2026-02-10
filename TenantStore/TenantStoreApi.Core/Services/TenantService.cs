@@ -37,8 +37,6 @@ public class TenantService : BaseService<Tenant>
         Guard.EnsureFalse(emailExists, "Email is already used");
         return result;
     }
-
-
     public async Task<TenantModel> RegisterAsync(CreateTenant payload)
     {
 
@@ -50,13 +48,8 @@ public class TenantService : BaseService<Tenant>
         var msgPayloadDto = ComposePayload(tenant, payload);
         await CreateOutBoxAysnc(tenant, msgPayloadDto);
         await CommitChangesAsync();
-
         var message = ObjectSerializer.Serialized(msgPayloadDto);
-        await CreateAdminUserAsync(message);
-
         return _mapper.Map<TenantModel>(tenant);
-
-
     }
 
     public async Task UpdateAsync(Guid Id, UpdateTenant payload)
@@ -82,15 +75,11 @@ public class TenantService : BaseService<Tenant>
         var tenant = Repository.FindOne<Tenant>(Id);
         return tenant;
     }
-
-    private async Task CreateAdminUserAsync(string message)
-    {
-        await _publisher.PublishAsync(message, _eventType);
-    }
-    private RMQPayload<TenantCreatedPayload> ComposePayload(Tenant tenant, CreateTenant payload)
+ 
+    private MessagePayload<TenantCreatedPayload> ComposePayload(Tenant tenant, CreateTenant payload)
     {
         var userPassword = _crypto.Encrypt(payload.Password);
-        return new RMQPayload<TenantCreatedPayload>
+        return new MessagePayload<TenantCreatedPayload>
         {
             EventId = Guid.NewGuid(),
             EventType = _eventType,
@@ -102,7 +91,8 @@ public class TenantService : BaseService<Tenant>
             },
         };
     }
-    private async Task CreateOutBoxAysnc(Tenant tenant, RMQPayload<TenantCreatedPayload> payload)
+
+    private async Task CreateOutBoxAysnc(Tenant tenant, MessagePayload<TenantCreatedPayload> payload)
     {
         var message = ObjectSerializer.Serialized(payload);
         var outbox = _outBoxService.CreateModel(tenant.Id,

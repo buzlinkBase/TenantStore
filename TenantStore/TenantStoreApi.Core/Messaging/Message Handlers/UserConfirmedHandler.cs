@@ -18,7 +18,7 @@ public class UserConfirmedHandler : IMessageHandler
     {
         try
         {
-            var model = JsonConvert.DeserializeObject<RMQPayload<UserCreatedPayload>>(message);
+            var model = JsonConvert.DeserializeObject<MessagePayload<UserCreatedPayload>>(message);
             if (model == null) return;
             using var scope = _scopeFactory.CreateScope();
 

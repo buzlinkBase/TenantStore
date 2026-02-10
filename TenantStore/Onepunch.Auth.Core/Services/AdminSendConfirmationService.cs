@@ -21,7 +21,7 @@ public class AdminSendConfirmationService
     }
     public async Task HandleSuccess(RegistrationResult result, EmailToken emailToken)
     {
-        var payload = new RMQPayload<UserActivatedPayload>
+        var payload = new MessagePayload<UserActivatedPayload>
         {
             EventId = Guid.NewGuid(),
             CausationId = emailToken.EventId,

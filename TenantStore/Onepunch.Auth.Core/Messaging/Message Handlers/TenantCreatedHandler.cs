@@ -47,11 +47,11 @@ public class TenantCreatedHandler : IMessageHandler
         await _publisher.PublishAsync(serializedMessage, _nextEvent);
     }
 
-    private static RMQPayload<TenantCreatedPayload>? DeserializeMessage(string message)
+    private static MessagePayload<TenantCreatedPayload>? DeserializeMessage(string message)
     {
         try
         {
-            return ObjectSerializer.DeSerialized<RMQPayload<TenantCreatedPayload>>(message);
+            return ObjectSerializer.DeSerialized<MessagePayload<TenantCreatedPayload>>(message);
         }
         catch (JsonException ex)
         {
@@ -67,13 +67,13 @@ public class TenantCreatedHandler : IMessageHandler
     }
 
     private async Task<string> CreateSuccessOutbox(
-        RMQPayload<TenantCreatedPayload> payload,
+        MessagePayload<TenantCreatedPayload> payload,
         User user,
         IUnitOfWorkService uow,
         OutBoxService outboxService)
     {
 
-        var userCreatedEvent = new RMQPayload<UserCreatedPayload>
+        var userCreatedEvent = new MessagePayload<UserCreatedPayload>
         {
             EventId = Guid.NewGuid(),
             CausationId = payload.EventId,

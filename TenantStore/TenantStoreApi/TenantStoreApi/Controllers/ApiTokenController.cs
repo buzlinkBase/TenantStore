@@ -17,6 +17,7 @@ public class ApiTokenController : ControllerBase
     }
 
     [HttpPost]
+    [AllowAnonymous]
     public async Task<IActionResult> Create([FromBody] CreateToken payload)
     {
         var response = await _service.GenerateToken(payload);

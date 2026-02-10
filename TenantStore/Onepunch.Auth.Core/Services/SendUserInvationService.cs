@@ -43,12 +43,12 @@ public class SendUserInvationService : BaseService<OutboxMessage>
         await _publisher.PublishAsync(serializedMessage, _nextEvent);
     }
 
-    private RMQPayload<UserInvitationNotificationInfo> ComposePayload(
+    private MessagePayload<UserInvitationNotificationInfo> ComposePayload(
         EmailToken model,
         string tenantName,
         string username )
     {
-        return new RMQPayload<UserInvitationNotificationInfo>
+        return new MessagePayload<UserInvitationNotificationInfo>
         {
             EventId = model.EventId,
             CausationId = model.CausationId!.Value,

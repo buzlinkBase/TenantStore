@@ -1,6 +1,6 @@
 ﻿namespace Onepunch.Common.Lib.DTO;
 
-public record RMQPayload<T> where T : class, new()
+public record MessagePayload<T> where T : class, new()
 {
     public Guid EventId { get; set; }
     public Guid CausationId { get; set; }

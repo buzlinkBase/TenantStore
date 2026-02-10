@@ -9,6 +9,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="BuzlinkRepository" />
+		<PackageReference Include="Confluent.Kafka" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
 		<PackageReference Include="Pomelo.EntityFrameworkCore.MySql" />
 		<PackageReference Include="Microsoft.Extensions.Configuration" />

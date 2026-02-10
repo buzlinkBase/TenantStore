@@ -13,7 +13,7 @@ public class UserInviteNotificationHandler : IMessageHandler
 
     public async Task Handle(string message)
     {
-        var model = ObjectSerializer.DeSerialized<RMQPayload<UserInvitationNotificationInfo>>(message);
+        var model = ObjectSerializer.DeSerialized<MessagePayload<UserInvitationNotificationInfo>>(message);
         if (model == null)
         {
             Log.Logger.Error("Unable to deserialize tenant confirmation email payload");

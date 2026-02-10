@@ -23,7 +23,7 @@ public class AdminUserCreatedHandler : IMessageHandler
     {
         try
         {
-            var model = ObjectSerializer.DeSerialized<RMQPayload<UserCreatedPayload>>(message);
+            var model = ObjectSerializer.DeSerialized<MessagePayload<UserCreatedPayload>>(message);
             if (model == null) return;
 
             using var scope = _scopeFactory.CreateScope();
@@ -44,7 +44,7 @@ public class AdminUserCreatedHandler : IMessageHandler
             uow.Context.Tenants.Update(tenant);
 
             // Create next outbox event
-            var data = new RMQPayload<TenantForConfirmation>
+            var data = new MessagePayload<TenantForConfirmation>
             {
                 EventId = Guid.NewGuid(),
                 CausationId = model.EventId,

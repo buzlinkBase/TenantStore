@@ -25,7 +25,7 @@ public class TenantEmailConfirmedHandler : IMessageHandler
     {
         try
         {
-            var model = ObjectSerializer.DeSerialized<RMQPayload<UserActivatedPayload>>(message);
+            var model = ObjectSerializer.DeSerialized<MessagePayload<UserActivatedPayload>>(message);
             if (model == null) return;
 
             using var scope = _scopeFactory.CreateScope();
@@ -45,7 +45,7 @@ public class TenantEmailConfirmedHandler : IMessageHandler
             uow.CommitChanges();
 
             //ack
-            var data = new RMQPayload<TenantActivatdPayload>
+            var data = new MessagePayload<TenantActivatdPayload>
             {
                 EventId = Guid.NewGuid(),
                 CausationId = model.EventId,

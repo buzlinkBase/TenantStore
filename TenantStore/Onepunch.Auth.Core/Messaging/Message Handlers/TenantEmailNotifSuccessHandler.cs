@@ -21,7 +21,7 @@ public class TenantEmailNotifSuccessHandler : IMessageHandler
 
     public async Task Handle(string message)
     {
-        var model = JsonConvert.DeserializeObject<RMQPayload<NoticationResponse>>(message);
+        var model = JsonConvert.DeserializeObject<MessagePayload<NoticationResponse>>(message);
         if (model == null) return;
         using var scope = _scopeFactory.CreateScope();
 
@@ -31,7 +31,7 @@ public class TenantEmailNotifSuccessHandler : IMessageHandler
         if (await outboxService.IsEventExists(model.EventId)) return;
 
         //stop email retry
-        var payload = new RMQPayload<NoticationResponse>()
+        var payload = new MessagePayload<NoticationResponse>()
         {
             EventId = Guid.NewGuid(),
             CausationId = model.EventId,

@@ -9,7 +9,7 @@ public class SuccessNotifHandler : IMessageHandler
 
     public async Task Handle(string message)
     {
-        var model = ObjectSerializer.DeSerialized<RMQPayload<NoticationResponse>>(message);
+        var model = ObjectSerializer.DeSerialized<MessagePayload<NoticationResponse>>(message);
         if (model == null)
         {
             Log.Logger.Error($"Unable to deserialize {nameof(SuccessNotifHandler)}");
