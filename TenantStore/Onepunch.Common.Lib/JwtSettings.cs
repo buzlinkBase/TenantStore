@@ -1,5 +1,4 @@
 ﻿namespace Onepunch.Common.Lib;
-
 public class JwtSettings
 {
     public string Issuer { get; set; }
@@ -18,9 +17,8 @@ public class HMacSetting
         return string.Concat(SecretKey, AppName);
     }
 }
-
-public class ApiKeySetting
+public class CryptoSetting
 {
-    public string ApiKey { get; set; }
+    public string AES_KEY { get; set; }
+    public string AES_IV { get; set; }
 }
-

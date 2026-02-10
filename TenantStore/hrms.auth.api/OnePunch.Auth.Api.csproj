@@ -12,7 +12,6 @@
 		
 		<PackageReference Include="Microsoft.Extensions.Hosting" /> 
 		<PackageReference Include="Newtonsoft.Json" />
-		<PackageReference Include="RabbitMQ.Client" />
 		<PackageReference Include="Swashbuckle.AspNetCore" />
 		<PackageReference Include="Asp.Versioning.Http" />
 		<PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" />

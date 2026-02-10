@@ -12,18 +12,15 @@ public class TenantService : BaseService<Tenant>
     private readonly AuthHttpClient _authClient;
     private readonly OutBoxService _outBoxService;
     private readonly PasswordCrypto _crypto;
-    private readonly IRabbitMQPublisher _publisher;
     private const string _eventType = "tenant.created";
 
     public TenantService(IUnitOfWorkService service, IMapper mapper,
-        AuthHttpClient client, OutBoxService outBoxService, PasswordCrypto crypto,
-        IRabbitMQPublisher publisher) : base(service)
+        AuthHttpClient client, OutBoxService outBoxService, PasswordCrypto crypto ) : base(service)
     {
         _mapper = mapper;
         _authClient = client;
         _outBoxService = outBoxService;
         _crypto = crypto;
-        _publisher = publisher;
     }
     protected override async Task<ValidationResponse> CreateValidator(Tenant tenant)
     {
@@ -46,10 +43,14 @@ public class TenantService : BaseService<Tenant>
 
         //save outbox
         var msgPayloadDto = ComposePayload(tenant, payload);
+
         await CreateOutBoxAysnc(tenant, msgPayloadDto);
+
         await CommitChangesAsync();
+
         var message = ObjectSerializer.Serialized(msgPayloadDto);
         return _mapper.Map<TenantModel>(tenant);
+
     }
 
     public async Task UpdateAsync(Guid Id, UpdateTenant payload)

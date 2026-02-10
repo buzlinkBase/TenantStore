@@ -13,7 +13,7 @@ public class UserInviteNotificationHandler : IMessageHandler
 
     public async Task Handle(string message)
     {
-        var model = ObjectSerializer.DeSerialized<MessagePayload<UserInvitationNotificationInfo>>(message);
+        var model = ObjectSerializer.DeSerialized<MessagePayload<UserEmailPayload>>(message);
         if (model == null)
         {
             Log.Logger.Error("Unable to deserialize tenant confirmation email payload");
@@ -35,7 +35,7 @@ public class UserInviteNotificationHandler : IMessageHandler
         }
     }
 
-    private static async Task SendConfirmationEmailAsync(EmailNotificationService notifService, UserInvitationNotificationInfo model)
+    private static async Task SendConfirmationEmailAsync(EmailNotificationService notifService, UserEmailPayload model)
     {
         var mailPayload = new Domain.DTO.MailPayload(model.Email, model.Token);
         notifService.SendUserInvites(mailPayload,  model);

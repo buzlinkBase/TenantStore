@@ -39,7 +39,7 @@ public class EmailNotificationService
         };
         client.Send(mail);
     }
-    public void SendUserInvites(MailPayload payload, UserInvitationNotificationInfo model)
+    public void SendUserInvites(MailPayload payload, UserEmailPayload model)
     {
         string relativePath = Path.Combine("Core", "Templates", "UserInvitation.html");
         string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);

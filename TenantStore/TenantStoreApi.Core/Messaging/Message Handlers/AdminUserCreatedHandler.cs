@@ -9,14 +9,10 @@ namespace TenantStoreApi;
 public class AdminUserCreatedHandler : IMessageHandler
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly IRabbitMQPublisher _publisher;
     private const string _nextEventType = "tenant.for.confirmation";
-
-    public AdminUserCreatedHandler(IServiceScopeFactory scopeFactory,
-        IRabbitMQPublisher publisher)
+    public AdminUserCreatedHandler(IServiceScopeFactory scopeFactory )
     {
         _scopeFactory = scopeFactory;
-        _publisher = publisher;
     }
 
     public async Task Handle(string message)
@@ -25,7 +21,6 @@ public class AdminUserCreatedHandler : IMessageHandler
         {
             var model = ObjectSerializer.DeSerialized<MessagePayload<UserCreatedPayload>>(message);
             if (model == null) return;
-
             using var scope = _scopeFactory.CreateScope();
             var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWorkService>();
             var outboxService = scope.ServiceProvider.GetRequiredService<OutBoxService>();

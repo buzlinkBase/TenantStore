@@ -43,18 +43,18 @@ public class SendUserInvationService : BaseService<OutboxMessage>
         await _publisher.PublishAsync(serializedMessage, _nextEvent);
     }
 
-    private MessagePayload<UserInvitationNotificationInfo> ComposePayload(
+    private MessagePayload<UserEmailPayload> ComposePayload(
         EmailToken model,
         string tenantName,
         string username )
     {
-        return new MessagePayload<UserInvitationNotificationInfo>
+        return new MessagePayload<UserEmailPayload>
         {
             EventId = model.EventId,
             CausationId = model.CausationId!.Value,
             CorrelationId = model.CorrelationId!.Value,
             EventType = _nextEvent,
-            Data = new UserInvitationNotificationInfo
+            Data = new UserEmailPayload
             {
                 Token = model.TokenValue,
                 Email = model.Email,

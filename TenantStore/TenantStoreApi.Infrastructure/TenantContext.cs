@@ -24,7 +24,8 @@ public class TenantContext : DbContext
         modelBuilder.Entity<Branch>().HasIndex(x => x.Status);
 
         modelBuilder.Entity<OutboxMessage>().HasIndex(x => x.TenantId);
-        modelBuilder.Entity<OutboxMessage>().HasIndex(x => x.EventId);
+        modelBuilder.Entity<OutboxMessage>().HasIndex(x => x.Topic);
+        modelBuilder.Entity<OutboxMessage>().HasIndex(x => x.Key);
         modelBuilder.Entity<OutboxMessage>().HasIndex(x => x.Status); 
         modelBuilder.Entity<OutboxMessage>()
        .Property(x => x.Status)

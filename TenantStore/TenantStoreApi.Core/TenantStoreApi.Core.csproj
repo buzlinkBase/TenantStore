@@ -6,6 +6,16 @@
     <Nullable>enable</Nullable>
 	  <RootNamespace>TenantStoreApi.Core</RootNamespace>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Messaging\Message Handlers\**" />
+    <EmbeddedResource Remove="Messaging\Message Handlers\**" />
+    <None Remove="Messaging\Message Handlers\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Messaging\AdminUserConsumerWorker.cs" />
+  </ItemGroup>
 	<ItemGroup>
 		<PackageReference Include="Confluent.Kafka" />
 		<PackageReference Include="FluentValidation" />

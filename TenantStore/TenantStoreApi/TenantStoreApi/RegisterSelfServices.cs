@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Onepunch.Common.Lib;
-using Onepunch.Common.Lib.Services;
 using System.Text;
 using TenantStoreApi.Infrastructure;
 namespace TenantStoreApi;
@@ -20,11 +19,9 @@ public static class ServiceRegistrations
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
         builder.Services.AddSingleton(sp => sp.GetRequiredService<IServiceProvider>().GetRequiredService<IServiceScopeFactory>());
 
-        builder.Services.Configure<ApiKeySetting>(builder.Configuration.GetSection("ApiKeySettings"));
         builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));
-        builder.Services.AddScoped<IRabbitMQPublisher, RabbitMQPublisher>();
         builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));
-        builder.Services.Configure<RabbitMQSettings>(builder.Configuration.GetSection("RabbitMQ"));
+        builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("KafkaSettings"));
         builder.Services.AddDbContext<TenantContext>(options =>
         {
             var connectionString = builder.Configuration.GetConnectionString("TenantConnection");
