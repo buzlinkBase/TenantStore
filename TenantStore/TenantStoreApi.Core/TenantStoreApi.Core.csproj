@@ -14,7 +14,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<None Include="Messaging\TenantUserConfirmedWorker.cs" />
+		<None Include="Messaging\UserConfirmedWorker.cs" />
 	</ItemGroup>
 	<ItemGroup>
 		<Protobuf Include="Protos\checkemail.proto" GrpcServices="Client" />

@@ -31,7 +31,7 @@ public static class ServiceRegistrations
         builder.Services.AddSingleton(sp => sp.GetRequiredService<IServiceProvider>().GetRequiredService<IServiceScopeFactory>());
 
         builder.Services.AddSingleton<ProducerService>();
-        builder.Services.AddHostedService<TenantCreatedWorker>();
+        builder.Services.AddHostedService<UserConfirmedWorker>();
         builder.Services.AddHostedService<OutboxWorker>();
 
         builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));

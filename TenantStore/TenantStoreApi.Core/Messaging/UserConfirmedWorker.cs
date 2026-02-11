@@ -8,12 +8,12 @@ using TenantStoreApi.Core.Services;
 
 namespace TenantStoreApi.Core;
 
-public class TenantUserConfirmedWorker : BackgroundService
+public class UserConfirmedWorker : BackgroundService
 {
     private readonly KafkaSettings _settings;
     private readonly IServiceScopeFactory _scopeFactory;
 
-    public TenantUserConfirmedWorker(IServiceScopeFactory scopeFactory,
+    public UserConfirmedWorker(IServiceScopeFactory scopeFactory,
         IOptions<KafkaSettings> settings)
     {
         _settings = settings.Value;

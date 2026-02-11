@@ -6,17 +6,13 @@ using Microsoft.Extensions.Logging;
 namespace TenantStoreApi.Core;
 public class OutboxWorker : BackgroundService
 {
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ProducerService _producer;
+    private readonly IServiceScopeFactory _scopeFactory; 
     private readonly ILogger<OutboxWorker> _logger;
-
     public OutboxWorker(
-        IServiceScopeFactory scopeFactory,
-        ProducerService producer,
+        IServiceScopeFactory scopeFactory, 
         ILogger<OutboxWorker> logger)
     {
-        _scopeFactory = scopeFactory;
-        _producer = producer;
+        _scopeFactory = scopeFactory; 
         _logger = logger;
     }
 
@@ -41,6 +37,7 @@ public class OutboxWorker : BackgroundService
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IUnitOfWorkService>();
+        var _producer = scope.ServiceProvider.GetRequiredService<ProducerService>();
         // 1. Fetch only what is ready for retry or never processed
         var messages = await db.Context.OutboxMessages
             .Where(m => m.ProcessedOn == null
@@ -76,5 +73,6 @@ public class OutboxWorker : BackgroundService
         }
         // 3. Save all status updates at once
         await db.SaveChangesAsync();
+
     }
 }

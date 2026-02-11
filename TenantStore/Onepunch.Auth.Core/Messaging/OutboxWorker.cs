@@ -1,6 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using OnePunch.Auth.Core;
 using Serilog;
 
@@ -16,6 +15,7 @@ public class OutboxWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await Task.Yield();
         while (!stoppingToken.IsCancellationRequested)
         {
             try
