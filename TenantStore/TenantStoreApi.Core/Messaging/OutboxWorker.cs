@@ -4,16 +4,16 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace TenantStoreApi.Core;
-public class OutboxProcessor : BackgroundService
+public class OutboxWorker : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ProducerService _producer;
-    private readonly ILogger<OutboxProcessor> _logger;
+    private readonly ILogger<OutboxWorker> _logger;
 
-    public OutboxProcessor(
+    public OutboxWorker(
         IServiceScopeFactory scopeFactory,
         ProducerService producer,
-        ILogger<OutboxProcessor> logger)
+        ILogger<OutboxWorker> logger)
     {
         _scopeFactory = scopeFactory;
         _producer = producer;
