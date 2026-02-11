@@ -5,7 +5,18 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 	</PropertyGroup>
+
 	<ItemGroup>
+	  <Compile Remove="Messaging\Message Handlers\**" />
+	  <EmbeddedResource Remove="Messaging\Message Handlers\**" />
+	  <None Remove="Messaging\Message Handlers\**" />
+	</ItemGroup>
+	
+	<ItemGroup>
+		<Protobuf Include="Protos\checkemail.proto" GrpcServices="Server" />
+		<PackageReference Include="Google.Protobuf" />
+		<PackageReference Include="Grpc.AspNetCore" />
+		<PackageReference Include="Grpc.Tools" />
 		<PackageReference Include="Confluent.Kafka" />
 		<PackageReference Include="FluentValidation" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
@@ -26,5 +37,10 @@
 		<ProjectReference Include="..\Onepunch.Auth.Domain\Onepunch.Auth.Domain.csproj" />
 		<ProjectReference Include="..\Onepunch.Auth.Infrastructure\Onepunch.Auth.Infrastructure.csproj" />
 		<ProjectReference Include="..\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
+	</ItemGroup>
+	<ItemGroup>
+	  <None Update="Protos\checkemail.proto">
+	    <GrpcServices>Client</GrpcServices>
+	  </None>
 	</ItemGroup>
 </Project>

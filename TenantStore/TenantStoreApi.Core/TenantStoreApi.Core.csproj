@@ -1,22 +1,26 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-	  <RootNamespace>TenantStoreApi.Core</RootNamespace>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<RootNamespace>TenantStoreApi.Core</RootNamespace>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <Compile Remove="Messaging\Message Handlers\**" />
-    <EmbeddedResource Remove="Messaging\Message Handlers\**" />
-    <None Remove="Messaging\Message Handlers\**" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="Messaging\AdminUserConsumerWorker.cs" />
-  </ItemGroup>
 	<ItemGroup>
+		<Compile Remove="Messaging\Message Handlers\**" />
+		<EmbeddedResource Remove="Messaging\Message Handlers\**" />
+		<None Remove="Messaging\Message Handlers\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="Messaging\TenantUserConfirmedWorker.cs" />
+	</ItemGroup>
+	<ItemGroup>
+		<Protobuf Include="Protos\checkemail.proto" GrpcServices="Client" />
+		<PackageReference Include="Google.Protobuf" />
+		<PackageReference Include="Grpc.AspNetCore" />
+		<PackageReference Include="Grpc.Tools" />
 		<PackageReference Include="Confluent.Kafka" />
 		<PackageReference Include="FluentValidation" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
@@ -31,9 +35,9 @@
 
 	</ItemGroup>
 	<ItemGroup>
-	  <ProjectReference Include="..\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
-	  <ProjectReference Include="..\TenantStoreApi.Domain\TenantStoreApi.Domain.csproj" />
-	  <ProjectReference Include="..\TenantStoreApi.Infrastructure\TenantStoreApi.Infrastructure.csproj" />
+		<ProjectReference Include="..\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
+		<ProjectReference Include="..\TenantStoreApi.Domain\TenantStoreApi.Domain.csproj" />
+		<ProjectReference Include="..\TenantStoreApi.Infrastructure\TenantStoreApi.Infrastructure.csproj" />
 	</ItemGroup>
 
 </Project>

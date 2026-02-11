@@ -15,15 +15,12 @@ namespace TenantStoreApi.Controllers;
 public class TenantController : ControllerBase
 {
     private readonly TenantService _service;
-    private readonly ApiKeySetting _apiSettings;
     private readonly IMapper _mapper;
 
     public TenantController(TenantService service,
-        IOptions<ApiKeySetting> apiSettings,
         IMapper mapper)
     {
         _service = service;
-        _apiSettings = apiSettings.Value;
         _mapper = mapper;
     }
 

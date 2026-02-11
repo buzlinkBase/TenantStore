@@ -15,7 +15,7 @@ public class ApiTokenService : BaseService<ApiToken>
         _service = service;
         _mapper = mapper;
     }
-    public async Task<ApiTokenModel?> GenerateToken(CreateToken model)
+    public async Task<ApiTokenModel?> AddTokenAsync(CreateToken model)
     {
         try
         {
@@ -23,7 +23,7 @@ public class ApiTokenService : BaseService<ApiToken>
             var token = TokenGenerator.Generate(model.TenantId, model?.Email ?? "");
             var newToken = new ApiToken
             {
-                Description=model.Description,
+                Description = model.Description,
                 TokenType = model.TokenType,
                 ExpirationType = model.ExpirationType,
                 ExpiredAt = model.ExpireAt,
@@ -33,7 +33,6 @@ public class ApiTokenService : BaseService<ApiToken>
                 UserId = model.UserId
             };
             await Repository.AddAsync(newToken);
-            CommitChanges();
             return new ApiTokenModel
             {
                 ExpireAt = model.ExpireAt,
@@ -42,19 +41,33 @@ public class ApiTokenService : BaseService<ApiToken>
         }
         catch (Exception ex)
         {
-            throw new Exception("Unable to create token");
             Log.Logger.Error(ex.Message);
+            throw new Exception("Unable to create token");
         }
     }
 
-    public async Task<ApiTokenModel?> GetApiToken(Guid tenantId)
+    public async Task<ApiTokenModel?> GetApiTokens(Guid tenantId)
     {
         var now = DateTime.UtcNow;
         return await GetQueryable(x =>
                 x.TenantId == tenantId
-                && x.TokenType == TokenType.API
                 && x.Status == TokenStatus.Active
-                && (x.ExpirationType == TokenExpirationType.None || x.ExpiredAt > now)) 
+                && (x.ExpirationType == TokenExpirationType.None || x.ExpiredAt > now))
+            .Select(x => new ApiTokenModel
+            {
+                Token = x.Token,
+                ExpireAt = x.ExpiredAt
+            })
+            .FirstOrDefaultAsync();
+    }
+    public async Task<ApiTokenModel?> GetApiToken(Guid tenantId, TokenType tokenType)
+    {
+        var now = DateTime.UtcNow;
+        return await GetQueryable(x =>
+                x.TenantId == tenantId
+                && x.TokenType == tokenType
+                && x.Status == TokenStatus.Active
+                && (x.ExpirationType == TokenExpirationType.None || x.ExpiredAt > now))
             .Select(x => new ApiTokenModel
             {
                 Token = x.Token,

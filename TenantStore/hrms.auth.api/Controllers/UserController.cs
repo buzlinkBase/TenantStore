@@ -20,6 +20,7 @@ namespace OnePunch.Auth.Api.Controllers
     [Authorize]
     public class UserController : ControllerBase
     {
+
         private readonly UserService _service;
         private readonly AuthDomainProvider _authDomainProvider;
         private readonly TenantHttpClient _tenantHttpClient;
@@ -66,7 +67,6 @@ namespace OnePunch.Auth.Api.Controllers
 
         }
 
-
         [AllowAnonymous]
         [HttpGet("check-email")]
         public async Task<ActionResult<bool>> FindByEmail([FromQuery] string email)
@@ -84,7 +84,7 @@ namespace OnePunch.Auth.Api.Controllers
         public async Task<IActionResult> Confirm([FromQuery] string token)
         {
             var result = await _service.ConfirmedRegistration(token);
-            var url = _authDomainProvider.Resolve().Frontends.Bio ?? "https://default-frontend.com";
+            var url = _authDomainProvider.Resolve().FrontEndDomain ?? "https://default-frontend.com";
 
             if (!result.Success)
                 return Redirect($"{url}/error/{result.ErrorCode}");

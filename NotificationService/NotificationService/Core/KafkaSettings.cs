@@ -1,4 +1,5 @@
-﻿namespace TenantStoreApi.Core;
+﻿namespace OnePunch.Notification.Core;
+
 public class KafkaSettings
 {
     public string BootstrapServers { get; set; }

@@ -5,7 +5,7 @@ namespace Onepunch.Common.Lib.Entities;
 public class BaseEntity : EntityBase { }
 public class OutboxMessage : BaseEntity
 {
-    public string Key  { get; set; }  
+    public string Key  { get; set; }
     public string Topic { get; set; }  
     public string Payload { get; set; } = string.Empty;
     public DateTime? ProcessedOn { get; set; }

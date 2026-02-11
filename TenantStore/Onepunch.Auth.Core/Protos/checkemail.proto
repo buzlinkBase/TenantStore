@@ -1,0 +1,18 @@
+﻿syntax = "proto3";
+
+option csharp_namespace = "Onepunch.Auth.Core"; 
+
+package tenant.core;
+
+service CheckEmailService {
+  rpc Check (EmailPayload) returns (CheckEmailResponse);
+}
+
+message EmailPayload {
+  string email = 1;
+}
+
+message CheckEmailResponse {
+  bool valid = 1;
+  string message=2; 
+}

@@ -6,6 +6,7 @@
 		<RootNamespace>TenantStoreApi</RootNamespace>
 	</PropertyGroup>
 	<ItemGroup>
+		<PackageReference Include="Microsoft.AspNetCore.HeaderPropagation" />
 		<PackageReference Include="FluentValidation" />
 		<PackageReference Include="Microsoft.Extensions.Hosting" />
 		<PackageReference Include="Newtonsoft.Json" />

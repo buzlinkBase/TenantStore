@@ -9,7 +9,7 @@ public enum TokenStatus
 
 public enum TokenType
 {
-    API,
+    Api, 
     Resource
 }
 

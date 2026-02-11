@@ -3,7 +3,7 @@
 public class CreateToken
 {
     public required string Description  { get; set; }
-    public TokenType TokenType { get; set; } = TokenType.API;
+    public TokenType TokenType { get; set; } = TokenType.Api;
     public TokenExpirationType ExpirationType { get; set; } = TokenExpirationType.X1Mos;
     public DateTime? ExpireAt { get; set; }
     public Guid TenantId { get; set; }

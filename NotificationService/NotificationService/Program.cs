@@ -10,7 +10,7 @@ builder.Services.AddControllers()
             options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         });
 
-builder.RegisterMessageHandlers();
+
 builder.RegisterSelftServices();
 builder.Services.RegisterCoreServices();
 builder.Services.AddAutoMapper(typeof(MappingProfile));
@@ -30,7 +30,6 @@ app.UseSwaggerUI(options =>
     }
 });
 app.UseHttpsRedirection();
-app.UseMiddleware<ApiKeyMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();

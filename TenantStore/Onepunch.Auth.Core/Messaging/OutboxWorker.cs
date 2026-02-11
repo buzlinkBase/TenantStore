@@ -1,23 +1,17 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using OnePunch.Auth.Core;
+using Serilog;
 
-namespace Onepunch.Auth.Core;  
-public class AuthOutboxProcessor : BackgroundService
+namespace Onepunch.Auth.Core;
+
+public class OutboxWorker : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ProducerService _producer;
-    private readonly ILogger<OutboxProcessor> _logger;
-
-    public AuthOutboxProcessor(
-        IServiceScopeFactory scopeFactory,
-        ProducerService producer,
-        ILogger<OutboxProcessor> logger)
+    public OutboxWorker(IServiceScopeFactory scopeFactory)
     {
         _scopeFactory = scopeFactory;
-        _producer = producer;
-        _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -30,9 +24,8 @@ public class AuthOutboxProcessor : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error occurred while processing outbox messages.");
+                Log.Logger.Error(ex, "Error occurred while processing outbox messages.");
             }
-            // Polling interval - keep it short (e.g., 2-5 seconds)
             await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
         }
     }
@@ -41,13 +34,14 @@ public class AuthOutboxProcessor : BackgroundService
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IUnitOfWorkService>();
-        // 1. Fetch only what is ready for retry or never processed
+        var outboxService = scope.ServiceProvider.GetRequiredService<OutBoxService>();
+        var _producer = scope.ServiceProvider.GetRequiredService<ProducerService>();
         var messages = await db.Context.OutboxMessages
             .Where(m => m.ProcessedOn == null
                         && m.RetryCount < 10
                         && (m.NextRetryOn == null || m.NextRetryOn <= DateTime.UtcNow))
-            .OrderBy(m => m.CreatedAt)  
-            .Take(50) 
+            .OrderBy(m => m.CreatedAt)
+            .Take(50)
             .ToListAsync(stoppingToken);
 
         if (!messages.Any()) return;
@@ -59,12 +53,12 @@ public class AuthOutboxProcessor : BackgroundService
                 await _producer.ProduceAsync(msg.Key, msg.Topic, msg.Payload);
 
                 msg.ProcessedOn = DateTime.UtcNow;
-                msg.Remarks = null; // Clear previous errors on success
+                msg.Remarks = null;
                 msg.Status = OutBoxState.PROCESSED;
             }
             catch (Exception ex)
             {
-                _logger.LogWarning("Failed to publish outbox message {Id}: {Message}", msg.Id, ex.Message);
+                Log.Logger.Warning("Failed to publish outbox message {Id}: {Message}", msg.Id, ex.Message);
                 msg.RetryCount++;
                 msg.LastAttemptOn = DateTime.UtcNow;
                 msg.Remarks = ex.Message;

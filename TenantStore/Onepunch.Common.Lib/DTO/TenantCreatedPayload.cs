@@ -11,16 +11,29 @@ public record TenantCreatedPayload
     public string Email { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
 }
-public record TenantPayload
+
+public record TenantUserPayload
 {
     public Guid UserId { get; set; }
     public Guid TenantId { get; set; }
     public string Email { get; set; } = string.Empty;
 }
 
+public class EmailCheckPayload
+{
+    public Guid TenantId { get; set; }
+    public string Email { get; set; }
+    public string Status { get; set; }
+
+    //public static EmailCheckPayload Invalid = new EmailCheckPayload { Status = "Registered" };
+
+}
+
 public record UserEmailPayload
 {
     public string Token { get; set; } = string.Empty;
+    public Guid TenantId { get; set; }
+    public Guid UserId { get; set; }
     public string Email { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string TenantName { get; set; } = string.Empty;
@@ -30,19 +43,22 @@ public record UserEmailPayload
     public DateTime Expiry { get; set; }
     public string ConfirmationRoute { get; set; } = string.Empty;
 }
-public record UserCreatedPayload : TenantPayload { }
-public record TenantForConfirmation : TenantPayload { }
-public record InvitedUserForConfirmation : TenantPayload { }
-public record TenantActivatdPayload : TenantPayload { }
-public record UserActivatedPayload : TenantPayload { }
-public record NotifTenantForConfirmation : TenantPayload
-{
-    public string Token { get; set; } = string.Empty;
-    public string Purpose { get; set; } = string.Empty;
-    public DateTime IssuedAt { get; set; }
-    public DateTime Expiry { get; set; }
-    public string ConfirmationRoute { get; set; } = string.Empty;
-}
+
+
+//public record UserCreatedPayload : TenantPayload { }
+//public record TenantForConfirmation : TenantPayload { }
+//public record InvitedUserForConfirmation : TenantPayload { }
+//public record TenantActivatdPayload : TenantPayload { }
+//public record UserActivatedPayload : TenantPayload { }
+
+//public record UserEmailPayload : TenantPayload
+//{
+//    public string Token { get; set; } = string.Empty;
+//    public string Purpose { get; set; } = string.Empty;
+//    public DateTime IssuedAt { get; set; }
+//    public DateTime Expiry { get; set; }
+//    public string ConfirmationRoute { get; set; } = string.Empty;
+//}
 
 public record UserInvitationPayload
 {

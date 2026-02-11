@@ -15,8 +15,6 @@ public static class ServiceRegistrations
         builder.Services.AddLogging();
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
         builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));
-        builder.Services.Configure<ApiKeySetting>(builder.Configuration.GetSection("ApiKeySettings"));
-        builder.Services.Configure<RabbitMQSettings>(builder.Configuration.GetSection("RabbitMQ"));
         builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));
         builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("MailSettings"));
 

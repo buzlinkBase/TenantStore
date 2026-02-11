@@ -1,24 +1,28 @@
 ﻿using AutoMapper;
-using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Extensions.Options;
 using TenantStoreApi.Core.Utilities;
 using TenantStoreApi.Core.Validations;
-using TenantStoreApi.Domain.Entities;
 
 namespace TenantStoreApi.Core.Services;
 
 public class TenantService : BaseService<Tenant>
 {
     private readonly IMapper _mapper;
-    private readonly AuthHttpClient _authClient;
+    private readonly AuthService _authClient;
+    private readonly ApiTokenService _apiTokenService;
+    private readonly KafkaSettings _kafkaSettings;
     private readonly OutBoxService _outBoxService;
     private readonly PasswordCrypto _crypto;
-    private const string _eventType = "tenant.created";
-
     public TenantService(IUnitOfWorkService service, IMapper mapper,
-        AuthHttpClient client, OutBoxService outBoxService, PasswordCrypto crypto ) : base(service)
+        AuthService authClient ,
+        ApiTokenService apiTokenService,
+        IOptions<KafkaSettings> kafkaSettings,
+        OutBoxService outBoxService, PasswordCrypto crypto) : base(service)
     {
         _mapper = mapper;
-        _authClient = client;
+        _authClient = authClient;
+        _apiTokenService = apiTokenService;
+        _kafkaSettings = kafkaSettings.Value;
         _outBoxService = outBoxService;
         _crypto = crypto;
     }
@@ -31,26 +35,29 @@ public class TenantService : BaseService<Tenant>
         Guard.ThrowIfError(result);
         // Check email existence via external service
         var emailExists = await _authClient.CheckEmailAsync(tenant.Email);
-        Guard.EnsureFalse(emailExists, "Email is already used");
+        Guard.EnsureFalse(emailExists.Valid, "Email is already used");
         return result;
     }
+
     public async Task<TenantModel> RegisterAsync(CreateTenant payload)
     {
-
         var tenant = _mapper.Map<Tenant>(payload);
         tenant.Status = "Pending";
         await CreateOrUpdateAsync(tenant);
 
         //save outbox
         var msgPayloadDto = ComposePayload(tenant, payload);
-
         await CreateOutBoxAysnc(tenant, msgPayloadDto);
-
+        await _apiTokenService.AddTokenAsync(new CreateToken
+        {
+            Description = "Account",
+            ExpirationType = TokenExpirationType.None,
+            TenantId = tenant.Id,
+            TokenType = TokenType.Api,
+        });
         await CommitChangesAsync();
-
         var message = ObjectSerializer.Serialized(msgPayloadDto);
         return _mapper.Map<TenantModel>(tenant);
-
     }
 
     public async Task UpdateAsync(Guid Id, UpdateTenant payload)
@@ -76,14 +83,12 @@ public class TenantService : BaseService<Tenant>
         var tenant = Repository.FindOne<Tenant>(Id);
         return tenant;
     }
- 
+
     private MessagePayload<TenantCreatedPayload> ComposePayload(Tenant tenant, CreateTenant payload)
     {
         var userPassword = _crypto.Encrypt(payload.Password);
         return new MessagePayload<TenantCreatedPayload>
         {
-            EventId = Guid.NewGuid(),
-            EventType = _eventType,
             Data = new TenantCreatedPayload
             {
                 TenantId = tenant.Id,
@@ -97,13 +102,9 @@ public class TenantService : BaseService<Tenant>
     {
         var message = ObjectSerializer.Serialized(payload);
         var outbox = _outBoxService.CreateModel(tenant.Id,
-            tenant.Id,
-            payload.EventId,
-            payload.CausationId,
-            payload.CorrelationId,
-            "CreateTenant",
-            _eventType,
-            OutBoxState.PROCESSING, message);
+            tenant.Id.ToString(),
+            _kafkaSettings.Topics.TenantCreated,
+            message);
         await _outBoxService.AddAsync(outbox);
     }
 }

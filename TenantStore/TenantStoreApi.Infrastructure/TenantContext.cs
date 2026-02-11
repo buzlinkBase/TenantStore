@@ -19,14 +19,16 @@ public class TenantContext : DbContext
     {
         modelBuilder.Entity<Tenant>().HasIndex(x => x.Email);
         modelBuilder.Entity<Tenant>().HasIndex(x => x.Status);
-
         modelBuilder.Entity<Branch>().HasIndex(x => x.TenantId);
         modelBuilder.Entity<Branch>().HasIndex(x => x.Status);
 
         modelBuilder.Entity<OutboxMessage>().HasIndex(x => x.TenantId);
+        modelBuilder.Entity<OutboxMessage>().HasIndex(x => x.ProcessedOn);
+        modelBuilder.Entity<OutboxMessage>().HasIndex(x => x.Status);
+        modelBuilder.Entity<OutboxMessage>().HasIndex(x => x.RetryCount);
+        modelBuilder.Entity<OutboxMessage>().HasIndex(x => x.NextRetryOn);
         modelBuilder.Entity<OutboxMessage>().HasIndex(x => x.Topic);
         modelBuilder.Entity<OutboxMessage>().HasIndex(x => x.Key);
-        modelBuilder.Entity<OutboxMessage>().HasIndex(x => x.Status); 
         modelBuilder.Entity<OutboxMessage>()
        .Property(x => x.Status)
         .HasConversion(

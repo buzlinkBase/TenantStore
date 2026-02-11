@@ -20,8 +20,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\TenantStore\Onepunch.Auth.Core\Onepunch.Auth.Core.csproj" />
-	  <ProjectReference Include="..\TenantStore\Onepunch.Auth.Domain\Onepunch.Auth.Domain.csproj" />
+	  <ProjectReference Include="..\Onepunch.Auth.Core\Onepunch.Auth.Core.csproj" />
+	  <ProjectReference Include="..\Onepunch.Auth.Domain\Onepunch.Auth.Domain.csproj" />
 	</ItemGroup>
 
 

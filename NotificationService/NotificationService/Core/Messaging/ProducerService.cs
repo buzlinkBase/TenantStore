@@ -1,13 +1,13 @@
 ﻿using Confluent.Kafka;
 using Microsoft.Extensions.Options;
 
-namespace Onepunch.Auth.Core;
+namespace OnePunch.Notification.Core.Messaging;
 
-public class AuthProducerService
+public class ProducerService
 {
     private readonly IProducer<string, string> _producer;
     private readonly KafkaSettings _settings;
-    public AuthProducerService(IOptions<KafkaSettings> settings)
+    public ProducerService(IOptions<KafkaSettings> settings)
     {
         _settings = settings.Value;
         var producerConfig = new ProducerConfig

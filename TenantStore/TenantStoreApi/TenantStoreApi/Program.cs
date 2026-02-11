@@ -1,5 +1,6 @@
 using Asp.Versioning.ApiExplorer;
 using BuzlinkRepository;
+using Confluent.Kafka;
 using Microsoft.AspNetCore.Mvc;
 using Serilog;
 using System.Text.Json;
@@ -14,12 +15,10 @@ internal class Program
     private static void Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args); 
- 
         Log.Logger = new LoggerConfiguration()
         .ReadFrom.Configuration(builder.Configuration)
         .CreateLogger();
         builder.Host.UseSerilog();
-
         builder.Services.AddControllers()
         .AddJsonOptions(options =>
         {
@@ -48,17 +47,9 @@ internal class Program
         //    cfg.AddProfile<MappingProfile>();
         //    cfg.AddProfile<AspAutoMapperProfile>();
         //});
-        //builder.Services.AddSingleton<IMapper>(config.CreateMapper());
-
-        builder.Services.AddHttpClient<AuthHttpClient>(client =>
-        {
-            var authUrl = builder.Configuration["AuthUrl"];
-            client.BaseAddress = new Uri(authUrl);
-            client.DefaultRequestHeaders.Add("Accept", "application/json");
-        }); 
+        //builder.Services.AddSingleton<IMapper>(config.CreateMapper()); 
 
         builder.Services.AddAutoMapper(typeof(MapperProfileConfig).Assembly);
-        builder.RegisterMessageHandlers();
         builder.RegisterSelfServices();
         builder.Services.RegisterCoreServices();
         builder.Services.AddEndpointsApiExplorer();
@@ -92,9 +83,9 @@ internal class Program
         app.UseCors("AllowAll");
         //app.UseMiddleware<CorrelationIdMiddleware>(); 
         //app.UseMiddleware<ApiKeyMiddleware>();
+        app.UseHeaderPropagation();
         app.UseAuthentication();
         app.UseAuthorization();
-        //app.UseMiddleware<ResponseWrapperMiddleware>();
         app.MapControllers();
         app.Run();
     }

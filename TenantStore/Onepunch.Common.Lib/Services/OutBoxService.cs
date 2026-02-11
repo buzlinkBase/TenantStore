@@ -11,11 +11,7 @@ public abstract class OutBoxServiceBase
     {
         _repository = Repository;
     }
-    public async Task AddAsync(OutboxMessage payload)
-    {
-        _repository.Add(payload);
-    }
-
+    public async Task AddAsync(OutboxMessage payload) => _repository.Add(payload);
     public async Task UpdateStateAsync(OutboxMessage payload, OutBoxState state)
     {
         payload.Status = state;
@@ -23,44 +19,20 @@ public abstract class OutBoxServiceBase
         _repository.Update(payload);
     }
 
-    public async Task<bool> IsEventExists(Guid eventId)
-    {
-        return await FindEvent(eventId) != null;
-    }
-
-    public async Task<OutboxMessage?> FindEvent(Guid eventId)
-    {
-        return await _repository
-            .Find<OutboxMessage>(x => x.EventId == eventId)
-            .FirstOrDefaultAsync();
-    }
-
     public OutboxMessage CreateModel(
         Guid TenantId,
-        Guid aggregateId,
-        Guid eventId,
-        Guid causationId,
-        Guid correlationId,
-        string aggregateType,
-        string eventType,
-        OutBoxState status,
-        string payload
-        )
+        string key,
+        string topic,
+        string payload )
     {
         return new OutboxMessage
         {
             TenantId = TenantId,
-            AggregateId = aggregateId,
-            EventId = eventId,
-            CausationId = causationId,
-            CorrelationId = correlationId,
-            AggregateType = aggregateType,
-            EventType = eventType,
-            ProcessedOn = DateTime.UtcNow,
-            NextRetryOn = DateTime.UtcNow.AddMinutes(10),
+            Key = key,
+            Topic = topic,
             Payload = payload,
             RetryCount = 0,
-            Status = status,
+            Status =  OutBoxState.PENDING,
         };
     }
 }

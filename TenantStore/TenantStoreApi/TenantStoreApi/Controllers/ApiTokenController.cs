@@ -11,7 +11,7 @@ namespace TenantStoreApi.Controllers;
 public class ApiTokenController : ControllerBase
 {
     private readonly ApiTokenService _service;
-    public ApiTokenController(ApiTokenService service )
+    public ApiTokenController(ApiTokenService service)
     {
         _service = service;
     }
@@ -20,7 +20,8 @@ public class ApiTokenController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> Create([FromBody] CreateToken payload)
     {
-        var response = await _service.GenerateToken(payload);
+        var response = await _service.AddTokenAsync(payload);
+        await _service.CommitChangesAsync();
         return Ok(response);
     }
 

@@ -8,12 +8,12 @@ using TenantStoreApi.Core.Services;
 
 namespace TenantStoreApi.Core;
 
-public class AdminUserConsumerWorker : BackgroundService
+public class TenantUserConfirmedWorker : BackgroundService
 {
     private readonly KafkaSettings _settings;
     private readonly IServiceScopeFactory _scopeFactory;
 
-    public AdminUserConsumerWorker(IServiceScopeFactory scopeFactory,
+    public TenantUserConfirmedWorker(IServiceScopeFactory scopeFactory,
         IOptions<KafkaSettings> settings)
     {
         _settings = settings.Value;
@@ -46,22 +46,24 @@ public class AdminUserConsumerWorker : BackgroundService
                     using (var scope = _scopeFactory.CreateScope())
                     {
                         var tenantService = scope.ServiceProvider.GetRequiredService<TenantService>();
-                        var user = JsonSerializer.Deserialize<MessagePayload<xxx>>(result.Message.Value, options);
-                        if (user == null)
+                        var model = ObjectSerializer.Deserialized<MessagePayload<TenantUserPayload>>(result.Message.Value);
+                        if (model == null)
                         {
                             Log.Logger.Error($"unable to deserialized admin user {result.Message.Value}");
                             consumer.Commit(result);
                         }
-                        var tenant = await tenantService.FindTenant(user.TenantId);
-                        //if (tenant == null)
-                        //{
-                        //    Log.Logger.Error($"unable to load tenant {user.TenantId}:{result.Message.Value}");
-                        //    consumer.Commit(result);
-                        //}
+                        var tenant = await tenantService.FindTenant(model.Data.TenantId);
+                        //TODO retry logic here via poly
+                        if (tenant == null)
+                        {
+                            Log.Logger.Error($"unable to load tenant {model.Data}:{result.Message.Value}");
+                            consumer.Commit(result);
+                        }
                         if (tenant != null)
                         {
                             tenant.Status = "Active";
-                        }
+                        } 
+                        await tenantService.CommitChangesAsync();
                     }
                 }
                 catch (Exception ex)

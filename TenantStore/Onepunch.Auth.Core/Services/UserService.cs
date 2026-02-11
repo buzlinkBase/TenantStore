@@ -1,5 +1,7 @@
 ﻿using AutoMapper;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
+using Onepunch.Auth.Core;
 using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Domain.DTOs;
 using OnePunch.Auth.Domain.Entities;
@@ -9,28 +11,27 @@ namespace OnePunch.Auth.Core.Services;
 
 public class UserService : BaseService<User>
 {
-    private readonly AdminSendConfirmationService _publisher;
-    private readonly SendUserInvationService _sendUserInvationService;
     private readonly UserManager<User> _manager;
+    private readonly OutBoxService _outboxService;
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly JwtService _jwtService;
+    private readonly KafkaSettings _kafkaOptions;
     private readonly IMapper _mapper;
 
     public UserService(
         IUnitOfWorkService uow,
-        AdminSendConfirmationService publisher,
-        SendUserInvationService sendUserInvationService,
         UserManager<User> manager,
         OutBoxService outboxService,
         IPasswordHasher<User> passwordHasher,
         JwtService jwtService,
+        IOptions<KafkaSettings> kafkaOptions,
         IMapper mapper) : base(uow)
     {
-        _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
-        _sendUserInvationService = sendUserInvationService;
         _manager = manager ?? throw new ArgumentNullException(nameof(manager));
+        _outboxService = outboxService;
         _passwordHasher = passwordHasher ?? throw new ArgumentNullException(nameof(passwordHasher));
         _jwtService = jwtService ?? throw new ArgumentNullException(nameof(jwtService));
+        _kafkaOptions = kafkaOptions.Value;
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
     }
 
@@ -60,7 +61,7 @@ public class UserService : BaseService<User>
     public async Task<RegistrationResult> ConfirmedRegistration(string emailToken)
     {
         var token = Encoding.UTF8.GetString(TokenEncodingHelper.FromBase64Url(emailToken));
-        var userToken = ObjectSerializer.DeSerialized<EmailTokenInfo>(token);
+        var userToken = ObjectSerializer.Deserialized<EmailTokenInfo>(token);
 
         var emailInfoDb = await FindToken(emailToken);
         if (emailInfoDb == null) throw new Exception("Unverified token");
@@ -80,8 +81,22 @@ public class UserService : BaseService<User>
         Context.EmailTokens.Update(emailInfoDb);
         Context.Users.Update(user);
 
+        var payload = new TenantUserPayload
+        {
+            Email = user.Email!,
+            TenantId = user.TenantId,
+            UserId = user.Id,
+        };
+        var message = ObjectSerializer.Serialized(new MessagePayload<TenantUserPayload> { Data = payload });
+        var confirmationOutbox = _outboxService.CreateModel(
+            user.TenantId, user.Id.ToString(),
+            _kafkaOptions.Topics.TenantUserConfirmed,
+            message);
+        await _outboxService.AddAsync(confirmationOutbox);
         await CommitChangesAsync();
+
         return Success("User successfully activated");
+
     }
     #endregion
 
@@ -103,7 +118,7 @@ public class UserService : BaseService<User>
     public async Task<(User user, IdentityResult result)> RegisterInvitesAsync(CreateInvitedUser payload)
     {
         var token = Encoding.UTF8.GetString(TokenEncodingHelper.FromBase64Url(payload.Token));
-        var userToken = ObjectSerializer.DeSerialized<EmailTokenInfo>(token);
+        var userToken = ObjectSerializer.Deserialized<EmailTokenInfo>(token);
         var emailInfoDb = await FindToken(payload.Token);
         if (emailInfoDb == null) throw new Exception("Unverified token");
         if (emailInfoDb.TenantId != userToken.TenantId) throw new Exception("Invalid payload");
@@ -118,9 +133,13 @@ public class UserService : BaseService<User>
             Name = userToken.Name,
             Status = "Active"
         };
+
         emailInfoDb.IsUsed = true;
         Context.EmailTokens.Update(emailInfoDb);
         var result = await _manager.CreateAsync(user, payload.Password);
+
+        //TODO send notif for cred or informing a successfull registration
+
         if (result.Succeeded)
         {
             await CommitChangesAsync();
@@ -131,14 +150,18 @@ public class UserService : BaseService<User>
 
     public async Task<bool> SendInvite(InvitationPayload payload, TenantInfo info)
     {
-        await _sendUserInvationService
-            .Send(info.Id, info.CompanyName, payload.Name ?? string.Empty, payload.Email);
+        var message = new MessagePayload<InvitationPayload> { Data = payload, };
+        var outbox = _outboxService.CreateModel(
+            info.Id,
+            info.Id.ToString(),
+            _kafkaOptions.Topics.SendUserInvitation,
+            ObjectSerializer.Serialized(message));
+        await _outboxService.AddAsync(outbox);
         return true;
     }
 
     public Task<User?> GetByIdAsync(string id) => _manager.FindByIdAsync(id);
     public Task<User?> GetByEmailAsync(string email) => _manager.FindByEmailAsync(email);
-
     public async Task<IdentityResult> UpdateAsync(UpdateUser payload)
     {
         var user = await _manager.FindByIdAsync(payload.Id.ToString());
@@ -190,7 +213,7 @@ public class UserService : BaseService<User>
             AccessToken = accessToken,
             RefreshToken = refreshToken,
             Expiry = DateTime.UtcNow.AddMinutes(15),
-            TenantId=user.TenantId,
+            TenantId = user.TenantId,
         };
     }
 
@@ -225,7 +248,6 @@ public class UserService : BaseService<User>
         };
     }
     #endregion
-
     #region Helpers
     private RefreshToken CreateRefreshToken(User user, string newRefreshToken) =>
         new RefreshToken

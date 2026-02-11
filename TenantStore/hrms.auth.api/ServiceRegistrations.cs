@@ -8,6 +8,8 @@ using Onepunch.Common.Lib.Services;
 using System.Text;
 
 using Microsoft.OpenApi.Models;
+using Onepunch.Auth.Core;
+using Onepunch.Auth.Core.Messaging;
 
 namespace OnePunch.Auth.Api;
 
@@ -15,16 +17,21 @@ public static class ServiceRegistrations
 {
     public static void RegisterSelftServices(this WebApplicationBuilder builder)
     {
+        builder.Services.AddGrpc();
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddDataProtection();
         builder.Services.AddLogging();
+
+        builder.Services.AddSingleton<ProducerService>();
+        builder.Services.AddHostedService<TenantCreatedWorker>();
+        builder.Services.AddHostedService<OutboxWorker>();
+
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
         builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));
-        builder.Services.Configure<ApiKeySetting>(builder.Configuration.GetSection("ApiKeySettings"));
-        builder.Services.Configure<RabbitMQSettings>(builder.Configuration.GetSection("RabbitMQ"));
         builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));
-        builder.Services.Configure<AuthSettings>(builder.Configuration.GetSection("AuthSettings"));
+        builder.Services.Configure<Domains>(builder.Configuration.GetSection("Domains"));
         builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
+        builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("KafkaSettings"));
         builder.Services.AddIdentity<User, Role>(options =>
         {
             options.User.RequireUniqueEmail = true;
@@ -81,7 +88,6 @@ public static class ServiceRegistrations
         //        options.GroupNameFormat = "'v'VVV";
         //        options.SubstituteApiVersionInUrl = true;
         //    });
-
 
         builder.Services.AddApiVersioning(
                 options =>

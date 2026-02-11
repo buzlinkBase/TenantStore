@@ -1,7 +1,8 @@
 ﻿using Confluent.Kafka;
 using Microsoft.Extensions.Options;
 
-namespace TenantStoreApi.Core;
+namespace Onepunch.Auth.Core;
+
 public class ProducerService
 {
     private readonly IProducer<string, string> _producer;

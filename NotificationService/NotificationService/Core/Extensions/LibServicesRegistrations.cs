@@ -13,8 +13,6 @@ public static class LibServicesRegistrations
         services.AddSingleton(sp => sp.GetRequiredService<IServiceProvider>().GetRequiredService<IServiceScopeFactory>());
         services.AddScoped<IHMACService, HMACService>();
         services.AddScoped<IMessageHandlerFactory, MessageHandlerFactory>();
-        services.AddScoped<IRabbitMQPublisher, RabbitMQPublisher>();
-        services.AddHostedService<RabbitMQConsumer>();
     }
 
     public static void AddLibraryAssemblyDependencies(IServiceCollection services, string assemblyName)

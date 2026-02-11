@@ -3,15 +3,15 @@ namespace Onepunch.Auth.Core.Providers;
 
 public interface IAuthDomainProvider
 {
-    AuthSettings Resolve();
+    Domains Resolve();
 }
 
 public class AuthDomainProvider : IAuthDomainProvider
 {
-    private readonly AuthSettings _options;
-    public AuthDomainProvider(IOptions<AuthSettings> options)
+    private readonly Domains _options;
+    public AuthDomainProvider(IOptions<Domains> options)
     {
         _options = options.Value;
     }
-    public AuthSettings Resolve() => _options;
+    public Domains Resolve() => _options;
 }

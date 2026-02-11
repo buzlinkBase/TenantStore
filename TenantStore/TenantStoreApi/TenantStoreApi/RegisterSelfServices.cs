@@ -12,12 +12,27 @@ public static class ServiceRegistrations
 {
     public static void RegisterSelfServices(this WebApplicationBuilder builder)
     {
-        // Core services
-        //builder.Services.AddScoped<IEmailSender<User>, NoOpEmailSender>();
+        builder.Services.AddHeaderPropagation(options =>
+        {
+            options.Headers.Add("User-Agent");
+            options.Headers.Add("Authorization");
+            options.Headers.Add("X-Tenant-ID");
+            options.Headers.Add("X-Api-Key");
+        });
+        builder.Services.AddGrpcClient<CheckEmailService.CheckEmailServiceClient>(options =>
+        {
+            var authUrl = builder.Configuration["AuthUrl"];
+            options.Address = new Uri(authUrl);
+        }).AddHeaderPropagation();
+
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddLogging();
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
         builder.Services.AddSingleton(sp => sp.GetRequiredService<IServiceProvider>().GetRequiredService<IServiceScopeFactory>());
+
+        builder.Services.AddSingleton<ProducerService>();
+        builder.Services.AddHostedService<TenantCreatedWorker>();
+        builder.Services.AddHostedService<OutboxWorker>();
 
         builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));
         builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));

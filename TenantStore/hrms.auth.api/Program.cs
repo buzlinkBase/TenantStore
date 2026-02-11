@@ -1,4 +1,6 @@
-using Asp.Versioning.ApiExplorer; 
+using Asp.Versioning.ApiExplorer;
+using Onepunch.Auth.Core;
+using Onepunch.Auth.Core.Protos;
 using OnePunch.Auth.Api;
 using OnePunch.Auth.Api.Middlewares; 
 using System.Text.Json;
@@ -23,7 +25,6 @@ internal class Program
             c.SchemaFilter<EnumSchemaFilter>();
         });
 
-        builder.RegisterMessageHandlers();
         builder.RegisterSelftServices();
         builder.Services.RegisterCoreServices();
         builder.Services.AddAutoMapper(typeof(MappingProfile));
@@ -34,7 +35,6 @@ internal class Program
             client.BaseAddress = new Uri(TenantUrl);
             client.DefaultRequestHeaders.Add("Accept", "application/json");
         });
-
 
         var app = builder.Build();
         var apiVersionProvider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
@@ -54,10 +54,10 @@ internal class Program
 
         app.UseRouting(); 
         app.UseCors("AllowAll");
-        app.UseMiddleware<ApiKeyMiddleware>();
+        //app.UseMiddleware<ApiKeyMiddleware>(); 
         app.UseAuthentication();  
-        app.UseAuthorization();  
-        app.UseMiddleware<ResponseWrapperMiddleware>();
+        app.UseAuthorization();
+        app.MapGrpcService<CheckEmailHandler>();
         app.MapControllers();
         app.Run();
     }
