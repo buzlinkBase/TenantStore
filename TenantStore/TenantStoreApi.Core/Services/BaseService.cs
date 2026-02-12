@@ -13,8 +13,8 @@ public abstract class BaseService<T>
     {
         UoW = service;
     }
-    protected IRepository Repository => UoW.Repository;
-    protected TenantContext Context => UoW.Context;
+    public IRepository Repository => UoW.Repository;
+    public TenantContext Context => UoW.Context;
     protected virtual async Task<ValidationResponse> CreateValidator(T model) => ValidationResponse.OK;
     public async Task<bool> CommitChangesAsync()
     {

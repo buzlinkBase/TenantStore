@@ -10,6 +10,7 @@ public abstract class BaseService<T>
     {
         UoW = service;
     }
+    public IUnitOfWorkService UnitOfWork => UoW;
     protected IRepository Repository => UoW.Repository;
     protected AuthContext Context => UoW.Context;
     protected virtual async Task<ValidationResponse> CreateValidator(T model) => ValidationResponse.OK;

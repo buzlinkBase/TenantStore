@@ -5,11 +5,13 @@ public class UserCreatedWorker : BackgroundService
 {
     private readonly KafkaSettings _settings;
     private readonly IServiceScopeFactory _scopeFactory;
+
     public UserCreatedWorker(
         IServiceScopeFactory scopeFactory,
         IOptions<KafkaSettings> settings)
     {
         _settings = settings.Value;
+        _scopeFactory = scopeFactory;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -17,7 +19,7 @@ public class UserCreatedWorker : BackgroundService
         var conf = new ConsumerConfig
         {
             BootstrapServers = _settings.BootstrapServers,
-            GroupId = "tenant-notif-service-group",
+            GroupId = "tenant-notif-service-admin-user.created-group",
             AutoOffsetReset = AutoOffsetReset.Earliest,
             SecurityProtocol = SecurityProtocol.Plaintext,
             EnableAutoCommit = false,
@@ -38,6 +40,7 @@ public class UserCreatedWorker : BackgroundService
                     Log.Logger.Error("Unable to deserialize email payload");
                     return;
                 }
+
                 using var scope = _scopeFactory.CreateScope();
                 var notifService = scope.ServiceProvider.GetRequiredService<EmailNotificationService>();
                 try
@@ -56,6 +59,7 @@ public class UserCreatedWorker : BackgroundService
                     //});
                     var mailPayload = new Domain.DTO.MailPayload(model.Data.Email, model.Data.Token);
                     notifService.SendTenantConfirmation(mailPayload, model.Data.ConfirmationRoute);
+                    consumer.Commit(result);
                     await Task.CompletedTask;
                 } 
                 catch (ConsumeException ex)

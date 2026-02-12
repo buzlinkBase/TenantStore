@@ -32,7 +32,7 @@ public class TenantCreatedWorker : BackgroundService
         var conf = new ConsumerConfig
         {
             BootstrapServers = _settings.BootstrapServers,
-            GroupId = "auth-tenant-creator-group",
+            GroupId = "user-service-admin-user.create-group",
             AutoOffsetReset = AutoOffsetReset.Earliest,
             SecurityProtocol = SecurityProtocol.Plaintext,
             EnableAutoCommit = false,
@@ -49,9 +49,7 @@ public class TenantCreatedWorker : BackgroundService
                 {
                     var result = consumer.Consume(stoppingToken);
                     if (result == null || result.IsPartitionEOF) continue;
-
                     var model = ObjectSerializer.Deserialized<MessagePayload<TenantCreatedPayload>>(result.Message.Value);
-
                     if (model?.Data == null || string.IsNullOrWhiteSpace(model.Data.Email))
                     {
                         Log.Logger.Warning("Invalid payload received: {Payload}", result.Message.Value);
@@ -61,7 +59,6 @@ public class TenantCreatedWorker : BackgroundService
 
                     using (var scope = _scopeFactory.CreateScope())
                     {
-                        var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWorkService>();
                         var userService = scope.ServiceProvider.GetRequiredService<UserService>();
                         var outboxService = scope.ServiceProvider.GetRequiredService<OutBoxService>();
                         var _crypto = scope.ServiceProvider.GetRequiredService<PasswordCrypto>();
@@ -95,7 +92,7 @@ public class TenantCreatedWorker : BackgroundService
                         // 2. Token & Outbox Logic
                         var user = response.user;
                         var token = GenerateEmailToken(model.Data);
-                        StoreToken(uow, user, token);
+                        StoreToken(userService.UnitOfWork, user, token);
 
                         var messPayload = ComposePayload(user, token);
                         var serializedMessage = ObjectSerializer.Serialized(messPayload);
@@ -104,11 +101,10 @@ public class TenantCreatedWorker : BackgroundService
                         var outboxEntry = outboxService.CreateModel(
                             model.Data.TenantId,
                             user.Id.ToString(),
-                            _settings.Topics.TenantCreated,
+                            _settings.Topics.UserCreated,
                             serializedMessage);
                         await outboxService.AddAsync(outboxEntry);
-                        await uow.CommitChangesAsync();
-
+                        await userService.CommitChangesAsync();
                         consumer.Commit(result);
                     }
                 }

@@ -12,13 +12,7 @@ public abstract class OutBoxServiceBase
         _repository = Repository;
     }
     public async Task AddAsync(OutboxMessage payload) => _repository.Add(payload);
-    public async Task UpdateStateAsync(OutboxMessage payload, OutBoxState state)
-    {
-        payload.Status = state;
-        payload.ProcessedOn = DateTime.UtcNow;
-        _repository.Update(payload);
-    }
-
+    public async Task UpdateStateAsync(OutboxMessage payload) => _repository.Update(payload);
     public OutboxMessage CreateModel(
         Guid TenantId,
         string key,

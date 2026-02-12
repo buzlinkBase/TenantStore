@@ -44,22 +44,6 @@ public record UserEmailPayload
     public string ConfirmationRoute { get; set; } = string.Empty;
 }
 
-
-//public record UserCreatedPayload : TenantPayload { }
-//public record TenantForConfirmation : TenantPayload { }
-//public record InvitedUserForConfirmation : TenantPayload { }
-//public record TenantActivatdPayload : TenantPayload { }
-//public record UserActivatedPayload : TenantPayload { }
-
-//public record UserEmailPayload : TenantPayload
-//{
-//    public string Token { get; set; } = string.Empty;
-//    public string Purpose { get; set; } = string.Empty;
-//    public DateTime IssuedAt { get; set; }
-//    public DateTime Expiry { get; set; }
-//    public string ConfirmationRoute { get; set; } = string.Empty;
-//}
-
 public record UserInvitationPayload
 {
     public string Email { get; set; }

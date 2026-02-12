@@ -1,23 +1,22 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using Serilog;
 
 namespace TenantStoreApi.Core;
+
 public class OutboxWorker : BackgroundService
 {
-    private readonly IServiceScopeFactory _scopeFactory; 
-    private readonly ILogger<OutboxWorker> _logger;
+    private readonly IServiceScopeFactory _scopeFactory;
     public OutboxWorker(
-        IServiceScopeFactory scopeFactory, 
-        ILogger<OutboxWorker> logger)
+        IServiceScopeFactory scopeFactory)
     {
-        _scopeFactory = scopeFactory; 
-        _logger = logger;
+        _scopeFactory = scopeFactory;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await Task.Yield(); 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -26,9 +25,8 @@ public class OutboxWorker : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error occurred while processing outbox messages.");
+                Log.Logger.Error(ex, "Error occurred while processing outbox messages.");
             }
-            // Polling interval - keep it short (e.g., 2-5 seconds)
             await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
         }
     }
@@ -38,13 +36,12 @@ public class OutboxWorker : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IUnitOfWorkService>();
         var _producer = scope.ServiceProvider.GetRequiredService<ProducerService>();
-        // 1. Fetch only what is ready for retry or never processed
         var messages = await db.Context.OutboxMessages
             .Where(m => m.ProcessedOn == null
                         && m.RetryCount < 10
                         && (m.NextRetryOn == null || m.NextRetryOn <= DateTime.UtcNow))
-            .OrderBy(m => m.CreatedAt)  
-            .Take(50) 
+            .OrderBy(m => m.CreatedAt)
+            .Take(50)
             .ToListAsync(stoppingToken);
 
         if (!messages.Any()) return;
@@ -54,25 +51,20 @@ public class OutboxWorker : BackgroundService
             try
             {
                 await _producer.ProduceAsync(msg.Key, msg.Topic, msg.Payload);
-
                 msg.ProcessedOn = DateTime.UtcNow;
-                msg.Remarks = null; // Clear previous errors on success
+                msg.Remarks = string.Empty;
                 msg.Status = OutBoxState.PROCESSED;
             }
             catch (Exception ex)
             {
-                _logger.LogWarning("Failed to publish outbox message {Id}: {Message}", msg.Id, ex.Message);
+                Log.Logger.Warning("Failed to publish outbox message {Id}", msg.Id);
                 msg.RetryCount++;
                 msg.LastAttemptOn = DateTime.UtcNow;
                 msg.Remarks = ex.Message;
                 msg.Status = OutBoxState.RETRY;
-                // 2. Exponential Backoff: Wait longer after each failure
-                // Attempt 1: 1 min, Attempt 2: 4 mins, Attempt 3: 9 mins...
                 msg.NextRetryOn = DateTime.UtcNow.AddMinutes(Math.Pow(msg.RetryCount, 2));
             }
         }
-        // 3. Save all status updates at once
-        await db.SaveChangesAsync();
-
+        await db.CommitChangesAsync();
     }
 }

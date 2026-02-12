@@ -42,28 +42,7 @@ public class TenantContext : DbContext
              v => v.ToString(),
              v => EnumParserConfig.SafeParseEnum(v, Domain.TokenStatus.Revoke)
          );
-
-
-
-        modelBuilder.Entity<Tenant>()
-            .HasData(
-            new Tenant
-            {
-                Id = Guid.Parse("C1B8AAAF-6BFF-4F68-97C7-626F16EA9197"),
-                CompanyName = "Tenant 1",
-                Email = "test@gmail.com"
-            });
-        modelBuilder.Entity<TenantConnection>()
-         .HasData(
-         new TenantConnection
-         {
-             Id = Guid.Parse("C1B8AAAF-6BFF-4F68-97C7-626F16EA9197"),
-             TenantId = Guid.Parse("C1B8AAAF-6BFF-4F68-97C7-626F16EA9197"),
-             ConnetionString = "server=127.0.0.1;port=3316;database=tenantstore;user=oneuser;password=Pokemon67584321"
-         });
-
         base.OnModelCreating(modelBuilder);
-
     }
 }
 

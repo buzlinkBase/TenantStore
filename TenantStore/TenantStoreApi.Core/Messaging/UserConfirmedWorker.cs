@@ -25,7 +25,7 @@ public class UserConfirmedWorker : BackgroundService
         await Task.Yield();
         var conf = new ConsumerConfig
         {
-            GroupId = "tenant-api.admin.user.created",
+            GroupId = "tenant-api.admin.user.confirmed",
             BootstrapServers = _settings.BootstrapServers,
             AutoOffsetReset = AutoOffsetReset.Earliest,
             SecurityProtocol = SecurityProtocol.Plaintext,
@@ -37,10 +37,8 @@ public class UserConfirmedWorker : BackgroundService
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                // Timeout after 1 second so the loop can check stoppingToken
                 var result = consumer.Consume(TimeSpan.FromSeconds(1));
                 if (result == null) continue;
-                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                 try
                 {
                     using (var scope = _scopeFactory.CreateScope())
@@ -64,6 +62,7 @@ public class UserConfirmedWorker : BackgroundService
                             tenant.Status = "Active";
                         } 
                         await tenantService.CommitChangesAsync();
+                        consumer.Commit(result);
                     }
                 }
                 catch (Exception ex)

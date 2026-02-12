@@ -8,6 +8,5 @@ public class KafkaSettings
 
 public class TopicSettings
 {
-    public string TenantCreated { get; set; }
     public string UserCreated { get; set; }
 }

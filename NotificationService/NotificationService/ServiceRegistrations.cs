@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using OnePunch.Notification.Core.Messaging;
 using OnePunch.Notification.Domain.DTO;
 using System.Text;
 
@@ -13,6 +14,9 @@ public static class ServiceRegistrations
         builder.Services.AddHttpContextAccessor(); 
         builder.Services.AddDataProtection(); 
         builder.Services.AddLogging();
+        builder.Services.AddSingleton<ProducerService>();
+        builder.Services.AddHostedService<UserCreatedWorker>();
+        builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("KafkaSettings"));
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
         builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));
         builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));

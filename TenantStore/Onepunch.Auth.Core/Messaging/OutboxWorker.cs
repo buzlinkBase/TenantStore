@@ -34,7 +34,6 @@ public class OutboxWorker : BackgroundService
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IUnitOfWorkService>();
-        var outboxService = scope.ServiceProvider.GetRequiredService<OutBoxService>();
         var _producer = scope.ServiceProvider.GetRequiredService<ProducerService>();
         var messages = await db.Context.OutboxMessages
             .Where(m => m.ProcessedOn == null
@@ -51,24 +50,21 @@ public class OutboxWorker : BackgroundService
             try
             {
                 await _producer.ProduceAsync(msg.Key, msg.Topic, msg.Payload);
-
                 msg.ProcessedOn = DateTime.UtcNow;
-                msg.Remarks = null;
+                msg.Remarks = string.Empty;
                 msg.Status = OutBoxState.PROCESSED;
             }
             catch (Exception ex)
             {
-                Log.Logger.Warning("Failed to publish outbox message {Id}: {Message}", msg.Id, ex.Message);
+                Log.Logger.Warning("Failed to publish outbox message {Id}", msg.Id);
                 msg.RetryCount++;
                 msg.LastAttemptOn = DateTime.UtcNow;
                 msg.Remarks = ex.Message;
                 msg.Status = OutBoxState.RETRY;
-                // 2. Exponential Backoff: Wait longer after each failure
-                // Attempt 1: 1 min, Attempt 2: 4 mins, Attempt 3: 9 mins...
                 msg.NextRetryOn = DateTime.UtcNow.AddMinutes(Math.Pow(msg.RetryCount, 2));
             }
         }
-        // 3. Save all status updates at once
-        await db.SaveChangesAsync();
+        await db.CommitChangesAsync();
+
     }
 }
