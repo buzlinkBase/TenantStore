@@ -1,6 +1,7 @@
 using Asp.Versioning.ApiExplorer;
 using Onepunch.Auth.Core;
 using Onepunch.Auth.Core.Protos;
+using Onepunch.Common.Lib;
 using OnePunch.Auth.Api;
 using OnePunch.Auth.Api.Middlewares; 
 using System.Text.Json;
@@ -25,6 +26,7 @@ internal class Program
             c.SchemaFilter<EnumSchemaFilter>();
         });
 
+        builder.Services.AddSingleton<PollyPolicy>();
         builder.RegisterSelftServices();
         builder.Services.RegisterCoreServices();
         builder.Services.AddAutoMapper(typeof(MappingProfile));

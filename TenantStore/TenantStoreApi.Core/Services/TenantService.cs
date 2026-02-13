@@ -80,7 +80,7 @@ public class TenantService : BaseService<Tenant>
 
     public async Task<Tenant?> FindTenant(Guid Id)
     {
-        var tenant = Repository.FindOne<Tenant>(Id);
+        var tenant = await Repository.FindOneAsync<Tenant>(Id);
         return tenant;
     }
 

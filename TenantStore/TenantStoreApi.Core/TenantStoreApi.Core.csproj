@@ -14,10 +14,15 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <None Remove="Protos\tenant.proto" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<None Include="Messaging\UserConfirmedWorker.cs" />
 	</ItemGroup>
 	<ItemGroup>
 		<Protobuf Include="Protos\checkemail.proto" GrpcServices="Client" />
+		<Protobuf Include="Protos\tenant.proto" GrpcServices="Server" />
 		<PackageReference Include="Google.Protobuf" />
 		<PackageReference Include="Grpc.AspNetCore" />
 		<PackageReference Include="Grpc.Tools" />
@@ -27,6 +32,7 @@
 		<PackageReference Include="Newtonsoft.Json" />
 		<PackageReference Include="AutoMapper" />
 		<PackageReference Include="Microsoft.Extensions.Hosting" />
+		<PackageReference Include="Polly" />
 		<PackageReference Include="RabbitMQ.Client" />
 		<PackageReference Include="Serilog.AspNetCore" />
 		<PackageReference Include="Serilog.Sinks.Console" />

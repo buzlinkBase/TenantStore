@@ -10,6 +10,7 @@ using System.Text;
 using Microsoft.OpenApi.Models;
 using Onepunch.Auth.Core;
 using Onepunch.Auth.Core.Messaging;
+using OnePunch.Auth.Api.Providers;
 
 namespace OnePunch.Auth.Api;
 
@@ -40,13 +41,37 @@ public static class ServiceRegistrations
         .AddDefaultTokenProviders();
 
         builder.Services.AddScoped<JwtService>();
+
         builder.Services.AddDbContext<AuthContext>((provider, options) =>
         {
-            var connectionString = builder.Configuration.GetConnectionString("AuthConnection");
+            var tenantAccessor = provider.GetRequiredService<ITenantContextAccessor>();
+            var tenantProvider = provider.GetRequiredService<ITenantProvider>();
+            var conProvider = provider.GetRequiredService<IDbConnectionProvider>();
+
+            var tenantId = tenantAccessor.GetTenantId();
+            var defaultConn = builder.Configuration.GetConnectionString("AuthConnection");
+            var tenantConn = conProvider.GetConnectionString(tenantId);
+            var connectionString = tenantConn ?? defaultConn!;
+
+            //Ensure tenantProvider is populated here
+            if (tenantProvider.TenantId == Guid.Empty)
+                tenantProvider.SetTenantId(tenantId);
+
+            options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
+            options.AddInterceptors(new ApplyTenantInterceptor(tenantProvider));
             options.AddInterceptors(new SoftDeleteInterceptor());
             options.UseLazyLoadingProxies(true);
-            options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
+            options.ReplaceService<IModelCacheKeyFactory, TenantModelCacheKeyFactory>();
         });
+
+
+        //builder.Services.AddDbContext<AuthContext>((provider, options) =>
+        //{
+        //    var connectionString = builder.Configuration.GetConnectionString("AuthConnection");
+        //    options.AddInterceptors(new SoftDeleteInterceptor());
+        //    options.UseLazyLoadingProxies(true);
+        //    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
+        //});
 
         builder.Services.AddCors(options =>
         {

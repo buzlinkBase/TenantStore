@@ -19,6 +19,7 @@ public static class ServiceRegistrations
             options.Headers.Add("X-Tenant-ID");
             options.Headers.Add("X-Api-Key");
         });
+        builder.Services.AddGrpc();
         builder.Services.AddGrpcClient<CheckEmailService.CheckEmailServiceClient>(options =>
         {
             var authUrl = builder.Configuration["AuthUrl"];

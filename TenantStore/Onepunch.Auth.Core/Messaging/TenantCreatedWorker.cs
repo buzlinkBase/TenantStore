@@ -6,6 +6,7 @@ using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Core;
 using OnePunch.Auth.Core.Services;
 using OnePunch.Auth.Domain.Entities;
+using Polly.CircuitBreaker;
 using Serilog;
 
 namespace Onepunch.Auth.Core.Messaging;
@@ -14,16 +15,19 @@ public class TenantCreatedWorker : BackgroundService
 {
     private readonly KafkaSettings _settings;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly Domains _domainOptions; 
+    private readonly Domains _domainOptions;
+    private readonly PollyPolicy _pollyPolicy;
+
     public TenantCreatedWorker(
         IServiceScopeFactory scopeFactory,
-        IOptions<Domains> domainOptions ,
-        IOptions<KafkaSettings> settings
-        )
+        IOptions<Domains> domainOptions,
+        IOptions<KafkaSettings> settings,
+        PollyPolicy pollyPolicy)
     {
         _settings = settings.Value;
         _scopeFactory = scopeFactory;
-        _domainOptions = domainOptions.Value; 
+        _domainOptions = domainOptions.Value;
+        _pollyPolicy = pollyPolicy;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -34,7 +38,6 @@ public class TenantCreatedWorker : BackgroundService
             BootstrapServers = _settings.BootstrapServers,
             GroupId = "user-service-admin-user.create-group",
             AutoOffsetReset = AutoOffsetReset.Earliest,
-            SecurityProtocol = SecurityProtocol.Plaintext,
             EnableAutoCommit = false,
         };
 
@@ -45,51 +48,42 @@ public class TenantCreatedWorker : BackgroundService
         {
             while (!stoppingToken.IsCancellationRequested)
             {
+                var result = consumer.Consume(stoppingToken);
+                if (result == null || result.IsPartitionEOF) continue;
+
                 try
                 {
-                    var result = consumer.Consume(stoppingToken);
-                    if (result == null || result.IsPartitionEOF) continue;
+                    // 1. Deserialization (Poison Pill Guard)
                     var model = ObjectSerializer.Deserialized<MessagePayload<TenantCreatedPayload>>(result.Message.Value);
                     if (model?.Data == null || string.IsNullOrWhiteSpace(model.Data.Email))
                     {
-                        Log.Logger.Warning("Invalid payload received: {Payload}", result.Message.Value);
-                        consumer.Commit(result); // Commit so we don't get stuck on a "poison" message
+                        Log.Logger.Warning("Invalid payload received. Skipping offset {Offset}", result.TopicPartitionOffset);
+                        consumer.Commit(result);
                         continue;
                     }
 
-                    using (var scope = _scopeFactory.CreateScope())
+                    // 2. Resilient Transactional Work
+                    await _pollyPolicy.WrapPolicy.ExecuteAsync(async () =>
                     {
+                        using var scope = _scopeFactory.CreateScope();
                         var userService = scope.ServiceProvider.GetRequiredService<UserService>();
                         var outboxService = scope.ServiceProvider.GetRequiredService<OutBoxService>();
-                        var _crypto = scope.ServiceProvider.GetRequiredService<PasswordCrypto>();
+                        var crypto = scope.ServiceProvider.GetRequiredService<PasswordCrypto>();
 
-                        // 1. Decrypt & Register
-                        model.Data.Password = _crypto.Decrypt(model.Data.Password);
-                        // Define a policy: Retry 3 times with a delay of 2, 4, and 8 seconds
-                        //var retryPolicy = Policy
-                        //    .Handle<Exception>() // Or specific database/network exceptions
-                        //    .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
-                        //    (exception, timeSpan, retryCount, context) =>
-                        //    {
-                        //        Log.Logger.Warning($"Retry {retryCount} for {model.Data.Email} due to {exception.Message}");
-                        //    });
-                        //await retryPolicy.ExecuteAsync(async () =>
-                        //{
-                        //    if (!response.result.Succeeded)
-                        //        throw new Exception("Registration failed: " + string.Join(", ", response.result.Errors.Select(e => e.Description)));
-                        //});
+                        // Decrypt (Note: Ensure this is idempotent or doesn't break on retry)
+                        var decryptedPassword = crypto.Decrypt(model.Data.Password);
+                        model.Data.Password = decryptedPassword;
+
+                        // Register
                         var response = await userService.RegisterTenantAdmin(model.Data);
                         if (!response.result.Succeeded)
                         {
                             var errors = string.Join(", ", response.result.Errors.Select(e => e.Description));
-                            Log.Logger.Error("Registration failed for {Email}: {Errors}", model.Data.Email, errors);
-                            //TODO implement retry logic here via POLY
-                            // Decide here: Commit to skip, or don't commit to retry? Skipping for now.
-                            consumer.Commit(result);
-                            continue;
+                            // We throw a standard Exception to trigger the Polly Retry
+                            throw new Exception($"Registration failed for {model.Data.Email}: {errors}");
                         }
 
-                        // 2. Token & Outbox Logic
+                        // Token & Outbox (Part of the same DB transaction)
                         var user = response.user;
                         var token = GenerateEmailToken(model.Data);
                         StoreToken(userService.UnitOfWork, user, token);
@@ -97,36 +91,42 @@ public class TenantCreatedWorker : BackgroundService
                         var messPayload = ComposePayload(user, token);
                         var serializedMessage = ObjectSerializer.Serialized(messPayload);
 
-                        //create outbox
                         var outboxEntry = outboxService.CreateModel(
                             model.Data.TenantId,
                             user.Id.ToString(),
                             _settings.Topics.UserCreated,
                             serializedMessage);
+
                         await outboxService.AddAsync(outboxEntry);
+
+                        // Finalize DB Transaction
                         await userService.CommitChangesAsync();
-                        consumer.Commit(result);
-                    }
+                    });
+
+                    // 3. Commit Kafka Offset only on success
+                    consumer.Commit(result);
                 }
-                catch (ConsumeException ex)
+                catch (BrokenCircuitException)
                 {
-                    Log.Logger.Error(ex, "Kafka consumption error");
+                    Log.Logger.Error("Auth DB/Service circuit is OPEN. Backing off 10s...");
+                    await Task.Delay(10000, stoppingToken);
                 }
                 catch (Exception ex)
                 {
-                    Log.Logger.Error(ex, "Error processing tenant creation message");
-                    // We don't commit here so the message is retried, 
-                    // though in production you'd want a retry limit/DLQ.
+                    Log.Logger.Fatal(ex, "Permanent failure for message at offset {Offset}", result.TopicPartitionOffset);
+                    // Decide: discard or keep? Usually, we commit and send to a DLQ/Logs for manual fix.
+                    consumer.Commit(result);
                 }
             }
         }
         catch (OperationCanceledException) { }
         finally
         {
-            consumer.Close(); // Cleanly leave the consumer group
+            consumer.Close();
         }
     }
 
+    // Helper methods (StoreToken, GenerateEmailToken, ComposePayload) remain as per your logic
     private void StoreToken(IUnitOfWorkService uow, User user, string token)
     {
         var tokenModel = new EmailToken

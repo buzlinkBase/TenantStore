@@ -11,6 +11,7 @@ builder.Services.AddControllers()
         });
 
 
+builder.Services.AddSingleton<PollyPolicy>();
 builder.RegisterSelftServices();
 builder.Services.RegisterCoreServices();
 builder.Services.AddAutoMapper(typeof(MappingProfile));

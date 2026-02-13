@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Options; 
+﻿using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Options; 
 namespace Onepunch.Auth.Core.Providers;
 
 public interface IAuthDomainProvider
@@ -14,4 +15,18 @@ public class AuthDomainProvider : IAuthDomainProvider
         _options = options.Value;
     }
     public Domains Resolve() => _options;
+}
+
+
+public class TenantModelCacheKeyFactory : IModelCacheKeyFactory
+{
+    public object Create(DbContext context, bool designTime)
+    {
+        if (context is AuthContext tenantContext)
+        {
+            return (context.GetType(), tenantContext.TenantId, designTime);
+        }
+
+        return (context.GetType(), designTime);
+    }
 }

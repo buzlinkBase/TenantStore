@@ -12,7 +12,7 @@ public class EmailNotificationService
     {
         _setting = setting.Value;
     }
-    public void SendTenantConfirmation(MailPayload payload, string redirectSiteLink)
+    public async Task SendTenantConfirmationAsync(MailPayload payload, string redirectSiteLink)
     {
         string relativePath = Path.Combine("Core", "Templates", "AccountConfirmation.html");
         string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);
@@ -38,7 +38,9 @@ public class EmailNotificationService
             EnableSsl = true
         };
         client.Send(mail);
+        await Task.CompletedTask;
     }
+
     public void SendUserInvites(MailPayload payload, UserEmailPayload model)
     {
         string relativePath = Path.Combine("Core", "Templates", "UserInvitation.html");

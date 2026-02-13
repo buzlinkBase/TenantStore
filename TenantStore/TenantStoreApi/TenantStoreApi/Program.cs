@@ -2,6 +2,7 @@ using Asp.Versioning.ApiExplorer;
 using BuzlinkRepository;
 using Confluent.Kafka;
 using Microsoft.AspNetCore.Mvc;
+using Onepunch.Common.Lib;
 using Serilog;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -49,6 +50,7 @@ internal class Program
         //});
         //builder.Services.AddSingleton<IMapper>(config.CreateMapper()); 
 
+        builder.Services.AddSingleton<PollyPolicy>();
         builder.Services.AddAutoMapper(typeof(MapperProfileConfig).Assembly);
         builder.RegisterSelfServices();
         builder.Services.RegisterCoreServices();

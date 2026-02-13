@@ -2,8 +2,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Polly.CircuitBreaker;
 using Serilog;
-using System.Text.Json;
 using TenantStoreApi.Core.Services;
 
 namespace TenantStoreApi.Core;
@@ -12,71 +12,89 @@ public class UserConfirmedWorker : BackgroundService
 {
     private readonly KafkaSettings _settings;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly PollyPolicy _pollyPolicy;
 
-    public UserConfirmedWorker(IServiceScopeFactory scopeFactory,
-        IOptions<KafkaSettings> settings)
+    public UserConfirmedWorker(
+        IServiceScopeFactory scopeFactory,
+        IOptions<KafkaSettings> settings,
+        PollyPolicy pollyPolicy)
     {
         _settings = settings.Value;
         _scopeFactory = scopeFactory;
+        _pollyPolicy = pollyPolicy;
     }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // Important: Move this logic into the main flow
+        // Yield to let the startup finish before blocking on Kafka
         await Task.Yield();
+
         var conf = new ConsumerConfig
         {
             GroupId = "tenant-api.admin.user.confirmed",
             BootstrapServers = _settings.BootstrapServers,
             AutoOffsetReset = AutoOffsetReset.Earliest,
-            SecurityProtocol = SecurityProtocol.Plaintext,
-            EnableAutoCommit = false,
+            EnableAutoCommit = false, // Manual commits for consistency
         };
+
         using var consumer = new ConsumerBuilder<string, string>(conf).Build();
         consumer.Subscribe(_settings.Topics.TenantCreated);
+
         try
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                var result = consumer.Consume(TimeSpan.FromSeconds(1));
-                if (result == null) continue;
+                // Use the stoppingToken directly in Consume for better efficiency
+                var result = consumer.Consume(stoppingToken);
+                if (result == null || result.IsPartitionEOF) continue;
+
                 try
                 {
-                    using (var scope = _scopeFactory.CreateScope())
+                    // 1. Deserialize (Poison Pill Check)
+                    var model = ObjectSerializer.Deserialized<MessagePayload<TenantUserPayload>>(result.Message.Value);
+                    if (model == null)
                     {
+                        Log.Logger.Error("Unable to deserialize admin user: {Payload}", result.Message.Value);
+                        consumer.Commit(result);
+                        continue;
+                    }
+
+                    // 2. Resilient Execution Wrap
+                    await _pollyPolicy.WrapPolicy.ExecuteAsync(async () =>
+                    {
+                        using var scope = _scopeFactory.CreateScope();
                         var tenantService = scope.ServiceProvider.GetRequiredService<TenantService>();
-                        var model = ObjectSerializer.Deserialized<MessagePayload<TenantUserPayload>>(result.Message.Value);
-                        if (model == null)
-                        {
-                            Log.Logger.Error($"unable to deserialized admin user {result.Message.Value}");
-                            consumer.Commit(result);
-                        }
                         var tenant = await tenantService.FindTenant(model.Data.TenantId);
-                        //TODO retry logic here via poly
                         if (tenant == null)
                         {
-                            Log.Logger.Error($"unable to load tenant {model.Data}:{result.Message.Value}");
-                            consumer.Commit(result);
+                            // If business logic says this is a permanent "Not Found" error, 
+                            // we log and exit the policy so we can commit/skip.
+                            Log.Logger.Warning("Tenant {TenantId} not found. Skipping.", model.Data.TenantId);
+                            return;
                         }
-                        if (tenant != null)
-                        {
-                            tenant.Status = "Active";
-                        } 
+                        tenant.Status = "Active";
                         await tenantService.CommitChangesAsync();
-                        consumer.Commit(result);
-                    }
+                    });
+                    // 3. Commit only on Success
+                    consumer.Commit(result);
+                }
+                catch (BrokenCircuitException)
+                {
+                    Log.Logger.Error("Database/Service circuit is OPEN. Backing off 10s...");
+                    await Task.Delay(10000, stoppingToken);
                 }
                 catch (Exception ex)
                 {
-                    //unable to deserialized
-                    Log.Logger.Error(ex.Message);
+                    Log.Logger.Fatal(ex, "Permanent error processing UserConfirmed at offset {Offset}", result.TopicPartitionOffset);
+                    // Commit to move past the failing message after all retries failed
                     consumer.Commit(result);
                 }
             }
         }
-        catch (OperationCanceledException) { /* Normal shutdown */ }
-        catch (Exception ex)
+        catch (OperationCanceledException) { }
+        finally
         {
-            Console.WriteLine($"[CRITICAL] Consumer Loop Died: {ex.Message}");
+            consumer.Close();
         }
     }
 }

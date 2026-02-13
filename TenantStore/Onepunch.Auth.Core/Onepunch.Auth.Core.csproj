@@ -13,6 +13,7 @@
 	</ItemGroup>
 	
 	<ItemGroup>
+		<Protobuf Include="Protos\tenant.proto" GrpcServices="Client" />
 		<Protobuf Include="Protos\checkemail.proto" GrpcServices="Server" />
 		<PackageReference Include="Google.Protobuf" />
 		<PackageReference Include="Grpc.AspNetCore" />
@@ -24,6 +25,8 @@
 		<PackageReference Include="AutoMapper" />
 
 		<PackageReference Include="Microsoft.IdentityModel.Tokens" />
+
+		<PackageReference Include="Polly" />
 		<PackageReference Include="System.IdentityModel.Tokens.Jwt" />
 
 		<PackageReference Include="Microsoft.Extensions.Hosting" />

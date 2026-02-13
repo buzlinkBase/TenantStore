@@ -15,6 +15,7 @@
 		<PackageReference Include="Confluent.Kafka" />
 		<PackageReference Include="Microsoft.IdentityModel.Tokens" />
 		<PackageReference Include="Newtonsoft.Json" />
+		<PackageReference Include="Polly" />
 		<PackageReference Include="RabbitMQ.Client" />
 		<PackageReference Include="Swashbuckle.AspNetCore" />
 		<PackageReference Include="Asp.Versioning.Http" />

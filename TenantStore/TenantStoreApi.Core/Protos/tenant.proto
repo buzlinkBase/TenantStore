@@ -1,0 +1,19 @@
+﻿syntax = "proto3";
+
+option csharp_namespace = "Onepunch.Auth.Core"; 
+
+package tenant.core;
+
+service GetTenantService {
+  rpc Check (TenantRequest) returns (TenantInfoResponse);
+}
+
+message TenantRequest  {
+  string tenant_id = 1;
+}
+
+message TenantInfoResponse {
+  string tenant_id = 1;
+  string name=2;
+  string token=3;
+}
