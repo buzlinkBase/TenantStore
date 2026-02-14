@@ -15,9 +15,9 @@ public class RegularHourPolicy : ConditionalPolicyBase
         {
             var value = cached.Value ?? TimeRange.Empty;
             return value;
-        } 
+        }
 
-        var shift = payload.Data.CurrentShift;
+        var shift = payload.Data.CurrentShift.Clone();
 
         var raw = context.CanonicalTimeRange.TimeRecords;
         var blocked = payload.Ledger.GetAllAllocatedExcept(ledgerKey);
@@ -35,18 +35,26 @@ public class RegularHourPolicy : ConditionalPolicyBase
             .GetMaximumMinutes();
 
         var MaxMinutes = Math.Max(shifMinutes - overrideUt, 0);
+        usable = usable.MergeOverlapping();
+        if (shift.MaxWorkingMinutes < shift.LunchBreakDurationMinutes)
+        {
+            shift = new CurrentShift
+            {
+                StartTime = shift.StartTime,
+                EndTime = shift.StartTime.AddMinutes(shift.MaxWorkingMinutes),
+            };
+        }
         var capped = usable.CapAndCrop(shift, MaxMinutes);
         payload.Ledger.Record(ledgerKey, capped);
         return capped;
-
     }
 
     private TimeRangeCollection ComputeUsableTime(TimeContext context, TimeRangeCollection usable, CurrentShift shift)
     {
-
         //if (shift.ShiftType == TimeShiftType.FLEXI || shift.LunchBreakOption != PunchMode.PAID_BREAK_COMPRESS) return usable;
-        if (shift.ShiftType == TimeShiftType.FLEXI) return usable;
+        //if (shift.ShiftType == TimeShiftType.FLEXI) return usable;
         //for paid compress break Time
+
         //extract breaks
         var xtractor = BreakExtractorFactory.Create(context);
         var allbreaks = new TimeRangeCollection();
@@ -73,14 +81,14 @@ public class RegularHourPolicy : ConditionalPolicyBase
         }
 
         var paidBreak = PaidBreakCalculator.ComputePaidBreaks(allbreaks, paidbreaks);
-        context.Payload.Ledger.RecordByTag("paidBreak",context, paidBreak.ToTimeRange());
+        context.Payload.Ledger.RecordByTag("paidBreak", context, paidBreak.ToTimeRange());
         var newUsable = (usable.ToTimeRange() + paidBreak.ToTimeRange()).TimeRecords;
         return newUsable;
     }
 
     private TimeRangeCollection ExcludeBreakTime(TimeContext context, TimeRangeCollection usable, CurrentShift shift)
     {
-        if (shift.ShiftType == TimeShiftType.FLEXI) return usable;
+        //if (shift.ShiftType == TimeShiftType.FLEXI) return usable;
         if (shift.WithAMBreak == BreakMode.UNPAID_BREAK && shift.AMBreakStartTime.HasValue && shift.AMBreakEndTime.HasValue)
         {
             var tr = new TimeRangeCollection()

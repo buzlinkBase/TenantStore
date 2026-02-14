@@ -16,8 +16,8 @@ internal class Program
     {
         var builder = WebApplication.CreateBuilder(args);
         Log.Logger = new LoggerConfiguration()
-               .ReadFrom.Configuration(builder.Configuration)
-               .CreateLogger();
+       .ReadFrom.Configuration(builder.Configuration)
+       .CreateLogger();
         builder.Host.UseSerilog();
 
         var mpackOptions = MessagePackSerializerOptions.Standard

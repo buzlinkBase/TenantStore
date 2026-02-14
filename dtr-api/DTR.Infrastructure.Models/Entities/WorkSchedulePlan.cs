@@ -1,11 +1,16 @@
-﻿using MessagePack;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace DTR.Models;
 
-[MessagePackObject]
-public class WorkSchedulePlan
+public class WorkSchedulePlan : BaseEntity
 {
-    [Key(0)] public DateOnly PayrollDate { get; set; }
-    [Key(1)] public Guid EmployeeId { get; set; }
-    [Key(2)] public Guid TimeShiftId { get; set; }
+    [Required]
+    public DateOnly PayrollDate { get; set; }
+    public Guid EmployeeId { get; set; }
+    public virtual Employee Employee { get; set; }
+    public Guid TimeShiftId { get; set; }
+    public virtual TimeShift TimeShift { get; set; }
+    public Guid Batch { get; set; }
+    public string User { get; set; } = string.Empty;
+
 }

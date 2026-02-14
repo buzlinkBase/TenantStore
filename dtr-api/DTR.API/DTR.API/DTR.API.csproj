@@ -7,7 +7,8 @@
 	  <RootNamespace>DTR.Api</RootNamespace>
   </PropertyGroup>
 	
-	<ItemGroup> 
+	<ItemGroup>
+		<PackageReference Include="Polly" />
 		<PackageReference Include="BuzlinkRepository" />
 		<PackageReference Include="AutoMapper" />
 		<PackageReference Include="FluentValidation" />
@@ -27,6 +28,7 @@
 		<PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" />
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
 		<PackageReference Include="AutoMapper" />
+		
 	</ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\DTR.Core\DTR.Core.csproj" />

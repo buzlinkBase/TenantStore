@@ -1,7 +1,20 @@
-﻿using DTR.Infrastructure;
+﻿ 
 using Microsoft.AspNetCore.Http;
 
+
 namespace DTR.Api;
+public interface IAppConfigurationProvider
+{
+    string? GetConnectionString(string name);
+}
+public interface ITenantContextAccessor
+{
+    Guid GetTenantId();
+}
+public interface IDbConnectionProvider
+{
+    string? GetConnectionString(Guid tenantId);
+}
 
 public class WebTenantContextAccessor : ITenantContextAccessor
 {
@@ -22,11 +35,9 @@ public class WebTenantContextAccessor : ITenantContextAccessor
         return tenantId;
     }
 }
-
 public class WebAppConfigurationProvider : IAppConfigurationProvider
 {
     private readonly IConfiguration _configuration;
-
     public WebAppConfigurationProvider(IConfiguration configuration)
     {
         _configuration = configuration;
@@ -36,5 +47,11 @@ public class WebAppConfigurationProvider : IAppConfigurationProvider
         return _configuration.GetConnectionString(name);
     }
 }
+public class DbConnectionProvider : IDbConnectionProvider
+{
+    public string? GetConnectionString(Guid tenantId)
+    {
+        return null;
+    }
+}
 
- 

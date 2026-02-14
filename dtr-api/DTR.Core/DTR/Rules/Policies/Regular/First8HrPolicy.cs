@@ -18,7 +18,7 @@ public class First8HrPolicy : ConditionalPolicyBase
         {
             var value = cached.Value ?? TimeRange.Empty;
             return value;
-        } 
+        }
 
         var alreadyClaimed = regTimeRange.TotalMinutes;
         if (alreadyClaimed >= requiredMaxWorkingMinutes) //no need to patch time
@@ -51,6 +51,7 @@ public class First8HrPolicy : ConditionalPolicyBase
             .Retag("OT_after_RegularFulfilled")
             .ToTimeRange();
 
+        //Alter cannonical CanonicalTimeRange
         //this makes the ND and other Pipeline to depend on this modified time
         context.CanonicalTimeRange = context.CanonicalTimeRange
             .TimeRecords
@@ -58,13 +59,38 @@ public class First8HrPolicy : ConditionalPolicyBase
             .Retag("adjusted_cannonical_time")
             .ToTimeRange();
 
+        // 🔗 Merge regular and reclaimed
+        var shiftts = new TimeRangeCollection
+        {
+            new TimeRecord
+            {
+                StartTime=shift.StartTime,
+                EndTime=shift.EndTime
+            }
+        };
+        var amBreak = context.Payload.Ledger.GetByTag("morning_break_period", context);
+        var lunchBreak = context.Payload.Ledger.GetByTag("lunch_break_period_use_time", context);
+        var pmBreak = context.Payload.Ledger.GetByTag("pm_break_period", context);
+        var break_period = context.Payload.Ledger.GetByTag("break_period", context);
+        var NoneBreak = context.Payload.Ledger.GetByTag("No_lunch_break_gt_480MinutesShift", context);
+        var missingTime = shiftts
+            .Exclude(amBreak.TimeRecords)
+            .Exclude(lunchBreak.TimeRecords)
+            .Exclude(break_period.TimeRecords)
+            .Exclude(pmBreak.TimeRecords)
+            .Exclude(NoneBreak.TimeRecords)
+            .Exclude(regTimeRange.TimeRecords)
+            .ToTimeRange()
+            .TimeRecords.CapAndCrop(shift, reclaimed.TotalMinutes)
+            ;
+
         // 🧾 Update ledger
-        ledger.Record(TimeRangeLedger.CreateKey("RegularTimeTopUp", context), reclaimed);
+        ledger.Record(TimeRangeLedger.CreateKey("RegularTimeTopUp", context), missingTime);
         ledger.Record(TimeRangeLedger.CreateKey("FinalOT", context), remainingOT);
 
-        // 🔗 Merge regular and reclaimed
-        var finalRegular = regTimeRange + reclaimed;
+        var finalRegular = regTimeRange + missingTime;
         ledger.Record(ledgerKey, finalRegular);
         return finalRegular;
     }
 }
+

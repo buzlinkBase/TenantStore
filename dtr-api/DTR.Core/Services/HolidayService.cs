@@ -13,16 +13,11 @@ public class HolidayService : ServiceBase<Holiday>
 {
     public HolidayService(IDTRUnitOfWork uow) : base(uow) { }
 
-
     public override void AddOrUpdate(Holiday model)
     { 
-        base.AddOrUpdate(model);
-
-        var changed = _uow.Repository
-            .Find<ChangeHoliday>(x => x.HolidayId == model.Id)
-            .FirstOrDefault()
-            ; 
+        base.AddOrUpdate(model); 
     }
+
     public List<HolidayResult> FilterRecordSetupMasterList(int year)
     {
         return _uow.Repository.Find<Holiday>(x =>

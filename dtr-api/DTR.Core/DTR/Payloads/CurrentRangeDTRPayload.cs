@@ -12,7 +12,7 @@ public class CurrentRangeDTRPayload
     {
         var (fromDate, toDate) = GetDateRange(payload);
         var cleanAttendance = await LoadCleanAttendance(canprocess, payload, dataServiceProvider.AttendanceService, removeDoublePunch);
-        var employees = await ExtractEmployees(payload, dataServiceProvider);
+        var employees = ExtractEmployees(payload, uow, cleanAttendance);
         var employeeIds = new HashSet<Guid>(employees.Select(e => e.Id));
         var clientIds = ExtractClientIds(employees);
         var shiftsTask = dataServiceProvider.WorkRotationPlanService.GetShiftsAsync(fromDate, toDate, employees);
@@ -62,19 +62,26 @@ public class CurrentRangeDTRPayload
         var util = new AttendanceUtility(rawLogs);
         var gap = removeDoublePunch ? TimeAllowance.DoublePunchGap : 0;
         return util.RemoveDoublePunch(gap);
-
     }
-    private static async Task<List<Employee>> ExtractEmployees(DTRRequestPayload payload, DataServiceResolver service)
+
+    private static List<Employee> ExtractEmployees(
+        DTRRequestPayload payload,
+        IDTRUnitOfWork uow,
+        Dictionary<AttendanceEmpId, List<Attendance>> cleanAttendance)
     {
         if (payload.EmployeeId != null)
         {
-            var emp = await service.EmployeeService.GetOne(payload.EmployeeId.Value);
+            var emp = uow.Repository.FindOne<Employee>(payload.EmployeeId.Value);
             return emp != null ? new List<Employee> { emp } : new List<Employee>();
         }
-        var request = new EmployeeRequestPayload(payload.DepartmentId, payload.EmployeeId, payload.ClientId, payload.PayrollGroupId);
-        var employees = await service.EmployeeService.GetDtrEmployees(request);
-        return employees;
+        // Build predicate with AND logic
+        var employees = uow.Repository.Find<Employee>(x =>
+            (payload.ClientId == null || x.ClientId == payload.ClientId) &&
+            (payload.PayrollGroupId == null || x.PayrollGroupId == payload.PayrollGroupId) &&
+            (payload.DepartmentId == null || x.DepartmentId == payload.DepartmentId)
+        ).ToList();
 
+        return employees;
     }
 
     private static List<Guid?> ExtractClientIds(List<Employee> employees)

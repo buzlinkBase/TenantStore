@@ -1,31 +1,47 @@
-﻿using MessagePack;
+﻿using System.ComponentModel.DataAnnotations.Schema;
 namespace DTR.Models;
-
-[MessagePackObject]
-public class Employee
+public class Employee : BaseEntity
 {
-    [Key(0)] public Guid Id { get; set; }
-    [Key(1)] public int BioId { get; set; } = 0;
-    [Key(2)] public Guid? DepartmentId { get; set; }
-    [Key(3)] public Guid? PayrollGroupId { get; set; }
-    [Key(4)] public Guid? ClientId { get; set; }
-    [Key(5)] public Guid? AreaId { get; set; }
-    [Key(6)] public Guid? BranchId { get; set; }
-    [Key(7)] public Guid? SectionId { get; set; }
-    [Key(8)] public Guid? PositionId { get; set; }
-    [Key(9)] public Guid? TimeShiftId { get; set; }
-    [Key(10)] public string FirstName { get; set; } = string.Empty;
-    [Key(11)] public string LastName { get; set; } = string.Empty;
-    [Key(12)] public string MiddleName { get; set; } = string.Empty;
-    [Key(13)] public string Suffix { get; set; } = string.Empty;
-    [Key(14)] public virtual List<RestDayModel> RestDays { get; set; }
-    [Key(15)] public string? DepartmentName { get; set; }
-    [Key(16)] public string? FullName { get; set; }
-}
+    public int BioId { get; set; } = 0;
+    public Guid? DepartmentId { get; set; }
+    public Guid? PayrollGroupId { get; set; }
+    public Guid? ClientId { get; set; }
+    //public virtual Department? Department { get; set; }
+    //public virtual PayrollGroup? PayrollGroup { get; set; }
+    //public virtual Client? Client { get; set; }
+    //public virtual OperationArea? Area { get; set; }
+    public Guid? AreaId { get; set; }
+    public Guid? BranchId { get; set; }
+    public Guid? SectionId { get; set; }
+    public Guid? PositionId { get; set; }
+    public Guid? TimeShiftId { get; set; }
+    public DateTime DateRegistered { get; set; }
+    public virtual ICollection<RestDay> RestDays { get; set; }
 
-[MessagePackObject]
-public class RestDayModel
-{
-    [Key(0)] public Guid Id { get; set; }
-    [Key(1)] public DayName DayName { get; set; }
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string MiddleName { get; set; } = string.Empty;
+    public string Suffix { get; set; } = string.Empty;
+    public string EmployeeNo { get; set; } = string.Empty;
+    public string Gender { get; set; } = string.Empty; 
+
+    [NotMapped]
+    public string FullName => FormatFullName();
+    public string FormatFullName()
+    {
+        string full_name = $"{LastName}, {FirstName} {Suffix} {MiddleName}".Trim();
+        if (full_name.Trim().StartsWith(","))
+        {
+            full_name = full_name.Substring(1, full_name.Length - 1);
+        }
+        else if (full_name.Trim().StartsWith("-, "))
+        {
+            full_name = full_name.Substring(3, full_name.Length - 3);
+        }
+        if (full_name.EndsWith(','))
+        {
+            full_name = full_name.TrimEnd(',');
+        }
+        return full_name;
+    } 
 }

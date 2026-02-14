@@ -1,6 +1,4 @@
 ﻿namespace DTR.Core;
-
-
 public class OverTimeApplicationService : ServiceBase<OverTimeApplicationEntity>
 {
     public OverTimeApplicationService(IDTRUnitOfWork uow) : base(uow) { }
@@ -17,6 +15,7 @@ public class OverTimeApplicationService : ServiceBase<OverTimeApplicationEntity>
         }
         return base.AddOrUpdateValidation(model);
     }
+
     public async Task<Dictionary<OTKey, OverTimeApplicationEntity?>> FindByDateRangeAsync(DateOnly from, DateOnly to, HashSet<Guid> employeeIds)
     {
         Dictionary<OTKey, OverTimeApplicationEntity?> data = await _uow.Repository
@@ -35,5 +34,4 @@ public class OverTimeApplicationService : ServiceBase<OverTimeApplicationEntity>
             ;
     }
 }
-
 public readonly record struct OTKey(Guid EmpId, DateOnly OTDate);

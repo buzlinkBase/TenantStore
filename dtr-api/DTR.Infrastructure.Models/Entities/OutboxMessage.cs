@@ -1,27 +1,19 @@
 ﻿namespace DTR.Models;
 
-public class OutboxMessage
+public class OutboxMessage : BaseEntity
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
-
-    // Timestamp when the message was created
-    public DateTime OccurredOnUtc { get; set; } = DateTime.UtcNow;
-
-    // Timestamp when the message was processed (null if pending)
-    public DateTime? ProcessedOnUtc { get; set; }
-
-    // Optional field for tracking retries or failures
-    public int AttemptCount { get; set; } = 0;
-
-    // Message type (e.g., event name, domain type)
-    public string Type { get; set; } = string.Empty;
-
-    // Serialized payload (JSON, XML, etc.)
+    public string Key { get; set; }
+    public string Topic { get; set; }
     public string Payload { get; set; } = string.Empty;
-
-    // Optional metadata for routing, correlation, etc.
-    public string? Metadata { get; set; }
-
-    // Optional error message if processing failed
-    public string? Error { get; set; }
+    public DateTime? ProcessedOn { get; set; }
+    public DateTime? LastAttemptOn { get; set; }
+    public DateTime? NextRetryOn { get; set; }
+    public int RetryCount { get; set; } = 0;
+    public string Remarks { get; set; } = string.Empty;
+    public new OutBoxState Status
+    {
+        get => EnumParserConfig.SafeParseEnum(base.Status, OutBoxState.INVALID);
+        set => base.Status = value.ToString();
+    }
 }
+

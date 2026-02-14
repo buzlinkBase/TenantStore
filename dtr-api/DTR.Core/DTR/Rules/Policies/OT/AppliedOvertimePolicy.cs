@@ -27,7 +27,11 @@ public class AppliedOvertimePolicy : ConditionalPolicyBase
         var systemKey = TimeRangeLedger.CreateKey<AutoComputeOvertimePolicy>(context);
         var cachedSystem = context.Payload.Ledger.GetByKey(systemKey);
         var systemOT = cachedSystem.Value ?? TimeRange.Empty;
-        if (cached.Found && !systemOT.IsEmpty())
+        if (cached.Found)
+        {
+            return cached.Value;
+        }
+        if (!systemOT.IsEmpty())
         {
             var cropped = systemOT.TimeRecords
                 .CropFromStart(manualMinutes);
@@ -66,7 +70,28 @@ public class AppliedOvertimePolicy : ConditionalPolicyBase
     }
     private DateTime GetOTStartTime(TimeContext context, OverTimeApplicationEntity application)
     {
-        //TODO add logic here for  OvertimeInclusionPolicy
-        return application.StartTime.AddMinutes(TimeAllowance.OTTimeCaptureAllowanceMinutes);
+        var shift = context.Payload.Data.CurrentShift;
+        //double breakTime = 0;
+        //if (shift.LunchStartTime.HasValue
+        //    && shift.LunchEndTime.HasValue
+        //    && shift.LunchBreakDurationMinutes == 0)
+        //{
+        //    breakTime = (shift.LunchEndTime.Value - shift.LunchStartTime.Value).TotalMinutes;
+        //}
+        //double TotalBreak = shift.ShiftType == TimeShiftType.FLEXI
+        //    ? 0.00
+        //    : (shift.LunchBreakDurationMinutes == 0 ? breakTime : shift.LunchBreakDurationMinutes);
+
+        if (shift.ShiftType == TimeShiftType.FLEXI)
+        {
+            var regKey = TimeRangeLedger.CreateKey<RegularHourPolicy>(context);
+            var data = context.Payload.Ledger.GetAllAllocatedExcept(regKey);
+            var usable = context.CanonicalTimeRange.TimeRecords.Exclude(data);
+            var startTime = usable.MinBy(x => x.StartTime)?.StartTime.AddMinutes(shift.MaxWorkingMinutes) ?? context.Payload.Data.CurrentShift.EndTime;
+            return startTime;
+        }
+        var start = shift.StartTime.AddMinutes(shift.MaxWorkingMinutes + TimeAllowance.OTTimeCaptureAllowanceMinutes);
+        return start;
+        //return application.StartTime.AddMinutes(TimeAllowance.OTTimeCaptureAllowanceMinutes);
     }
 }

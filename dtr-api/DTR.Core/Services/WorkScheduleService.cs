@@ -6,7 +6,8 @@ public class WorkScheduleService
 {
     private readonly WorkPlanScheduleService _changeSchedService;
     private readonly TimeShiftService _tsService;
-    public WorkScheduleService(WorkPlanScheduleService service, TimeShiftService timeShiftService)
+    public WorkScheduleService(WorkPlanScheduleService service,
+        TimeShiftService timeShiftService)
     {
         _changeSchedService = service;
         _tsService = timeShiftService;
@@ -42,36 +43,37 @@ public class WorkScheduleService
 
 public class WorkPlanScheduleService
 {
-    private readonly IWorkSheduleMessage _client;
-    public WorkPlanScheduleService(IWorkSheduleMessage client)
+    private readonly IDTRUnitOfWork _uow;
+
+    public WorkPlanScheduleService(IDTRUnitOfWork uow)
     {
-        _client = client;
+        _uow = uow;
     }
     public async Task<Dictionary<CurrentTimeShiftKey, WorkSchedulePlan?>> GetAllCustomShiftsAync(DateOnly fromDate, DateOnly toDate)
     {
-        var request = new DateRequestPayload(fromDate, toDate);
-        ResponseModel<List<WorkSchedulePlan>> response = await _client.GetAll(request);
-        if (response?.Data == null || !response.Data.Any())
-            return new Dictionary<CurrentTimeShiftKey, WorkSchedulePlan?>();
-
-        // We use the record's value-based equality. 
-        // Ensure the Data is already local (which it is, because it's a response from _client)
-        var dictionary = response.Data
-            .GroupBy(x => new CurrentTimeShiftKey(x.EmployeeId, x.PayrollDate))
-            .ToDictionary(g => g.Key, g => g.FirstOrDefault());
-        return dictionary;
+        return await _uow.Repository
+              .FindAll<WorkSchedulePlan>()
+              .Include(x => x.Employee)
+              .ThenInclude(x => x.TimeShift)
+              .AsNoTracking()
+              .Where(x => x.PayrollDate >= fromDate && x.PayrollDate <= toDate)
+              .GroupBy(x => new CurrentTimeShiftKey(x.EmployeeId, x.PayrollDate))
+              .ToDictionaryAsync(key => key.Key, val => val.FirstOrDefault())
+              ;
     }
 }
 public class TimeShiftService
 {
-    private readonly ITimeShiftMessage _client;
-    public TimeShiftService(ITimeShiftMessage client)
+    private readonly IDTRUnitOfWork _uow;
+
+    public TimeShiftService(IDTRUnitOfWork uow)
     {
-        _client = client;
+        _uow = uow;
     }
     public async Task<List<TimeShift>> GetAllShifts()
     {
-        var response = await _client.GetAll();
-        return response.Data ?? new List<TimeShift>();
+        return await _uow.Repository
+            .FindAll<TimeShift>()
+            .ToListAsync();
     }
 }

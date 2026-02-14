@@ -1,4 +1,5 @@
-﻿namespace DTR.Core; 
+﻿namespace DTR.Core;
+
 public class PostShiftOTUnrestrictedHandler : PostShiftOTHandler
 {
     public TimeRange Calculate(TimeRange input, TimeContext context) => Process(input, context);
@@ -33,7 +34,6 @@ public class PostShiftOTHandler : OTComputationHandlerBase
         otStart = otStart.Value;
         var blocked = context.Payload.Ledger
             .GetAllAllocatedExcept(ledgerKey)
-            .MergeOverlapping()
             ;
         var usable = context.CanonicalTimeRange.TimeRecords
             .Exclude(blocked)
@@ -143,8 +143,10 @@ public class FixedOT : IShiftTypeIdentifier
     }
     public DateTime? GetOTStartTime()
     {
-        var date = _context.Payload.Data.CurrentShift.EndTime;
-        return date;
+        var shift = _context.Payload.Data.CurrentShift;
+        var start = shift.StartTime.AddMinutes(shift.MaxWorkingMinutes);
+        //var date = _context.Payload.Data.CurrentShift.EndTime;
+        return start;
     }
 }
 public class FlexiOT : IShiftTypeIdentifier
@@ -158,10 +160,11 @@ public class FlexiOT : IShiftTypeIdentifier
     public DateTime? GetOTStartTime()
     {
         //starttime is the shift end time or starttime after the regularhour was claimed
+        var shift = _context.Payload.Data.CurrentShift;
         var regKey = TimeRangeLedger.CreateKey<RegularHourPolicy>(_context);
         var data = _context.Payload.Ledger.GetAllAllocatedExcept(regKey);
         var usable = _context.CanonicalTimeRange.TimeRecords.Exclude(data);
-        var startTime = usable.MinBy(x => x.StartTime)?.StartTime ?? _context.Payload.Data.CurrentShift.EndTime;
+        var startTime = usable.MinBy(x => x.StartTime)?.StartTime.AddMinutes(shift.MaxWorkingMinutes); // ?? _context.Payload.Data.CurrentShift.EndTime;
         return startTime;
     }
 }
