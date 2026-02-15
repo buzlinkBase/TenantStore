@@ -34,20 +34,29 @@ public class TenantCreatedWorker : BackgroundService
         var conf = new ConsumerConfig
         {
             BootstrapServers = _settings.BootstrapServers,
-            GroupId = "user-service-admin-user.create-group",
+            GroupId = "user-service-admin-user.create-group2",
             AutoOffsetReset = AutoOffsetReset.Earliest,
             EnableAutoCommit = false,
         };
 
-        using var consumer = new ConsumerBuilder<string, string>(conf).Build();
+        //using var consumer = new ConsumerBuilder<string, string>(conf).Build();
+        using var consumer = new ConsumerBuilder<string, string>(conf)
+        .SetErrorHandler((_, e) => Log.Error($"Kafka Error: {e.Reason}"))
+        .SetStatisticsHandler((_, json) => Log.Debug($"Statistics: {json}"))
+        .SetLogHandler((_, m) => Log.Information($"Kafka Log: {m.Message}"))
+        .Build();
         consumer.Subscribe(_settings.Topics.TenantCreated);
+
 
         try
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                var result = consumer.Consume(stoppingToken);
+                var result = consumer.Consume(TimeSpan.FromMilliseconds(100));
                 if (result == null || result.IsPartitionEOF) continue;
+
+                //var result = consumer.Consume(stoppingToken);
+                //if (result == null || result.IsPartitionEOF) continue;
 
                 try
                 {
