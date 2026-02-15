@@ -51,7 +51,7 @@ public class UserConfirmedWorker : BackgroundService
                 try
                 {
                     // 1. Deserialize (Poison Pill Check)
-                    var model = ObjectSerializer.Deserialized<MessagePayload<TenantUserPayload>>(result.Message.Value);
+                    var model = ObjectSerializer.Deserialize<MessagePayload<TenantUserPayload>>(result.Message.Value);
                     if (model == null)
                     {
                         Log.Logger.Error("Unable to deserialize admin user: {Payload}", result.Message.Value);

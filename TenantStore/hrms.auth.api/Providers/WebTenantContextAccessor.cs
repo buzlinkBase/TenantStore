@@ -1,11 +1,10 @@
-﻿using Grpc.Core;
-
-namespace OnePunch.Auth.Api.Providers;
+﻿namespace OnePunch.Auth.Api.Providers;
 
 public interface ITenantContextAccessor
 {
     Guid GetTenantId();
 }
+
 public class WebTenantContextAccessor : ITenantContextAccessor
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
@@ -17,6 +16,7 @@ public class WebTenantContextAccessor : ITenantContextAccessor
         _httpContextAccessor = httpContextAccessor;
         _tenantProvider = tenantProvider;
     }
+
     public Guid GetTenantId()
     {
         var header = _httpContextAccessor.HttpContext?.Request?.Headers["X-Tenant-ID"].FirstOrDefault();

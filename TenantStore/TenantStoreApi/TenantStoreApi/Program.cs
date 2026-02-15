@@ -1,9 +1,12 @@
 using Asp.Versioning.ApiExplorer;
 using BuzlinkRepository;
 using Confluent.Kafka;
+using Google.Protobuf.WellKnownTypes;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Onepunch.Common.Lib;
 using Serilog;
+using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using TenantStoreApi;
@@ -53,13 +56,13 @@ internal class Program
         builder.Services.AddSingleton<PollyPolicy>();
         builder.Services.AddAutoMapper(typeof(MapperProfileConfig).Assembly);
         builder.RegisterSelfServices();
-        builder.Services.RegisterCoreServices();
+        builder.RegisterCoreServices();
         builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
         builder.Services.AddSwaggerGen();
-
+        builder.Services.AddEndpointsApiExplorer(); 
         var app = builder.Build();
         //BzServiceProvider.Instance.SetServiceProvider(app.Services);
-
         // Configure the HTTP request pipeline.
         //if (app.Environment.IsDevelopment())
         //{

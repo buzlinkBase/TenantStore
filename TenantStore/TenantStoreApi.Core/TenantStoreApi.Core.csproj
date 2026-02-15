@@ -29,7 +29,6 @@
 		<PackageReference Include="Confluent.Kafka" />
 		<PackageReference Include="FluentValidation" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
-		<PackageReference Include="Newtonsoft.Json" />
 		<PackageReference Include="AutoMapper" />
 		<PackageReference Include="Microsoft.Extensions.Hosting" />
 		<PackageReference Include="Polly" />

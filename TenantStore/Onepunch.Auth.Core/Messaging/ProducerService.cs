@@ -15,7 +15,11 @@ public class ProducerService
             BootstrapServers = _settings.BootstrapServers,
             AllowAutoCreateTopics = true,
             EnableIdempotence = true,
-            Acks=Acks.All,
+            Acks = Acks.All,
+            MessageTimeoutMs = 5000,
+            SocketTimeoutMs = 5000,
+            MessageSendMaxRetries = 2,
+            QueueBufferingMaxMessages = 1000
         };
         _producer = new ProducerBuilder<string, string>(producerConfig).Build();
     }

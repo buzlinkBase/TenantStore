@@ -9,19 +9,16 @@ public class TenantService : BaseService<Tenant>
 {
     private readonly IMapper _mapper;
     private readonly AuthService _authClient;
-    private readonly ApiTokenService _apiTokenService;
     private readonly KafkaSettings _kafkaSettings;
     private readonly OutBoxService _outBoxService;
     private readonly PasswordCrypto _crypto;
     public TenantService(IUnitOfWorkService service, IMapper mapper,
         AuthService authClient ,
-        ApiTokenService apiTokenService,
         IOptions<KafkaSettings> kafkaSettings,
         OutBoxService outBoxService, PasswordCrypto crypto) : base(service)
     {
         _mapper = mapper;
         _authClient = authClient;
-        _apiTokenService = apiTokenService;
         _kafkaSettings = kafkaSettings.Value;
         _outBoxService = outBoxService;
         _crypto = crypto;
@@ -41,23 +38,19 @@ public class TenantService : BaseService<Tenant>
 
     public async Task<TenantModel> RegisterAsync(CreateTenant payload)
     {
+
         var tenant = _mapper.Map<Tenant>(payload);
         tenant.Status = "Pending";
+        tenant.Token = TokenGenerator.GenerateRandomToken();
         await CreateOrUpdateAsync(tenant);
 
-        //save outbox
         var msgPayloadDto = ComposePayload(tenant, payload);
         await CreateOutBoxAysnc(tenant, msgPayloadDto);
-        await _apiTokenService.AddTokenAsync(new CreateToken
-        {
-            Description = "Account",
-            ExpirationType = TokenExpirationType.None,
-            TenantId = tenant.Id,
-            TokenType = TokenType.Api,
-        });
         await CommitChangesAsync();
-        var message = ObjectSerializer.Serialized(msgPayloadDto);
+        var message = ObjectSerializer.Serialize(msgPayloadDto);
         return _mapper.Map<TenantModel>(tenant);
+
+
     }
 
     public async Task UpdateAsync(Guid Id, UpdateTenant payload)
@@ -100,7 +93,7 @@ public class TenantService : BaseService<Tenant>
 
     private async Task CreateOutBoxAysnc(Tenant tenant, MessagePayload<TenantCreatedPayload> payload)
     {
-        var message = ObjectSerializer.Serialized(payload);
+        var message = ObjectSerializer.Serialize(payload);
         var outbox = _outBoxService.CreateModel(tenant.Id,
             tenant.Id.ToString(),
             _kafkaSettings.Topics.TenantCreated,

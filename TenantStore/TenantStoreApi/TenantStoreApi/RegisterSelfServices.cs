@@ -1,6 +1,9 @@
 ﻿using Asp.Versioning;
+using BuzlinkRepository;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Onepunch.Common.Lib;
@@ -22,15 +25,15 @@ public static class ServiceRegistrations
         builder.Services.AddGrpc();
         builder.Services.AddGrpcClient<CheckEmailService.CheckEmailServiceClient>(options =>
         {
-            var authUrl = builder.Configuration["AuthUrl"];
+            var authUrl = builder.Configuration["AuthUrl"]?.ToString() ?? "";
             options.Address = new Uri(authUrl);
         }).AddHeaderPropagation();
 
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddLogging();
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
-        builder.Services.AddSingleton(sp => sp.GetRequiredService<IServiceProvider>().GetRequiredService<IServiceScopeFactory>());
 
+        builder.Services.AddScoped<ITenantProvider, TenantProvider>();
         builder.Services.AddSingleton<ProducerService>();
         builder.Services.AddHostedService<UserConfirmedWorker>();
         builder.Services.AddHostedService<OutboxWorker>();
@@ -38,11 +41,31 @@ public static class ServiceRegistrations
         builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));
         builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));
         builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("KafkaSettings"));
-        builder.Services.AddDbContext<TenantContext>(options =>
+        //builder.Services.AddDbContext<TenantContext>((sp, options) =>
+        //{
+        //    var connectionString = builder.Configuration.GetConnectionString("DbConnection");
+        //    var tp = sp.GetRequiredService<ITenantProvider>();
+        //    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
+        //    options.AddInterceptors(new ApplyTenantInterceptor(tp),new SoftDeleteInterceptor());
+        //});
+
+        builder.Services.AddDbContext<TenantContext>((provider, options) =>
         {
-            var connectionString = builder.Configuration.GetConnectionString("TenantConnection");
+            var tenantAccessor = provider.GetRequiredService<ITenantContextAccessor>();
+            var tenantProvider = provider.GetRequiredService<ITenantProvider>();
+            var tenantId = tenantAccessor.GetTenantId();
+            var defaultConn = builder.Configuration.GetConnectionString("DbConnection");
+            var connectionString = defaultConn!;
+            if (tenantProvider.TenantId == Guid.Empty)
+                tenantProvider.SetTenantId(tenantId);
+
             options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
+            options.AddInterceptors(new ApplyTenantInterceptor(tenantProvider));
+            options.AddInterceptors(new SoftDeleteInterceptor());
+            options.UseLazyLoadingProxies(true);
+            options.ReplaceService<IModelCacheKeyFactory, TenantModelCacheKeyFactory>();
         });
+
         builder.Services.AddCors(options =>
         {
             options.AddPolicy("AllowAll", policy =>
@@ -64,68 +87,6 @@ public static class ServiceRegistrations
                 options.GroupNameFormat = "'v'VVV";
                 options.SubstituteApiVersionInUrl = true;
             });
-
-        // Swagger (defer versioned docs to Program.cs)
-        builder.Services.AddEndpointsApiExplorer();
-        //builder.Services.AddSwaggerGen(options =>
-        //{
-        //    options.OperationFilter<AddCustomHeaderSwaggerAttribute>();
-        //}); 
-        builder.Services.AddSwaggerGen(options =>
-        {
-            options.SwaggerDoc("v1", new OpenApiInfo
-            {
-                Title = "OnePunch Auth API",
-                Version = "v1"
-            });
-
-            // JWT Bearer
-            options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-            {
-                Name = "Authorization",
-                Type = SecuritySchemeType.ApiKey,
-                Scheme = "Bearer",
-                BearerFormat = "JWT",
-                In = ParameterLocation.Header,
-                Description = "Enter 'Bearer' [space] and then your valid JWT token.\nExample: \"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6...\""
-            });
-
-            // API Key
-            options.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
-            {
-                Description = "API Key needed to access the endpoints. Example: \"X-Api-Key: {key}\"",
-                Name = "X-Api-Key",
-                In = ParameterLocation.Header,
-                Type = SecuritySchemeType.ApiKey,
-                Scheme = "ApiKeyScheme"
-            });
-
-            // Apply both globally
-            options.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            Array.Empty<string>()
-        },
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "ApiKey"
-                }
-            },
-            Array.Empty<string>()
-        } });
-        });
 
         builder.Services.AddAuthentication(options =>
         {

@@ -5,7 +5,7 @@
     <title>Invitation to Join {{OrganizationName}}</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Arial, sans-serif;
             background-color: #f4f6f8;
             margin: 0;
             padding: 0;
@@ -33,15 +33,30 @@
             line-height: 1.6;
         }
 
+        .button-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+
         .button {
             display: inline-block;
-            margin-top: 20px;
-            padding: 12px 24px;
+            padding: 14px 32px;
             background: #004aad;
-            color: #ffffff;
+            color: #ffffff !important;
             text-decoration: none;
-            border-radius: 4px;
+            border-radius: 6px;
             font-weight: bold;
+        }
+
+        .expiry-notice {
+            background-color: #fff4f4;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 25px;
+            text-align: center;
+            font-size: 14px;
+            color: #721c24;
         }
 
         .footer {
@@ -50,23 +65,32 @@
             color: #888888;
             padding: 20px;
         }
-
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h2>Welcome to {{OrganizationName}}</h2>
+            <h2 style="margin:0;">Welcome to {{OrganizationName}}</h2>
         </div>
         <div class="content">
             <p>Hello <strong>{{UserName}}</strong>,</p>
             <p>
                 You’ve been invited to join <strong>{{OrganizationName}}</strong>.
-                By accepting this invitation, you’ll gain access to your organization’s system where you can use the available features and functions to collaborate, manage resources, and streamline operations.
+                By accepting this invitation, you’ll gain access to collaborate, manage resources, and streamline operations within our platform.
             </p>
-            <p>Click the button below to accept your invitation and activate your account:</p>
-            <a href="{{InviteLink}}/{{token}}" class="button">Join</a>
-            <p>If you weren’t expecting this invitation, you can safely ignore this email.</p>
+
+            <div class="button-container">
+                <a href="{{InviteLink}}/{{token}}" class="button">Accept Invitation</a>
+            </div>
+
+            <div class="expiry-notice">
+                <strong>Important:</strong> This link is valid until <br>
+                <span style="font-size: 16px; font-weight: bold;">{{ExpirationDateTime}}</span>
+            </div>
+
+            <p style="margin-top: 25px; font-size: 13px; color: #666;">
+                If you did not expect this invitation or believe this was sent in error, you can safely ignore this email.
+            </p>
         </div>
         <div class="footer">
             <p>&copy; {{CurrentYear}} {{OrganizationName}}. All rights reserved.</p>

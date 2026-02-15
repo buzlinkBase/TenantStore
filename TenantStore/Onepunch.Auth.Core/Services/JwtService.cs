@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using Onepunch.Common.Lib.Services;
 using OnePunch.Auth.Domain.Entities;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;

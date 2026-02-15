@@ -4,13 +4,13 @@ using Polly.CircuitBreaker;
 
 namespace OnePunch.Notification.Core.Messaging;
 
-public class UserCreatedWorker : BackgroundService
+public class UserInvitationWorker : BackgroundService
 {
     private readonly KafkaSettings _settings;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly PollyPolicy _pollyPolicy;
 
-    public UserCreatedWorker(
+    public UserInvitationWorker(
         IServiceScopeFactory scopeFactory,
         IOptions<KafkaSettings> settings,
         PollyPolicy pollyPolicy)
@@ -26,14 +26,14 @@ public class UserCreatedWorker : BackgroundService
         var conf = new ConsumerConfig
         {
             BootstrapServers = _settings.BootstrapServers,
-            GroupId = "tenant-notif-service-admin-user.created-group",
+            GroupId = "notification-service:user.invitation-group",
             AutoOffsetReset = AutoOffsetReset.Earliest,
             EnableAutoCommit = false, // We handle commits manually for reliability
             // SecurityProtocol = SecurityProtocol.Plaintext // Configure as needed
         };
 
         using var consumer = new ConsumerBuilder<string, string>(conf).Build();
-        consumer.Subscribe(_settings.Topics.UserCreated);
+        consumer.Subscribe(_settings.Topics.SendUserInvitation);
 
         try
         {
@@ -46,21 +46,29 @@ public class UserCreatedWorker : BackgroundService
                 try
                 {
                     // 2. Deserialize (The "Poison Pill" check)
-                    var model = ObjectSerializer.Deserialize<MessagePayload<UserEmailPayload>>(result.Message.Value);
+                    var model = ObjectSerializer.Deserialize<MessagePayload<UserInvitionNotificationPayload>>(result.Message.Value);
                     if (model == null)
                     {
                         Log.Logger.Error("Invalid message format at {Offset}. Skipping.", result.TopicPartitionOffset);
                         consumer.Commit(result);
                         continue;
                     }
-
                     // 3. Execute with Resilience Policy
                     await _pollyPolicy.WrapPolicy.ExecuteAsync(async () =>
                     {
                         using var scope = _scopeFactory.CreateScope();
                         var notifService = scope.ServiceProvider.GetRequiredService<EmailNotificationService>();
                         var mailPayload = new Domain.DTO.MailPayload(model.Data.Email, model.Data.Token);
-                        await notifService.SendTenantConfirmationAsync(mailPayload, model.Data.ConfirmationRoute);
+                        var userInfo = new UserEmailPayload
+                        {
+                            TenantName = model.Data.TenantName ?? model.Data.AppName ?? "",
+                            ConfirmationRoute = model.Data.InviteLink,
+                            Email = model.Data.Email,
+                            FullName = model.Data.Name ?? "User",
+                            AppName = model.Data.AppName ?? "app",
+                            Expiry = model.Data.Expiry,
+                        };
+                        await notifService.SendUserInvites(mailPayload, userInfo);
                     });
                     // 4. Commit ONLY after successful processing
                     consumer.Commit(result);

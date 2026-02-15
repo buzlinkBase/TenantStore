@@ -5,14 +5,11 @@ namespace OnePunch.Notification.Core.Extensions;
 
 public static class LibServicesRegistrations
 {
-    public static void RegisterCoreServices(this IServiceCollection services)
+    public static void RegisterCoreServices(this WebApplicationBuilder builder)
     {
-        AddLibraryAssemblyDependencies(services, "NotificationService");
-        services.AddScoped<PasswordCrypto>();
-        services.AddScoped<IUnitOfWorkService, UCommand>();
-        services.AddSingleton(sp => sp.GetRequiredService<IServiceProvider>().GetRequiredService<IServiceScopeFactory>());
-        services.AddScoped<IHMACService, HMACService>();
-        services.AddScoped<IMessageHandlerFactory, MessageHandlerFactory>();
+        AddLibraryAssemblyDependencies(builder.Services, "NotificationService");
+        //builder.Services.AddScoped<PasswordCrypto>();
+        //builder.Services.AddScoped<IHMACService, HMACService>();
     }
 
     public static void AddLibraryAssemblyDependencies(IServiceCollection services, string assemblyName)

@@ -32,7 +32,6 @@ public class AttendanceController : ControllerBase
         {
             // 2. Get the header value
             var authorizationHeader = Request.Headers["Authorization"].FirstOrDefault();
-
             // 3. Ensure it starts with "Bearer " and extract the token part
             if (authorizationHeader != null && authorizationHeader.StartsWith("Bearer "))
             {
@@ -41,9 +40,6 @@ public class AttendanceController : ControllerBase
                 return Ok(new { Token = token, Message = "Token retrieved successfully." });
             }
         }
-
-        
-
 
         using var memoryStream = new MemoryStream();
         await file.CopyToAsync(memoryStream);

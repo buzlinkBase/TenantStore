@@ -11,9 +11,7 @@ public static class LibServicesRegistrations
         AddLibraryAssemblyDependencies(services, "Onepunch.Auth.Core");
         services.AddScoped<PasswordCrypto>();
         services.AddScoped<IUnitOfWorkService, UCommand>();
-        services.AddSingleton(sp => sp.GetRequiredService<IServiceProvider>().GetRequiredService<IServiceScopeFactory>());
         services.AddScoped<IHMACService, HMACService>();
-        services.AddScoped<IMessageHandlerFactory, MessageHandlerFactory>();
     }
 
     public static void AddLibraryAssemblyDependencies(IServiceCollection services, string assemblyName)

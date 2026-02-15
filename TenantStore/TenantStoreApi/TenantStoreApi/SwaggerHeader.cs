@@ -2,8 +2,8 @@
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
-namespace OnePunch.Auth.Api;
-public class AddCustomHeaderSwaggerAttribute : IOperationFilter
+namespace TenantStoreApi;
+public class SwaggerHeader : IOperationFilter 
 {
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
@@ -15,10 +15,10 @@ public class AddCustomHeaderSwaggerAttribute : IOperationFilter
         var excludedRoutes = new[]
         {
             ("Tenants", "Register"),
-            ("Tenants", "Post"),
-            ("Tenants", "Get"),
+            ("Tenants", "ManualRegister"),
+            ("Tenants", "FindOne"),
+            ("Tenants", "FindAll"),
             ("Tenants", "Put"),
-            ("Tenants", "Delete"),
         };
 
         // Skip header injection for excluded routes

@@ -1,12 +1,11 @@
 ﻿using BuzlinkRepository;
 
 namespace Onepunch.Common.Lib.Entities;
-
 public class BaseEntity : EntityBase { }
 public class OutboxMessage : BaseEntity
 {
-    public string Key  { get; set; }
-    public string Topic { get; set; }  
+    public string Key { get; set; } = Guid.NewGuid().ToString();
+    public string Topic { get; set; } = Guid.NewGuid().ToString();
     public string Payload { get; set; } = string.Empty;
     public DateTime? ProcessedOn { get; set; }
     public DateTime? LastAttemptOn { get; set; }

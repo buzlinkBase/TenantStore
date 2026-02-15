@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.Options;
-using Newtonsoft.Json;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -43,6 +42,6 @@ public class HMacInfo
             ExpiryDays = 365,
             Issuer = "easyfs"
         };
-        return JsonConvert.SerializeObject(payloadObj);
+        return ObjectSerializer.Serialize(payloadObj);
     }
 }

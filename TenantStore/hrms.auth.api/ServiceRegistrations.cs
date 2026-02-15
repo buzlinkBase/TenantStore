@@ -1,10 +1,8 @@
 ﻿using Asp.Versioning.Conventions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using Onepunch.Auth.Domain.DTOs;
 using Onepunch.Auth.Infrastructure.Data;
 using Onepunch.Common.Lib;
-using Onepunch.Common.Lib.Services;
 using System.Text;
 
 using Microsoft.OpenApi.Models;
@@ -18,11 +16,25 @@ public static class ServiceRegistrations
 {
     public static void RegisterSelftServices(this WebApplicationBuilder builder)
     {
+        builder.Services.AddHeaderPropagation(options =>
+        {
+            options.Headers.Add("User-Agent");
+            options.Headers.Add("Authorization");
+            options.Headers.Add("X-Tenant-ID");
+            options.Headers.Add("X-Api-Key");
+        });
         builder.Services.AddGrpc();
+        builder.Services.AddGrpcClient<GetTenantService.GetTenantServiceClient>(options =>
+        {
+            var tenantUrl = builder.Configuration["TenantUrl"]?.ToString() ?? "";
+            options.Address = new Uri(tenantUrl);
+        }).AddHeaderPropagation();
+
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddDataProtection();
         builder.Services.AddLogging();
 
+        builder.Services.AddScoped<ITenantProvider, TenantProvider>();
         builder.Services.AddSingleton<ProducerService>();
         builder.Services.AddHostedService<TenantCreatedWorker>();
         builder.Services.AddHostedService<OutboxWorker>();
@@ -46,15 +58,10 @@ public static class ServiceRegistrations
         {
             var tenantAccessor = provider.GetRequiredService<ITenantContextAccessor>();
             var tenantProvider = provider.GetRequiredService<ITenantProvider>();
-            var conProvider = provider.GetRequiredService<IDbConnectionProvider>();
-
             var tenantId = tenantAccessor.GetTenantId();
-            var defaultConn = builder.Configuration.GetConnectionString("AuthConnection");
-            var tenantConn = conProvider.GetConnectionString(tenantId);
-            var connectionString = tenantConn ?? defaultConn!;
-
-            //Ensure tenantProvider is populated here
-            if (tenantProvider.TenantId == Guid.Empty)
+            var defaultConn = builder.Configuration.GetConnectionString("DbConnection");
+            var connectionString =  defaultConn!;
+            if (tenantProvider.TenantId == Guid.Empty)  
                 tenantProvider.SetTenantId(tenantId);
 
             options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
@@ -63,15 +70,6 @@ public static class ServiceRegistrations
             options.UseLazyLoadingProxies(true);
             options.ReplaceService<IModelCacheKeyFactory, TenantModelCacheKeyFactory>();
         });
-
-
-        //builder.Services.AddDbContext<AuthContext>((provider, options) =>
-        //{
-        //    var connectionString = builder.Configuration.GetConnectionString("AuthConnection");
-        //    options.AddInterceptors(new SoftDeleteInterceptor());
-        //    options.UseLazyLoadingProxies(true);
-        //    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
-        //});
 
         builder.Services.AddCors(options =>
         {

@@ -1,23 +1,22 @@
-﻿using BuzlinkRepository;
-using Microsoft.EntityFrameworkCore;
+﻿
+using BuzlinkRepository;
 using Onepunch.Common.Lib.Entities;
-
 namespace Onepunch.Common.Lib.Services;
 
 public abstract class OutBoxServiceBase
 {
     private readonly IRepository _repository;
-    public OutBoxServiceBase(IRepository Repository)
+    public OutBoxServiceBase(IRepository repository)
     {
-        _repository = Repository;
+        _repository = repository;
     }
-    public async Task AddAsync(OutboxMessage payload) => _repository.Add(payload);
-    public async Task UpdateStateAsync(OutboxMessage payload) => _repository.Update(payload);
+
+    public async Task AddAsync(OutboxMessage outbox) => await _repository.AddAsync(outbox); 
     public OutboxMessage CreateModel(
         Guid TenantId,
         string key,
         string topic,
-        string payload )
+        string payload)
     {
         return new OutboxMessage
         {
@@ -26,7 +25,7 @@ public abstract class OutBoxServiceBase
             Topic = topic,
             Payload = payload,
             RetryCount = 0,
-            Status =  OutBoxState.PENDING,
+            Status = OutBoxState.PENDING,
         };
     }
 }

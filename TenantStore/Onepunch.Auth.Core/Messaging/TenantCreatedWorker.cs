@@ -1,9 +1,7 @@
 ﻿using Confluent.Kafka;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
-using Onepunch.Auth.Domain.Entities;
-using OnePunch.Auth.Core;
+using Microsoft.Extensions.Options; 
 using OnePunch.Auth.Core.Services;
 using OnePunch.Auth.Domain.Entities;
 using Polly.CircuitBreaker;
@@ -54,7 +52,7 @@ public class TenantCreatedWorker : BackgroundService
                 try
                 {
                     // 1. Deserialization (Poison Pill Guard)
-                    var model = ObjectSerializer.Deserialized<MessagePayload<TenantCreatedPayload>>(result.Message.Value);
+                    var model = ObjectSerializer.Deserialize<MessagePayload<TenantCreatedPayload>>(result.Message.Value);
                     if (model?.Data == null || string.IsNullOrWhiteSpace(model.Data.Email))
                     {
                         Log.Logger.Warning("Invalid payload received. Skipping offset {Offset}", result.TopicPartitionOffset);
@@ -66,9 +64,11 @@ public class TenantCreatedWorker : BackgroundService
                     await _pollyPolicy.WrapPolicy.ExecuteAsync(async () =>
                     {
                         using var scope = _scopeFactory.CreateScope();
+                        var emailTokenService  = scope.ServiceProvider.GetRequiredService<EmailTokenService>();
                         var userService = scope.ServiceProvider.GetRequiredService<UserService>();
                         var outboxService = scope.ServiceProvider.GetRequiredService<OutBoxService>();
                         var crypto = scope.ServiceProvider.GetRequiredService<PasswordCrypto>();
+                        var exp = DateTime.UtcNow.AddDays(7);
 
                         // Decrypt (Note: Ensure this is idempotent or doesn't break on retry)
                         var decryptedPassword = crypto.Decrypt(model.Data.Password);
@@ -85,18 +85,23 @@ public class TenantCreatedWorker : BackgroundService
 
                         // Token & Outbox (Part of the same DB transaction)
                         var user = response.user;
-                        var token = GenerateEmailToken(model.Data);
-                        StoreToken(userService.UnitOfWork, user, token);
 
-                        var messPayload = ComposePayload(user, token);
-                        var serializedMessage = ObjectSerializer.Serialized(messPayload);
+                        //create and store token
+                        var tokenModel  = await emailTokenService.CreateModelAsync("tenant.created", exp, model.Data.Email);
+                        tokenModel.UserId=user.Id;
+                        await emailTokenService.StoreToken(tokenModel);
 
+                        //prepare email payload
+                        var tokenMsg = ObjectSerializer.Serialize(tokenModel);
+                        var messPayload = ComposePayload(user, tokenMsg);
+                        var serializedMessage = ObjectSerializer.Serialize(messPayload);
+
+                        //store outbox
                         var outboxEntry = outboxService.CreateModel(
                             model.Data.TenantId,
                             user.Id.ToString(),
                             _settings.Topics.UserCreated,
                             serializedMessage);
-
                         await outboxService.AddAsync(outboxEntry);
 
                         // Finalize DB Transaction
@@ -115,7 +120,7 @@ public class TenantCreatedWorker : BackgroundService
                 {
                     Log.Logger.Fatal(ex, "Permanent failure for message at offset {Offset}", result.TopicPartitionOffset);
                     // Decide: discard or keep? Usually, we commit and send to a DLQ/Logs for manual fix.
-                    consumer.Commit(result);
+                    //consumer.Commit(result);
                 }
             }
         }
@@ -125,25 +130,6 @@ public class TenantCreatedWorker : BackgroundService
             consumer.Close();
         }
     }
-
-    // Helper methods (StoreToken, GenerateEmailToken, ComposePayload) remain as per your logic
-    private void StoreToken(IUnitOfWorkService uow, User user, string token)
-    {
-        var tokenModel = new EmailToken
-        {
-            TenantId = user.TenantId,
-            UserId = user.Id,
-            Email = user.Email!,
-            Expiry = DateTime.UtcNow.AddDays(2),
-            TokenType = "TenantConfirmation",
-            TokenValue = token,
-        };
-        uow.Context.EmailTokens.Add(tokenModel);
-    }
-
-    private string GenerateEmailToken(TenantCreatedPayload model) =>
-        TokenGenerator.Generate(model.TenantId, model.Email);
-
     private MessagePayload<UserEmailPayload> ComposePayload(User user, string token)
     {
         return new MessagePayload<UserEmailPayload>

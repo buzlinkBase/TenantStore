@@ -1,22 +1,45 @@
+using Asp.Versioning; // Add this
 using Asp.Versioning.ApiExplorer;
+using Microsoft.Extensions.Options;
+using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddControllers()
-        .AddJsonOptions(options =>
-        {
-            options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-            //options.JsonSerializerOptions.PropertyNamingPolicy = new SnakeCaseNamingPolicy();
-            options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-        });
 
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllers()
+    .AddJsonOptions(options => {
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    });
+
+builder.Services.AddApiVersioning(options =>
+{
+    options.DefaultApiVersion = new ApiVersion(1, 0);
+    options.AssumeDefaultVersionWhenUnspecified = true;
+    options.ReportApiVersions = true;
+})
+.AddApiExplorer(options =>
+{
+    options.GroupNameFormat = "'v'VVV";
+    options.SubstituteApiVersionInUrl = true;
+});
+
+builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
+builder.Services.AddSwaggerGen();
 
 builder.Services.AddSingleton<PollyPolicy>();
 builder.RegisterSelftServices();
-builder.Services.RegisterCoreServices();
+builder.RegisterCoreServices();
 builder.Services.AddAutoMapper(typeof(MappingProfile));
+
 var app = builder.Build();
 var apiVersionProvider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
+//if (app.Environment.IsDevelopment())
+//{
+
+//}
+
 app.UseSwagger();
 app.UseSwaggerUI(options =>
 {
@@ -25,11 +48,12 @@ app.UseSwaggerUI(options =>
     foreach (var description in apiVersionProvider.ApiVersionDescriptions)
     {
         options.SwaggerEndpoint($"/swagger/{description.GroupName}/swagger.json",
-                                $"Notification Service API {description.ApiVersion}");
+                                $"NOTIFICATION API {description.ApiVersion}");
 
         options.ConfigObject.PersistAuthorization = true;
     }
 });
+
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();

@@ -1,15 +1,20 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Asp.Versioning;
+using Microsoft.AspNetCore.Mvc;
 
 namespace NotificationService.Controllers
 {
-    [Route("api/[controller]")]
+    [ApiVersion("1.0")]
+    [Route("api/v{version:apiVersion}/[controller]")]
     [ApiController]
     public class EmailQueryController : ControllerBase
     {
         [HttpGet]
         public IActionResult Get()
         {
-            return Redirect("https://mysite-frontend/verified");
+            return Ok(new {
+                Message="Success" 
+            });
+            //return Redirect("https://mysite-frontend/verified");
         }
     }
 }

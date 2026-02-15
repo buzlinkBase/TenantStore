@@ -1,9 +1,22 @@
-﻿using Newtonsoft.Json;
+﻿using System.Text.Json;
 
 namespace Onepunch.Common.Lib;
-
-public class ObjectSerializer
+public static class ObjectSerializer
 {
-    public static string Serialized(object obj) => JsonConvert.SerializeObject(obj);
-    public static T Deserialized<T>(string message) => JsonConvert.DeserializeObject<T>(message);
+    private static readonly JsonSerializerOptions Options = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        // Good for web APIs or JS compatibility
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
+    // Serialize object to string
+    public static string Serialize(object obj) =>
+        JsonSerializer.Serialize(obj, Options);
+
+    // Deserialize string to object with null check
+    public static T? Deserialize<T>(string message) where T : class =>
+        string.IsNullOrWhiteSpace(message)
+            ? null
+            : JsonSerializer.Deserialize<T>(message, Options);
 }

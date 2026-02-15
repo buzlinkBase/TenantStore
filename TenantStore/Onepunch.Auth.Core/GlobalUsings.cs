@@ -10,5 +10,4 @@ global using Onepunch.Common.Lib.DTO;
 global using Onepunch.Common.Lib.Entities;
 global using Onepunch.Auth.Core.Services;
 global using Onepunch.Auth.Domain.DTOs;
-global using OnePunch.Auth.Core.Utilities;
 

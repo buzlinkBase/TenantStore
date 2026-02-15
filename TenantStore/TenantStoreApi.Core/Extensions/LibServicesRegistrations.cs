@@ -1,4 +1,5 @@
 ﻿using BuzlinkRepository;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Onepunch.Common.Lib.Services;
 using System.Reflection;
@@ -6,15 +7,12 @@ using System.Reflection;
 namespace TenantStoreApi.Core.Extensions;
 public static class LibServicesRegistrations
 {
-    public static void RegisterCoreServices(this IServiceCollection services)
+    public static void RegisterCoreServices(this WebApplicationBuilder builder)
     {
-        AddLibraryAssemblyDependencies(services, "TenantStoreApi.Core"); 
-
-        services.AddScoped<PasswordCrypto>();
-        services.AddScoped<IUnitOfWorkService, UCommand>();
-        services.AddSingleton(sp => sp.GetRequiredService<IServiceProvider>().GetRequiredService<IServiceScopeFactory>());
-        services.AddScoped<IHMACService, HMACService>();
-        services.AddScoped<IMessageHandlerFactory, MessageHandlerFactory>();
+        AddLibraryAssemblyDependencies(builder.Services, "TenantStoreApi.Core"); 
+        builder.Services.AddScoped<PasswordCrypto>();
+        builder.Services.AddScoped<IUnitOfWorkService, UCommand>();
+        builder.Services.AddScoped<IHMACService, HMACService>();
     }
 
     public static void AddLibraryAssemblyDependencies(IServiceCollection services, string assemblyName)

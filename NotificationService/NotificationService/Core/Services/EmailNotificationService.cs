@@ -37,11 +37,10 @@ public class EmailNotificationService
             Credentials = new NetworkCredential(_setting.Username, _setting.Password),
             EnableSsl = true
         };
-        client.Send(mail);
-        await Task.CompletedTask;
+        await client.SendMailAsync(mail);
     }
 
-    public void SendUserInvites(MailPayload payload, UserEmailPayload model)
+    public async Task SendUserInvites(MailPayload payload, UserEmailPayload model)
     {
         string relativePath = Path.Combine("Core", "Templates", "UserInvitation.html");
         string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);
@@ -54,6 +53,7 @@ public class EmailNotificationService
             .Replace("{{InviteLink}}", model.ConfirmationRoute)
             .Replace("{{OrganizationName}}", model.TenantName ?? "")
             .Replace("{{UserName}}", model.FullName ?? model.Email)
+            .Replace("{{ExpirationDateTime}}", model.Expiry.ToString())
             .Replace("{{token}}", payload.Token)
             .Replace("{{CurrentYear}}", DateTime.UtcNow.Year.ToString())
             ;
@@ -69,6 +69,6 @@ public class EmailNotificationService
             Credentials = new NetworkCredential(_setting.Username, _setting.Password),
             EnableSsl = true
         };
-        client.Send(mail);
+       await  client.SendMailAsync(mail);
     }
 }

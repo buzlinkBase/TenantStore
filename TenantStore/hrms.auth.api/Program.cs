@@ -31,13 +31,6 @@ internal class Program
         builder.Services.RegisterCoreServices();
         builder.Services.AddAutoMapper(typeof(MappingProfile));
 
-        builder.Services.AddHttpClient<TenantHttpClient>(client =>
-        {
-            var TenantUrl = builder.Configuration["TenantUrl"];
-            client.BaseAddress = new Uri(TenantUrl);
-            client.DefaultRequestHeaders.Add("Accept", "application/json");
-        });
-
         var app = builder.Build();
         var apiVersionProvider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
         app.UseSwagger();
@@ -49,7 +42,6 @@ internal class Program
             {
                 options.SwaggerEndpoint($"/swagger/{description.GroupName}/swagger.json",
                                         $"AUTH API {description.ApiVersion}");
-
                 options.ConfigObject.PersistAuthorization = true; 
             }
         });

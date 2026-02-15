@@ -4,6 +4,7 @@ public class Tenant : BaseEntity
 {
     public required string CompanyName { get; set; }
     public required string Email { get; set; }
+    public string Token { get; set; } = Guid.NewGuid().ToString();
 }
 
 public class ApiToken : BaseEntity

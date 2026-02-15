@@ -5,7 +5,6 @@ global using OnePunch.Notification;
 global using BuzlinkRepository;
 global using System.Linq.Expressions;
 global using Microsoft.EntityFrameworkCore; 
-global using OnePunch.Notification.Infrastructure.Data;
 global using OnePunch.Notification.Attributes;
 global using OnePunch.Notification.Middlewares;
 global using OnePunch.Notification.Filters;

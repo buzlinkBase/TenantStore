@@ -1,24 +1,16 @@
 ﻿namespace Onepunch.Common.Lib.DTO;
-
-public record MessagePayload<T> where T : class, new()
-{
-    public DateTime TS => DateTime.UtcNow;
-    public T Data { get; set; }
-}
 public record TenantCreatedPayload
 {
     public Guid TenantId { get; set; }
     public string Email { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
 }
-
 public record TenantUserPayload
 {
     public Guid UserId { get; set; }
     public Guid TenantId { get; set; }
     public string Email { get; set; } = string.Empty;
 }
-
 public class EmailCheckPayload
 {
     public Guid TenantId { get; set; }
@@ -28,7 +20,6 @@ public class EmailCheckPayload
     //public static EmailCheckPayload Invalid = new EmailCheckPayload { Status = "Registered" };
 
 }
-
 public record UserEmailPayload
 {
     public string Token { get; set; } = string.Empty;
@@ -43,7 +34,6 @@ public record UserEmailPayload
     public DateTime Expiry { get; set; }
     public string ConfirmationRoute { get; set; } = string.Empty;
 }
-
 public record UserInvitationPayload
 {
     public string Email { get; set; }
@@ -51,16 +41,24 @@ public record UserInvitationPayload
     public string TenantName { get; set; }
     public string TenantId { get; set; }
 }
-
 public record NoticationResponse
 {
     public string Message { get; set; } = string.Empty;
 }
-
 public record EmailTokenInfo
 {
     public Guid TenantId { get; set; }
     public string Token { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string? Name { get; set; }
+}
+public record UserInvitionNotificationPayload  
+{
+    public string? TenantName  { get; set; }
+    public string? Name { get; set; }
+    public string? AppName  { get; set; }
+    public string Email { get; set; }
+    public string Token   { get; set; }
+    public string InviteLink { get; set; } = string.Empty;
+    public DateTime Expiry { get; set; } = DateTime.UtcNow.AddDays(2);
 }

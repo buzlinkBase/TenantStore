@@ -9,4 +9,3 @@ global using Microsoft.EntityFrameworkCore;
 global using Microsoft.EntityFrameworkCore.Infrastructure;
 global using Onepunch.Auth.Core.Services;
 global using Onepunch.Auth.Domain;
-global using OnePunch.Auth.Core.Utilities;

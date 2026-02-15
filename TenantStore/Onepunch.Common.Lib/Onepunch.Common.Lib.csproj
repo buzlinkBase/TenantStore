@@ -15,10 +15,8 @@
 		<PackageReference Include="Pomelo.EntityFrameworkCore.MySql" />
 		<PackageReference Include="Microsoft.Extensions.Configuration" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
-		<PackageReference Include="Newtonsoft.Json" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Json" />
 		<PackageReference Include="System.Management" />
-		<PackageReference Include="RabbitMQ.Client" />
 		<PackageReference Include="Microsoft.Extensions.Hosting " />
 		<PackageReference Include="Serilog.Sinks.Console" />
 		<PackageReference Include="Serilog.Sinks.File" />
