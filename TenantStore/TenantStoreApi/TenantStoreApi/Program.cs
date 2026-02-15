@@ -1,7 +1,4 @@
 using Asp.Versioning.ApiExplorer;
-using BuzlinkRepository;
-using Confluent.Kafka;
-using Google.Protobuf.WellKnownTypes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Onepunch.Common.Lib;
@@ -11,8 +8,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using TenantStoreApi;
 using TenantStoreApi.Core.Extensions;
-using TenantStoreApi.Core.Utilities;
-using TenantStoreApi.Middlewares;
 
 internal class Program
 {
