@@ -8,56 +8,74 @@ public class UserInvitationWorker : BackgroundService
 {
     private readonly KafkaSettings _settings;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly PollyPolicy _pollyPolicy;
+    private readonly IPollyPolicyFactory _pollyPolicyFactory;
 
     public UserInvitationWorker(
         IServiceScopeFactory scopeFactory,
         IOptions<KafkaSettings> settings,
-        PollyPolicy pollyPolicy)
+        IPollyPolicyFactory pollyPolicyFactory)
     {
         _settings = settings.Value;
         _scopeFactory = scopeFactory;
-        _pollyPolicy = pollyPolicy;
+        _pollyPolicyFactory = pollyPolicyFactory;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await Task.Yield();
+
         var conf = new ConsumerConfig
         {
             BootstrapServers = _settings.BootstrapServers,
-            GroupId = "notification-service:user.invitation-group",
+            GroupId = "notification-service.user.invitation-group",
             AutoOffsetReset = AutoOffsetReset.Earliest,
-            EnableAutoCommit = false, // We handle commits manually for reliability
-            // SecurityProtocol = SecurityProtocol.Plaintext // Configure as needed
+            EnableAutoCommit = false,
+            // Allow enough time for email retries before Kafka thinks the consumer is dead
+            MaxPollIntervalMs = 300000
         };
 
-        using var consumer = new ConsumerBuilder<string, string>(conf).Build();
+        using var consumer = new ConsumerBuilder<string, string>(conf)
+            .SetErrorHandler((_, e) => Log.Error("Kafka Error: {Reason}", e.Reason))
+            .Build();
+
         consumer.Subscribe(_settings.Topics.SendUserInvitation);
 
         try
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                // 1. Consume message (Blocks until message arrives or timeout/cancel)
-                var result = consumer.Consume(stoppingToken);
-                if (result == null || result.IsPartitionEOF) continue;
+                ConsumeResult<string, string>? result = null;
+                try
+                {
+                    result = consumer.Consume(stoppingToken);
+                    if (result?.Message == null) continue;
+                }
+                catch (OperationCanceledException) { break; }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error consuming invitation message. Retrying in 5s...");
+                    await Task.Delay(5000, stoppingToken);
+                    continue;
+                }
 
                 try
                 {
-                    // 2. Deserialize (The "Poison Pill" check)
+                    // 1. Poison Pill Check
                     var model = ObjectSerializer.Deserialize<MessagePayload<UserInvitionNotificationPayload>>(result.Message.Value);
                     if (model == null)
                     {
-                        Log.Logger.Error("Invalid message format at {Offset}. Skipping.", result.TopicPartitionOffset);
+                        Log.Error("Invalid invitation format at {Offset}. Skipping.", result.Offset);
                         consumer.Commit(result);
                         continue;
                     }
-                    // 3. Execute with Resilience Policy
-                    await _pollyPolicy.WrapPolicy.ExecuteAsync(async () =>
+
+                    var policy = _pollyPolicyFactory.GetHttpPolicy("reg.user.created.notif");
+                    // 2. Resilience Execution
+                    await policy.ExecuteAsync(async (ct) =>
                     {
                         using var scope = _scopeFactory.CreateScope();
                         var notifService = scope.ServiceProvider.GetRequiredService<EmailNotificationService>();
+
                         var mailPayload = new Domain.DTO.MailPayload(model.Data.Email, model.Data.Token);
                         var userInfo = new UserEmailPayload
                         {
@@ -65,31 +83,34 @@ public class UserInvitationWorker : BackgroundService
                             ConfirmationRoute = model.Data.InviteLink,
                             Email = model.Data.Email,
                             FullName = model.Data.Name ?? "User",
-                            AppName = model.Data.AppName ?? "app",
+                            AppName = model.Data.AppName ?? "Erp system",
                             Expiry = model.Data.Expiry,
                         };
-                        await notifService.SendUserInvites(mailPayload, userInfo);
-                    });
-                    // 4. Commit ONLY after successful processing
+                        // Ensure your service accepts the CancellationToken
+                        await notifService.SendUserInvites(mailPayload, userInfo, stoppingToken);
+
+                    }, stoppingToken);
+
+                    // 3. Success: Move the offset forward
                     consumer.Commit(result);
                 }
                 catch (BrokenCircuitException)
                 {
-                    // DO NOT COMMIT. Let the message stay in Kafka.
-                    Log.Logger.Error("Circuit is OPEN. Backing off 10s. Message at {Offset} will be retried.", result.TopicPartitionOffset);
-                    await Task.Delay(10000, stoppingToken);
+                    // Email provider is likely down. DO NOT COMMIT.
+                    Log.Warning("Invitation circuit is OPEN. Backing off 30s. Offset {Offset} will be retried.", result.Offset);
+                    await Task.Delay(30000, stoppingToken);
                 }
                 catch (Exception ex)
                 {
-                    // Final catch for this specific message
-                    Log.Logger.Fatal(ex, "Permanent failure for message at {Offset}.", result.TopicPartitionOffset);
-                    // TODO Option: Move to a Dead Letter Topic here. 
-                    // For now, we commit to prevent blocking the whole queue.
-                    consumer.Commit(result);
+                    // If we reach here, Polly has already tried several times and failed.
+                    Log.Fatal(ex, "Permanent failure sending invitation for {Email} at {Offset}.", result.Message.Key, result.Offset);
+
+                    // To avoid data loss, we do NOT commit. The message stays in Kafka.
+                    // This creates 'Backpressure' which is safer than losing invitations.
+                    await Task.Delay(60000, stoppingToken);
                 }
             }
         }
-        catch (OperationCanceledException) { /* Clean shutdown */ }
         finally
         {
             consumer.Close();

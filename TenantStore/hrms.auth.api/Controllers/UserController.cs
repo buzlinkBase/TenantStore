@@ -29,9 +29,9 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [HttpPost("register")]
-        public async Task<IActionResult> RegisterInvitesAsync([FromBody] CreateInvitedUser payload)
+        public async Task<IActionResult> RegisterInvitesAsync([FromBody] CreateInvitedUser payload,CancellationToken token)
         {
-            var result = await _service.RegisterInvitesAsync(payload);
+            var result = await _service.RegisterInvitesAsync(payload,token);
             if (result.result.Succeeded)
                 return Ok(result);
 
@@ -39,9 +39,9 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [HttpPost("send-invite")]
-        public async Task<IActionResult> InviteUser([FromQuery] InvitationPayload payload)
+        public async Task<IActionResult> InviteUser([FromQuery] InvitationPayload payload, CancellationToken token)
         {
-            var result = await _service.SendInvite(payload);
+            var result = await _service.SendInvite(payload, token);
             if (result)
                 return Ok(result);
 
@@ -62,9 +62,9 @@ namespace OnePunch.Auth.Api.Controllers
 
         [AllowAnonymous]
         [HttpGet("confirm-email")]
-        public async Task<IActionResult> Confirm([FromQuery] string token)
+        public async Task<IActionResult> Confirm([FromQuery] string emailToken ,CancellationToken token )
         {
-            var result = await _service.ConfirmedRegistration(token);
+            var result = await _service.ConfirmedRegistration(emailToken, token);
             var url = _authDomainProvider.Resolve().FrontEndDomain ?? "https://default-frontend.com";
 
             if (!result.Success)
@@ -75,9 +75,9 @@ namespace OnePunch.Auth.Api.Controllers
 
         [AllowAnonymous]
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginPayload payload)
+        public async Task<IActionResult> Login([FromBody] LoginPayload payload, CancellationToken token)
         {
-            var response = await _service.Login(payload);
+            var response = await _service.Login(payload, token);
             if (!response.Success)
                 return Unauthorized(new { response.ErrorMessage });
 
@@ -86,9 +86,9 @@ namespace OnePunch.Auth.Api.Controllers
 
         [AllowAnonymous]
         [HttpGet("refresh/{refresh}")]
-        public async Task<IActionResult> Refresh(string RefreshToken)
+        public async Task<IActionResult> Refresh(string RefreshToken, CancellationToken token)
         {
-            var response = await _service.RefreshLogin(RefreshToken);
+            var response = await _service.RefreshLogin(RefreshToken, token);
             if (!response.Success)
                 return Unauthorized(new { response.ErrorMessage });
 

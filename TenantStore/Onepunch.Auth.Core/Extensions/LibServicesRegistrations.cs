@@ -18,23 +18,24 @@ public static class LibServicesRegistrations
     {
         var libraryAssembly = Assembly.Load(assemblyName);
         var typesToRegister = libraryAssembly.GetTypes()
-            .Where(type => type.IsClass && !type.IsAbstract
-                && (type.Name.EndsWith("Service")
-                    || type.Name.EndsWith("Provider")
-                    || type.Name.EndsWith("Resolver")));
+            .Where(type => type.IsClass && !type.IsAbstract && type.Name.EndsWith("Service"));
 
         foreach (var type in typesToRegister)
         {
-            // Register the concrete type
-            services.AddScoped(type);
-
-            // Register interfaces implemented by this type
-            var interfaces = type.GetInterfaces()
-                .Where(i => i.Name == $"I{type.Name}"); // convention: I + class name
-
-            foreach (var iface in interfaces)
+            var attr = type.GetCustomAttribute<ServiceRegistrationAttribute>();
+            if (attr != null && attr.Exclude) continue;
+            var lifetime = attr?.Lifetime ?? ServiceLifetime.Scoped;
+            switch (lifetime)
             {
-                services.AddScoped(iface, type);
+                case ServiceLifetime.Singleton:
+                    services.AddSingleton(type);
+                    break;
+                case ServiceLifetime.Transient:
+                    services.AddTransient(type);
+                    break;
+                default:
+                    services.AddScoped(type);
+                    break;
             }
         }
     }

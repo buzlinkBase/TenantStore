@@ -7,94 +7,115 @@ using Serilog;
 using TenantStoreApi.Core.Services;
 
 namespace TenantStoreApi.Core;
-
 public class UserConfirmedWorker : BackgroundService
 {
     private readonly KafkaSettings _settings;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly PollyPolicy _pollyPolicy;
+    private readonly IPollyPolicyFactory _pollyPolicyFactory;
 
     public UserConfirmedWorker(
         IServiceScopeFactory scopeFactory,
-        IOptions<KafkaSettings> settings,
-        PollyPolicy pollyPolicy)
+        IPollyPolicyFactory pollyPolicyFactory,
+        IOptions<KafkaSettings> settings)
     {
         _settings = settings.Value;
         _scopeFactory = scopeFactory;
-        _pollyPolicy = pollyPolicy;
+        _pollyPolicyFactory = pollyPolicyFactory;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // Yield to let the startup finish before blocking on Kafka
+        // Avoid blocking the startup sequence
         await Task.Yield();
 
         var conf = new ConsumerConfig
         {
-            GroupId = "tenant-api.admin.user.confirmed",
             BootstrapServers = _settings.BootstrapServers,
+            GroupId = "tenant-service.admin.user.confirmed.group",
             AutoOffsetReset = AutoOffsetReset.Earliest,
-            EnableAutoCommit = false, // Manual commits for consistency
+            EnableAutoCommit = false, // We handle commits manually
+            EnablePartitionEof = false
         };
 
-        using var consumer = new ConsumerBuilder<string, string>(conf).Build();
-        consumer.Subscribe(_settings.Topics.TenantCreated);
+        using var consumer = new ConsumerBuilder<string, string>(conf)
+            .SetErrorHandler((_, e) => Log.Error("Kafka Error: {Reason}. Fatal: {IsFatal}", e.Reason, e.IsFatal))
+            .Build();
+
+        consumer.Subscribe(_settings.Topics.TenantUserConfirmed);
 
         try
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                // Use the stoppingToken directly in Consume for better efficiency
-                var result = consumer.Consume(stoppingToken);
-                if (result == null || result.IsPartitionEOF) continue;
+                ConsumeResult<string, string> result;
+                try
+                {
+                    // 1. Block and wait for a message
+                    result = consumer.Consume(stoppingToken);
+                    if (result?.Message == null) continue;
+                }
+                catch (OperationCanceledException) { break; }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error consuming from Kafka. Retrying in 5s...");
+                    await Task.Delay(5000, stoppingToken);
+                    continue;
+                }
 
                 try
                 {
-                    // 1. Deserialize (Poison Pill Check)
+                    // 2. Deserialize with Poison Pill check
                     var model = ObjectSerializer.Deserialize<MessagePayload<TenantUserPayload>>(result.Message.Value);
                     if (model == null)
                     {
-                        Log.Logger.Error("Unable to deserialize admin user: {Payload}", result.Message.Value);
+                        Log.Error("Poison Pill detected! Unreadable payload at offset {Offset}. Skipping.", result.Offset);
                         consumer.Commit(result);
                         continue;
                     }
 
-                    // 2. Resilient Execution Wrap
-                    await _pollyPolicy.WrapPolicy.ExecuteAsync(async () =>
+                    // 3. Resilient Execution
+                    // NOTE: Use a policy specifically for Database/Logic, not a generic "HttpPolicy"
+                    var policy = _pollyPolicyFactory.GetHttpPolicy("user.confirmed");
+
+                    await policy.ExecuteAsync(async (ct) =>
                     {
                         using var scope = _scopeFactory.CreateScope();
                         var tenantService = scope.ServiceProvider.GetRequiredService<TenantService>();
-                        var tenant = await tenantService.FindTenant(model.Data.TenantId);
+
+                        var tenant = await tenantService.FindTenantAsync(model.Data.TenantId, ct);
                         if (tenant == null)
                         {
-                            // If business logic says this is a permanent "Not Found" error, 
-                            // we log and exit the policy so we can commit/skip.
-                            Log.Logger.Warning("Tenant {TenantId} not found. Skipping.", model.Data.TenantId);
+                            Log.Warning("Tenant {TenantId} not found. Nothing to activate.", model.Data.TenantId);
                             return;
                         }
+
                         tenant.Status = "Active";
-                        await tenantService.CommitChangesAsync();
-                    });
-                    // 3. Commit only on Success
+                        await tenantService.CommitChangesAsync(ct);
+
+                    }, stoppingToken);
+
+                    // 4. ONLY Commit on Success
                     consumer.Commit(result);
                 }
                 catch (BrokenCircuitException)
                 {
-                    Log.Logger.Error("Database/Service circuit is OPEN. Backing off 10s...");
-                    await Task.Delay(10000, stoppingToken);
+                    Log.Error("Circuit is OPEN. The database is likely down. Backing off 30s...");
+                    // We DO NOT commit here. We want to try this same message again later.
+                    await Task.Delay(30000, stoppingToken);
                 }
                 catch (Exception ex)
                 {
-                    Log.Logger.Fatal(ex, "Permanent error processing UserConfirmed at offset {Offset}", result.TopicPartitionOffset);
-                    // Commit to move past the failing message after all retries failed
-                    consumer.Commit(result);
+                    Log.Fatal(ex, "Critical failure at offset {Offset}. Worker pausing to prevent data loss.", result.Offset);
+                    // CRITICAL: By not committing, we "block" the consumer. 
+                    // This is safer than losing data. Manual intervention may be needed.
+                    await Task.Delay(60000, stoppingToken);
                 }
             }
         }
-        catch (OperationCanceledException) { }
         finally
         {
-            consumer.Close();
+            Log.Information("Closing Kafka Consumer...");
+            consumer.Close(); // Ensures offsets are committed if configured, and group rebalance is triggered
         }
     }
 }

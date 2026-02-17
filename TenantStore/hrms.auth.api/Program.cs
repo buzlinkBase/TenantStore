@@ -1,9 +1,12 @@
 using Asp.Versioning.ApiExplorer;
+using Google.Protobuf.WellKnownTypes;
+using Microsoft.Extensions.Options;
 using Onepunch.Auth.Core;
 using Onepunch.Auth.Core.Protos;
 using Onepunch.Common.Lib;
 using OnePunch.Auth.Api;
-using OnePunch.Auth.Api.Middlewares; 
+using OnePunch.Auth.Api.Middlewares;
+using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -21,12 +24,13 @@ internal class Program
         }); 
 
         builder.Services.AddEndpointsApiExplorer();
-        builder.Services.AddSwaggerGen(c =>
+        builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
+        builder.Services.AddSwaggerGen(options =>
         {
-            c.SchemaFilter<EnumSchemaFilter>();
+            options.SchemaFilter<EnumSchemaFilter>();
+            options.OperationFilter<SwaggerHeader>(); 
         });
-
-        builder.Services.AddSingleton<PollyPolicy>();
+        builder.Services.AddPollyPolicies();
         builder.RegisterSelftServices();
         builder.Services.RegisterCoreServices();
         builder.Services.AddAutoMapper(typeof(MappingProfile));

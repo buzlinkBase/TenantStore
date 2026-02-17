@@ -12,5 +12,4 @@ public class OutBoxService : OutBoxServiceBase
         _uow = uow;
     }
     public AuthContext Context => _uow.Context;
-
 }

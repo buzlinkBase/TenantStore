@@ -34,6 +34,7 @@
 		<PackageReference Include="Polly" />
 		<PackageReference Include="RabbitMQ.Client" />
 		<PackageReference Include="Serilog.AspNetCore" />
+		<PackageReference Include="Serilog.Exceptions" />
 		<PackageReference Include="Serilog.Sinks.Console" />
 		<PackageReference Include="Serilog.Sinks.File" />
 		<PackageReference Include="Serilog.Sinks.Seq" />
@@ -43,6 +44,9 @@
 		<ProjectReference Include="..\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
 		<ProjectReference Include="..\TenantStoreApi.Domain\TenantStoreApi.Domain.csproj" />
 		<ProjectReference Include="..\TenantStoreApi.Infrastructure\TenantStoreApi.Infrastructure.csproj" />
+	</ItemGroup>
+	<ItemGroup>
+	  <Folder Include="Exceptions\" />
 	</ItemGroup>
 
 </Project>

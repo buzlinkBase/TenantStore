@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using TenantStoreApi;
 using TenantStoreApi.Core.Extensions;
+using TenantStoreApi.Middlewares;
 
 internal class Program
 {
@@ -48,16 +49,20 @@ internal class Program
         //});
         //builder.Services.AddSingleton<IMapper>(config.CreateMapper()); 
 
-        builder.Services.AddSingleton<PollyPolicy>();
+        builder.Services.AddPollyPolicies();
         builder.Services.AddAutoMapper(typeof(MapperProfileConfig).Assembly);
         builder.RegisterSelfServices();
         builder.RegisterCoreServices();
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
-        builder.Services.AddSwaggerGen();
-        builder.Services.AddEndpointsApiExplorer(); 
-        var app = builder.Build();
-        //BzServiceProvider.Instance.SetServiceProvider(app.Services);
+        builder.Services.AddSwaggerGen(options =>
+        {
+            options.SchemaFilter<EnumSchemaFilter>();
+            options.OperationFilter<SwaggerHeader>();
+        });
+
+
+        var app = builder.Build(); 
         // Configure the HTTP request pipeline.
         //if (app.Environment.IsDevelopment())
         //{

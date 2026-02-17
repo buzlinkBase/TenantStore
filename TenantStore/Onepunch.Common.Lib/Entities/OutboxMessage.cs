@@ -12,6 +12,7 @@ public class OutboxMessage : BaseEntity
     public DateTime? NextRetryOn { get; set; }
     public int RetryCount { get; set; } = 0;
     public string Remarks { get; set; } = string.Empty;
+    public bool RetryForever  { get; set; }
     public new OutBoxState Status
     {
         get => EnumParserConfig.SafeParseEnum(base.Status, OutBoxState.INVALID);

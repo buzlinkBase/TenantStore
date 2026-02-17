@@ -18,10 +18,10 @@ public class ApiTokenController : ControllerBase
 
     [HttpPost]
     [AllowAnonymous]
-    public async Task<IActionResult> Create([FromBody] CreateToken payload)
+    public async Task<IActionResult> Create([FromBody] CreateToken payload, CancellationToken token)
     {
-        var response = await _service.AddTokenAsync(payload);
-        await _service.CommitChangesAsync();
+        var response = await _service.AddTokenAsync(payload, token);
+        await _service.CommitChangesAsync(token);
         return Ok(response);
     }
 

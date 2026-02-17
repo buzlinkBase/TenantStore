@@ -12,7 +12,7 @@ public class EmailNotificationService
     {
         _setting = setting.Value;
     }
-    public async Task SendTenantConfirmationAsync(MailPayload payload, string redirectSiteLink)
+    public async Task SendTenantConfirmationAsync(MailPayload payload, string redirectSiteLink, CancellationToken token)
     {
         string relativePath = Path.Combine("Core", "Templates", "AccountConfirmation.html");
         string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);
@@ -20,7 +20,7 @@ public class EmailNotificationService
         {
             throw new FileNotFoundException($"Template not found at: {filePath}");
         }
-        string body = File.ReadAllText(filePath);
+        string body = await File.ReadAllTextAsync(filePath, token);
         body = body
             .Replace("{{confirmationLink}}", redirectSiteLink)
             .Replace("{{token}}", payload.Token)
@@ -37,10 +37,10 @@ public class EmailNotificationService
             Credentials = new NetworkCredential(_setting.Username, _setting.Password),
             EnableSsl = true
         };
-        await client.SendMailAsync(mail);
+        await client.SendMailAsync(mail, token);
     }
 
-    public async Task SendUserInvites(MailPayload payload, UserEmailPayload model)
+    public async Task SendUserInvites(MailPayload payload, UserEmailPayload model, CancellationToken token)
     {
         string relativePath = Path.Combine("Core", "Templates", "UserInvitation.html");
         string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);
@@ -48,7 +48,7 @@ public class EmailNotificationService
         {
             throw new FileNotFoundException($"Template not found at: {filePath}");
         }
-        string body = File.ReadAllText(filePath);
+        string body = await File.ReadAllTextAsync(filePath, token);
         body = body
             .Replace("{{InviteLink}}", model.ConfirmationRoute)
             .Replace("{{OrganizationName}}", model.TenantName ?? "")
@@ -60,7 +60,7 @@ public class EmailNotificationService
         MailMessage mail = new MailMessage();
         mail.To.Add(payload.ToMail);
         mail.From = new MailAddress(_setting.From);
-        mail.Subject = string.Concat(model.TenantName,"'s ", "invited you to ", !string.IsNullOrWhiteSpace(model.AppName) ? model.AppName : "Erp system");
+        mail.Subject = string.Concat(model.TenantName, "'s ", "invited you to ", !string.IsNullOrWhiteSpace(model.AppName) ? model.AppName : "Erp system");
         mail.Body = body;
         mail.IsBodyHtml = true;
 
@@ -69,6 +69,6 @@ public class EmailNotificationService
             Credentials = new NetworkCredential(_setting.Username, _setting.Password),
             EnableSsl = true
         };
-       await  client.SendMailAsync(mail);
+        await client.SendMailAsync(mail, token);
     }
 }

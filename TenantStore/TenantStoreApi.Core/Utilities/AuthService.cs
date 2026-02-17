@@ -8,17 +8,10 @@ public class AuthService
         _serviceClient = serviceClient;
     }
 
-    public async Task<CheckEmailResponse> CheckEmailAsync(string email)
+    public async Task<CheckEmailResponse> CheckEmailAsync(string email, CancellationToken token)
     {
         var payload = new EmailPayload { Email = email };
-        var response= await _serviceClient.CheckAsync(payload);
+        var response = await _serviceClient.CheckAsync(payload, cancellationToken: token);
         return response;
-
-        //var request = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/user/check-email?email={email}");
-        //request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("X-Api-Key", _options.ApiKey);
-        //var response = await _httpClient.SendAsync(request);
-        //if (!response.IsSuccessStatusCode) return  false;
-        //var result = await response.Content.ReadFromJsonAsync<ResponseModel<bool>>();
-        //return result?.Data ?? false;
     }
 }

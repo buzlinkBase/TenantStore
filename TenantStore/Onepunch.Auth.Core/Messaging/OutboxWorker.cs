@@ -37,7 +37,7 @@ public class OutboxWorker : BackgroundService
         var _producer = scope.ServiceProvider.GetRequiredService<ProducerService>();
         var messages = await db.Context.OutboxMessages
             .Where(m => m.ProcessedOn == null
-                        && m.RetryCount < 10
+                        && (m.RetryForever || m.RetryCount < 10)
                         && (m.NextRetryOn == null || m.NextRetryOn <= DateTime.UtcNow))
             .OrderBy(m => m.CreatedAt)
             .Take(50)
@@ -56,15 +56,16 @@ public class OutboxWorker : BackgroundService
             }
             catch (Exception ex)
             {
+                var retryPow = msg.RetryCount > 10 ? 10 : Math.Pow(msg.RetryCount, 2);
                 Log.Logger.Warning("Failed to publish outbox message {Id}", msg.Id);
                 msg.RetryCount++;
                 msg.LastAttemptOn = DateTime.UtcNow;
                 msg.Remarks = ex.Message;
                 msg.Status = OutBoxState.RETRY;
-                msg.NextRetryOn = DateTime.UtcNow.AddMinutes(Math.Pow(msg.RetryCount, 2));
+                msg.NextRetryOn = DateTime.UtcNow.AddMinutes(retryPow);
             }
         }
-        await db.CommitChangesAsync();
+        await db.CommitChangesAsync(stoppingToken);
 
     }
 }

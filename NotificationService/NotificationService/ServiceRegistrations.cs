@@ -10,17 +10,20 @@ public static class ServiceRegistrations
 {
     public static void RegisterSelftServices(this WebApplicationBuilder builder)
     {
-        builder.Services.AddHttpContextAccessor(); 
-        builder.Services.AddDataProtection(); 
-        builder.Services.AddLogging();
-        builder.Services.AddSingleton<ProducerService>();
-        builder.Services.AddHostedService<UserCreatedWorker>();
-
         builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("KafkaSettings"));
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
         builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));
         builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));
         builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("MailSettings"));
+        builder.Services.AddHttpContextAccessor(); 
+        builder.Services.AddDataProtection(); 
+        builder.Services.AddLogging();
+        builder.Services.AddHostedService<UserCreatedWorker>();
+        builder.Services.AddHostedService<UserInvitationWorker>();
+        var bootstrapServers = builder.Configuration["KafkaSettings:BootstrapServers"] ?? "";
+        builder.Services.AddSingleton<ProducerService>(sp =>
+         ActivatorUtilities.CreateInstance<ProducerService>(sp, bootstrapServers));
+       
         builder.Services.AddCors(options =>
         {
             options.AddPolicy("AllowAll", policy =>
@@ -43,64 +46,7 @@ public static class ServiceRegistrations
                 options.SubstituteApiVersionInUrl = true;
             });
 
-        // Swagger (defer versioned docs to Program.cs)
-        builder.Services.AddEndpointsApiExplorer();
-        //builder.Services.AddSwaggerGen(options =>
-        //{
-    //        options.SwaggerDoc("v1", new OpenApiInfo
-    //        {
-    //            Title = "OnePunch c API",
-    //            Version = "v1"
-    //        });
-
-    //        // JWT Bearer
-    //        options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    //        {
-    //            Name = "Authorization",
-    //            Type = SecuritySchemeType.ApiKey,
-    //            Scheme = "Bearer",
-    //            BearerFormat = "JWT",
-    //            In = ParameterLocation.Header,
-    //            Description = "Enter 'Bearer' [space] and then your valid JWT token.\nExample: \"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6...\""
-    //        });
-
-    //        // API Key
-    //        options.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
-    //        {
-    //            Description = "API Key needed to access the endpoints. Example: \"X-Api-Key: {key}\"",
-    //            Name = "X-Api-Key",
-    //            In = ParameterLocation.Header,
-    //            Type = SecuritySchemeType.ApiKey,
-    //            Scheme = "ApiKeyScheme"
-    //        });
-
-    //        // Apply both globally
-    //        options.AddSecurityRequirement(new OpenApiSecurityRequirement
-    //{
-    //    {
-    //        new OpenApiSecurityScheme
-    //        {
-    //            Reference = new OpenApiReference
-    //            {
-    //                Type = ReferenceType.SecurityScheme,
-    //                Id = "Bearer"
-    //            }
-    //        },
-    //        Array.Empty<string>()
-    //    },
-    //    {
-    //        new OpenApiSecurityScheme
-    //        {
-    //            Reference = new OpenApiReference
-    //            {
-    //                Type = ReferenceType.SecurityScheme,
-    //                Id = "ApiKey"
-    //            }
-    //        },
-    //        Array.Empty<string>()
-    //    } });
-        //});
-
+        builder.Services.AddEndpointsApiExplorer(); 
         builder.Services.AddAuthentication(options =>
         {
             options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;

@@ -3,7 +3,8 @@ using Onepunch.Auth.Core;
 using TenantStoreApi.Core.Services;
 
 namespace TenantStoreApi.Core.Protos.ServiceHandlers;
-public class TenantInfoServiceProvider   : GetTenantService.GetTenantServiceBase
+
+public class TenantInfoServiceProvider : GetTenantService.GetTenantServiceBase
 {
     private readonly TenantService _service;
     public TenantInfoServiceProvider(TenantService service)
@@ -16,7 +17,7 @@ public class TenantInfoServiceProvider   : GetTenantService.GetTenantServiceBase
         {
             throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid GUID format for TenantId"));
         }
-        var tenant = await _service.FindTenant(id);
+        var tenant = await _service.FindTenantAsync(id, context.CancellationToken);
         if (tenant == null)
         {
             // This is the standard way to signal a missing resource in gRPC
@@ -26,7 +27,7 @@ public class TenantInfoServiceProvider   : GetTenantService.GetTenantServiceBase
         {
             Name = tenant.CompanyName,
             TenantId = tenant.Id.ToString(),
-            Token = tenant.Token 
+            Token = tenant.Token
         };
         return response;
     }

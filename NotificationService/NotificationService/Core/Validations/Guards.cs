@@ -1,4 +1,6 @@
-﻿namespace OnePunch.Notification.Core.Validations;
+﻿using Onepunch.Common.Lib.Exceptions;
+
+namespace OnePunch.Notification.Core.Validations;
 
 public static class Guard
 {

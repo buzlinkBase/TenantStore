@@ -15,6 +15,11 @@ public static class ServiceRegistrations
 {
     public static void RegisterSelfServices(this WebApplicationBuilder builder)
     {
+        builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
+        builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));
+        builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));
+        builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("KafkaSettings"));
+       
         builder.Services.AddHeaderPropagation(options =>
         {
             options.Headers.Add("User-Agent");
@@ -28,26 +33,25 @@ public static class ServiceRegistrations
             var authUrl = builder.Configuration["AuthUrl"]?.ToString() ?? "";
             options.Address = new Uri(authUrl);
         }).AddHeaderPropagation();
-
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddLogging();
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
 
         builder.Services.AddScoped<ITenantProvider, TenantProvider>();
-        builder.Services.AddSingleton<ProducerService>();
+        builder.Services.AddScoped<ITenantContextAccessor, WebTenantContextAccessor>();
         builder.Services.AddHostedService<UserConfirmedWorker>();
-        builder.Services.AddHostedService<OutboxWorker>();
+        builder.Services.AddHostedService<OutboxWorker>(); 
+        var bootstrapServers = builder.Configuration["KafkaSettings:BootstrapServers"] ?? "";
+        builder.Services.AddSingleton<ProducerService>(sp =>
+                ActivatorUtilities.CreateInstance<ProducerService>(sp, bootstrapServers));
 
-        builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));
-        builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));
-        builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("KafkaSettings"));
-        //builder.Services.AddDbContext<TenantContext>((sp, options) =>
-        //{
-        //    var connectionString = builder.Configuration.GetConnectionString("DbConnection");
-        //    var tp = sp.GetRequiredService<ITenantProvider>();
-        //    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
-        //    options.AddInterceptors(new ApplyTenantInterceptor(tp),new SoftDeleteInterceptor());
-        //});
+        builder.Services.AddDbContext<TenantContext>((sp, options) =>
+        {
+            var connectionString = builder.Configuration.GetConnectionString("DbConnection");
+            var tp = sp.GetRequiredService<ITenantProvider>();
+            options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
+            options.AddInterceptors(new ApplyTenantInterceptor(tp), new SoftDeleteInterceptor());
+        });
 
         builder.Services.AddDbContext<TenantContext>((provider, options) =>
         {

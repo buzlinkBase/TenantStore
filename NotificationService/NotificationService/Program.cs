@@ -27,8 +27,7 @@ builder.Services.AddApiVersioning(options =>
 
 builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
 builder.Services.AddSwaggerGen();
-
-builder.Services.AddSingleton<PollyPolicy>();
+builder.Services.AddPollyPolicies(); 
 builder.RegisterSelftServices();
 builder.RegisterCoreServices();
 builder.Services.AddAutoMapper(typeof(MappingProfile));

@@ -15,7 +15,7 @@ public class ApiTokenService : BaseService<ApiToken>
         _service = service;
         _mapper = mapper;
     }
-    public async Task<ApiTokenModel?> AddTokenAsync(CreateToken model)
+    public async Task<ApiTokenModel?> AddTokenAsync(CreateToken model, CancellationToken ct)
     {
         try
         {
@@ -32,7 +32,7 @@ public class ApiTokenService : BaseService<ApiToken>
                 TenantId = model.TenantId,
                 UserId = model.UserId
             };
-            await Repository.AddAsync(newToken);
+            await Repository.AddAsync(newToken, ct);
             return new ApiTokenModel
             {
                 ExpireAt = model.ExpireAt,

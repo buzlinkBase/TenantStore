@@ -9,4 +9,5 @@ public class TopicSettings
 {
     public string TenantCreated { get; set; }
     public string UserCreated { get; set; }
+    public string TenantUserConfirmed { get; set; } 
 }

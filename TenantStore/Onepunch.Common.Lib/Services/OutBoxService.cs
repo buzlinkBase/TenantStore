@@ -1,8 +1,6 @@
-﻿
-using BuzlinkRepository;
+﻿using BuzlinkRepository;
 using Onepunch.Common.Lib.Entities;
 namespace Onepunch.Common.Lib.Services;
-
 public abstract class OutBoxServiceBase
 {
     private readonly IRepository _repository;
@@ -10,9 +8,8 @@ public abstract class OutBoxServiceBase
     {
         _repository = repository;
     }
-
-    public async Task AddAsync(OutboxMessage outbox) => await _repository.AddAsync(outbox); 
-    public OutboxMessage CreateModel(
+    public async Task AddAsync(OutboxMessage outbox,CancellationToken token) => await _repository.AddAsync(outbox, token); 
+    public  OutboxMessage CreateModel(
         Guid TenantId,
         string key,
         string topic,

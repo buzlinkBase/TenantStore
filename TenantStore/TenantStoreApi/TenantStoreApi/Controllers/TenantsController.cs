@@ -26,24 +26,24 @@ public class TenantsController : ControllerBase
 
     [HttpPost]
     [AllowAnonymous]
-    public async Task<IActionResult> Register([FromBody] CreateTenant payload)
+    public async Task<IActionResult> Register([FromBody] CreateTenant payload, CancellationToken token)
     {
-        await _service.RegisterAsync(payload);
+        await _service.RegisterAsync(payload, token);
         return Ok();
     }
 
     [HttpPost("winform-register")]
     [AllowAnonymous]
-    public async Task<IActionResult> ManualRegister([FromBody] CreateTenant payload)
+    public async Task<IActionResult> ManualRegister([FromBody] CreateTenant payload, CancellationToken token)
     {
-        var tenant = await _service.RegisterAsync(payload);
+        var tenant = await _service.RegisterAsync(payload, token);
         return Ok(tenant);
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> Put(Guid id, [FromBody] UpdateTenant payload) 
+    public async Task<IActionResult> Put(Guid id, [FromBody] UpdateTenant payload, CancellationToken token)
     {
-        await _service.UpdateAsync(id, payload);
+        await _service.UpdateAsync(id, payload, token);
         return Ok();
     }
     [HttpGet()]
@@ -53,16 +53,16 @@ public class TenantsController : ControllerBase
         var tenants = _mapper.Map<List<TenantModel>>(tenantResult);
         return Ok(tenants);
     }
+
     [HttpGet("{Id:guid}")]
-    public async Task<ActionResult<TenantModel>> FindOne(Guid Id)
+    public async Task<ActionResult<TenantModel>> FindOne(Guid Id, CancellationToken token)
     {
-        var tenantResult = await _service.FindTenant(Id);
+        var tenantResult = await _service.FindTenantAsync(Id, token);
         if (tenantResult == null)
         {
             return NotFound();
         }
         var tenant = _mapper.Map<TenantModel>(tenantResult);
         return Ok(tenant);
-    } 
+    }
 }
- 

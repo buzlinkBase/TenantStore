@@ -8,8 +8,11 @@
 
 	<ItemGroup>
 	  <Compile Remove="Messaging\Message Handlers\**" />
+	  <Compile Remove="Utilities\**" />
 	  <EmbeddedResource Remove="Messaging\Message Handlers\**" />
+	  <EmbeddedResource Remove="Utilities\**" />
 	  <None Remove="Messaging\Message Handlers\**" />
+	  <None Remove="Utilities\**" />
 	</ItemGroup>
 	
 	<ItemGroup>
@@ -26,6 +29,8 @@
 		<PackageReference Include="Microsoft.IdentityModel.Tokens" />
 
 		<PackageReference Include="Polly" />
+
+		<PackageReference Include="Serilog.Exceptions" />
 		<PackageReference Include="System.IdentityModel.Tokens.Jwt" />
 
 		<PackageReference Include="Microsoft.Extensions.Hosting" />
@@ -45,6 +50,6 @@
 	  </None>
 	</ItemGroup>
 	<ItemGroup>
-	  <Folder Include="Utilities\" />
+	  <Folder Include="Exceptions\" />
 	</ItemGroup>
 </Project>

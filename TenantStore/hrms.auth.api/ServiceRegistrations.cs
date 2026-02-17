@@ -4,7 +4,6 @@ using Microsoft.IdentityModel.Tokens;
 using Onepunch.Auth.Infrastructure.Data;
 using Onepunch.Common.Lib;
 using System.Text;
-
 using Microsoft.OpenApi.Models;
 using Onepunch.Auth.Core;
 using Onepunch.Auth.Core.Messaging;
@@ -16,6 +15,12 @@ public static class ServiceRegistrations
 {
     public static void RegisterSelftServices(this WebApplicationBuilder builder)
     {
+        builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
+        builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));
+        builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));
+        builder.Services.Configure<Domains>(builder.Configuration.GetSection("Domains"));
+        builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
+        builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("KafkaSettings"));
         builder.Services.AddHeaderPropagation(options =>
         {
             options.Headers.Add("User-Agent");
@@ -34,17 +39,15 @@ public static class ServiceRegistrations
         builder.Services.AddDataProtection();
         builder.Services.AddLogging();
 
+        builder.Services.AddScoped<ITenantContextAccessor, WebTenantContextAccessor>();
         builder.Services.AddScoped<ITenantProvider, TenantProvider>();
-        builder.Services.AddSingleton<ProducerService>();
+
         builder.Services.AddHostedService<TenantCreatedWorker>();
         builder.Services.AddHostedService<OutboxWorker>();
+        var bootstrapServers = builder.Configuration["KafkaSettings:BootstrapServers"] ?? "";
+        builder.Services.AddSingleton<ProducerService>(sp =>
+                ActivatorUtilities.CreateInstance<ProducerService>(sp, bootstrapServers));
 
-        builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
-        builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));
-        builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));
-        builder.Services.Configure<Domains>(builder.Configuration.GetSection("Domains"));
-        builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
-        builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("KafkaSettings"));
         builder.Services.AddIdentity<User, Role>(options =>
         {
             options.User.RequireUniqueEmail = true;
@@ -53,15 +56,14 @@ public static class ServiceRegistrations
         .AddDefaultTokenProviders();
 
         builder.Services.AddScoped<JwtService>();
-
         builder.Services.AddDbContext<AuthContext>((provider, options) =>
         {
             var tenantAccessor = provider.GetRequiredService<ITenantContextAccessor>();
             var tenantProvider = provider.GetRequiredService<ITenantProvider>();
             var tenantId = tenantAccessor.GetTenantId();
             var defaultConn = builder.Configuration.GetConnectionString("DbConnection");
-            var connectionString =  defaultConn!;
-            if (tenantProvider.TenantId == Guid.Empty)  
+            var connectionString = defaultConn!;
+            if (tenantProvider.TenantId == Guid.Empty)
                 tenantProvider.SetTenantId(tenantId);
 
             options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
@@ -138,70 +140,7 @@ public static class ServiceRegistrations
                 setup.GroupNameFormat = "'v'VVV";
                 setup.SubstituteApiVersionInUrl = true;
             });
-
-        // Swagger (defer versioned docs to Program.cs)
-        builder.Services.AddEndpointsApiExplorer();
-        //builder.Services.AddSwaggerGen(options =>
-        //{
-        //    options.OperationFilter<AddCustomHeaderSwaggerAttribute>();
-        //}); 
-        builder.Services.AddSwaggerGen(options =>
-        {
-            options.SwaggerDoc("v1", new OpenApiInfo
-            {
-                Title = "OnePunch Auth API",
-                Version = "v1"
-            });
-
-            // JWT Bearer
-            options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-            {
-                Name = "Authorization",
-                Type = SecuritySchemeType.ApiKey,
-                Scheme = "Bearer",
-                BearerFormat = "JWT",
-                In = ParameterLocation.Header,
-                Description = "Enter 'Bearer' [space] and then your valid JWT token.\nExample: \"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6...\""
-            });
-
-            // API Key
-            options.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
-            {
-                Description = "API Key needed to access the endpoints. Example: \"X-Api-Key: {key}\"",
-                Name = "X-Api-Key",
-                In = ParameterLocation.Header,
-                Type = SecuritySchemeType.ApiKey,
-                Scheme = "ApiKeyScheme"
-            });
-
-            // Apply both globally
-            options.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            Array.Empty<string>()
-        },
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "ApiKey"
-                }
-            },
-            Array.Empty<string>()
-        } });
-        });
-
-
+         
         builder.Services.AddAuthentication(options =>
          {
              options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;

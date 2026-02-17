@@ -68,7 +68,7 @@ public class UserService : BaseService<User>
     #endregion
 
     #region Registration
-    public async Task<RegistrationResult> ConfirmedRegistration(string emailToken)
+    public async Task<RegistrationResult> ConfirmedRegistration(string emailToken, CancellationToken ctoken)
     {
         var token = Encoding.UTF8.GetString(TokenEncodingHelper.FromBase64Url(emailToken));
         var userToken = ObjectSerializer.Deserialize<EmailTokenInfo>(token);
@@ -102,11 +102,13 @@ public class UserService : BaseService<User>
             user.TenantId, user.Id.ToString(),
             _kafkaOptions.Topics.TenantUserConfirmed,
             message);
-        await _outboxService.AddAsync(confirmationOutbox);
-        await CommitChangesAsync();
 
-        return Success("User successfully activated");
-
+        await _outboxService.AddAsync(confirmationOutbox, ctoken);
+        if (await CommitChangesAsync(ctoken))
+        {
+            return Success("User successfully activated");
+        }
+        return Success("User cannot be activated");
     }
     #endregion
 
@@ -125,7 +127,7 @@ public class UserService : BaseService<User>
         return (user, result);
     }
 
-    public async Task<(User user, IdentityResult result)> RegisterInvitesAsync(CreateInvitedUser payload)
+    public async Task<(User user, IdentityResult result)> RegisterInvitesAsync(CreateInvitedUser payload,CancellationToken ctoken)
     {
         var token = Encoding.UTF8.GetString(TokenEncodingHelper.FromBase64Url(payload.Token));
         var userToken = ObjectSerializer.Deserialize<EmailTokenInfo>(token);
@@ -152,16 +154,16 @@ public class UserService : BaseService<User>
 
         if (result.Succeeded)
         {
-            await CommitChangesAsync();
+            await CommitChangesAsync(ctoken);
             return (user, result);
         }
         return (user, result);
     }
 
-    public async Task<bool> SendInvite(InvitationPayload payload)
+    public async Task<bool> SendInvite(InvitationPayload payload,CancellationToken token)
     {
         var exp = DateTime.UtcNow.AddDays(2);
-        var emailToken =  await _emailTokenService.CreateModelAsync("user.invitation", exp, payload.Email);
+        var emailToken = await _emailTokenService.CreateModelAsync("user.invitation", exp, payload.Email);
         var message = new MessagePayload<UserInvitionNotificationPayload>
         {
             Data = new UserInvitionNotificationPayload
@@ -183,9 +185,9 @@ public class UserService : BaseService<User>
             emailToken.TenantId.ToString(),
             _kafkaOptions.Topics.SendUserInvitation,
             ObjectSerializer.Serialize(message));
-        await _outboxService.AddAsync(outbox);
+        await _outboxService.AddAsync(outbox, token);
 
-        return await CommitChangesAsync();
+        return await CommitChangesAsync(token);
 
     }
     public Task<User?> GetByIdAsync(string id) => _manager.FindByIdAsync(id);
@@ -214,7 +216,7 @@ public class UserService : BaseService<User>
     #endregion
 
     #region Authentication
-    public async Task<LoginResponse> Login(LoginPayload payload)
+    public async Task<LoginResponse> Login(LoginPayload payload, CancellationToken token)
     {
         var user = await GetByEmailAsync(payload.Email);
         if (user == null ||
@@ -231,9 +233,9 @@ public class UserService : BaseService<User>
         var accessToken = await _jwtService.CreateTokenAsync(user);
         var refreshToken = await _jwtService.GenerateRefreshToken();
 
-        await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshToken));
-        await Context.SaveChangesAsync();
-        await CommitChangesAsync();
+        await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshToken), token);
+        await Context.SaveChangesAsync(token);
+        await CommitChangesAsync(token);
 
         return new LoginResponse
         {
@@ -245,7 +247,7 @@ public class UserService : BaseService<User>
         };
     }
 
-    public async Task<LoginResponse> RefreshLogin(string refreshToken)
+    public async Task<LoginResponse> RefreshLogin(string refreshToken,CancellationToken token)
     {
         var refreshTokenHash = _jwtService.Hash(refreshToken);
         var tokenEntity = await Context.RefreshTokens
@@ -265,7 +267,7 @@ public class UserService : BaseService<User>
 
         await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, newRefreshToken));
         await Context.SaveChangesAsync();
-        await CommitChangesAsync();
+        await CommitChangesAsync(token);
 
         return new LoginResponse
         {

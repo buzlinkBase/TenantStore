@@ -15,7 +15,7 @@
     <PackageVersion Include="FluentAssertions" Version="8.8.0" />
     <PackageVersion Include="FluentValidation" Version="12.0.0" />
     <PackageVersion Include="AutoMapper" Version="14.0.0" />
-    <PackageVersion Include="BuzlinkRepository" Version="1.1.5" />
+    <PackageVersion Include="BuzlinkRepository" Version="1.1.8" />
     <PackageVersion Include="DevExpress.Win.BonusSkins" Version="24.2.6" />
     <PackageVersion Include="devexpress.win.navigation" Version="24.2.6" />
     <PackageVersion Include="ExcelMapper" Version="6.0.611" />
@@ -65,6 +65,7 @@
     <PackageVersion Include="Refit.HttpClientFactory" Version="10.0.1" />
     <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageVersion Include="Serilog.Enrichers.Environment" Version="3.0.1" />
+    <PackageVersion Include="Serilog.Exceptions" Version="8.4.0" />
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageVersion Include="Serilog.Sinks.Seq" Version="9.0.0" />
