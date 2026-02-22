@@ -52,6 +52,7 @@ public static class ServiceRegistrations
             return sp.GetRequiredService<MessagingTenantContextAccessor>();
         });
 
+        //builder.Services.AddHostedService<CleanupOutboxWorker>();
         builder.Services.AddHostedService<OutboxWorker>();
         builder.Services.AddHostedService<TenantCreatedWorker>();
         var bootstrapServers = builder.Configuration["KafkaSettings:BootstrapServers"] ?? "";
@@ -81,7 +82,7 @@ public static class ServiceRegistrations
             options.AddInterceptors(new SoftDeleteInterceptor());
             options.UseLazyLoadingProxies(true);
 
-            //options.ReplaceService<IModelCacheKeyFactory, TenantModelCacheKeyFactory>();
+            options.ReplaceService<IModelCacheKeyFactory, TenantModelCacheKeyFactory>();
         });
 
         builder.Services.AddCors(options =>

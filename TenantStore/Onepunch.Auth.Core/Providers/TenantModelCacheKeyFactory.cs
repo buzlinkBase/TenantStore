@@ -5,15 +5,10 @@ namespace OnePunch.Auth.Core.Providers;
 
 public class TenantModelCacheKeyFactory : IModelCacheKeyFactory
 {
-    private readonly IServiceScopeFactory _factory;
-    public TenantModelCacheKeyFactory(IServiceScopeFactory factory)
-    {
-        _factory = factory;
-    }
+    public TenantModelCacheKeyFactory() { }
     public object Create(DbContext context, bool designTime)
     {
-        using var scope = _factory.CreateScope();
-        var provider = scope.ServiceProvider.GetRequiredService<ITenantProvider>();
-        return (context.GetType(), provider.TenantId, designTime);
+        var provider = context.GetService<ITenantProvider>();
+        return (context.GetType(), provider?.TenantId ?? Guid.Empty, designTime);
     }
 }

@@ -13,6 +13,7 @@ public class OutboxMessage : BaseEntity
     public int RetryCount { get; set; } = 0;
     public string Remarks { get; set; } = string.Empty;
     public bool RetryForever  { get; set; }
+    public new DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public new OutBoxState Status
     {
         get => EnumParserConfig.SafeParseEnum(base.Status, OutBoxState.INVALID);

@@ -13,6 +13,6 @@ message EmailPayload {
 }
 
 message CheckEmailResponse {
-  bool valid = 1;
+  bool Exists  = 1;
   string message=2; 
 }

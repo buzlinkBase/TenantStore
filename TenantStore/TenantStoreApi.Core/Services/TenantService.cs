@@ -31,23 +31,21 @@ public class TenantService : BaseService<Tenant>
         var fluentValResult = await new TenantValidator(UoW).ValidateAsync(model, token);
         var result = EvaluationResult.Check(fluentValResult);
         Guard.ThrowIfError(result);
-        var emailExists = await _authClient.CheckEmailAsync(model.Email, token);
-        Guard.EnsureFalse(emailExists.Valid, "Email is already used");
+        var checkEmailResult = await _authClient.CheckEmailAsync(model.Email, token);
+        Guard.EnsureFalse(checkEmailResult.Exists, "Email is already used");
         return result;
     }
 
     public async Task<TenantModel> RegisterAsync(CreateTenant payload, CancellationToken token)
     {
-
         var tenant = _mapper.Map<Tenant>(payload);
         tenant.Status = "Pending";
         tenant.Token = TokenGenerator.GenerateRandomToken();
-        await CreateOrUpdateAsync(tenant, token);
-
+        await CreateAsync(tenant, token);
+        await UoW.SaveChangesAsync(token);
         var msgPayloadDto = ComposePayload(tenant, payload);
         await CreateOutBoxAysnc(tenant, msgPayloadDto, token);
         await CommitChangesAsync(token);
-        var message = ObjectSerializer.Serialize(msgPayloadDto);
         return _mapper.Map<TenantModel>(tenant);
     }
 

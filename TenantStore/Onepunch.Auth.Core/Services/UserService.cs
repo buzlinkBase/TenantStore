@@ -188,7 +188,6 @@ public class UserService : BaseService<User>
             ObjectSerializer.Serialize(message));
         await _outboxService.AddAsync(outbox, token);
         return await CommitChangesAsync(token);
-
     }
     public Task<User?> GetByIdAsync(string id) => _manager.FindByIdAsync(id);
     public Task<User?> GetByEmailAsync(string email) => _manager.FindByEmailAsync(email);

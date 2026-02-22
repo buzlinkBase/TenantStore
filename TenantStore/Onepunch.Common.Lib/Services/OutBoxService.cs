@@ -22,6 +22,7 @@ public abstract class OutBoxServiceBase
             Topic = topic,
             Payload = payload,
             RetryCount = 0,
+            CreatedAt = DateTime.UtcNow,
             Status = OutBoxState.PENDING,
         };
     }

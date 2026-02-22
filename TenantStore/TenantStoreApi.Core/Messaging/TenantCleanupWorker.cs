@@ -21,7 +21,7 @@ public class TenantCleanupWorker : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // 1. Move configuration outside the loop (no need to parse it every 5 seconds)
-        var retentionDays = -7;
+        var retentionDays = -1;
         if (int.TryParse(_conf["TenantRetensionBeforeDelete"], out var configValue))
         {
             retentionDays = -Math.Abs(configValue);
@@ -37,7 +37,7 @@ public class TenantCleanupWorker : BackgroundService
                 var db = scope.ServiceProvider.GetRequiredService<TenantService>();
                 var cutoffDate = DateTime.UtcNow.AddDays(retentionDays);
                 var unverifiedTenants = await db.Context.Tenants
-                    .Where(m =>  m.Status == "Pending" && m.CreatedAt <= cutoffDate)
+                    .Where(m => m.Status == "Pending" && m.CreatedAt <= cutoffDate)
                     .OrderBy(m => m.CreatedAt)
                     .Take(50)
                     .ToListAsync(stoppingToken);
@@ -45,7 +45,7 @@ public class TenantCleanupWorker : BackgroundService
                 if (!unverifiedTenants.Any())
                 {
                     // NO WORK: Wait a long time (e.g., 1 hour) before checking again
-                    await Task.Delay(TimeSpan.FromHours(12), stoppingToken);
+                    await Task.Delay(TimeSpan.FromHours(1), stoppingToken);
                     continue;
                 }
 

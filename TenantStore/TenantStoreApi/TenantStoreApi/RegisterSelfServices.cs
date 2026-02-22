@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.IdentityModel.Tokens;
 using Onepunch.Common.Lib;
 using System.Text;
+using TenantStoreApi.Core.Messaging;
 using TenantStoreApi.Core.Providers;
 using TenantStoreApi.Infrastructure;
 
@@ -38,7 +39,8 @@ public static class ServiceRegistrations
         builder.Services.AddScoped<ITenantProvider, TenantProvider>();
         builder.Services.AddScoped<ITenantContextAccessor, WebTenantContextAccessor>();
         builder.Services.AddHostedService<UserConfirmedWorker>();
-        builder.Services.AddHostedService<OutboxWorker>(); 
+        builder.Services.AddHostedService<OutboxWorker>();
+        //builder.Services.AddHostedService<CleanupOutboxWorker>();
         var bootstrapServers = builder.Configuration["KafkaSettings:BootstrapServers"] ?? "";
         builder.Services.AddSingleton<ProducerService>(sp =>
                 ActivatorUtilities.CreateInstance<ProducerService>(sp, bootstrapServers));

@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Onepunch.Auth.Core;
 using Onepunch.Auth.Domain.DTOs;
-using Onepunch.Common.Lib;
 using OnePunch.Auth.Core.Services;
 
 namespace OnePunch.Auth.Api.Controllers
@@ -56,17 +55,17 @@ namespace OnePunch.Auth.Api.Controllers
             return BadRequest("Failed sending invites");
         }
 
-        [AllowAnonymous]
-        [HttpGet("check-email")]
-        public async Task<ActionResult<bool>> FindByEmail([FromQuery] string email)
-        {
-            var user = await _service.GetByEmailAsync(email);
-            if (user == null) return Ok(false);
+        //[AllowAnonymous]
+        //[HttpGet("check-email")]
+        //public async Task<ActionResult<bool>> FindByEmail([FromQuery] string email)
+        //{
+        //    var user = await _service.GetByEmailAsync(email);
+        //    if (user == null) return Ok(false);
 
-            return Ok(user.Status != OutBoxState.FAILED.ToString()
-                   && user.Status != OutBoxState.EXPIRED.ToString()
-                   && user.Status != OutBoxState.INVALID.ToString());
-        }
+        //    return Ok(user.Status != OutBoxState.FAILED.ToString()
+        //           && user.Status != OutBoxState.EXPIRED.ToString()
+        //           && user.Status != OutBoxState.INVALID.ToString());
+        //}
 
         [AllowAnonymous]
         [HttpGet("confirm-email")]
