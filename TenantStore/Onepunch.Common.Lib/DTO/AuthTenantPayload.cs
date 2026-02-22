@@ -1,4 +1,6 @@
-﻿namespace Onepunch.Common.Lib.DTO;
+﻿using System.Runtime;
+
+namespace Onepunch.Common.Lib.DTO;
 public record TenantCreatedPayload
 {
     public Guid TenantId { get; set; }
@@ -61,4 +63,10 @@ public record UserInvitionNotificationPayload
     public string Token   { get; set; }
     public string InviteLink { get; set; } = string.Empty;
     public DateTime Expiry { get; set; } = DateTime.UtcNow.AddDays(2);
+}
+
+
+public class TestRecord
+{
+    public string TestProp  { get; set; }
 }

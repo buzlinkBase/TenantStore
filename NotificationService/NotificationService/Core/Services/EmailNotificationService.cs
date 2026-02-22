@@ -23,7 +23,6 @@ public class EmailNotificationService
         string body = await File.ReadAllTextAsync(filePath, token);
         body = body
             .Replace("{{confirmationLink}}", redirectSiteLink)
-            .Replace("{{token}}", payload.Token)
             ;
         MailMessage mail = new MailMessage();
         mail.To.Add(payload.ToMail);

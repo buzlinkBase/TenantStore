@@ -49,7 +49,6 @@ public class TenantService : BaseService<Tenant>
         await CommitChangesAsync(token);
         var message = ObjectSerializer.Serialize(msgPayloadDto);
         return _mapper.Map<TenantModel>(tenant);
-
     }
 
     public async Task UpdateAsync(Guid Id, UpdateTenant payload, CancellationToken token)

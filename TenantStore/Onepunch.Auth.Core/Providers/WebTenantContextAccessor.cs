@@ -1,27 +1,23 @@
-﻿using BuzlinkRepository;
+﻿using Microsoft.AspNetCore.Http;
 
-namespace TenantStoreApi.Providers;
+namespace OnePunch.Auth.Core.Providers;
 public interface ITenantContextAccessor
 {
+    void SetTenantId(Guid tenantId);
     Guid GetTenantId();
 }
-public interface IAppConfigurationProvider
-{
-    string? GetConnectionString(string name);
-}
-
 
 public class WebTenantContextAccessor : ITenantContextAccessor
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ITenantProvider _tenantProvider;
-
     public WebTenantContextAccessor(IHttpContextAccessor httpContextAccessor,
         ITenantProvider tenantProvider)
     {
         _httpContextAccessor = httpContextAccessor;
         _tenantProvider = tenantProvider;
     }
+
     public Guid GetTenantId()
     {
         var header = _httpContextAccessor.HttpContext?.Request?.Headers["X-Tenant-ID"].FirstOrDefault();
@@ -29,19 +25,23 @@ public class WebTenantContextAccessor : ITenantContextAccessor
         _tenantProvider.SetTenantId(tenantId);
         return tenantId;
     }
+    public void SetTenantId(Guid tenantId)
+    {
+        _tenantProvider.SetTenantId(tenantId);
+    }
 }
-
-public class WebAppConfigurationProvider : IAppConfigurationProvider
+public class MessagingTenantContextAccessor : ITenantContextAccessor
 {
-    private readonly IConfiguration _configuration;
-
-    public WebAppConfigurationProvider(IConfiguration configuration)
+    public MessagingTenantContextAccessor(ITenantProvider tenantProvider)
     {
-        _configuration = configuration;
+        _tenantProvider = tenantProvider;
     }
-    public string? GetConnectionString(string name)
+    private Guid _currentTenantId;
+    private readonly ITenantProvider _tenantProvider;
+    public Guid GetTenantId() => _currentTenantId;
+    public void SetTenantId(Guid tenantId)
     {
-        return _configuration.GetConnectionString(name);
+        _currentTenantId = tenantId;
+        _tenantProvider.SetTenantId(tenantId);  
     }
 }
-

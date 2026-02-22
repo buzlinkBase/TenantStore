@@ -1,13 +1,12 @@
 ﻿using Asp.Versioning.Conventions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using Onepunch.Auth.Infrastructure.Data;
-using Onepunch.Common.Lib;
-using System.Text;
-using Microsoft.OpenApi.Models;
 using Onepunch.Auth.Core;
 using Onepunch.Auth.Core.Messaging;
-using OnePunch.Auth.Api.Providers;
+using Onepunch.Auth.Infrastructure.Data;
+using Onepunch.Common.Lib;
+using OnePunch.Auth.Core.Providers;
+using System.Text;
 
 namespace OnePunch.Auth.Api;
 
@@ -28,26 +27,35 @@ public static class ServiceRegistrations
             options.Headers.Add("X-Tenant-ID");
             options.Headers.Add("X-Api-Key");
         });
+
         builder.Services.AddGrpc();
         builder.Services.AddGrpcClient<GetTenantService.GetTenantServiceClient>(options =>
         {
             var tenantUrl = builder.Configuration["TenantUrl"]?.ToString() ?? "";
             options.Address = new Uri(tenantUrl);
-        }).AddHeaderPropagation();
+        });
 
-        builder.Services.AddHttpContextAccessor();
+        //builder.Services.AddHttpContextAccessor();
         builder.Services.AddDataProtection();
         builder.Services.AddLogging();
 
-        builder.Services.AddScoped<ITenantContextAccessor, WebTenantContextAccessor>();
+        builder.Services.AddHttpContextAccessor();
         builder.Services.AddScoped<ITenantProvider, TenantProvider>();
+        builder.Services.AddScoped<WebTenantContextAccessor>();
+        builder.Services.AddScoped<MessagingTenantContextAccessor>();
+        builder.Services.AddScoped<ITenantContextAccessor>(sp => {
+            var httpContext = sp.GetRequiredService<IHttpContextAccessor>();
+            if (httpContext.HttpContext != null)
+            {
+                return sp.GetRequiredService<WebTenantContextAccessor>();
+            }
+            return sp.GetRequiredService<MessagingTenantContextAccessor>();
+        });
 
-        builder.Services.AddHostedService<TenantCreatedWorker>();
         builder.Services.AddHostedService<OutboxWorker>();
+        builder.Services.AddHostedService<TenantCreatedWorker>();
         var bootstrapServers = builder.Configuration["KafkaSettings:BootstrapServers"] ?? "";
-        builder.Services.AddSingleton<ProducerService>(sp =>
-                ActivatorUtilities.CreateInstance<ProducerService>(sp, bootstrapServers));
-
+        builder.Services.AddSingleton(sp => ActivatorUtilities.CreateInstance<ProducerService>(sp, bootstrapServers));
         builder.Services.AddIdentity<User, Role>(options =>
         {
             options.User.RequireUniqueEmail = true;
@@ -58,19 +66,22 @@ public static class ServiceRegistrations
         builder.Services.AddScoped<JwtService>();
         builder.Services.AddDbContext<AuthContext>((provider, options) =>
         {
-            var tenantAccessor = provider.GetRequiredService<ITenantContextAccessor>();
-            var tenantProvider = provider.GetRequiredService<ITenantProvider>();
-            var tenantId = tenantAccessor.GetTenantId();
             var defaultConn = builder.Configuration.GetConnectionString("DbConnection");
             var connectionString = defaultConn!;
+
+            var tenantAccessor = provider.GetRequiredService<ITenantContextAccessor>();
+            var tenantId = tenantAccessor.GetTenantId();
+            var tenantProvider = provider.GetRequiredService<ITenantProvider>();
             if (tenantProvider.TenantId == Guid.Empty)
                 tenantProvider.SetTenantId(tenantId);
+
 
             options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
             options.AddInterceptors(new ApplyTenantInterceptor(tenantProvider));
             options.AddInterceptors(new SoftDeleteInterceptor());
             options.UseLazyLoadingProxies(true);
-            options.ReplaceService<IModelCacheKeyFactory, TenantModelCacheKeyFactory>();
+
+            //options.ReplaceService<IModelCacheKeyFactory, TenantModelCacheKeyFactory>();
         });
 
         builder.Services.AddCors(options =>
@@ -100,20 +111,6 @@ public static class ServiceRegistrations
          })
          .AddEntityFrameworkStores<AuthContext>()
          .AddApiEndpoints(); // Optional, enables MapIdentityApi
-        // API versioning
-        //builder.Services
-        //    .AddApiVersioning(options =>
-        //    {
-        //        options.ReportApiVersions = true;
-        //        options.AssumeDefaultVersionWhenUnspecified = true;
-        //        options.DefaultApiVersion = new ApiVersion(1, 0);
-        //    })
-        //    .AddApiExplorer(options =>
-        //    {
-        //        options.GroupNameFormat = "'v'VVV";
-        //        options.SubstituteApiVersionInUrl = true;
-        //    });
-
         builder.Services.AddApiVersioning(
                 options =>
                 {

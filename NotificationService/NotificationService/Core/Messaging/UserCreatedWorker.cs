@@ -45,8 +45,6 @@ public class UserCreatedWorker : BackgroundService
                 ConsumeResult<string, string>? result = null;
                 try
                 {
-                    // If Kafka is down, this line will block or throw an exception.
-                    // No messages are lost; they stay on the Broker.
                     result = consumer.Consume(stoppingToken);
                     if (result?.Message == null) continue;
 

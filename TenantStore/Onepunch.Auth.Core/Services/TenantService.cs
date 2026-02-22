@@ -4,6 +4,7 @@ public class TenantService
 {
     private readonly GetTenantService.GetTenantServiceClient _client;
     private readonly ITenantProvider _tenantProvider;
+
     public TenantService(GetTenantService.GetTenantServiceClient client,
         ITenantProvider tenantProvider)
     {
@@ -17,10 +18,16 @@ public class TenantService
         return await _client.GetInfoAsync(request);
     }
 
+    public async Task<TenantInfoResponse> GetGrpcBgInfoAsync()
+    {
+        var request = new TenantRequest { TenantId = _tenantProvider.TenantId.ToString() };
+        return await _client.GetInfoAsync(request);
+    }
+
+
     public async Task<string> GetToken()
     {
         var tenant = await GetInfoAsync();
         return tenant?.Token ?? "";
     }
-
 }

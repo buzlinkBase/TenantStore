@@ -8,7 +8,8 @@ public record InvitationPayload
 public class CreateInvitedUser
 {
     public string Token { get; set; }
-    public string Password { get; set; }
+    public string Name { get; set; } 
+    public string Password  { get; set; } 
 }
 
 public class UpdateUser  

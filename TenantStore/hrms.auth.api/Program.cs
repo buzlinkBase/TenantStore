@@ -1,7 +1,6 @@
 using Asp.Versioning.ApiExplorer;
-using Google.Protobuf.WellKnownTypes;
 using Microsoft.Extensions.Options;
-using Onepunch.Auth.Core;
+using Onepunch.Auth.Core.Messaging;
 using Onepunch.Auth.Core.Protos;
 using Onepunch.Common.Lib;
 using OnePunch.Auth.Api;
@@ -25,11 +24,12 @@ internal class Program
 
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
-        builder.Services.AddSwaggerGen(options =>
-        {
-            options.SchemaFilter<EnumSchemaFilter>();
-            options.OperationFilter<SwaggerHeader>(); 
-        });
+        builder.Services.AddSwaggerGen();
+        //builder.Services.AddSwaggerGen(options =>
+        //{
+        //    options.SchemaFilter<EnumSchemaFilter>();
+        //    options.OperationFilter<SwaggerHeader>(); 
+        //});
         builder.Services.AddPollyPolicies();
         builder.RegisterSelftServices();
         builder.Services.RegisterCoreServices();

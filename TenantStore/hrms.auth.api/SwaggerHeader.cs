@@ -11,17 +11,13 @@ public class SwaggerHeader : IOperationFilter
         var controllerName = context.ApiDescription.ActionDescriptor.RouteValues["controller"];
         var actionName = context.ApiDescription.ActionDescriptor.RouteValues["action"];
         // Define exclusions
-        //var excludedRoutes = new[]
-        //{
-        //    ("", "Register"),
-        //    ("Tenants", "ManualRegister"),
-        //    ("Tenants", "FindOne"),
-        //    ("Tenants", "FindAll"),
-        //    ("Tenants", "Put"),
-        //};
-        //// Skip header injection for excluded routes
-        //if (excludedRoutes.Any(r => r.Item1 == controllerName && r.Item2 == actionName))
-        //    return;
+        var excludedRoutes = new[]
+        {
+            ("Users", "Register"),
+        };
+        // Skip header injection for excluded routes
+        if (excludedRoutes.Any(r => r.Item1 == controllerName && r.Item2 == actionName))
+            return;
 
         operation.Parameters ??= new List<OpenApiParameter>();
 

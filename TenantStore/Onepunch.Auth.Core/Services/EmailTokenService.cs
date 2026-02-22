@@ -5,21 +5,20 @@ using OnePunch.Auth.Core.Services;
 
 namespace Onepunch.Auth.Core.Services;
 
-public class EmailTokenService:BaseService<EmailToken>
+public class EmailTokenService : BaseService<EmailToken>
 {
     private readonly TenantService _tenantService;
-    public EmailTokenService(
-        IUnitOfWorkService uow,
-        TenantService tenantService):base(uow)
+    public EmailTokenService(IUnitOfWorkService uow,
+        TenantService tenantService) : base(uow)
     {
         _tenantService = tenantService;
     }
-    public async Task<CreateEmailToken> CreateModelAsync(string TokenType,  DateTime expiry, string email)
+    public async Task<CreateEmailToken> CreateModelAsync(string TokenType, DateTime expiry, string email)
     {
-        var tenant = await _tenantService.GetInfoAsync();
-        if (tenant == null) throw new Exception("Tenant not found");
+        var tenant = await _tenantService.GetGrpcBgInfoAsync();
         var tenantId = Guid.Parse(tenant.TenantId);
-        var token = TokenGenerator.Generate(tenantId,  email);
+        if (tenant == null) throw new Exception("Tenant not found");
+        var token = TokenGenerator.Generate(tenantId, email);
         return new CreateEmailToken
         {
             Expiry = expiry,
@@ -27,11 +26,11 @@ public class EmailTokenService:BaseService<EmailToken>
             TokenValue = token,
             TenantId = tenantId,
             Email = email,
-            TenantName=tenant.Name  
+            TenantName = tenant.Name
         };
     }
 
-    public async Task StoreToken(CreateEmailToken payload)
+    public async Task StoreToken(CreateEmailToken payload, CancellationToken token)
     {
         var model = new EmailToken
         {
@@ -43,6 +42,8 @@ public class EmailTokenService:BaseService<EmailToken>
             TenantId = payload.TenantId,
             UserId = payload.UserId,
         };
+
+        await Repository.AddAsync(model, token);
     }
 }
 
@@ -53,6 +54,6 @@ public class CreateEmailToken
     public string TokenValue { get; set; }
     public string Email { get; set; }
     public Guid TenantId { get; set; }
-    public string? TenantName  { get; set; }
+    public string? TenantName { get; set; }
     public Guid? UserId { get; set; }
 }

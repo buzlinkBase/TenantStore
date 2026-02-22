@@ -19,6 +19,7 @@ public class SwaggerHeader : IOperationFilter
             ("Tenants", "FindOne"),
             ("Tenants", "FindAll"),
             ("Tenants", "Put"),
+            ("Tenants", "Test"),
         };
 
         // Skip header injection for excluded routes

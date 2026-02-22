@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using TenantStoreApi;
 using TenantStoreApi.Core.Extensions;
+using TenantStoreApi.Core.Protos.ServiceHandlers;
 using TenantStoreApi.Middlewares;
 
 internal class Program
@@ -91,6 +92,7 @@ internal class Program
         app.UseHeaderPropagation();
         app.UseAuthentication();
         app.UseAuthorization();
+        app.MapGrpcService<TenantInfoServiceProvider>();
         app.MapControllers();
         app.Run();
     }

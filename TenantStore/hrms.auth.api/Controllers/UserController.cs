@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Onepunch.Auth.Core.Providers;
+using Microsoft.Extensions.Options;
+using Onepunch.Auth.Core;
 using Onepunch.Auth.Domain.DTOs;
 using Onepunch.Common.Lib;
 using OnePunch.Auth.Core.Services;
@@ -12,36 +13,43 @@ namespace OnePunch.Auth.Api.Controllers
     [ApiVersion("1.0")]
     [ApiController]
     [Authorize]
-    public class UserController : ControllerBase
+    public class UsersController : ControllerBase
     {
 
         private readonly UserService _service;
-        private readonly AuthDomainProvider _authDomainProvider;
+        private readonly Domains _options;
         private readonly JwtService _jwtService;
 
-        public UserController(UserService service,
-            AuthDomainProvider authDomainProvider,
+        public UsersController(UserService service,
+            IOptions<Domains> options,
             JwtService jwtService)
         {
             _service = service;
-            _authDomainProvider = authDomainProvider;
+            _options = options.Value;
             _jwtService = jwtService;
         }
 
         [HttpPost("register")]
-        public async Task<IActionResult> RegisterInvitesAsync([FromBody] CreateInvitedUser payload,CancellationToken token)
+        [AllowAnonymous]
+        public async Task<IActionResult> Register([FromBody] CreateInvitedUser payload,CancellationToken token)
         {
             var result = await _service.RegisterInvitesAsync(payload,token);
-            if (result.result.Succeeded)
-                return Ok(result);
+            var url = _options.FrontEndDomain ?? "https://onepunch.com";
+            if (!result.result.Succeeded)
+            {
+                // Aggregate all Identity errors into one string
+                var errorMessages = string.Join(", ", result.result.Errors.Select(e => e.Description));
+                throw new Exception($"Failed to create user: {errorMessages}");
+            }
+            //return Redirect($"{url}/error/{result.result.Errors.FirstOrDefault()?.Code ?? "0000"}");
+            return Redirect($"{url}/success");
 
-            return BadRequest(result.result.Errors);
         }
 
         [HttpPost("send-invite")]
         public async Task<IActionResult> InviteUser([FromQuery] InvitationPayload payload, CancellationToken token)
         {
-            var result = await _service.SendInvite(payload, token);
+            var result = await _service.SendInvite(payload,  token);
             if (result)
                 return Ok(result);
 
@@ -62,10 +70,10 @@ namespace OnePunch.Auth.Api.Controllers
 
         [AllowAnonymous]
         [HttpGet("confirm-email")]
-        public async Task<IActionResult> Confirm([FromQuery] string emailToken ,CancellationToken token )
+        public async Task<IActionResult> Confirm([FromQuery(Name = "token")] string token, CancellationToken ct )
         {
-            var result = await _service.ConfirmedRegistration(emailToken, token);
-            var url = _authDomainProvider.Resolve().FrontEndDomain ?? "https://default-frontend.com";
+            var result = await _service.ConfirmedRegistration(token, ct);
+            var url = _options.FrontEndDomain ?? "https://onepunch.com";
 
             if (!result.Success)
                 return Redirect($"{url}/error/{result.ErrorCode}");

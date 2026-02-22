@@ -1,9 +1,7 @@
-﻿using BuzlinkRepository;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
+﻿using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Onepunch.Common.Lib;
+namespace OnePunch.Auth.Core.Providers;
 
 public class TenantModelCacheKeyFactory : IModelCacheKeyFactory
 {

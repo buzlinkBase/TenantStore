@@ -3,13 +3,11 @@ using BuzlinkRepository;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
 using Onepunch.Common.Lib;
 using System.Text;
+using TenantStoreApi.Core.Providers;
 using TenantStoreApi.Infrastructure;
-namespace TenantStoreApi;
 
 public static class ServiceRegistrations
 {

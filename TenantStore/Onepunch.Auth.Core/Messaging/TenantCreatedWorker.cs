@@ -1,7 +1,10 @@
 ﻿using Confluent.Kafka;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using OnePunch.Auth.Core;
+using OnePunch.Auth.Core.Providers;
 using OnePunch.Auth.Core.Services;
 using OnePunch.Auth.Domain.Entities;
 using Polly.CircuitBreaker;
@@ -13,49 +16,68 @@ public class TenantCreatedWorker : BackgroundService
 {
     private readonly KafkaSettings _settings;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IConfiguration _configuration;
+    private readonly ITenantProvider _tenantProvider;
     private readonly IPollyPolicyFactory _pollyPolicy;
     private readonly Domains _domainOptions;
+    private readonly ConsumerConfig _config;
 
     public TenantCreatedWorker(
         IServiceScopeFactory scopeFactory,
         IOptions<Domains> domainOptions,
         IOptions<KafkaSettings> settings,
+        IConfiguration configuration,
         IPollyPolicyFactory pollyPolicy)
     {
         _settings = settings.Value;
+        _config = new ConsumerConfig
+        {
+            BootstrapServers = _settings.BootstrapServers,
+            GroupId = "user-service-admin-user.create-v2",
+            AutoOffsetReset = AutoOffsetReset.Earliest,
+            EnableAutoCommit = false, // Manual commit
+            // Safety: Ensure we don't block forever if the broker is unreachable
+            //SocketTimeoutMs = 30000,
+            //SessionTimeoutMs = 30000
+        };
+
         _scopeFactory = scopeFactory;
+        _configuration = configuration;
         _pollyPolicy = pollyPolicy;
         _domainOptions = domainOptions.Value;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // Offload from the startup thread immediately
-        await Task.Yield();
+        // FIX 1: Use Task.Run so the Host can finish starting up. 
+        // Without this, the app "hangs" on the first Consume() call.
+        await ProcessKafkaMessages(stoppingToken);
+    }
 
-        var conf = new ConsumerConfig
-        {
-            BootstrapServers = _settings.BootstrapServers,
-            GroupId = "user-service-admin-user.create",
-            AutoOffsetReset = AutoOffsetReset.Earliest,
-            EnableAutoCommit = false, // Manual commit for consistency
-        };
-
-        using var consumer = new ConsumerBuilder<string, string>(conf)
-         .SetLogHandler((_, log) => Log.Information("KAFKA LOG: {Message}", log.Message))
-         .SetErrorHandler((_, e) => Log.Error("KAFKA ERROR: {Reason}", e.Reason))
-         .Build();
+    private async Task ProcessKafkaMessages(CancellationToken stoppingToken)
+    {
+        // FIX 2: Move builder inside the Task.Run to ensure it's on the background thread
+        using var consumer = new ConsumerBuilder<string, string>(_config)
+            .SetLogHandler((_, log) => Log.Information("KAFKA LOG: {Message}", log.Message))
+            .SetErrorHandler((_, e) => Log.Error("KAFKA ERROR: {Reason}", e.Reason))
+            .Build();
 
         consumer.Subscribe(_settings.Topics.TenantCreated);
+        Log.Information("TenantCreatedWorker subscribed to: {Topic}", _settings.Topics.TenantCreated);
+
         try
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                var result = consumer.Consume(stoppingToken);
-                if (result == null || result.IsPartitionEOF) continue;
-
+                ConsumeResult<string, string>? result = null;
                 try
                 {
+                    // FIX 3: Consume with a timeout or the stoppingToken to prevent infinite hang
+                    result = consumer.Consume(stoppingToken);
+
+                    if (result == null || result.IsPartitionEOF)
+                        continue;
+
                     // 1. Deserialization
                     var model = ObjectSerializer.Deserialize<MessagePayload<TenantCreatedPayload>>(result.Message.Value);
                     if (model?.Data == null || string.IsNullOrWhiteSpace(model.Data.Email))
@@ -65,88 +87,87 @@ public class TenantCreatedWorker : BackgroundService
                         continue;
                     }
 
-                    string plainPassword;
-                    using (var initScope = _scopeFactory.CreateScope())
+                    // 2. Logic execution inside Polly
+                    //var policy = _pollyPolicy.GetHttpPolicy("User-Registration");
+                    //await policy.ExecuteAsync(async () =>
+                    //{
+                    //});
+                    //// 4. Success - Commit Offset
+                    ///
+                    using var scope = _scopeFactory.CreateScope();
+
+                    //set tenant
+                    var tenantAccessor = scope.ServiceProvider.GetRequiredService<ITenantContextAccessor>();
+                    var tenantprovider = scope.ServiceProvider.GetRequiredService<ITenantProvider>();
+                    tenantAccessor.SetTenantId(model.Data.TenantId);
+                    tenantprovider.SetTenantId(tenantAccessor.GetTenantId());
+
+                    //resolve services  
+                    var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWorkService>();
+                    var userService = scope.ServiceProvider.GetRequiredService<UserService>();
+                    var crypto = scope.ServiceProvider.GetRequiredService<PasswordCrypto>();
+                    var emailTokenService = scope.ServiceProvider.GetRequiredService<EmailTokenService>();
+                    var outboxService = scope.ServiceProvider.GetRequiredService<OutBoxService>();
+
+                    // 3. Business logic
+                    string plainPassword = crypto.Decrypt(model.Data.Password);
+                    model.Data.Password = plainPassword;
+                    var response = await userService.RegisterTenantAdmin(model.Data);
+                    if (!response.result.Succeeded)
                     {
-                        var crypto = initScope.ServiceProvider.GetRequiredService<PasswordCrypto>();
-                        plainPassword = crypto.Decrypt(model.Data.Password);
+                        var errors = string.Join(", ", response.result.Errors.Select(e => e.Description));
+                        throw new Exception($"DB Registration failed: {errors}");
                     }
 
-                    // 3. Resilient Execution
-                    var policy = _pollyPolicy.GetHttpPolicy("User-Registration");
-                    await policy.ExecuteAsync(async () =>
-                    {
-                        // Every retry gets a FRESH scope and FRESH DbContext
-                        using var scope = _scopeFactory.CreateScope();
+                    var exp = DateTime.UtcNow.AddDays(2);
+                    var tokenModel = await emailTokenService.CreateModelAsync("user.created", exp, model.Data.Email);
+                    tokenModel.UserId = response.user.Id;
+                    await emailTokenService.StoreToken(tokenModel, stoppingToken);
 
-                        var userService = scope.ServiceProvider.GetRequiredService<UserService>();
-                        var emailTokenService = scope.ServiceProvider.GetRequiredService<EmailTokenService>();
-                        var outboxService = scope.ServiceProvider.GetRequiredService<OutBoxService>();
+                    //compose email payload
+                    var emailDomain = ComposePayload(response.user, tokenModel);
+                    var outboxEntry = outboxService.CreateModel(
+                        model.Data.TenantId,
+                        response.user.Id.ToString(),
+                        _settings.Topics.UserCreated,
+                        ObjectSerializer.Serialize(emailDomain));
 
-                        // Apply the plain password to the model for this specific registration attempt
-                        model.Data.Password = plainPassword;
-
-                        // Transactional Logic
-                        var response = await userService.RegisterTenantAdmin(model.Data);
-                        if (!response.result.Succeeded)
-                        {
-                            var errors = string.Join(", ", response.result.Errors.Select(e => e.Description));
-                            throw new Exception($"DB Registration failed: {errors}");
-                        }
-
-                        var user = response.user;
-                        var exp = DateTime.UtcNow.AddDays(7);
-
-                        // Token Logic
-                        var tokenModel = await emailTokenService.CreateModelAsync("tenant.created", exp, model.Data.Email);
-                        tokenModel.UserId = user.Id;
-                        await emailTokenService.StoreToken(tokenModel);
-
-                        // Outbox Logic
-                        var tokenMsg = ObjectSerializer.Serialize(tokenModel);
-                        var messPayload = ComposePayload(user, tokenMsg);
-                        var serializedMessage = ObjectSerializer.Serialize(messPayload);
-
-                        var outboxEntry = outboxService.CreateModel(
-                            model.Data.TenantId,
-                            user.Id.ToString(),
-                            _settings.Topics.UserCreated,
-                            serializedMessage);
-
-                        await outboxService.AddAsync(outboxEntry, stoppingToken);
-
-                        // Finalize Transaction
-                        await userService.CommitChangesAsync(stoppingToken);
-                    });
-
-                    // 4. Success - Move Kafka Offset
+                    await outboxService.AddAsync(outboxEntry, stoppingToken);
+                    await uow.CommitChangesAsync(stoppingToken);
                     consumer.Commit(result);
+
+                }
+                catch (OperationCanceledException)
+                {
+                    Log.Warning("Kafka Consumer stopping due to application shutdown.");
+                    break;
                 }
                 catch (BrokenCircuitException)
                 {
-                    // Circuit is open. We stop processing for a bit.
-                    // IMPORTANT: We do NOT commit 'result' here, so it stays in Kafka.
-                    Log.Error("Circuit is OPEN. Backing off 10s before retrying offset {Offset}", result.TopicPartitionOffset);
+                    Log.Error("Circuit is OPEN. Backing off 10s at offset {Offset}", result?.TopicPartitionOffset);
                     await Task.Delay(10000, stoppingToken);
+                }
+                catch (ConsumeException ex)
+                {
+                    Log.Error(ex, "Kafka consume error (connection issue?)");
+                    await Task.Delay(2000, stoppingToken); // Don't tight-loop on connection errors
                 }
                 catch (Exception ex)
                 {
-                    // If we reached here, Polly retries were exhausted or a non-retriable error occurred.
-                    Log.Fatal(ex, "Permanent failure at offset {Offset}. Manual intervention needed.", result.TopicPartitionOffset);
-
-                    // Option: You could commit here to skip the message, or keep it uncommitted to block the partition.
-                    // consumer.Commit(result); 
+                    Log.Fatal(ex, "Critical error processing message at offset {Offset}", result?.TopicPartitionOffset);
+                    // Decide: Commit to skip (DLQ logic) or wait for manual fix?
                 }
             }
         }
-        catch (OperationCanceledException) { /* Normal shutdown */ }
         finally
         {
             consumer.Close();
         }
     }
-    private MessagePayload<UserEmailPayload> ComposePayload(User user, string token)
+
+    private MessagePayload<UserEmailPayload> ComposePayload(User user, CreateEmailToken tokenInfo)
     {
+        var token = tokenInfo.TokenValue;
         return new MessagePayload<UserEmailPayload>
         {
             Data = new UserEmailPayload
@@ -155,10 +176,13 @@ public class TenantCreatedWorker : BackgroundService
                 Email = user.Email!,
                 TenantId = user.TenantId,
                 UserId = user.Id,
-                Expiry = DateTime.UtcNow.AddDays(2),
+                TenantName = tokenInfo?.TenantName ?? "",
+                AppName = _configuration["AppName"] ?? "OnePunch",
+                FullName = user.Name ?? "User",
+                Expiry = tokenInfo?.Expiry ?? DateTime.UtcNow.AddDays(2),
                 IssuedAt = DateTime.UtcNow,
                 Purpose = "Tenant account confirmation",
-                ConfirmationRoute = $"{_domainOptions.AuthDomain}/api/v1/user/confirm-email"
+                ConfirmationRoute = $"{_domainOptions.AuthDomain}/api/v1/user/confirm-email?token={token}"
             }
         };
     }

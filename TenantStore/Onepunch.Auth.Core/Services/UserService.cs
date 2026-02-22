@@ -17,6 +17,7 @@ public class UserService : BaseService<User>
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly JwtService _jwtService;
     private readonly EmailTokenService _emailTokenService;
+    private readonly ITenantProvider _tenantProvider;
     private readonly Domains _domains;
     private readonly IConfiguration _configuration;
     private readonly KafkaSettings _kafkaOptions;
@@ -31,6 +32,7 @@ public class UserService : BaseService<User>
         IOptions<KafkaSettings> kafkaOptions,
         IOptions<Domains> domains,
         EmailTokenService emailTokenService,
+        ITenantProvider tenantProvider,
         IConfiguration configuration,
         IMapper mapper) : base(uow)
     {
@@ -39,6 +41,7 @@ public class UserService : BaseService<User>
         _passwordHasher = passwordHasher ?? throw new ArgumentNullException(nameof(passwordHasher));
         _jwtService = jwtService ?? throw new ArgumentNullException(nameof(jwtService));
         _emailTokenService = emailTokenService;
+        _tenantProvider = tenantProvider;
         _domains = domains.Value;
         _configuration = configuration;
         _kafkaOptions = kafkaOptions.Value;
@@ -61,6 +64,19 @@ public class UserService : BaseService<User>
     //    return result;
     //}
 
+    public async Task<(User user, IdentityResult result)> RegisterTenantAdmin(TenantCreatedPayload payload)
+    {
+        var user = new User
+        {
+            TenantId = payload.TenantId,
+            UserName = payload.Email,
+            Email = payload.Email,
+            Name = "Admin",
+            Status = "Pending"
+        };
+        var result = await _manager.CreateAsync(user, payload.Password);
+        return (user, result);
+    }
     private async Task<EmailToken?> FindToken(string emailToken) =>
         await Repository.Find<EmailToken>(x => x.TokenValue == emailToken).FirstOrDefaultAsync();
 
@@ -113,21 +129,8 @@ public class UserService : BaseService<User>
     #endregion
 
     #region User Management
-    public async Task<(User user, IdentityResult result)> RegisterTenantAdmin(TenantCreatedPayload payload)
-    {
-        var user = new User
-        {
-            TenantId = payload.TenantId,
-            UserName = payload.Email,
-            Email = payload.Email,
-            Name = "Admin",
-            Status = "Pending"
-        };
-        var result = await _manager.CreateAsync(user, payload.Password);
-        return (user, result);
-    }
 
-    public async Task<(User user, IdentityResult result)> RegisterInvitesAsync(CreateInvitedUser payload,CancellationToken ctoken)
+    public async Task<(User user, IdentityResult result)> RegisterInvitesAsync(CreateInvitedUser payload, CancellationToken ctoken)
     {
         var token = Encoding.UTF8.GetString(TokenEncodingHelper.FromBase64Url(payload.Token));
         var userToken = ObjectSerializer.Deserialize<EmailTokenInfo>(token);
@@ -142,16 +145,14 @@ public class UserService : BaseService<User>
             TenantId = userToken.TenantId,
             UserName = userToken.Email,
             Email = userToken.Email,
-            Name = userToken.Name,
-            Status = "Active"
+            Name = payload.Name ?? userToken.Name,
+            Status = "Active",
+            EmailConfirmed = true
         };
 
         emailInfoDb.IsUsed = true;
         Context.EmailTokens.Update(emailInfoDb);
         var result = await _manager.CreateAsync(user, payload.Password);
-
-        //TODO send notif for cred or informing a successfull registration
-
         if (result.Succeeded)
         {
             await CommitChangesAsync(ctoken);
@@ -160,7 +161,7 @@ public class UserService : BaseService<User>
         return (user, result);
     }
 
-    public async Task<bool> SendInvite(InvitationPayload payload,CancellationToken token)
+    public async Task<bool> SendInvite(InvitationPayload payload, CancellationToken token)
     {
         var exp = DateTime.UtcNow.AddDays(2);
         var emailToken = await _emailTokenService.CreateModelAsync("user.invitation", exp, payload.Email);
@@ -170,15 +171,15 @@ public class UserService : BaseService<User>
             {
                 Email = payload.Email,
                 Name = payload.Name,
-                InviteLink = _domains.FrontEndDomain,
+                InviteLink = $"{_domains.FrontEndDomain}/register?token={emailToken.TokenValue}",
                 AppName = _configuration["AppName"],
                 TenantName = emailToken.TenantName,
                 Expiry = exp,
-                Token = ObjectSerializer.Serialize(emailToken),
+                Token = emailToken.TokenValue,
             }
         };
         //store token
-        await _emailTokenService.StoreToken(emailToken);
+        await _emailTokenService.StoreToken(emailToken, token);
         //store outbox
         var outbox = _outboxService.CreateModel(
             emailToken.TenantId,
@@ -186,7 +187,6 @@ public class UserService : BaseService<User>
             _kafkaOptions.Topics.SendUserInvitation,
             ObjectSerializer.Serialize(message));
         await _outboxService.AddAsync(outbox, token);
-
         return await CommitChangesAsync(token);
 
     }
@@ -247,7 +247,7 @@ public class UserService : BaseService<User>
         };
     }
 
-    public async Task<LoginResponse> RefreshLogin(string refreshToken,CancellationToken token)
+    public async Task<LoginResponse> RefreshLogin(string refreshToken, CancellationToken token)
     {
         var refreshTokenHash = _jwtService.Hash(refreshToken);
         var tokenEntity = await Context.RefreshTokens
