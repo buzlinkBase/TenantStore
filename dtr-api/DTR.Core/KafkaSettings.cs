@@ -10,8 +10,9 @@ public class KafkaSettings
 public class KafkaTopics
 {
     public string Employee { get; set; } = string.Empty;
-    public string ChangeHoliday { get; set; } = string.Empty;
     public string TimeShift { get; set; } = string.Empty;
+    public string Holiday  { get; set; } = string.Empty;
+    public string ChangeHoliday { get; set; } = string.Empty;
     public string WorkRotationPlan { get; set; } = string.Empty;
     public string ChangeRestDay { get; set; } = string.Empty;
     public string SetRestDayDate { get; set; } = string.Empty;

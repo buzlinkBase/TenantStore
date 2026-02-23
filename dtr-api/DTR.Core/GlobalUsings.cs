@@ -6,5 +6,6 @@ global using Microsoft.Extensions.Configuration;
 global using Microsoft.EntityFrameworkCore;
 global using DTR.Infrastructure;   
 global using DTR.Core.Interfaces;   
+global using DTR.Models.ValueObjects;
 
 

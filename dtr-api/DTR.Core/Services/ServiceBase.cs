@@ -15,30 +15,16 @@ public abstract class ServiceBase<T> where T : class, IEntity, new()
     protected virtual ValidationMessage DeleteValidation(T model) => new ValidationMessage(true, "");
     public virtual void AddOrUpdate(T model)
     {
-        try
+        var validationResult = AddOrUpdateValidation(model);
+        if (!validationResult.Success)
         {
-            var validationResult = AddOrUpdateValidation(model);
-            if (!validationResult.Success)
-            {
-                throw new Exception(validationResult.Message);
-            }
-            _uow.Repository.AddOrUpdate(model);
+            throw new Exception(validationResult.Message);
         }
-        catch (DbException ex)
-        {
-            Debug.WriteLine($"[DB ERROR] {ex}");
-        }
+        _uow.Repository.AddOrUpdate(model);
     }
-    public virtual async Task AddRangeAsync(List<T> models)
+    public virtual async Task AddRangeAsync(List<T> models, CancellationToken token)
     {
-        try
-        {
-            await _uow.Repository.AddRangeAsync(models);
-        }
-        catch (DbException ex)
-        {
-            Debug.WriteLine($"[DB ERROR] {ex}");
-        }
+        await _uow.Repository.AddRangeAsync(models, token);
     }
     public virtual void AddRange(List<T> models)
     {
@@ -53,61 +39,31 @@ public abstract class ServiceBase<T> where T : class, IEntity, new()
     }
     public virtual void AddRangeWithValidation(List<T> models)
     {
-        try
+        foreach (var item in models)
         {
-            foreach (var item in models)
+            var validationResult = AddOrUpdateValidation(item);
+            if (!validationResult.Success)
             {
-                var validationResult = AddOrUpdateValidation(item);
-                if (!validationResult.Success)
-                {
-                    throw new Exception(validationResult.Message);
-                }
+                throw new Exception(validationResult.Message);
             }
-            _uow.Repository.AddRange(models);
         }
-        catch (DbException ex)
-        {
-            Debug.WriteLine($"[DB ERROR] {ex}");
-        }
+        _uow.Repository.AddRange(models);
     }
     public virtual IQueryable<T> FindAll()
     {
-        try
-        {
-            return _uow.Repository.FindAll<T>();
-        }
-        catch (DbException ex)
-        {
-            Debug.WriteLine($"[DB ERROR] {ex}");
-            return Enumerable.Empty<T>().AsQueryable();
-        }
+        return _uow.Repository.FindAll<T>();
     }
     public virtual List<T> FindActive()
     {
-        try
-        {
-            var spec = new ActiveRecord<T>();
-            var data = _uow.Repository.Find<T>(spec).ToList();
-            return data;
-        }
-        catch (DbException ex)
-        {
-            Debug.WriteLine($"[DB ERROR] {ex}");
-            return new List<T>();
-        }
+        var spec = new ActiveRecord<T>();
+        var data = _uow.Repository.Find<T>(spec).ToList();
+        return data;
     }
     public virtual T? FindOne(Guid Id)
     {
-        try
-        {
-            return _uow.Repository.FindOne<T>(Id);
-        }
-        catch (DbException ex)
-        {
-            Debug.WriteLine($"[DB ERROR] {ex}");
-            return null;
-        }
+        return _uow.Repository.FindOne<T>(Id);
     }
+
     public virtual void UpdateStatatus(T model, string status)
     {
         model.Status = status;
@@ -123,66 +79,37 @@ public abstract class ServiceBase<T> where T : class, IEntity, new()
     }
     public virtual void Remove(Guid Id)
     {
-        try
-        {
-            _uow.Repository.Remove<T>(Id);
-        }
-        catch (DbException ex)
-        {
-            Debug.WriteLine($"[DB ERROR] {ex}");
-        }
+        _uow.Repository.Remove<T>(Id);
     }
     public virtual void Remove(T model)
     {
-        try
+        var validationResult = DeleteValidation(model);
+        if (!validationResult.Success && !string.IsNullOrWhiteSpace(validationResult.Message))
         {
-
-            var validationResult = DeleteValidation(model);
-            if (!validationResult.Success && !string.IsNullOrWhiteSpace(validationResult.Message))
-            {
-                throw new Exception(validationResult.Message);
-            }
-            _uow.Repository.Remove(model);
+            throw new Exception(validationResult.Message);
         }
-        catch (DbException ex)
-        {
-            Debug.WriteLine($"[DB ERROR] {ex}");
-        }
+        _uow.Repository.Remove(model);
     }
     public virtual void RemoveRange(IEnumerable<T> models)
     {
-        try
-        {
-            _uow.Repository.RemoveRange(models);
-        }
-        catch (DbException ex)
-        {
-            Debug.WriteLine($"[DB ERROR] {ex}");
-        }
+        _uow.Repository.RemoveRange(models);
     }
     public virtual void RemoveRangeWithValidation(IEnumerable<T> models)
     {
-        try
+        foreach (var item in models)
         {
-            foreach (var item in models)
+            var validationResult = DeleteValidation(item);
+            if (!validationResult.Success)
             {
-                var validationResult = DeleteValidation(item);
-                if (!validationResult.Success)
-                {
-                    throw new Exception(validationResult.Message);
-                }
+                throw new Exception(validationResult.Message);
             }
-            _uow.Repository.RemoveRange(models);
         }
-        catch (DbException ex)
-        {
-            Debug.WriteLine($"[DB ERROR] {ex}");
-        }
+        _uow.Repository.RemoveRange(models);
     }
     public bool CommitChanges() => _uow.CommitChanges();
-    public async Task<bool> CommitChangesAsync() => await _uow.CommitChangesAsync();
+    public async Task<bool> CommitChangesAsync(CancellationToken token) => await _uow.CommitChangesAsync(token);
     public void SaveChanges() => _uow.SaveChanges();
-    public async Task SaveChangesAsync() => await _uow.SaveChangesAsync();
+    public async Task SaveChangesAsync(CancellationToken token) => await _uow.SaveChangesAsync(token);
 }
 public record ValidationMessage(bool Success, string Message) { };
 public class ValidationException : Exception

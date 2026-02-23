@@ -62,18 +62,3 @@ public class WorkPlanScheduleService
               ;
     }
 }
-public class TimeShiftService
-{
-    private readonly IDTRUnitOfWork _uow;
-
-    public TimeShiftService(IDTRUnitOfWork uow)
-    {
-        _uow = uow;
-    }
-    public async Task<List<TimeShift>> GetAllShifts()
-    {
-        return await _uow.Repository
-            .FindAll<TimeShift>()
-            .ToListAsync();
-    }
-}

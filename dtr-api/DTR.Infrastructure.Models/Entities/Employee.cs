@@ -6,10 +6,6 @@ public class Employee : BaseEntity
     public Guid? DepartmentId { get; set; }
     public Guid? PayrollGroupId { get; set; }
     public Guid? ClientId { get; set; }
-    //public virtual Department? Department { get; set; }
-    //public virtual PayrollGroup? PayrollGroup { get; set; }
-    //public virtual Client? Client { get; set; }
-    //public virtual OperationArea? Area { get; set; }
     public Guid? AreaId { get; set; }
     public Guid? BranchId { get; set; }
     public Guid? SectionId { get; set; }
