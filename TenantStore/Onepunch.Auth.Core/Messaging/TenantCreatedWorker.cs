@@ -182,7 +182,7 @@ public class TenantCreatedWorker : BackgroundService
                 Expiry = tokenInfo?.Expiry ?? DateTime.UtcNow.AddDays(2),
                 IssuedAt = DateTime.UtcNow,
                 Purpose = "Tenant account confirmation",
-                ConfirmationRoute = $"{_domainOptions.AuthDomain}/api/v1/user/confirm-email?token={token}"
+                ConfirmationRoute = $"{_domainOptions.AuthDomain}/api/v1/users/confirm-email?token={token}"
             }
         };
     }
