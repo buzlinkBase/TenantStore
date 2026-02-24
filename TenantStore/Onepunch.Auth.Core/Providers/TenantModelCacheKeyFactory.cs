@@ -5,7 +5,6 @@ namespace OnePunch.Auth.Core.Providers;
 
 public class TenantModelCacheKeyFactory : IModelCacheKeyFactory
 {
-    public TenantModelCacheKeyFactory() { }
     public object Create(DbContext context, bool designTime)
     {
         var provider = context.GetService<ITenantProvider>();

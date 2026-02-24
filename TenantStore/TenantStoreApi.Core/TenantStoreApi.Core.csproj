@@ -23,6 +23,9 @@
 	<ItemGroup>
 		<Protobuf Include="Protos\checkemail.proto" GrpcServices="Client" />
 		<Protobuf Include="Protos\tenant.proto" GrpcServices="Server" />
+		<PackageReference Include="MessagePack" />
+		<PackageReference Include="MessagePack.AspNetCoreMvcFormatter" />
+		<PackageReference Include="MessagePackAnalyzer" />
 		<PackageReference Include="Google.Protobuf" />
 		<PackageReference Include="Grpc.AspNetCore" />
 		<PackageReference Include="Grpc.Tools" />

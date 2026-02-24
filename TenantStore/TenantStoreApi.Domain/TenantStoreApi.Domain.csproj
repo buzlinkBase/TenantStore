@@ -7,6 +7,7 @@
 	</PropertyGroup>
 	<ItemGroup>
 		<PackageReference Include="BuzlinkRepository" />
+		<PackageReference Include="MessagePack" /> 
 	</ItemGroup>
 	<ItemGroup>
 	  <ProjectReference Include="..\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
