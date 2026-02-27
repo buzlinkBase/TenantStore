@@ -15,7 +15,7 @@
     <PackageVersion Include="FluentAssertions" Version="8.8.0" />
     <PackageVersion Include="FluentValidation" Version="12.0.0" />
     <PackageVersion Include="AutoMapper" Version="14.0.0" />
-    <PackageVersion Include="BuzlinkRepository" Version="1.2.0" />
+    <PackageVersion Include="BuzlinkRepository" Version="1.2.2" />
     <PackageVersion Include="DevExpress.Win.BonusSkins" Version="24.2.6" />
     <PackageVersion Include="devexpress.win.navigation" Version="24.2.6" />
     <PackageVersion Include="ExcelMapper" Version="6.0.611" />
