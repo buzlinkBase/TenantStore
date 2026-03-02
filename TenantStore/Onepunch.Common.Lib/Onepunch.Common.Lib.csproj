@@ -1,9 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net8.0</TargetFramework>
-		<ImplicitUsings>enable</ImplicitUsings>
+		<TargetFramework>net9.0</TargetFramework>
 		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
 		<RootNamespace>Onepunch.Common.Lib</RootNamespace>
 	</PropertyGroup>
 
@@ -12,6 +12,8 @@
 		<PackageReference Include="BuzlinkRepository" />
 		<PackageReference Include="FluentValidation" />
 		<PackageReference Include="Confluent.Kafka" />
+		<PackageReference Include="MassTransit"  /> 
+		<PackageReference Include="MassTransit.Kafka"  />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
 		<PackageReference Include="Pomelo.EntityFrameworkCore.MySql" />
 		<PackageReference Include="Microsoft.Extensions.Configuration" />

@@ -1,6 +1,4 @@
-﻿
-using Onepunch.Common.Lib.Exceptions;
-namespace OnePunch.Auth.Core.Services;
+﻿namespace OnePunch.Auth.Core.Services;
 public abstract class BaseService<T>
     where T : class, IEntity
 {
@@ -15,7 +13,7 @@ public abstract class BaseService<T>
     protected virtual async Task<EvaluationResult> CreateValidator(T model,CancellationToken token) => EvaluationResult.OK;
     public async Task<bool> CommitChangesAsync(CancellationToken token)
     {
-        return await UoW.CommitChangesAsync(token);
+        return await UoW.CommitChangesAsync("",token);
     }
     public bool CommitChanges()
     {

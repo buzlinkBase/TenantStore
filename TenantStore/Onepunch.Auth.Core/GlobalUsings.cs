@@ -7,6 +7,5 @@ global using Onepunch.Common.Lib;
 global using Onepunch.Common.Lib.DTO;
 global using Onepunch.Common.Lib.Exceptions;
 global using Onepunch.Auth.Core.Services;
-global using Onepunch.Auth.Core.Messaging;
 global using Onepunch.Auth.Domain.DTOs;
 

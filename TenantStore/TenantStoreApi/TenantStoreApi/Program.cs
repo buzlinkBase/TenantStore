@@ -54,6 +54,7 @@ internal class Program
         builder.Services.AddAutoMapper(typeof(MapperProfileConfig).Assembly);
         builder.RegisterSelfServices();
         builder.RegisterCoreServices();
+        builder.ConfigKafka();
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
         builder.Services.AddSwaggerGen(options =>

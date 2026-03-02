@@ -1,9 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net8.0</TargetFramework>
-		<ImplicitUsings>enable</ImplicitUsings>
+		<TargetFramework>net9.0</TargetFramework>
 		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -20,18 +20,16 @@
 	
 	<ItemGroup>
 		<Protobuf Include="Protos\tenant.proto" GrpcServices="Client" />
-		<Protobuf Include="Protos\checkemail.proto" GrpcServices="Server" />
-		<PackageReference Include="Google.Protobuf" />
-		<PackageReference Include="Grpc.AspNetCore" />
+		<Protobuf Include="Protos\checkemail.proto" GrpcServices="Server" /> 
+		<PackageReference Include="Google.Protobuf" /> 
+		<PackageReference Include="Grpc.AspNetCore" /> 
+		<PackageReference Include="Grpc.Net.Client" />
 		<PackageReference Include="Grpc.Tools" />
 		<PackageReference Include="Confluent.Kafka" />
 		<PackageReference Include="FluentValidation" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
-		<PackageReference Include="AutoMapper" />
-
-		<PackageReference Include="Microsoft.IdentityModel.Tokens" />
-
-		<PackageReference Include="Polly" />
+		<PackageReference Include="AutoMapper" /> 
+		<PackageReference Include="Microsoft.IdentityModel.Tokens" /> 
 
 		<PackageReference Include="Serilog.Exceptions" />
 		<PackageReference Include="System.IdentityModel.Tokens.Jwt" />
@@ -51,5 +49,8 @@
 	  <None Update="Protos\checkemail.proto">
 	    <GrpcServices>Client</GrpcServices>
 	  </None>
+	</ItemGroup>
+	<ItemGroup>
+	  <Folder Include="Scheduler\" />
 	</ItemGroup>
 </Project>

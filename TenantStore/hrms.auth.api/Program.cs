@@ -1,6 +1,5 @@
 using Asp.Versioning.ApiExplorer;
 using Microsoft.Extensions.Options;
-using Onepunch.Auth.Core.Messaging;
 using Onepunch.Auth.Core.Protos;
 using Onepunch.Common.Lib;
 using OnePunch.Auth.Api;
@@ -33,6 +32,7 @@ internal class Program
         builder.Services.AddPollyPolicies();
         builder.RegisterSelftServices();
         builder.Services.RegisterCoreServices();
+        builder.ConfigKafka();
         builder.Services.AddAutoMapper(typeof(MappingProfile));
 
         var app = builder.Build();

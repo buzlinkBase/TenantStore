@@ -1,4 +1,4 @@
-using Asp.Versioning; // Add this
+using Asp.Versioning; 
 using Asp.Versioning.ApiExplorer;
 using Microsoft.Extensions.Options;
 using Swashbuckle.AspNetCore.SwaggerGen;
@@ -27,9 +27,10 @@ builder.Services.AddApiVersioning(options =>
 
 builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
 builder.Services.AddSwaggerGen();
-builder.Services.AddPollyPolicies(); 
+builder.Services.AddPollyPolicies();  
 builder.RegisterSelftServices();
 builder.RegisterCoreServices();
+builder.ConfigKafka();
 builder.Services.AddAutoMapper(typeof(MappingProfile));
 
 var app = builder.Build();

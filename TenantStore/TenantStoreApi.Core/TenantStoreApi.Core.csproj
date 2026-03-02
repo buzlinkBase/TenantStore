@@ -1,9 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net8.0</TargetFramework>
-		<ImplicitUsings>enable</ImplicitUsings>
+		<TargetFramework>net9.0</TargetFramework>
 		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
 		<RootNamespace>TenantStoreApi.Core</RootNamespace>
 	</PropertyGroup>
 
@@ -30,12 +30,15 @@
 		<PackageReference Include="Grpc.AspNetCore" />
 		<PackageReference Include="Grpc.Tools" />
 		<PackageReference Include="Confluent.Kafka" />
+		<PackageReference Include="MassTransit" />
+		<PackageReference Include="MassTransit.Kafka" />
+		<PackageReference Include="MassTransit.EntityFrameworkCore" />
+		<PackageReference Include="MassTransit.RabbitMQ"/>
 		<PackageReference Include="FluentValidation" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
 		<PackageReference Include="AutoMapper" />
 		<PackageReference Include="Microsoft.Extensions.Hosting" />
 		<PackageReference Include="Polly" />
-		<PackageReference Include="RabbitMQ.Client" />
 		<PackageReference Include="Serilog.AspNetCore" />
 		<PackageReference Include="Serilog.Exceptions" />
 		<PackageReference Include="Serilog.Sinks.Console" />

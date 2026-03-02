@@ -1,5 +1,4 @@
-﻿using Onepunch.Common.Lib.Services;
-using System.Reflection;
+﻿using System.Reflection;
 
 namespace OnePunch.Notification.Core.Extensions;
 
@@ -8,8 +7,6 @@ public static class LibServicesRegistrations
     public static void RegisterCoreServices(this WebApplicationBuilder builder)
     {
         AddLibraryAssemblyDependencies(builder.Services, "NotificationService");
-        //builder.Services.AddScoped<PasswordCrypto>();
-        //builder.Services.AddScoped<IHMACService, HMACService>();
     }
 
     public static void AddLibraryAssemblyDependencies(IServiceCollection services, string assemblyName)

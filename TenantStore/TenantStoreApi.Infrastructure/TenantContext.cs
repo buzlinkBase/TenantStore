@@ -1,7 +1,7 @@
 ﻿using BuzlinkRepository;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Onepunch.Common.Lib;
-using Onepunch.Common.Lib.Entities;
 using TenantStoreApi.Domain.Entities;
 
 namespace TenantStoreApi.Infrastructure;
@@ -23,7 +23,7 @@ public class TenantContext : DbContext
     public DbSet<Branch> Branches { get; set; }
     public DbSet<Tenant> Tenants { get; set; }
     public DbSet<ApiToken> Tokens { get; set; }
-    public DbSet<OutboxMessage> OutboxMessages { get; set; }
+ 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -39,25 +39,15 @@ public class TenantContext : DbContext
         modelBuilder.Entity<Branch>().HasIndex(x => x.TenantId);
         modelBuilder.Entity<Branch>().HasIndex(x => x.Status);
 
-        modelBuilder.Entity<OutboxMessage>().HasIndex(x => x.TenantId);
-        modelBuilder.Entity<OutboxMessage>().HasIndex(x => x.ProcessedOn);
-        modelBuilder.Entity<OutboxMessage>().HasIndex(x => x.Status);
-        modelBuilder.Entity<OutboxMessage>().HasIndex(x => x.RetryCount);
-        modelBuilder.Entity<OutboxMessage>().HasIndex(x => x.NextRetryOn);
-        modelBuilder.Entity<OutboxMessage>().HasIndex(x => x.Topic);
-        modelBuilder.Entity<OutboxMessage>().HasIndex(x => x.Key);
-        modelBuilder.Entity<OutboxMessage>()
-       .Property(x => x.Status)
-        .HasConversion(
-              v => v.ToString(),
-              v => EnumParserConfig.SafeParseEnum(v, OutBoxState.PENDING)
-          );
-
+        modelBuilder.AddInboxStateEntity();
+        modelBuilder.AddOutboxMessageEntity();
+        modelBuilder.AddOutboxStateEntity();
+       
         modelBuilder.Entity<ApiToken>()
-      .Property(x => x.Status)
-       .HasConversion(
-             v => v.ToString(),
-             v => EnumParserConfig.SafeParseEnum(v, Domain.TokenStatus.Revoke)
-         );
+        .Property(x => x.Status)
+        .HasConversion(
+                v => v.ToString(),
+                v => EnumParserConfig.SafeParseEnum(v, Domain.TokenStatus.Revoke)
+            );
     } 
 }

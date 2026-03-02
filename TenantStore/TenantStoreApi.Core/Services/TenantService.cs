@@ -9,19 +9,17 @@ namespace TenantStoreApi.Core.Services;
 public class TenantService : BaseService<Tenant>
 {
     private readonly IMapper _mapper;
+    private readonly IProducerService _producerService;
     private readonly AuthService _authClient;
-    private readonly KafkaSettings _kafkaSettings;
-    private readonly OutBoxService _outBoxService;
     private readonly PasswordCrypto _crypto;
-    public TenantService(IUnitOfWorkService service, IMapper mapper,
-        AuthService authClient,
-        IOptions<KafkaSettings> kafkaSettings,
-        OutBoxService outBoxService, PasswordCrypto crypto) : base(service)
+    public TenantService(IUnitOfWorkService service,
+        IMapper mapper,
+        IProducerService producerService,
+        AuthService authClient, PasswordCrypto crypto) : base(service)
     {
         _mapper = mapper;
+        _producerService = producerService;
         _authClient = authClient;
-        _kafkaSettings = kafkaSettings.Value;
-        _outBoxService = outBoxService;
         _crypto = crypto;
     }
     protected override async Task<EvaluationResult> CreateValidatorAsync(Tenant model, CancellationToken token)
@@ -44,7 +42,7 @@ public class TenantService : BaseService<Tenant>
         await CreateAsync(tenant, token);
         await UoW.SaveChangesAsync(token);
         var msgPayloadDto = ComposePayload(tenant, payload);
-        await CreateOutBoxAysnc(tenant, msgPayloadDto, token);
+        await _producerService.ProduceAsync(msgPayloadDto);
         await CommitChangesAsync(token);
         return _mapper.Map<TenantModel>(tenant);
     }
@@ -77,28 +75,15 @@ public class TenantService : BaseService<Tenant>
         await RemoveRangeAsync(tenants, token);
     }
 
-    private MessagePayload<TenantCreatedPayload> ComposePayload(Tenant tenant, CreateTenant payload)
+    private TenantCreatedPayload ComposePayload(Tenant tenant, CreateTenant payload)
     {
         var userPassword = _crypto.Encrypt(payload.Password);
-        return new MessagePayload<TenantCreatedPayload>
+        return new TenantCreatedPayload
         {
-            Data = new TenantCreatedPayload
-            {
-                TenantId = tenant.Id,
-                Email = payload.Email,
-                Password = userPassword,
-            },
+            TenantId = tenant.Id,
+            Email = payload.Email,
+            Password = userPassword,
         };
-    }
-
-    private async Task CreateOutBoxAysnc(Tenant tenant, MessagePayload<TenantCreatedPayload> payload, CancellationToken token)
-    {
-        var message = ObjectSerializer.Serialize(payload);
-        var outbox = _outBoxService.CreateModel(tenant.Id,
-            tenant.Id.ToString(),
-            _kafkaSettings.Topics.TenantCreated,
-            message);
-        await _outBoxService.AddAsync(outbox, token);
     }
 }
 

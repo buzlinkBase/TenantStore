@@ -1,10 +1,13 @@
 ﻿using Asp.Versioning.Conventions;
+using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Onepunch.Auth.Core;
-using Onepunch.Auth.Core.Messaging;
+using Onepunch.Auth.Infrastructure;
 using Onepunch.Auth.Infrastructure.Data;
 using Onepunch.Common.Lib;
+using Onepunch.Common.Lib.DTO;
+using OnePunch.Auth.Core.Messaging;
 using OnePunch.Auth.Core.Providers;
 using System.Text;
 
@@ -43,7 +46,8 @@ public static class ServiceRegistrations
         builder.Services.AddScoped<ITenantProvider, TenantProvider>();
         builder.Services.AddScoped<WebTenantContextAccessor>();
         builder.Services.AddScoped<MessagingTenantContextAccessor>();
-        builder.Services.AddScoped<ITenantContextAccessor>(sp => {
+        builder.Services.AddScoped<ITenantContextAccessor>(sp =>
+        {
             var httpContext = sp.GetRequiredService<IHttpContextAccessor>();
             if (httpContext.HttpContext != null)
             {
@@ -53,8 +57,8 @@ public static class ServiceRegistrations
         });
 
         //builder.Services.AddHostedService<CleanupOutboxWorker>();
-        builder.Services.AddHostedService<OutboxWorker>();
-        builder.Services.AddHostedService<TenantCreatedWorker>();
+        //builder.Services.AddHostedService<OutboxWorker>();
+        //builder.Services.AddHostedService<TenantCreatedWorker>();
         var bootstrapServers = builder.Configuration["KafkaSettings:BootstrapServers"] ?? "";
         builder.Services.AddSingleton(sp => ActivatorUtilities.CreateInstance<ProducerService>(sp, bootstrapServers));
         builder.Services.AddIdentity<User, Role>(options =>
@@ -81,8 +85,7 @@ public static class ServiceRegistrations
             options.AddInterceptors(new ApplyTenantInterceptor(tenantProvider));
             options.AddInterceptors(new SoftDeleteInterceptor());
             options.UseLazyLoadingProxies(true);
-
-            options.ReplaceService<IModelCacheKeyFactory, TenantModelCacheKeyFactory>();
+            options.ReplaceService<IModelCacheKeyFactory, Onepunch.Auth.Infrastructure.TenantModelCacheKeyFactory>();
         });
 
         builder.Services.AddCors(options =>
@@ -138,7 +141,7 @@ public static class ServiceRegistrations
                 setup.GroupNameFormat = "'v'VVV";
                 setup.SubstituteApiVersionInUrl = true;
             });
-         
+
         builder.Services.AddAuthentication(options =>
          {
              options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;

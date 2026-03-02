@@ -1,7 +1,6 @@
 ﻿using Asp.Versioning;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using OnePunch.Notification.Core.Messaging;
 using OnePunch.Notification.Domain.DTO;
 using System.Text;
 
@@ -18,8 +17,6 @@ public static class ServiceRegistrations
         builder.Services.AddHttpContextAccessor(); 
         builder.Services.AddDataProtection(); 
         builder.Services.AddLogging();
-        builder.Services.AddHostedService<UserCreatedWorker>();
-        builder.Services.AddHostedService<UserInvitationWorker>();
         var bootstrapServers = builder.Configuration["KafkaSettings:BootstrapServers"] ?? "";
         builder.Services.AddSingleton<ProducerService>(sp =>
          ActivatorUtilities.CreateInstance<ProducerService>(sp, bootstrapServers));

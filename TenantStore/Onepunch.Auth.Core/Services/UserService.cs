@@ -12,8 +12,8 @@ namespace OnePunch.Auth.Core.Services;
 
 public class UserService : BaseService<User>
 {
+    private readonly IProducerService _producer;
     private readonly UserManager<User> _manager;
-    private readonly OutBoxService _outboxService;
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly JwtService _jwtService;
     private readonly EmailTokenService _emailTokenService;
@@ -24,9 +24,9 @@ public class UserService : BaseService<User>
     private readonly IMapper _mapper;
 
     public UserService(
+        IProducerService producer ,
         IUnitOfWorkService uow,
         UserManager<User> manager,
-        OutBoxService outboxService,
         IPasswordHasher<User> passwordHasher,
         JwtService jwtService,
         IOptions<KafkaSettings> kafkaOptions,
@@ -36,8 +36,8 @@ public class UserService : BaseService<User>
         IConfiguration configuration,
         IMapper mapper) : base(uow)
     {
+        _producer = producer;
         _manager = manager ?? throw new ArgumentNullException(nameof(manager));
-        _outboxService = outboxService;
         _passwordHasher = passwordHasher ?? throw new ArgumentNullException(nameof(passwordHasher));
         _jwtService = jwtService ?? throw new ArgumentNullException(nameof(jwtService));
         _emailTokenService = emailTokenService;
@@ -49,21 +49,8 @@ public class UserService : BaseService<User>
     }
 
     #region Registration Helpers
-    private RegistrationResult Success(string message) =>
-        new RegistrationResult { Success = true, Message = message };
-    private RegistrationResult Fail(string code, string message) =>
-        new RegistrationResult { Success = false, ErrorCode = code, Message = message };
-    //private async Task<RegistrationResult> HandleSuccess(RegistrationResult result, EmailToken token)
-    //{
-    //    await _publisher.HandleSuccess(result, token);
-    //    return result;
-    //}
-    //private async Task<RegistrationResult> HandleFailure(RegistrationResult result, EmailToken? token)
-    //{
-    //    await _publisher.HandleFailure(result, token);
-    //    return result;
-    //}
-
+    private RegistrationResult Success(string message) => new RegistrationResult { Success = true, Message = message };
+    private RegistrationResult Fail(string code, string message) => new RegistrationResult { Success = false, ErrorCode = code, Message = message };
     public async Task<(User user, IdentityResult result)> RegisterTenantAdmin(TenantCreatedPayload payload)
     {
         var user = new User
@@ -89,22 +76,22 @@ public class UserService : BaseService<User>
         var token = Encoding.UTF8.GetString(TokenEncodingHelper.FromBase64Url(emailToken));
         var userToken = ObjectSerializer.Deserialize<EmailTokenInfo>(token);
 
+        //update token
         var emailInfoDb = await FindToken(emailToken);
         if (emailInfoDb == null) throw new Exception("Unverified token");
         if (emailInfoDb.TenantId != userToken.TenantId) return Fail("TENANT_MISMATCH", "Invalid tenant");
         if (emailInfoDb.Email != userToken.Email) return Fail("EMAIL_MISMATCH", "Cannot verify email");
         if (emailInfoDb == null) return Fail("TOKEN_NOT_FOUND", "Unable to verify Token");
-        if (IsTokenExpired(emailInfoDb)
-            || emailInfoDb.IsUsed) return Fail("TOKEN_EXPIRED", "User registration expired");
-
+        if (IsTokenExpired(emailInfoDb) || emailInfoDb.IsUsed) return Fail("TOKEN_EXPIRED", "User registration expired");
         emailInfoDb.IsUsed = true;
+        Context.EmailTokens.Update(emailInfoDb);
+
+        //update user
         var user = await _manager.FindByEmailAsync(emailInfoDb.Email);
         if (user == null) return Fail("EMAIL_NOT_FOUND", "Email not found");
         if (user.TenantId != emailInfoDb.TenantId) return Fail("TENANT_MISMATCH", "Invalid tenant");
         user.Status = "Active";
         user.EmailConfirmed = true;
-
-        Context.EmailTokens.Update(emailInfoDb);
         Context.Users.Update(user);
 
         var payload = new TenantUserPayload
@@ -113,13 +100,9 @@ public class UserService : BaseService<User>
             TenantId = user.TenantId,
             UserId = user.Id,
         };
-        var message = ObjectSerializer.Serialize(new MessagePayload<TenantUserPayload> { Data = payload });
-        var confirmationOutbox = _outboxService.CreateModel(
-            user.TenantId, user.Id.ToString(),
-            _kafkaOptions.Topics.TenantUserConfirmed,
-            message);
 
-        await _outboxService.AddAsync(confirmationOutbox, ctoken);
+        await _producer.ProduceAsync(payload);
+
         if (await CommitChangesAsync(ctoken))
         {
             return Success("User successfully activated");
@@ -165,28 +148,19 @@ public class UserService : BaseService<User>
     {
         var exp = DateTime.UtcNow.AddDays(2);
         var emailToken = await _emailTokenService.CreateModelAsync("user.invitation", exp, payload.Email);
-        var message = new MessagePayload<UserInvitionNotificationPayload>
+        var message = new UserInvitionNotificationPayload
         {
-            Data = new UserInvitionNotificationPayload
-            {
-                Email = payload.Email,
-                Name = payload.Name,
-                InviteLink = $"{_domains.FrontEndDomain}/register?token={emailToken.TokenValue}",
-                AppName = _configuration["AppName"],
-                TenantName = emailToken.TenantName,
-                Expiry = exp,
-                Token = emailToken.TokenValue,
-            }
+            Email = payload.Email,
+            Name = payload.Name,
+            InviteLink = $"{_domains.FrontEndDomain}/register?token={emailToken.TokenValue}",
+            AppName = _configuration["AppName"],
+            TenantName = emailToken.TenantName,
+            Expiry = exp,
+            Token = emailToken.TokenValue,
         };
         //store token
         await _emailTokenService.StoreToken(emailToken, token);
-        //store outbox
-        var outbox = _outboxService.CreateModel(
-            emailToken.TenantId,
-            emailToken.TenantId.ToString(),
-            _kafkaOptions.Topics.SendUserInvitation,
-            ObjectSerializer.Serialize(message));
-        await _outboxService.AddAsync(outbox, token);
+        await _producer.ProduceAsync(message);
         return await CommitChangesAsync(token);
     }
     public Task<User?> GetByIdAsync(string id) => _manager.FindByIdAsync(id);
