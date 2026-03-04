@@ -1,5 +1,4 @@
-﻿using BuzlinkRepository;
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Onepunch.Common.Lib.Services;
 using System.Reflection;
@@ -10,8 +9,7 @@ public static class LibServicesRegistrations
 {
     public static void RegisterCoreServices(this WebApplicationBuilder builder)
     {
-        AddLibraryAssemblyDependencies(builder.Services, "TenantStoreApi.Core");
-        builder.Services.AddScoped<IProducerService, KafkaProducerService>();
+        AddLibraryAssemblyDependencies(builder.Services, "TenantStoreApi.Core"); 
         builder.Services.AddScoped<PasswordCrypto>();
         builder.Services.AddScoped<IUnitOfWorkService, UnitOfWorkService>();
         builder.Services.AddScoped<IHMACService, HMACService>();

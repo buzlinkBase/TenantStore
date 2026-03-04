@@ -18,27 +18,27 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<None Include="Messaging\TenantUserCreatedWorker.cs" />
 		<None Include="Messaging\UserConfirmedWorker.cs" />
 	</ItemGroup>
 	<ItemGroup>
 		<Protobuf Include="Protos\checkemail.proto" GrpcServices="Client" />
 		<Protobuf Include="Protos\tenant.proto" GrpcServices="Server" />
+		<PackageReference Include="MassTransit.RabbitMQ" />
 		<PackageReference Include="MessagePack" />
 		<PackageReference Include="MessagePack.AspNetCoreMvcFormatter" />
 		<PackageReference Include="MessagePackAnalyzer" />
 		<PackageReference Include="Google.Protobuf" />
 		<PackageReference Include="Grpc.AspNetCore" />
 		<PackageReference Include="Grpc.Tools" />
-		<PackageReference Include="Confluent.Kafka" />
 		<PackageReference Include="MassTransit" />
-		<PackageReference Include="MassTransit.Kafka" />
 		<PackageReference Include="MassTransit.EntityFrameworkCore" />
-		<PackageReference Include="MassTransit.RabbitMQ"/>
 		<PackageReference Include="FluentValidation" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
 		<PackageReference Include="AutoMapper" />
 		<PackageReference Include="Microsoft.Extensions.Hosting" />
 		<PackageReference Include="Polly" />
+		<PackageReference Include="RabbitMQ.Client" />
 		<PackageReference Include="Serilog.AspNetCore" />
 		<PackageReference Include="Serilog.Exceptions" />
 		<PackageReference Include="Serilog.Sinks.Console" />

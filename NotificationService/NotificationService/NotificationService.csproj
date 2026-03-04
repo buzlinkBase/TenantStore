@@ -6,28 +6,25 @@
 		<RootNamespace>OnePunch.Notification</RootNamespace>
 	</PropertyGroup>
 	<ItemGroup>
-	  <Compile Remove="Core\Utilities\**" />
-	  <Compile Remove="Infrastructure\**" />
-	  <Content Remove="Core\Utilities\**" />
-	  <Content Remove="Infrastructure\**" />
-	  <EmbeddedResource Remove="Core\Utilities\**" />
-	  <EmbeddedResource Remove="Infrastructure\**" />
-	  <None Remove="Core\Utilities\**" />
-	  <None Remove="Infrastructure\**" />
+		<Compile Remove="Core\Utilities\**" />
+		<Content Remove="Core\Utilities\**" />
+		<EmbeddedResource Remove="Core\Utilities\**" />
+		<None Remove="Core\Utilities\**" />
 	</ItemGroup>
 	<ItemGroup>
-		<PackageReference Include="Confluent.Kafka" />
+		<PackageReference Include="MassTransit" />
+		<PackageReference Include="MassTransit.EntityFrameworkCore" />
+		<PackageReference Include="MassTransit.RabbitMQ" />
 		<PackageReference Include="Microsoft.IdentityModel.Tokens" />
+		<PackageReference Include="RabbitMQ.Client" />
 		<PackageReference Include="Serilog.Exceptions" />
 		<PackageReference Include="Swashbuckle.AspNetCore" />
 		<PackageReference Include="Asp.Versioning.Http" />
 		<PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" />
 		<PackageReference Include="AutoMapper" />
-		<PackageReference Include="System.IdentityModel.Tokens.Jwt" /> 
+		<PackageReference Include="System.IdentityModel.Tokens.Jwt" />		
+		<PackageReference Include="MassTransit.EntityFrameworkCore" />
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
-		<PackageReference Include="MassTransit" />
-		<PackageReference Include="MassTransit.EntityFrameworkCore"  />
-		<PackageReference Include="MassTransit.Kafka"   />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -63,18 +60,18 @@
 		<PackageReference Include="Serilog.Sinks.File" />
 		<PackageReference Include="Serilog.Sinks.Seq" />
 	</ItemGroup>
-	 
-	
+
+
 	<ItemGroup>
-	  <ProjectReference Include="..\..\TenantStore\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
+		<ProjectReference Include="..\..\TenantStore\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
 	</ItemGroup>
-	
+
 	<ItemGroup>
-	  <None Update="Core\Templates\AccountConfirmation.html">
-	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-	  </None>
-	  <None Update="Core\Templates\UserInvitation.html">
-	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-	  </None>
+		<None Update="Core\Templates\AccountConfirmation.html">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Core\Templates\UserInvitation.html">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
 	</ItemGroup>
 </Project>

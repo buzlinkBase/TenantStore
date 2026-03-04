@@ -1,9 +1,6 @@
-﻿using Confluent.Kafka;
-using MassTransit;
-using Polly.CircuitBreaker;
+﻿using MassTransit;
 
 namespace OnePunch.Notification.Core.Messaging;
-
 public class UserCreatedWorker : IConsumer<UserEmailPayload>
 {
     private readonly EmailNotificationService _emailNotificationService;

@@ -1,6 +1,8 @@
 ﻿using AutoMapper;
-using Microsoft.Extensions.Configuration;
+using MassTransit;
+using MassTransit.RabbitMqTransport;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Onepunch.Auth.Core;
 using Onepunch.Auth.Domain.Entities;
@@ -12,7 +14,7 @@ namespace OnePunch.Auth.Core.Services;
 
 public class UserService : BaseService<User>
 {
-    private readonly IProducerService _producer;
+    private readonly IPublishEndpoint _publisher;
     private readonly UserManager<User> _manager;
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly JwtService _jwtService;
@@ -24,7 +26,7 @@ public class UserService : BaseService<User>
     private readonly IMapper _mapper;
 
     public UserService(
-        IProducerService producer ,
+        IPublishEndpoint publisher,
         IUnitOfWorkService uow,
         UserManager<User> manager,
         IPasswordHasher<User> passwordHasher,
@@ -36,7 +38,7 @@ public class UserService : BaseService<User>
         IConfiguration configuration,
         IMapper mapper) : base(uow)
     {
-        _producer = producer;
+        _publisher = publisher;
         _manager = manager ?? throw new ArgumentNullException(nameof(manager));
         _passwordHasher = passwordHasher ?? throw new ArgumentNullException(nameof(passwordHasher));
         _jwtService = jwtService ?? throw new ArgumentNullException(nameof(jwtService));
@@ -101,7 +103,7 @@ public class UserService : BaseService<User>
             UserId = user.Id,
         };
 
-        await _producer.ProduceAsync(payload);
+        await _publisher.Publish(payload,ctoken);
 
         if (await CommitChangesAsync(ctoken))
         {
@@ -160,7 +162,7 @@ public class UserService : BaseService<User>
         };
         //store token
         await _emailTokenService.StoreToken(emailToken, token);
-        await _producer.ProduceAsync(message);
+        await _publisher.Publish(message, token);
         return await CommitChangesAsync(token);
     }
     public Task<User?> GetByIdAsync(string id) => _manager.FindByIdAsync(id);

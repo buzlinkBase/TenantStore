@@ -9,6 +9,7 @@ public static class ServiceRegistrations
 {
     public static void RegisterSelftServices(this WebApplicationBuilder builder)
     {
+        builder.Services.Configure<RabbitMqSettings>(builder.Configuration.GetSection("RabbitMqSettings"));
         builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("KafkaSettings"));
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
         builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));
@@ -18,9 +19,6 @@ public static class ServiceRegistrations
         builder.Services.AddDataProtection(); 
         builder.Services.AddLogging();
         var bootstrapServers = builder.Configuration["KafkaSettings:BootstrapServers"] ?? "";
-        builder.Services.AddSingleton<ProducerService>(sp =>
-         ActivatorUtilities.CreateInstance<ProducerService>(sp, bootstrapServers));
-       
         builder.Services.AddCors(options =>
         {
             options.AddPolicy("AllowAll", policy =>

@@ -16,7 +16,7 @@ public class TenantCreatedWorker : IConsumer<TenantCreatedPayload>
     private readonly UserService _userService;
     private readonly PasswordCrypto _passwordCrypto;
     private readonly EmailTokenService _emailTokenService;
-    private readonly IProducerService _producerService;
+    private readonly IPublishEndpoint _publisher;
     private readonly Domains _domainOptions;
 
     public TenantCreatedWorker(
@@ -26,7 +26,7 @@ public class TenantCreatedWorker : IConsumer<TenantCreatedPayload>
         PasswordCrypto passwordCrypto,
         EmailTokenService emailTokenService,
         IOptions<Domains> domainOptions,
-        IProducerService producerService,
+        IPublishEndpoint publisher,
         IConfiguration configuration)
     {
         _configuration = configuration;
@@ -35,7 +35,7 @@ public class TenantCreatedWorker : IConsumer<TenantCreatedPayload>
         _userService = userService;
         _passwordCrypto = passwordCrypto;
         _emailTokenService = emailTokenService;
-        _producerService = producerService;
+        _publisher = publisher;
         _domainOptions = domainOptions.Value;
     }
 
@@ -59,7 +59,7 @@ public class TenantCreatedWorker : IConsumer<TenantCreatedPayload>
         tokenModel.UserId = response.user.Id;
         await _emailTokenService.StoreToken(tokenModel, context.CancellationToken);
         var emailDomain = ComposePayload(response.user, tokenModel);
-        await _producerService.ProduceAsync(emailDomain, context.CancellationToken);
+        await _publisher.Publish(emailDomain, context.CancellationToken);
         await _userService.CommitChangesAsync(context.CancellationToken);
     }
 

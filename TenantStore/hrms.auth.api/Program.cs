@@ -32,7 +32,8 @@ internal class Program
         builder.Services.AddPollyPolicies();
         builder.RegisterSelftServices();
         builder.Services.RegisterCoreServices();
-        builder.ConfigKafka();
+        //builder.AuthConfigKafka();
+        builder.AuthConfigRabbitMq();
         builder.Services.AddAutoMapper(typeof(MappingProfile));
 
         var app = builder.Build();
@@ -40,7 +41,7 @@ internal class Program
         app.UseSwagger();
         app.UseSwaggerUI(options =>
         {
-            //options.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
+            options.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
             options.DefaultModelsExpandDepth(-1);
             foreach (var description in apiVersionProvider.ApiVersionDescriptions)
             {

@@ -25,11 +25,12 @@
 		<PackageReference Include="Grpc.AspNetCore" /> 
 		<PackageReference Include="Grpc.Net.Client" />
 		<PackageReference Include="Grpc.Tools" />
-		<PackageReference Include="Confluent.Kafka" />
 		<PackageReference Include="FluentValidation" />
+		<PackageReference Include="MassTransit.RabbitMQ" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
 		<PackageReference Include="AutoMapper" /> 
 		<PackageReference Include="Microsoft.IdentityModel.Tokens" /> 
+		<PackageReference Include="RabbitMQ.Client" /> 
 
 		<PackageReference Include="Serilog.Exceptions" />
 		<PackageReference Include="System.IdentityModel.Tokens.Jwt" />

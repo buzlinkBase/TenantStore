@@ -23,6 +23,7 @@ public static class ServiceRegistrations
         builder.Services.Configure<Domains>(builder.Configuration.GetSection("Domains"));
         builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
         builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("KafkaSettings"));
+        builder.Services.Configure<RabbitMqSettings>(builder.Configuration.GetSection("RabbitMqSettings"));
         builder.Services.AddHeaderPropagation(options =>
         {
             options.Headers.Add("User-Agent");
@@ -60,7 +61,6 @@ public static class ServiceRegistrations
         //builder.Services.AddHostedService<OutboxWorker>();
         //builder.Services.AddHostedService<TenantCreatedWorker>();
         var bootstrapServers = builder.Configuration["KafkaSettings:BootstrapServers"] ?? "";
-        builder.Services.AddSingleton(sp => ActivatorUtilities.CreateInstance<ProducerService>(sp, bootstrapServers));
         builder.Services.AddIdentity<User, Role>(options =>
         {
             options.User.RequireUniqueEmail = true;

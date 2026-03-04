@@ -54,7 +54,8 @@ internal class Program
         builder.Services.AddAutoMapper(typeof(MapperProfileConfig).Assembly);
         builder.RegisterSelfServices();
         builder.RegisterCoreServices();
-        builder.ConfigKafka();
+        //builder.TenantConfigKafka();
+        builder.TenantConfigRabbitMq();
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
         builder.Services.AddSwaggerGen(options =>
@@ -62,6 +63,30 @@ internal class Program
             options.SchemaFilter<EnumSchemaFilter>();
             options.OperationFilter<SwaggerHeader>();
         });
+
+
+        //Console.WriteLine("--- LOADING DIAGNOSTIC ---");
+        //foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        //{
+        //    if (assembly.FullName.Contains("RabbitMQ.Client"))
+        //    {
+        //        Console.WriteLine($"Name: {assembly.FullName}");
+        //        Console.WriteLine($"Location: {assembly.Location}");
+        //    }
+        //}
+        //Console.WriteLine("--------------------------");
+
+
+        Console.WriteLine("--- DETECTIVE DIAGNOSTIC START ---");
+        var rabbitAssemblies = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => a.FullName.Contains("RabbitMQ.Client"));
+
+        foreach (var asm in rabbitAssemblies)
+        {
+            Console.WriteLine($"LOADED: {asm.FullName}");
+            Console.WriteLine($"PATH: {asm.Location}");
+        }
+        Console.WriteLine("--- DETECTIVE DIAGNOSTIC END ---");
 
 
         var app = builder.Build(); 
@@ -73,7 +98,7 @@ internal class Program
         app.UseSwagger();
         app.UseSwaggerUI(options =>
         {
-            //options.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
+            options.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
             options.DefaultModelsExpandDepth(-1);
             foreach (var description in apiVersionProvider.ApiVersionDescriptions)
             {

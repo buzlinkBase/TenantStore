@@ -9,7 +9,6 @@ public static class LibServicesRegistrations
     public static void RegisterCoreServices(this IServiceCollection services)
     {
         AddLibraryAssemblyDependencies(services, "Onepunch.Auth.Core");
-        services.AddScoped<IProducerService, KafkaProducerService>();
         services.AddScoped<PasswordCrypto>();
         services.AddScoped<IUnitOfWorkService, UnitOfWorkService>();
         services.AddScoped<IHMACService, HMACService>();

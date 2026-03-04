@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using MassTransit;
 using Microsoft.Extensions.Options;
 using Onepunch.Common.Lib.Exceptions;
 using TenantStoreApi.Core.Utilities;
@@ -9,16 +10,16 @@ namespace TenantStoreApi.Core.Services;
 public class TenantService : BaseService<Tenant>
 {
     private readonly IMapper _mapper;
-    private readonly IProducerService _producerService;
+    private readonly IPublishEndpoint _publisher;
     private readonly AuthService _authClient;
     private readonly PasswordCrypto _crypto;
     public TenantService(IUnitOfWorkService service,
         IMapper mapper,
-        IProducerService producerService,
+        IPublishEndpoint publisher ,
         AuthService authClient, PasswordCrypto crypto) : base(service)
     {
         _mapper = mapper;
-        _producerService = producerService;
+        _publisher = publisher;
         _authClient = authClient;
         _crypto = crypto;
     }
@@ -42,7 +43,7 @@ public class TenantService : BaseService<Tenant>
         await CreateAsync(tenant, token);
         await UoW.SaveChangesAsync(token);
         var msgPayloadDto = ComposePayload(tenant, payload);
-        await _producerService.ProduceAsync(msgPayloadDto);
+        await _publisher.Publish(msgPayloadDto);
         await CommitChangesAsync(token);
         return _mapper.Map<TenantModel>(tenant);
     }

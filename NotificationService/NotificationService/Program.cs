@@ -1,6 +1,7 @@
 using Asp.Versioning; 
 using Asp.Versioning.ApiExplorer;
 using Microsoft.Extensions.Options;
+using OnePunch.Notification.Infrastructure;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -30,8 +31,11 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddPollyPolicies();  
 builder.RegisterSelftServices();
 builder.RegisterCoreServices();
-builder.ConfigKafka();
+//builder.NotifConfigKafka();
+builder.NotifConfigRabbitMq();
 builder.Services.AddAutoMapper(typeof(MappingProfile));
+builder.Services.AddDbContext<NotifContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 var app = builder.Build();
 var apiVersionProvider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
@@ -43,7 +47,7 @@ var apiVersionProvider = app.Services.GetRequiredService<IApiVersionDescriptionP
 app.UseSwagger();
 app.UseSwaggerUI(options =>
 {
-    //options.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
+    options.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
     options.DefaultModelsExpandDepth(-1);
     foreach (var description in apiVersionProvider.ApiVersionDescriptions)
     {
