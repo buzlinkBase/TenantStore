@@ -63,7 +63,7 @@ public static class NotifTenantRabbitConfiguration
             // 1. Register Consumers globally (removed from inside a 'Rider')
             x.AddConsumer<UserInvitationWorker>();
             x.AddConsumer<UserCreatedWorker>();
-
+            x.AddConsumer<ResetPasswordWorker>();
             // 2. Keep the Outbox configuration (it is transport-agnostic)
             x.AddEntityFrameworkOutbox<NotifContext>(o =>
             {

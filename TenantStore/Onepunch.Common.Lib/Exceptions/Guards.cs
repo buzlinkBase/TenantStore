@@ -1,4 +1,6 @@
 ﻿using BuzlinkRepository;
+using Onepunch.Common.Lib.DTO;
+using System.Text;
 
 namespace Onepunch.Common.Lib.Exceptions;
 
@@ -48,4 +50,15 @@ public static class Guard
             throw new GuardException(result.Message);
         }
     }
+
+    //public static async Task EmailTokenGuard(string encryptedToken)
+    //{
+    //    var token = Encoding.UTF8.GetString(TokenEncodingHelper.FromBase64Url(encryptedToken));
+    //    var userToken = ObjectSerializer.Deserialize<EmailTokenInfo>(token);
+    //    var emailInfoDb = await FindToken(payload.Token);
+    //    if (emailInfoDb == null) throw new Exception("Unverified token");
+    //    if (emailInfoDb.TenantId != userToken.TenantId) throw new Exception("Invalid payload");
+    //    if (emailInfoDb.Email != userToken.Email) throw new Exception("Invalid payload");
+    //    if (IsTokenExpired(emailInfoDb) || emailInfoDb.IsUsed) throw new Exception("Token expired");
+    //}
 }

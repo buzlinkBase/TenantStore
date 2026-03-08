@@ -28,7 +28,6 @@ public class JwtService
         {
             rng.GetBytes(randomNumber);
         }
-
         // Convert to Base64 string
         return Convert.ToBase64String(randomNumber);
     }
@@ -69,7 +68,6 @@ public class JwtService
     public TokenInfo? ReadTokenToObject(string token)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SigningKey));
-
         var tokenHandler = new JwtSecurityTokenHandler();
         var validationParameters = new TokenValidationParameters
         {

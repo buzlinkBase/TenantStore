@@ -16,10 +16,19 @@ public abstract class BaseService<T>
     }
     public IRepository Repository => UoW.Repository;
     public TenantContext Context => UoW.Context;
-    protected virtual async Task<EvaluationResult> CreateValidatorAsync(T model,CancellationToken token) => EvaluationResult.OK;
+
+    protected virtual async Task<EvaluationResult> CreateValidatorAsync(T model, CancellationToken token) => EvaluationResult.OK;
+    public async Task SaveChangesAsync(CancellationToken token)
+    {
+        await UoW.SaveChangesAsync(token);
+    }
+    public async void SaveChanges()
+    {
+        UoW.SaveChanges();
+    }
     public async Task<bool> CommitChangesAsync(CancellationToken token)
     {
-        return await UoW.CommitChangesAsync("",token);
+        return await UoW.CommitChangesAsync("", token);
     }
     public bool CommitChanges()
     {
@@ -30,21 +39,21 @@ public abstract class BaseService<T>
         return Repository.Find(specification);
     }
 
-    protected IQueryable<Type> GetQueryable<Type>(Specification<Type> specification, bool noTracking = true) where Type : class, IEntity
+    public IQueryable<Type> GetQueryable<Type>(Specification<Type> specification, bool noTracking = true) where Type : class, IEntity
     {
         return noTracking
                ? Repository.Find(specification).AsNoTracking()
                : Repository.Find(specification)
                ;
     }
-    protected IQueryable<T> GetQueryable(bool noTracking = true)
+    public IQueryable<T> GetQueryable(bool noTracking = true)
     {
         return noTracking
                ? Repository.FindAll<T>().AsNoTracking()
                : Repository.FindAll<T>()
                ;
     }
-    protected IQueryable<T> GetQueryable(Expression<Func<T, bool>> expression, bool noTracking = true)
+    public IQueryable<T> GetQueryable(Expression<Func<T, bool>> expression, bool noTracking = true)
     {
         return GetQueryable(noTracking).Where(expression);
     }
@@ -52,27 +61,27 @@ public abstract class BaseService<T>
     {
         return await Repository.FindOneAsync<T>(Id, token);
     }
-    protected async Task CreateRangeAsync(IEnumerable<T> models,CancellationToken token)
+    protected async Task CreateRangeAsync(IEnumerable<T> models, CancellationToken token)
     {
         await Repository.AddRangeAsync(models, token);
     }
-    protected async Task CreateAsync(T model,CancellationToken token)
+    protected async Task CreateAsync(T model, CancellationToken token)
     {
         if (model is null) return;
         await Guard.ModelGuardAsync<T>(CreateValidatorAsync, model, token);
         await Repository.AddAsync(model, token);
     }
-    protected async Task ModifyAsync(T model,CancellationToken token)
+    protected async Task ModifyAsync(T model, CancellationToken token)
     {
         if (model is null) return;
         await Guard.ModelGuardAsync<T>(CreateValidatorAsync, model, token);
         Repository.Update(model);
         await Task.CompletedTask;
     }
-    protected async Task CreateOrUpdateAsync(T model,CancellationToken token)
+    protected async Task CreateOrUpdateAsync(T model, CancellationToken token)
     {
         if (model is null) return;
-        await Guard.ModelGuardAsync<T>(CreateValidatorAsync , model, token);
+        await Guard.ModelGuardAsync<T>(CreateValidatorAsync, model, token);
         Repository.AddOrUpdate(model);
         await Task.CompletedTask;
     }
@@ -95,9 +104,9 @@ public abstract class BaseService<T>
         Repository.Remove(expression);
         await Task.CompletedTask;
     }
-    protected async Task RemoveRangeAsync(IEnumerable<T> models,CancellationToken token)
+    protected async Task RemoveRangeAsync(IEnumerable<T> models, CancellationToken token)
     {
-        if (!models.Any()) return; 
+        if (!models.Any()) return;
         token.ThrowIfCancellationRequested();
         Repository.RemoveRange(models);
         await Task.CompletedTask;

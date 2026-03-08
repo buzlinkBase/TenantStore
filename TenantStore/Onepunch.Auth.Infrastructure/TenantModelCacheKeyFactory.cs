@@ -1,6 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Onepunch.Auth.Infrastructure.Data;
 using System;
 using System.Collections.Generic;
 using System.Linq;

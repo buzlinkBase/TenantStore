@@ -9,12 +9,15 @@
 	<ItemGroup>
 	  <Compile Remove="Exceptions\**" />
 	  <Compile Remove="Messaging\Message Handlers\**" />
+	  <Compile Remove="Scheduler\**" />
 	  <Compile Remove="Utilities\**" />
 	  <EmbeddedResource Remove="Exceptions\**" />
 	  <EmbeddedResource Remove="Messaging\Message Handlers\**" />
+	  <EmbeddedResource Remove="Scheduler\**" />
 	  <EmbeddedResource Remove="Utilities\**" />
 	  <None Remove="Exceptions\**" />
 	  <None Remove="Messaging\Message Handlers\**" />
+	  <None Remove="Scheduler\**" />
 	  <None Remove="Utilities\**" />
 	</ItemGroup>
 	
@@ -50,8 +53,5 @@
 	  <None Update="Protos\checkemail.proto">
 	    <GrpcServices>Client</GrpcServices>
 	  </None>
-	</ItemGroup>
-	<ItemGroup>
-	  <Folder Include="Scheduler\" />
 	</ItemGroup>
 </Project>

@@ -1,7 +1,4 @@
 ﻿using FluentValidation;
-using Microsoft.EntityFrameworkCore;
-using TenantStoreApi.Domain.DTOs;
-using TenantStoreApi.Domain.Entities;
 
 namespace TenantStoreApi.Core.Validations
 {
@@ -28,7 +25,7 @@ namespace TenantStoreApi.Core.Validations
                 {
                     var result = service.Repository.FindOne<Tenant>(x => x.Email == payload.Email && x.Id != payload.Id);
                     return result == null;
-                }).WithMessage("Email must be unique.");
+                }).WithMessage("Account already exists, proceed to login.");
         }
     }
 }

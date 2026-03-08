@@ -23,8 +23,11 @@ public class TenantService
         var request = new TenantRequest { TenantId = _tenantProvider.TenantId.ToString() };
         return await _client.GetInfoAsync(request);
     }
-
-
+    public async Task<TenantInfoResponse> GetGrpcBgInfoAsync(Guid tenantId)
+    {
+        var request = new TenantRequest { TenantId = tenantId.ToString() };
+        return await _client.GetInfoAsync(request);
+    }
     public async Task<string> GetToken()
     {
         var tenant = await GetInfoAsync();

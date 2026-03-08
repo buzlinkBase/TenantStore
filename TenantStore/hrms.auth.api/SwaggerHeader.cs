@@ -13,7 +13,13 @@ public class SwaggerHeader : IOperationFilter
         // Define exclusions
         var excludedRoutes = new[]
         {
-            ("Users", "Register"),
+            ("Users", "ResetPassword"),
+            ("Users", "ResetPasswordRequestAsync"),
+            ("Users", "ChangePassword"),
+            ("Users", "Confirm"),
+            ("Users", "ResetPasswordRequestAsync"),
+            ("Users", "Login"),
+            ("Users", "Refresh"),
         };
         // Skip header injection for excluded routes
         if (excludedRoutes.Any(r => r.Item1 == controllerName && r.Item2 == actionName))

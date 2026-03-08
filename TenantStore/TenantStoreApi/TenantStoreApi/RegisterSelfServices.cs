@@ -6,7 +6,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.IdentityModel.Tokens;
 using Onepunch.Common.Lib;
-using Onepunch.Common.Lib.DTO;
 using System.Text;
 using TenantStoreApi.Core.Providers;
 using TenantStoreApi.Infrastructure;
@@ -18,9 +17,7 @@ public static class ServiceRegistrations
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
         builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));
         builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));
-        builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("KafkaSettings"));
         builder.Services.Configure<RabbitMqSettings>(builder.Configuration.GetSection("RabbitMqSettings"));
-       
         builder.Services.AddHeaderPropagation(options =>
         {
             options.Headers.Add("User-Agent");
@@ -37,37 +34,13 @@ public static class ServiceRegistrations
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddLogging();
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
-
         builder.Services.AddScoped<ITenantProvider, WebTenantContextAccessor>();
-        //builder.Services.AddHostedService<UserConfirmedWorker>();
-        //builder.Services.AddHostedService<OutboxWorker>();
-        //builder.Services.AddHostedService<CleanupOutboxWorker>();
-        var bootstrapServers = builder.Configuration["KafkaSettings:BootstrapServers"] ?? "";
-        //builder.Services.AddSingleton<ProducerService>(sp =>
-        //        ActivatorUtilities.CreateInstance<ProducerService>(sp, bootstrapServers));
-
-        //builder.Services.AddDbContext<TenantContext>((sp, options) =>
-        //{
-        //    var connectionString = builder.Configuration.GetConnectionString("DbConnection");
-        //    var tp = sp.GetRequiredService<ITenantProvider>();
-        //    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
-        //    options.AddInterceptors(new ApplyTenantInterceptor(tp), new SoftDeleteInterceptor());
-        //});
-
         builder.Services.AddDbContext<TenantContext>((provider, options) =>
         {
-            var tenantProvider = provider.GetRequiredService<ITenantProvider>();
-            var tenantId = tenantAccessor.GetTenantId();
             var defaultConn = builder.Configuration.GetConnectionString("DbConnection");
-            var connectionString = defaultConn!;
-            if (tenantProvider.TenantId == Guid.Empty)
-                tenantProvider.SetTenantId(tenantId);
-
-            options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
-            options.AddInterceptors(new ApplyTenantInterceptor(tenantProvider));
+            options.UseMySql(defaultConn, ServerVersion.AutoDetect(defaultConn));
             options.AddInterceptors(new SoftDeleteInterceptor());
             options.UseLazyLoadingProxies(true);
-            options.ReplaceService<IModelCacheKeyFactory, TenantModelCacheKeyFactory>();
         });
 
         builder.Services.AddCors(options =>

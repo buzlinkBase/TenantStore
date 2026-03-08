@@ -1,6 +1,7 @@
 ﻿using System.Runtime;
 
 namespace Onepunch.Common.Lib.DTO;
+
 public record TenantCreatedPayload
 {
     public Guid TenantId { get; set; }
@@ -54,19 +55,25 @@ public record EmailTokenInfo
     public string Email { get; set; } = string.Empty;
     public string? Name { get; set; }
 }
-public record UserInvitionNotificationPayload  
+public record UserInvitionNotificationPayload
 {
-    public string? TenantName  { get; set; }
+    public string? TenantName { get; set; }
     public string? Name { get; set; }
-    public string? AppName  { get; set; }
+    public string? AppName { get; set; }
     public string Email { get; set; }
-    public string Token   { get; set; }
+    public string Token { get; set; }
     public string InviteLink { get; set; } = string.Empty;
     public DateTime Expiry { get; set; } = DateTime.UtcNow.AddDays(2);
 }
 
-
-public class TestRecord
+public record ResetPasswordEmail : UserInvitionNotificationPayload
 {
-    public string TestProp  { get; set; }
+    public string? TenantName { get; set; }
+    public string? Name { get; set; }
+    public string? AppName { get; set; }
+    public string Email { get; set; }
+    public string Token { get; set; }
+    public string ResetLink { get; set; } = string.Empty;
+    public DateTime Expiry { get; set; } = DateTime.UtcNow.AddDays(1);
 }
+

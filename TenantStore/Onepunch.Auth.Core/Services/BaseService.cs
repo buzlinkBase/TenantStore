@@ -1,19 +1,19 @@
-﻿namespace OnePunch.Auth.Core.Services;
+﻿using Onepunch.Auth.Infrastructure;
+
+namespace OnePunch.Auth.Core.Services;
+
 public abstract class BaseService<T>
     where T : class, IEntity
 {
     protected readonly IUnitOfWorkService UoW;
-    protected BaseService(IUnitOfWorkService service)
-    {
-        UoW = service;
-    }
+    protected BaseService(IUnitOfWorkService service) => UoW = service;
     public IUnitOfWorkService UnitOfWork => UoW;
     public IRepository Repository => UoW.Repository;
     public AuthContext Context => UoW.Context;
-    protected virtual async Task<EvaluationResult> CreateValidator(T model,CancellationToken token) => EvaluationResult.OK;
+    protected virtual async Task<EvaluationResult> CreateValidator(T model, CancellationToken token) => EvaluationResult.OK;
     public async Task<bool> CommitChangesAsync(CancellationToken token)
     {
-        return await UoW.CommitChangesAsync("",token);
+        return await UoW.CommitChangesAsync("", token);
     }
     public bool CommitChanges()
     {
@@ -42,35 +42,35 @@ public abstract class BaseService<T>
     {
         return GetQueryable(noTracking).Where(expression);
     }
-    protected async Task<T?> GetOneAsync(Guid Id,CancellationToken token)
+    protected async Task<T?> GetOneAsync(Guid Id, CancellationToken token = default)
     {
         return await Repository.FindOneAsync<T>(Id, token);
     }
-    protected async Task CreateRangeAsync(IEnumerable<T> models,CancellationToken token)
+    protected async Task CreateRangeAsync(IEnumerable<T> models, CancellationToken token = default)
     {
         await Repository.AddRangeAsync(models, token);
     }
-    protected async Task CreateAsync(T model, CancellationToken token)
+    protected async Task CreateAsync(T model, CancellationToken token = default)
     {
         if (model is null) return;
         await Guard.ModelGuardAsync<T>(CreateValidator, model, token);
         await Repository.AddAsync(model, token);
     }
-    protected async Task ModifyAsync(T model,CancellationToken token)
+    protected async Task ModifyAsync(T model, CancellationToken token = default)
     {
         if (model is null) return;
         await Guard.ModelGuardAsync<T>(CreateValidator, model, token);
         Repository.Update(model);
         await Task.CompletedTask;
     }
-    protected async Task CreateOrUpdateAsync(T model, CancellationToken token)
+    protected async Task CreateOrUpdateAsync(T model, CancellationToken token = default)
     {
         if (model is null) return;
-        await Guard.ModelGuardAsync<T>(CreateValidator, model,token);
+        await Guard.ModelGuardAsync<T>(CreateValidator, model, token);
         token.ThrowIfCancellationRequested();
         Repository.AddOrUpdate(model);
     }
-    protected async Task RemoveAllAsync()
+    protected async Task RemoveAllAsync(CancellationToken token = default)
     {
         Repository.RemoveAll<T>();
         await Task.CompletedTask;
@@ -79,7 +79,7 @@ public abstract class BaseService<T>
     {
         await RemoveAsync(x => x.Id == Id);
     }
-    protected async Task RemoveAsync(T model)
+    protected async Task RemoveAsync(T model, CancellationToken token = default)
     {
         Repository.Remove(model);
         await Task.CompletedTask;

@@ -1,9 +1,7 @@
 using Asp.Versioning;
 using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
-using Onepunch.Common.Lib;
+using Microsoft.AspNetCore.Mvc; 
 
 namespace TenantStoreApi.Controllers;
 
@@ -32,13 +30,17 @@ public class TenantsController : ControllerBase
         return Ok();
     }
 
-    [HttpPost("winform-register")]
-    [AllowAnonymous]
-    public async Task<IActionResult> ManualRegister([FromBody] CreateTenant payload, CancellationToken token)
-    {
-        var tenant = await _service.RegisterAsync(payload, token);
-        return Ok(tenant);
-    }
+
+    //[HttpPost("send-invite")]
+    //public async Task<IActionResult> InviteUser([FromQuery] InvitationPayload payload, CancellationToken token)
+    //{
+    //    var result = await _service.SendUserInvitation(payload, token);
+    //    if (result)
+    //        return Ok(result);
+
+    //    return BadRequest("Failed sending invites");
+    //}
+
 
     [HttpPut("{id}")]
     public async Task<IActionResult> Put(Guid id, [FromBody] UpdateTenant payload, CancellationToken token)
@@ -53,6 +55,7 @@ public class TenantsController : ControllerBase
         var tenants = _mapper.Map<List<TenantModel>>(tenantResult);
         return Ok(tenants);
     }
+
 
     [HttpGet("{Id:guid}")]
     public async Task<ActionResult<TenantModel>> FindOne(Guid Id, CancellationToken token)

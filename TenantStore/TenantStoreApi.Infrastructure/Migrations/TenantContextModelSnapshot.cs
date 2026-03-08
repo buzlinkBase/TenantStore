@@ -250,6 +250,10 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.Property<string>("Address")
                         .HasColumnType("longtext");
 
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
                     b.Property<string>("Contact")
                         .HasColumnType("longtext");
 
@@ -259,11 +263,18 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
                     b.Property<string>("ManagerName")
                         .HasColumnType("longtext");
 
                     b.Property<string>("Name")
                         .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("ShortName")
                         .HasColumnType("longtext");
 
                     b.Property<string>("Status")
@@ -291,6 +302,13 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("ApiToken")
+                        .IsRequired()
+                        .HasColumnType("varchar(255)");
+
                     b.Property<string>("CompanyName")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -309,23 +327,21 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("varchar(255)");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<string>("Token")
-                        .IsRequired()
-                        .HasColumnType("varchar(255)");
-
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("char(36)");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("AccountId");
+
+                    b.HasIndex("ApiToken");
 
                     b.HasIndex("Email");
 
                     b.HasIndex("Status");
-
-                    b.HasIndex("Token");
 
                     b.ToTable("Tenants");
                 });
@@ -340,12 +356,100 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<string>("Module")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("char(36)");
 
                     b.HasKey("Id");
 
                     b.ToTable("Connections");
+                });
+
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.TenantDelegation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("AccessLevel")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("GuestTenantId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("GuestTenantName")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<Guid>("HostTenantId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GuestTenantId");
+
+                    b.HasIndex("HostTenantId");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("TenantDelegations");
+                });
+
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.UserMembership", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("char(36)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserMemberships");
                 });
 #pragma warning restore 612, 618
         }

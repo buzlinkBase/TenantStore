@@ -13,7 +13,6 @@ public class TenantUserCreatedWorker : IConsumer<UserEmailPayload>
     {
         _tenantService = tenantService;
     }
-
     public async Task Consume(ConsumeContext<UserEmailPayload> context)
     {
         var model = context.Message;
@@ -23,6 +22,7 @@ public class TenantUserCreatedWorker : IConsumer<UserEmailPayload>
             Log.Warning("Tenant {TenantId} not found. Nothing to activate.", model.TenantId);
             return;
         }
+        tenant.UserId = model.UserId;
         tenant.Status = "User Created";
         await _tenantService.CommitChangesAsync(context.CancellationToken);
     }

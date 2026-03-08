@@ -9,6 +9,8 @@
 
 	<ItemGroup>
 		<PackageReference Include="Polly" />
+		<PackageReference Include="Refit.HttpClientFactory" />
+		<PackageReference Include="MessagePack" />
 		<PackageReference Include="BuzlinkRepository" />
 		<PackageReference Include="FluentValidation" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />

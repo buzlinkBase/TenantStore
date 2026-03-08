@@ -18,6 +18,11 @@
 		<PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" />
 		<PackageReference Include="AutoMapper" />
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+		<PackageReference Include="MessagePack" />
+		<PackageReference Include="MessagePackAnalyzer">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
 	</ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\TenantStoreApi.Core\TenantStoreApi.Core.csproj" />

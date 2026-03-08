@@ -8,8 +8,11 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<Compile Remove="Exceptions\**" />
 		<Compile Remove="Messaging\Message Handlers\**" />
+		<EmbeddedResource Remove="Exceptions\**" />
 		<EmbeddedResource Remove="Messaging\Message Handlers\**" />
+		<None Remove="Exceptions\**" />
 		<None Remove="Messaging\Message Handlers\**" />
 	</ItemGroup>
 
@@ -52,7 +55,7 @@
 		<ProjectReference Include="..\TenantStoreApi.Infrastructure\TenantStoreApi.Infrastructure.csproj" />
 	</ItemGroup>
 	<ItemGroup>
-	  <Folder Include="Exceptions\" />
+	  <Folder Include="Interfaces\" />
 	</ItemGroup>
 
 </Project>

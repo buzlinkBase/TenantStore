@@ -1,6 +1,5 @@
 ﻿using AutoMapper;
 using MassTransit;
-using MassTransit.RabbitMqTransport;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
@@ -8,6 +7,7 @@ using Onepunch.Auth.Core;
 using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Domain.DTOs;
 using OnePunch.Auth.Domain.Entities;
+using Serilog;
 using System.Text;
 
 namespace OnePunch.Auth.Core.Services;
@@ -19,10 +19,9 @@ public class UserService : BaseService<User>
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly JwtService _jwtService;
     private readonly EmailTokenService _emailTokenService;
-    private readonly ITenantProvider _tenantProvider;
+    private readonly TenantService _tenantService;
     private readonly Domains _domains;
     private readonly IConfiguration _configuration;
-    private readonly KafkaSettings _kafkaOptions;
     private readonly IMapper _mapper;
 
     public UserService(
@@ -31,10 +30,10 @@ public class UserService : BaseService<User>
         UserManager<User> manager,
         IPasswordHasher<User> passwordHasher,
         JwtService jwtService,
-        IOptions<KafkaSettings> kafkaOptions,
         IOptions<Domains> domains,
         EmailTokenService emailTokenService,
         ITenantProvider tenantProvider,
+        TenantService tenantService,
         IConfiguration configuration,
         IMapper mapper) : base(uow)
     {
@@ -43,10 +42,9 @@ public class UserService : BaseService<User>
         _passwordHasher = passwordHasher ?? throw new ArgumentNullException(nameof(passwordHasher));
         _jwtService = jwtService ?? throw new ArgumentNullException(nameof(jwtService));
         _emailTokenService = emailTokenService;
-        _tenantProvider = tenantProvider;
+        _tenantService = tenantService;
         _domains = domains.Value;
         _configuration = configuration;
-        _kafkaOptions = kafkaOptions.Value;
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
     }
 
@@ -68,7 +66,6 @@ public class UserService : BaseService<User>
     }
     private async Task<EmailToken?> FindToken(string emailToken) =>
         await Repository.Find<EmailToken>(x => x.TokenValue == emailToken).FirstOrDefaultAsync();
-
     private bool IsTokenExpired(EmailToken token) => token.Expiry < DateTime.UtcNow;
     #endregion
 
@@ -103,7 +100,7 @@ public class UserService : BaseService<User>
             UserId = user.Id,
         };
 
-        await _publisher.Publish(payload,ctoken);
+        await _publisher.Publish(payload, ctoken);
 
         if (await CommitChangesAsync(ctoken))
         {
@@ -113,58 +110,85 @@ public class UserService : BaseService<User>
     }
     #endregion
 
-    #region User Management
+    #region User Management 
 
-    public async Task<(User user, IdentityResult result)> RegisterInvitesAsync(CreateInvitedUser payload, CancellationToken ctoken)
+    public async Task<IdentityResult?> ChangePassword(ChangePassword payload, CancellationToken token)
     {
-        var token = Encoding.UTF8.GetString(TokenEncodingHelper.FromBase64Url(payload.Token));
-        var userToken = ObjectSerializer.Deserialize<EmailTokenInfo>(token);
-        var emailInfoDb = await FindToken(payload.Token);
-        if (emailInfoDb == null) throw new Exception("Unverified token");
-        if (emailInfoDb.TenantId != userToken.TenantId) throw new Exception("Invalid payload");
-        if (emailInfoDb.Email != userToken.Email) throw new Exception("Invalid payload");
-        if (IsTokenExpired(emailInfoDb) || emailInfoDb.IsUsed) throw new Exception("Token expired");
-
-        var user = new User
+        if (payload.NewPassword != payload.ConfirmPassword)
         {
-            TenantId = userToken.TenantId,
-            UserName = userToken.Email,
-            Email = userToken.Email,
-            Name = payload.Name ?? userToken.Name,
-            Status = "Active",
-            EmailConfirmed = true
-        };
-
-        emailInfoDb.IsUsed = true;
-        Context.EmailTokens.Update(emailInfoDb);
-        var result = await _manager.CreateAsync(user, payload.Password);
-        if (result.Succeeded)
-        {
-            await CommitChangesAsync(ctoken);
-            return (user, result);
+            throw new Exception("Password dont match");
         }
-        return (user, result);
-    }
+        var user = await _manager.FindByEmailAsync(payload.Email);
+        if (user == null) throw new Exception("unable to change password");
+        return await _manager.ChangePasswordAsync(user, payload.OldPassword, payload.NewPassword);
 
-    public async Task<bool> SendInvite(InvitationPayload payload, CancellationToken token)
+    }
+    public async Task ResetPasswordRequestAsync(string email, CancellationToken token)
     {
-        var exp = DateTime.UtcNow.AddDays(2);
-        var emailToken = await _emailTokenService.CreateModelAsync("user.invitation", exp, payload.Email);
-        var message = new UserInvitionNotificationPayload
+        var exp = DateTime.UtcNow.AddDays(1);
+        var userInfo = await _manager.FindByEmailAsync(email);
+        if (userInfo == null || string.IsNullOrEmpty(email))
         {
-            Email = payload.Email,
-            Name = payload.Name,
-            InviteLink = $"{_domains.FrontEndDomain}/register?token={emailToken.TokenValue}",
+            Log.Logger.Error($"user trying to reset password for unknown email {email}");
+            return;//user dont exists bypass
+        }
+
+        var userToken = await _manager.GeneratePasswordResetTokenAsync(userInfo);
+        var tenant = await _tenantService.GetGrpcBgInfoAsync(userInfo.TenantId);
+        if (tenant == null)
+        {
+            Log.Logger.Error($"user trying to reset password for unknown tenant {email}");
+            return;
+        }
+        var emailToken = new CreateEmailToken
+        {
+            Expiry = exp,
+            TokenType = "reset-password",
+            TokenValue = userToken,
+            TenantId = userInfo.TenantId,
+            Email = email,
+            TenantName = tenant.Name
+        };
+        var message = new ResetPasswordEmail
+        {
+            Email = userInfo.Email ?? email,
+            Name = userInfo.Name,
+            ResetLink = $"{_domains.FrontEndDomain}/reset-password?token={emailToken.TokenValue}",
             AppName = _configuration["AppName"],
             TenantName = emailToken.TenantName,
             Expiry = exp,
             Token = emailToken.TokenValue,
         };
-        //store token
         await _emailTokenService.StoreToken(emailToken, token);
         await _publisher.Publish(message, token);
-        return await CommitChangesAsync(token);
+        await CommitChangesAsync(token);
+
     }
+    public async Task<IdentityResult> ResetPassword(ResetPassword payload, CancellationToken ctoken)
+    {
+
+        if (payload.Password != payload.ConfirmPassword) throw new Exception("Password dont match");
+        var emailInfoDb = await FindToken(payload.Token);
+        if (emailInfoDb == null) throw new Exception("Unverified token");
+        if (IsTokenExpired(emailInfoDb) || emailInfoDb.IsUsed)
+        {
+            await RemoveAsync(emailInfoDb.Id);
+            await CommitChangesAsync(ctoken);
+            throw new Exception("Token expired");
+        }
+
+        var userInfo = await _manager.FindByEmailAsync(emailInfoDb.Email);
+        if (userInfo == null) throw new Exception("User not found");
+        if (userInfo == null)
+        {
+            // Don't reveal the user doesn't exist; just return a generic error
+            return IdentityResult.Failed(new IdentityError { Description = "Invalid Request" });
+        }
+        var result = await _manager.ResetPasswordAsync(userInfo, payload.Token, payload.Password);
+        await RemoveAsync(emailInfoDb.Id);
+        await CommitChangesAsync(ctoken);
+        return result;
+    } 
     public Task<User?> GetByIdAsync(string id) => _manager.FindByIdAsync(id);
     public Task<User?> GetByEmailAsync(string email) => _manager.FindByEmailAsync(email);
     public async Task<IdentityResult> UpdateAsync(UpdateUser payload)
@@ -175,12 +199,10 @@ public class UserService : BaseService<User>
         _mapper.Map(payload, user);
         return await _manager.UpdateAsync(user);
     }
-
     public async Task<IdentityResult> UpdateAsync(User user) =>
         user == null
             ? IdentityResult.Failed(new IdentityError { Description = "User not found" })
             : await _manager.UpdateAsync(user);
-
     public async Task<IdentityResult> DeleteAsync(string id)
     {
         var user = await _manager.FindByIdAsync(id);
@@ -189,7 +211,6 @@ public class UserService : BaseService<User>
             : await _manager.DeleteAsync(user);
     }
     #endregion
-
     #region Authentication
     public async Task<LoginResponse> Login(LoginPayload payload, CancellationToken token)
     {
@@ -217,18 +238,18 @@ public class UserService : BaseService<User>
             Success = true,
             AccessToken = accessToken,
             RefreshToken = refreshToken,
-            Expiry = DateTime.UtcNow.AddMinutes(15),
+            Expiry = DateTime.UtcNow.AddMinutes(_jwtService.TokenExpiry),
             TenantId = user.TenantId,
         };
-    }
 
+    }
     public async Task<LoginResponse> RefreshLogin(string refreshToken, CancellationToken token)
     {
         var refreshTokenHash = _jwtService.Hash(refreshToken);
         var tokenEntity = await Context.RefreshTokens
             .FirstOrDefaultAsync(t => t.RefreshTokenHash == refreshTokenHash);
 
-        if (tokenEntity == null || tokenEntity.Revoked || tokenEntity.Expiry < DateTime.UtcNow)
+        if (tokenEntity == null || tokenEntity.Revoked || tokenEntity.Expiry <= DateTime.UtcNow)
             return new LoginResponse { Success = false, ErrorMessage = "Invalid or expired refresh token." };
 
         var user = await Context.Users.FindAsync(tokenEntity.UserId);
@@ -236,10 +257,9 @@ public class UserService : BaseService<User>
             return new LoginResponse { Success = false, ErrorMessage = "User not found." };
 
         tokenEntity.Revoked = true;
-
+        await RemoveAsync(tokenEntity.Id);
         var newAccessToken = await _jwtService.CreateTokenAsync(user);
         var newRefreshToken = await _jwtService.GenerateRefreshToken();
-
         await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, newRefreshToken));
         await Context.SaveChangesAsync();
         await CommitChangesAsync(token);
@@ -249,7 +269,7 @@ public class UserService : BaseService<User>
             Success = true,
             AccessToken = newAccessToken,
             RefreshToken = newRefreshToken,
-            Expiry = DateTime.UtcNow.AddMinutes(15)
+            Expiry = DateTime.UtcNow.AddMinutes(_jwtService.TokenExpiry)
         };
     }
     #endregion

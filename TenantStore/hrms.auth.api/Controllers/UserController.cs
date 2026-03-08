@@ -14,70 +14,51 @@ namespace OnePunch.Auth.Api.Controllers
     [Authorize]
     public class UsersController : ControllerBase
     {
-
         private readonly UserService _service;
         private readonly Domains _options;
-        private readonly JwtService _jwtService;
-
-        public UsersController(UserService service,
-            IOptions<Domains> options,
-            JwtService jwtService)
+        public UsersController(UserService service, IOptions<Domains> options)
         {
             _service = service;
             _options = options.Value;
-            _jwtService = jwtService;
         }
-
-        [HttpPost("register")]
-        [AllowAnonymous]
-        public async Task<IActionResult> Register([FromBody] CreateInvitedUser payload,CancellationToken token)
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPassword payload, CancellationToken token)
         {
-            var result = await _service.RegisterInvitesAsync(payload,token);
-            var url = _options.FrontEndDomain ?? "https://onepunch.com";
-            if (!result.result.Succeeded)
+            var result = await _service.ResetPassword(payload, token);
+            var url = _options.FrontEndDomain;
+            if (!result.Succeeded)
             {
-                // Aggregate all Identity errors into one string
-                var errorMessages = string.Join(", ", result.result.Errors.Select(e => e.Description));
-                throw new Exception($"Failed to create user: {errorMessages}");
+                return Redirect($"{url}/auth/change-password/error?description={result.Errors.FirstOrDefault()?.Description ?? "error"}");
             }
-            //return Redirect($"{url}/error/{result.result.Errors.FirstOrDefault()?.Code ?? "0000"}");
-            return Redirect($"{url}/success");
-
+            return Redirect($"{url}/auth/change-password/success");
         }
-
-        [HttpPost("send-invite")]
-        public async Task<IActionResult> InviteUser([FromQuery] InvitationPayload payload, CancellationToken token)
+        [HttpPost("forgot-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResetPasswordRequestAsync([FromQuery] string email, CancellationToken token)
         {
-            var result = await _service.SendInvite(payload,  token);
-            if (result)
-                return Ok(result);
-
-            return BadRequest("Failed sending invites");
+            await _service.ResetPasswordRequestAsync(email, token);
+            var url = _options.FrontEndDomain;
+            return Redirect($"{url}/forgot-password/success");
         }
-
-        //[AllowAnonymous]
-        //[HttpGet("check-email")]
-        //public async Task<ActionResult<bool>> FindByEmail([FromQuery] string email)
-        //{
-        //    var user = await _service.GetByEmailAsync(email);
-        //    if (user == null) return Ok(false);
-
-        //    return Ok(user.Status != OutBoxState.FAILED.ToString()
-        //           && user.Status != OutBoxState.EXPIRED.ToString()
-        //           && user.Status != OutBoxState.INVALID.ToString());
-        //}
+        [HttpPost("change-password")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePassword email, CancellationToken token)
+        {
+            await _service.ChangePassword(email, token);
+            var url = _options.FrontEndDomain;
+            return Redirect($"{url}/forgot-password/success");
+        }
 
         [AllowAnonymous]
         [HttpGet("confirm-email")]
-        public async Task<IActionResult> Confirm([FromQuery(Name = "token")] string token, CancellationToken ct )
+        public async Task<IActionResult> Confirm([FromQuery(Name = "token")] string token, CancellationToken ct)
         {
             var result = await _service.ConfirmedRegistration(token, ct);
-            var url = _options.FrontEndDomain ?? "https://onepunch.com";
+            var url = _options.FrontEndDomain;
 
             if (!result.Success)
-                return Redirect($"{url}/error/{result.ErrorCode}");
+                return Redirect($"{url}/tenant/error?code={result.ErrorCode}");
 
-            return Redirect($"{url}/success");
+            return Redirect($"{url}/tenant/success");
         }
 
         [AllowAnonymous]
@@ -108,6 +89,5 @@ namespace OnePunch.Auth.Api.Controllers
         //    var response = _service.KeyGen();
         //    return Ok(response);
         //}
-
     }
 }

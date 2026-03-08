@@ -14,7 +14,6 @@ public class TenantContextFactory : IDesignTimeDbContextFactory<TenantContext>
             .AddJsonFile("appsettings.Development.json")
             .Build();
         var connectionString = configuration.GetConnectionString("DbConnection");
-        //var connectionString = "server=127.0.0.1;port=3316;database=tenantstore;user=oneuser;pwd=Pokemon67584321";
         var optionsBuilder = new DbContextOptionsBuilder<TenantContext>();
         optionsBuilder.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
         return new TenantContext(optionsBuilder.Options);

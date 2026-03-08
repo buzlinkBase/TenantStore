@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using Onepunch.Auth.Infrastructure.Data;
+using Onepunch.Auth.Infrastructure;
 
 #nullable disable
 
@@ -470,7 +470,7 @@ namespace Onepunch.Auth.Infrastructure.Migrations
 
                     b.Property<string>("RefreshTokenHash")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("varchar(255)");
 
                     b.Property<bool>("Revoked")
                         .HasColumnType("tinyint(1)");
@@ -478,9 +478,6 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("longtext");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("char(36)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime(6)");
@@ -490,7 +487,7 @@ namespace Onepunch.Auth.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId");
+                    b.HasIndex("RefreshTokenHash");
 
                     b.ToTable("RefreshTokens");
                 });

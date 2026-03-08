@@ -13,8 +13,15 @@
     <PackageVersion Include="MassTransit.Kafka" Version="8.3.0" />
     <PackageVersion Include="MassTransit.RabbitMQ" Version="8.2.5" />
     <PackageVersion Include="RabbitMQ.Client" Version="6.8.1" />
-    <PackageVersion Include="MessagePackAnalyzer" Version="2.5.192" />
-    <PackageVersion Include="MessagePack" Version="2.5.192" />
+    <PackageVersion Include="MessagePack" Version="3.1.4" />
+    <PackageVersion Include="MessagePack.AspNetCoreMvcFormatter" Version="3.1.4" />
+    <PackageVersion Include="MessagePackAnalyzer" Version="3.1.4" />
+
+    <PackageVersion Include="Elastic.Clients.Elasticsearch" Version="9.3.0" />
+    <PackageVersion Include="ExcelMapper" Version="6.0.611" />
+    <PackageVersion Include="ExcelToEnumerable" Version="0.3.10" />
+    <PackageVersion Include="Bogus" Version="35.6.5" />
+    <PackageVersion Include="ClosedXML" Version="0.105.0" />
 
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="8.0.24" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Abstractions" Version="8.0.24" />
@@ -28,7 +35,7 @@
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.24" />
     <PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="8.1.0" />
     <PackageVersion Include="Asp.Versioning.Http" Version="8.1.0" />
-    
+
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.Certificate" Version="9.0.2" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.2" />
     <PackageVersion Include="Microsoft.AspNetCore.HeaderPropagation" Version="9.0.2" />
@@ -68,11 +75,14 @@
     <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.5.0" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="7.2.0" />
     <PackageVersion Include="Refit.HttpClientFactory" Version="8.0.0" />
-    <PackageVersion Include="MessagePack" Version="2.5.192" />
-    <PackageVersion Include="MessagePack.AspNetCoreMvcFormatter" Version="2.5.192" /> 
-    <PackageVersion Include="BuzlinkRepository" Version="1.2.5" />
+    <PackageVersion Include="BuzlinkRepository" Version="1.2.6" />
     <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="3.0.2" />
+    <PackageVersion Include="xunit.abstractions" Version="2.0.3" />
+    <PackageVersion Include="xunit.analyzers" Version="1.25.0" />
+    <PackageVersion Include="xunit.assert" Version="2.9.3" />
+    <PackageVersion Include="xunit.core" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.utility" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
     <PackageVersion Include="Moq" Version="4.20.72" />
     <PackageVersion Include="NSubstitute" Version="5.3.0" />

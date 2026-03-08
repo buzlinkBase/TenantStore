@@ -1,13 +1,9 @@
 ﻿using Asp.Versioning.Conventions;
-using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Onepunch.Auth.Core;
 using Onepunch.Auth.Infrastructure;
-using Onepunch.Auth.Infrastructure.Data;
 using Onepunch.Common.Lib;
-using Onepunch.Common.Lib.DTO;
-using OnePunch.Auth.Core.Messaging;
 using OnePunch.Auth.Core.Providers;
 using System.Text;
 
@@ -22,7 +18,7 @@ public static class ServiceRegistrations
         builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));
         builder.Services.Configure<Domains>(builder.Configuration.GetSection("Domains"));
         builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
-        builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("KafkaSettings"));
+        //builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("KafkaSettings"));
         builder.Services.Configure<RabbitMqSettings>(builder.Configuration.GetSection("RabbitMqSettings"));
         builder.Services.AddHeaderPropagation(options =>
         {
@@ -44,23 +40,19 @@ public static class ServiceRegistrations
         builder.Services.AddLogging();
 
         builder.Services.AddHttpContextAccessor();
-        builder.Services.AddScoped<ITenantProvider, TenantProvider>();
-        builder.Services.AddScoped<WebTenantContextAccessor>();
-        builder.Services.AddScoped<MessagingTenantContextAccessor>();
-        builder.Services.AddScoped<ITenantContextAccessor>(sp =>
-        {
-            var httpContext = sp.GetRequiredService<IHttpContextAccessor>();
-            if (httpContext.HttpContext != null)
-            {
-                return sp.GetRequiredService<WebTenantContextAccessor>();
-            }
-            return sp.GetRequiredService<MessagingTenantContextAccessor>();
-        });
+        builder.Services.AddScoped<ITenantProvider, WebTenantContextAccessor>();
+        //builder.Services.AddScoped<WebTenantContextAccessor>();
+        //builder.Services.AddScoped<MessagingTenantContextAccessor>();
+        //builder.Services.AddScoped<ITenantContextAccessor>(sp =>
+        //{
+        //    var httpContext = sp.GetRequiredService<IHttpContextAccessor>();
+        //    if (httpContext.HttpContext != null)
+        //    {
+        //        return sp.GetRequiredService<WebTenantContextAccessor>();
+        //    }
+        //    return sp.GetRequiredService<MessagingTenantContextAccessor>();
+        //});
 
-        //builder.Services.AddHostedService<CleanupOutboxWorker>();
-        //builder.Services.AddHostedService<OutboxWorker>();
-        //builder.Services.AddHostedService<TenantCreatedWorker>();
-        var bootstrapServers = builder.Configuration["KafkaSettings:BootstrapServers"] ?? "";
         builder.Services.AddIdentity<User, Role>(options =>
         {
             options.User.RequireUniqueEmail = true;
@@ -72,20 +64,17 @@ public static class ServiceRegistrations
         builder.Services.AddDbContext<AuthContext>((provider, options) =>
         {
             var defaultConn = builder.Configuration.GetConnectionString("DbConnection");
-            var connectionString = defaultConn!;
-
-            var tenantAccessor = provider.GetRequiredService<ITenantContextAccessor>();
-            var tenantId = tenantAccessor.GetTenantId();
-            var tenantProvider = provider.GetRequiredService<ITenantProvider>();
-            if (tenantProvider.TenantId == Guid.Empty)
-                tenantProvider.SetTenantId(tenantId);
-
-
+            var connectionString = defaultConn!; 
+            //var tenantAccessor = provider.GetRequiredService<ITenantContextAccessor>();
+            //var tenantId = tenantAccessor.GetTenantId();
+            //var tenantProvider = provider.GetRequiredService<ITenantProvider>();
+            //if (tenantProvider.TenantId == Guid.Empty)
+            //    tenantProvider.SetTenantId(tenantId);
             options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
-            options.AddInterceptors(new ApplyTenantInterceptor(tenantProvider));
-            options.AddInterceptors(new SoftDeleteInterceptor());
+            //options.AddInterceptors(new ApplyTenantInterceptor(tenantProvider));
+            //options.AddInterceptors(new SoftDeleteInterceptor());
             options.UseLazyLoadingProxies(true);
-            options.ReplaceService<IModelCacheKeyFactory, Onepunch.Auth.Infrastructure.TenantModelCacheKeyFactory>();
+            //options.ReplaceService<IModelCacheKeyFactory, Onepunch.Auth.Infrastructure.TenantModelCacheKeyFactory>();
         });
 
         builder.Services.AddCors(options =>

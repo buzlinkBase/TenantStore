@@ -1,9 +1,4 @@
 ﻿namespace OnePunch.Auth.Domain.DTOs;
-public record InvitationPayload
-{
-    public string? Name { get; set; }
-    public string Email { get; set; }
-} 
 
 public class CreateInvitedUser
 {
@@ -19,4 +14,19 @@ public class UpdateUser
 }
 public class UserModel : UpdateUser
 {
+}
+
+public record ResetPassword
+{
+    public string Token  { get; set; }
+    public string Password   { get; set; }
+    public string ConfirmPassword  { get; set; }
+}
+
+public record ChangePassword
+{
+    public string Email   { get; set; }
+    public string OldPassword  { get; set; }
+    public string NewPassword { get; set; }
+    public string ConfirmPassword { get; set; }
 }

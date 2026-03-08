@@ -1,8 +1,6 @@
-﻿using AutoMapper;
-using Onepunch.Auth.Domain.Entities;
+﻿using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Core;
 using OnePunch.Auth.Core.Services;
-
 namespace Onepunch.Auth.Core.Services;
 
 public class EmailTokenService : BaseService<EmailToken>
@@ -13,12 +11,12 @@ public class EmailTokenService : BaseService<EmailToken>
     {
         _tenantService = tenantService;
     }
-    public async Task<CreateEmailToken> CreateModelAsync(string TokenType, DateTime expiry, string email)
+    public async Task<CreateEmailToken> CreateModelAsync(string TokenType, DateTime expiry, string email, string? emailToken =  null)
     {
         var tenant = await _tenantService.GetGrpcBgInfoAsync();
         var tenantId = Guid.Parse(tenant.TenantId);
-        if (tenant == null) throw new Exception("Tenant not found");
-        var token = TokenGenerator.Generate(tenantId, email);
+        if (tenant == null) throw new Exception("Organization not found");
+        var token = emailToken ?? TokenGenerator.Generate(tenantId, email);
         return new CreateEmailToken
         {
             Expiry = expiry,
@@ -28,8 +26,7 @@ public class EmailTokenService : BaseService<EmailToken>
             Email = email,
             TenantName = tenant.Name
         };
-    }
-
+    } 
     public async Task StoreToken(CreateEmailToken payload, CancellationToken token)
     {
         var model = new EmailToken
@@ -42,7 +39,6 @@ public class EmailTokenService : BaseService<EmailToken>
             TenantId = payload.TenantId,
             UserId = payload.UserId,
         };
-
         await Repository.AddAsync(model, token);
     }
 }
