@@ -5,11 +5,11 @@ using TenantStoreApi.Core.Services;
 
 namespace TenantStoreApi.Core;
 
-public class TenantUserCreatedWorker : IConsumer<UserEmailPayload>
+public class UserCreatedWorker : IConsumer<UserEmailPayload>
 {
     private readonly TenantService _tenantService;
 
-    public TenantUserCreatedWorker(TenantService tenantService) 
+    public UserCreatedWorker(TenantService tenantService) 
     {
         _tenantService = tenantService;
     }

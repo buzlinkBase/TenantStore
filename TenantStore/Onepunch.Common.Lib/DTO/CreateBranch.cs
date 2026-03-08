@@ -1,7 +1,6 @@
 ﻿using MessagePack;
 
-namespace TenantStoreApi.Domain.DTOs;
-
+namespace Onepunch.Common.Lib.DTO;
 public class CreateBranch
 {
     public required Guid TenantId { get; set; }
@@ -18,9 +17,8 @@ public class UpdateBranch : CreateBranch
     public Guid Id { get; set; }
 }
 
-
 [MessagePackObject]
-public class BranchModel
+public partial class BranchModel
 {
     [Key(0)]
     public Guid Id { get; set; }

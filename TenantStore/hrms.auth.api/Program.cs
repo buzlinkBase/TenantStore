@@ -43,6 +43,7 @@ internal class Program
         {
             options.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
             options.DefaultModelsExpandDepth(-1);
+            options.EnablePersistAuthorization();
             foreach (var description in apiVersionProvider.ApiVersionDescriptions)
             {
                 options.SwaggerEndpoint($"/swagger/{description.GroupName}/swagger.json",

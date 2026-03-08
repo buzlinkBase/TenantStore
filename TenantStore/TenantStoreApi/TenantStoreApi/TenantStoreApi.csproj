@@ -25,6 +25,7 @@
 		</PackageReference>
 	</ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
     <ProjectReference Include="..\..\TenantStoreApi.Core\TenantStoreApi.Core.csproj" />
     <ProjectReference Include="..\..\TenantStoreApi.Domain\TenantStoreApi.Domain.csproj" />
   </ItemGroup>

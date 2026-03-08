@@ -47,6 +47,7 @@ public class TenantService : BaseService<Tenant>
         await CreateAsync(tenant, token);
         await UoW.SaveChangesAsync(token);
         _tenantProvider.SetTenantId(tenant.Id);
+
         await _branchService.AddAsync(new CreateBranch
         {
             Code = "Main",
@@ -77,9 +78,7 @@ public class TenantService : BaseService<Tenant>
     //    await _emailTokenService.StoreToken(emailToken, token);
     //    await _publisher.Publish(message, token);
     //    return await CommitChangesAsync(token);
-    //}
-
-
+    //} 
     public async Task UpdateAsync(Guid Id, UpdateTenant payload, CancellationToken token)
     {
         var tenant = _mapper.Map<Tenant>(payload);

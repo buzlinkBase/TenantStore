@@ -1,4 +1,4 @@
-using Asp.Versioning; 
+using Asp.Versioning;
 using Asp.Versioning.ApiExplorer;
 using Microsoft.Extensions.Options;
 using OnePunch.Notification.Infrastructure;
@@ -9,7 +9,8 @@ using System.Text.Json.Serialization;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers()
-    .AddJsonOptions(options => {
+    .AddJsonOptions(options =>
+    {
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
         options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
     });
@@ -28,20 +29,20 @@ builder.Services.AddApiVersioning(options =>
 
 builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
 builder.Services.AddSwaggerGen();
-builder.Services.AddPollyPolicies();  
+builder.Services.AddPollyPolicies();
 builder.RegisterSelftServices();
 builder.RegisterCoreServices();
 //builder.NotifConfigKafka();
 builder.NotifConfigRabbitMq();
 builder.Services.AddAutoMapper(typeof(MappingProfile));
-builder.Services.AddDbContext<NotifContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-
+builder.Services.AddDbContext<NotifContext>(options => {
+    var connectionstring = builder.Configuration.GetConnectionString("DefaultConnection");
+    options.UseMySql(connectionstring,ServerVersion.AutoDetect(connectionstring));
+});
 var app = builder.Build();
 var apiVersionProvider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
 //if (app.Environment.IsDevelopment())
 //{
-
 //}
 
 app.UseSwagger();

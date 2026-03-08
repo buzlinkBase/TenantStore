@@ -21,7 +21,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<None Include="Messaging\TenantUserCreatedWorker.cs" />
+		<None Include="Messaging\UserCreatedWorker.cs" />
 		<None Include="Messaging\UserConfirmedWorker.cs" />
 	</ItemGroup>
 	<ItemGroup>

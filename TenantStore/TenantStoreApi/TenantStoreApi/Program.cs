@@ -41,7 +41,6 @@ internal class Program
             options.Filters.Add<ResponseWrapperFilter>();
             var mpackOptions = ContractlessStandardResolver.Options
                 .WithCompression(MessagePackCompression.Lz4BlockArray);
-
             options.InputFormatters.Add(new MessagePackInputFormatter(mpackOptions));
             options.OutputFormatters.Add(new MessagePackOutputFormatter(mpackOptions));
         }).AddJsonOptions(options =>
@@ -121,6 +120,7 @@ internal class Program
         app.UseSwaggerUI(options =>
         {
             options.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
+            options.EnablePersistAuthorization();
             options.DefaultModelsExpandDepth(-1);
             foreach (var description in apiVersionProvider.ApiVersionDescriptions)
             {

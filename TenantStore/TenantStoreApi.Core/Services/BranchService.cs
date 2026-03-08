@@ -89,12 +89,12 @@ public class BranchService : BaseService<Branch>
         await _publisher.Publish(new BranchModel
         {
             Id = branch.Id,
+            TenantId = branch.TenantId,
             Code = branch.Code,
             Name = branch.Name,
             Address = branch.Address,
             Contact = branch.Contact,
             ManagerName = branch.ManagerName,
-            TenantId = branch.TenantId,
             Status = branch.Status,
             DeletedAt = branch.DeletedAt
         }, token);

@@ -14,7 +14,7 @@ public class NotifContextFactory : IDesignTimeDbContextFactory<NotifContext>
             .SetBasePath(basePath)
             .AddJsonFile("appsettings.Development.json")
             .Build();
-        var connectionString = configuration.GetConnectionString("DbConnection");
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
         var optionsBuilder = new DbContextOptionsBuilder<NotifContext>();
         optionsBuilder.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
         return new NotifContext(optionsBuilder.Options);

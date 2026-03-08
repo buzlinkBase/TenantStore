@@ -16,10 +16,9 @@ public static class TenantRabbitMqConfiguration
 
         builder.Services.AddMassTransit(x =>
         {
-            // 2. Register Consumers
-            x.AddConsumer<UserConfirmedWorker>();
-            x.AddConsumer<TenantUserCreatedWorker>();
-            // 3. EF Core Outbox
+            x.AddConsumer<UserConfirmedWorker, UserConfirmationConsumerDefinition>();
+            x.AddConsumer<UserCreatedWorker, UserCreatedConsumerDefinition>();
+            x.SetEndpointNameFormatter(KebabCaseEndpointNameFormatter.Instance);
             x.AddEntityFrameworkOutbox<TenantContext>(o =>
             {
                 o.UseMySql();
@@ -28,22 +27,18 @@ public static class TenantRabbitMqConfiguration
                 o.DisableInboxCleanupService();
             });
 
-            // 4. Configure RabbitMQ Transport
             x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.UseMessageRetry(r =>
                 {
                     r.Exponential(5, TimeSpan.FromSeconds(5), TimeSpan.FromMinutes(1), TimeSpan.FromSeconds(10));
                 });
-
-                // Circuit Breaker prevents slamming a failing service
                 cfg.UseCircuitBreaker(cb =>
                 {
                     cb.TrackingPeriod = TimeSpan.FromMinutes(1);
-                    cb.TripThreshold = 15; // Trip after 15 failures
-                    cb.ResetInterval = TimeSpan.FromMinutes(5); // Wait 5 mins before trying again
+                    cb.TripThreshold = 15;
+                    cb.ResetInterval = TimeSpan.FromMinutes(5);
                 });
-
                 cfg.UsePublishFilter(typeof(TenantPublishFilter<>), context);
                 cfg.UseConsumeFilter(typeof(TenantConsumeFilter<>), context);
                 cfg.Host(settings.Host, settings.VirtualHost, h =>
@@ -51,26 +46,38 @@ public static class TenantRabbitMqConfiguration
                     h.Username(settings.Username);
                     h.Password(settings.Password);
                 });
-                // Note: You do not need AddProducer for RabbitMQ.
-                // Just inject IPublishEndpoint into your services and publish directly.
-                // Map your specific endpoints
-
-                //cfg.ReceiveEndpoint("tenantstore-service-user-confirmed", e =>
-                //{
-                //    e.ConfigureConsumer<UserConfirmedWorker>(context);
-                //    e.Durable = true;
-                //    e.AutoDelete = false; // Never auto-delete your durable queues
-                //});
-
-                //cfg.ReceiveEndpoint("tenantstore-service-user-created", e =>
-                //{
-                //    e.ConfigureConsumer<TenantUserCreatedWorker>(context);
-                //    e.Durable = true;
-                //    e.AutoDelete = false; // Never auto-delete your durable queues
-                //});
-                // This handles any consumers not explicitly mapped above
                 cfg.ConfigureEndpoints(context);
             });
         });
     }
 }
+
+public class UserConfirmationConsumerDefinition : ConsumerDefinition<UserConfirmedWorker>
+{
+    public UserConfirmationConsumerDefinition()
+    {
+        EndpointName = "tenant-user-confirmation-que";
+    }
+    //protected override void ConfigureConsumer(
+    //    IReceiveEndpointConfigurator endpointConfigurator,
+    //    IConsumerConfigurator<UserConfirmedWorker> consumerConfigurator,
+    //    IRegistrationContext context)
+    //{
+    //    base.ConfigureConsumer(endpointConfigurator, consumerConfigurator, context);
+    //    // Cast to the RabbitMQ-specific interface
+    //    if (endpointConfigurator is IRabbitMqReceiveEndpointConfigurator rabbit)
+    //    {
+    //        rabbit.Durable = true;
+    //        rabbit.AutoDelete = false;
+    //    }
+    //}
+}
+
+public class UserCreatedConsumerDefinition : ConsumerDefinition<UserCreatedWorker>
+{
+    public UserCreatedConsumerDefinition()
+    {
+        EndpointName = "tenant-user-created-que";
+    }
+}
+
