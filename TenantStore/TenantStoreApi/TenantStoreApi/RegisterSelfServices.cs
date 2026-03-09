@@ -34,7 +34,7 @@ public static class ServiceRegistrations
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddLogging();
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
-        builder.Services.AddScoped<ITenantProvider, WebTenantContextAccessor>();
+        builder.Services.AddScoped<ITenantProvider, TenantProviderAccessor>();
         builder.Services.AddDbContext<TenantContext>((provider, options) =>
         {
             var defaultConn = builder.Configuration.GetConnectionString("DbConnection");

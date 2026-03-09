@@ -1,4 +1,5 @@
-﻿using MassTransit;
+﻿using BuzlinkRepository;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Onepunch.Common.Lib;
 using TenantStoreApi.Domain.Entities;
@@ -7,8 +8,12 @@ namespace TenantStoreApi.Infrastructure;
 
 public class TenantContext : DbContext
 {
-    public TenantContext(DbContextOptions<TenantContext> options) : base(options)
+    private readonly ITenantProvider _tenantProvider;
+
+    public TenantContext(DbContextOptions<TenantContext> options,
+        ITenantProvider tenantProvider) : base(options)
     {
+        _tenantProvider = tenantProvider;
     }
     public DbSet<TenantConnection> Connections { get; set; }
     public DbSet<Branch> Branches { get; set; }
@@ -24,9 +29,10 @@ public class TenantContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        base.OnModelCreating(modelBuilder);
-        modelBuilder.ApplyConfigurationsFromAssembly(GetType().Assembly);
 
+        var tenantId = _tenantProvider==null ? Guid.Empty :  _tenantProvider.TenantId;
+        modelBuilder.UseSoftDelete(tenantId);
+        modelBuilder.ApplyConfigurationsFromAssembly(GetType().Assembly);
         modelBuilder.Entity<Tenant>().HasQueryFilter(x => x.DeletedAt == null);
         modelBuilder.Entity<Branch>().HasQueryFilter(x => x.DeletedAt == null);
 
@@ -54,11 +60,6 @@ public class TenantContext : DbContext
                 v => v.ToString(),
                 v => EnumParserConfig.SafeParseEnum(v, Domain.TokenStatus.Revoke)
             );
-
-        //modelBuilder.Entity<Tenant>()
-        //        .HasOne(t => t.Account)
-        //        .WithMany() 
-        //        .HasForeignKey(t => t.AccountId)
-        //        .OnDelete(DeleteBehavior.Restrict);
+        base.OnModelCreating(modelBuilder);
     }
 }

@@ -34,25 +34,10 @@ public static class ServiceRegistrations
             var tenantUrl = builder.Configuration["TenantUrl"]?.ToString() ?? "";
             options.Address = new Uri(tenantUrl);
         });
-
-        //builder.Services.AddHttpContextAccessor();
         builder.Services.AddDataProtection();
         builder.Services.AddLogging();
-
         builder.Services.AddHttpContextAccessor();
-        builder.Services.AddScoped<ITenantProvider, WebTenantContextAccessor>();
-        //builder.Services.AddScoped<WebTenantContextAccessor>();
-        //builder.Services.AddScoped<MessagingTenantContextAccessor>();
-        //builder.Services.AddScoped<ITenantContextAccessor>(sp =>
-        //{
-        //    var httpContext = sp.GetRequiredService<IHttpContextAccessor>();
-        //    if (httpContext.HttpContext != null)
-        //    {
-        //        return sp.GetRequiredService<WebTenantContextAccessor>();
-        //    }
-        //    return sp.GetRequiredService<MessagingTenantContextAccessor>();
-        //});
-
+        builder.Services.AddScoped<ITenantProvider, TenantProviderAccessor>();
         builder.Services.AddIdentity<User, Role>(options =>
         {
             options.User.RequireUniqueEmail = true;
@@ -65,16 +50,9 @@ public static class ServiceRegistrations
         {
             var defaultConn = builder.Configuration.GetConnectionString("DbConnection");
             var connectionString = defaultConn!; 
-            //var tenantAccessor = provider.GetRequiredService<ITenantContextAccessor>();
-            //var tenantId = tenantAccessor.GetTenantId();
-            //var tenantProvider = provider.GetRequiredService<ITenantProvider>();
-            //if (tenantProvider.TenantId == Guid.Empty)
-            //    tenantProvider.SetTenantId(tenantId);
             options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
-            //options.AddInterceptors(new ApplyTenantInterceptor(tenantProvider));
-            //options.AddInterceptors(new SoftDeleteInterceptor());
+            options.AddInterceptors(new SoftDeleteInterceptor());
             options.UseLazyLoadingProxies(true);
-            //options.ReplaceService<IModelCacheKeyFactory, Onepunch.Auth.Infrastructure.TenantModelCacheKeyFactory>();
         });
 
         builder.Services.AddCors(options =>

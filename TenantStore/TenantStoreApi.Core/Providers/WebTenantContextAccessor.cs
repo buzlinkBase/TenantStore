@@ -2,25 +2,41 @@
 using Microsoft.AspNetCore.Http;
 
 namespace TenantStoreApi.Core.Providers;
-
-public class WebTenantContextAccessor : ITenantProvider
+public class TenantProviderAccessor : ITenantProvider
 {
     private Guid _tenantId;
     private readonly IHttpContextAccessor _httpContextAccessor;
-    public WebTenantContextAccessor(IHttpContextAccessor httpContextAccessor) 
+    public TenantProviderAccessor(IHttpContextAccessor httpContextAccessor)
     {
         _httpContextAccessor = httpContextAccessor;
     }
-    public  Guid TenantId
+
+    public Guid TenantId
     {
         get
         {
             if (_tenantId != Guid.Empty) return _tenantId;
-            var header = _httpContextAccessor.HttpContext?.Request?.Headers["X-Tenant-ID"].FirstOrDefault();
-            return Guid.TryParse(header, out var id) ? id : Guid.Empty;
+            var context = _httpContextAccessor.HttpContext;
+            if (context == null) return Guid.Empty;
+
+            // 1. Try to get from Header
+            var header = context.Request.Headers["X-Tenant-ID"].FirstOrDefault();
+            if (Guid.TryParse(header, out var headerId))
+            {
+                _tenantId = headerId;
+                return _tenantId;
+            }
+
+            // 2. Fallback: Try to get from JWT Claims
+            // Look for a claim named "tenant-id" (or whatever your claim name is)
+            var claim = context.User?.FindFirst("TenantId")?.Value;
+            if (Guid.TryParse(claim, out var claimId))
+            {
+                _tenantId = claimId;
+                return _tenantId;
+            }
+            return Guid.Empty;
         }
-        set => _tenantId = value;
     }
-    public  void SetTenantId(Guid tenantId) => _tenantId = tenantId;
+    public void SetTenantId(Guid tenantId) => _tenantId = tenantId;
 }
- 
