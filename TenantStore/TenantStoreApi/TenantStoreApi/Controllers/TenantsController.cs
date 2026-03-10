@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace TenantStoreApi.Controllers;
 
-
 [Route("api/v{version:apiVersion}/[controller]")]
 [ApiVersion("1.0")]
 [Authorize]
@@ -29,7 +28,6 @@ public class TenantsController : ControllerBase
         await _service.RegisterAsync(payload, token);
         return Ok();
     }
-
 
     //[HttpPost("send-invite")]
     //public async Task<IActionResult> InviteUser([FromQuery] InvitationPayload payload, CancellationToken token)

@@ -49,7 +49,7 @@ public static class ServiceRegistrations
         builder.Services.AddDbContext<AuthContext>((provider, options) =>
         {
             var defaultConn = builder.Configuration.GetConnectionString("DbConnection");
-            var connectionString = defaultConn!; 
+            var connectionString = defaultConn!;
             options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
             options.AddInterceptors(new SoftDeleteInterceptor());
             options.UseLazyLoadingProxies(true);
@@ -109,23 +109,32 @@ public static class ServiceRegistrations
                 setup.SubstituteApiVersionInUrl = true;
             });
 
-        builder.Services.AddAuthentication(options =>
-         {
-             options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-             options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-         })
-         .AddJwtBearer(options =>
-         {
-             options.TokenValidationParameters = new TokenValidationParameters
-             {
-                 ValidateIssuer = true,
-                 ValidIssuer = "Onepunch",
-                 ValidateAudience = true,
-                 ValidAudience = "Onepunch.AuthService",
-                 ValidateLifetime = true,
-                 ValidateIssuerSigningKey = true,
-                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SigningKey"]!))
-             };
-         });
+            builder.Services.AddAuthentication(options =>
+            {
+                // Default to JWT for API requests
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+                // IMPORTANT: This handles the temporary data Google sends back
+                options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
+            })
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidIssuer = "Onepunch",
+                    ValidateAudience = true,
+                    ValidAudience = "Onepunch.AuthService",
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SigningKey"]!))
+                };
+            })
+            .AddCookie()
+            .AddGoogle(options =>
+            {
+                options.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;
+                options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]!;
+            });
     }
 }

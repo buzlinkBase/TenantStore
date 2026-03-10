@@ -55,7 +55,6 @@ public class TenantCreatedWorker : IConsumer<TenantCreatedPayload>
         var emailDomain = ComposePayload(response.user, tokenModel);
         await _publisher.Publish(emailDomain, context.CancellationToken);
         await _userService.CommitChangesAsync(context.CancellationToken);
-
     }
 
     private UserEmailPayload ComposePayload(User user, CreateEmailToken tokenInfo)

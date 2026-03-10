@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using MassTransit;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
@@ -7,7 +8,9 @@ using Onepunch.Auth.Core;
 using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Domain.DTOs;
 using OnePunch.Auth.Domain.Entities;
+using RTools_NTS.Util;
 using Serilog;
+using System.Security.Claims;
 using System.Text;
 
 namespace OnePunch.Auth.Core.Services;
@@ -16,6 +19,7 @@ public class UserService : BaseService<User>
 {
     private readonly IPublishEndpoint _publisher;
     private readonly UserManager<User> _manager;
+    private readonly SignInManager<User> _signInManager;
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly JwtService _jwtService;
     private readonly EmailTokenService _emailTokenService;
@@ -28,6 +32,7 @@ public class UserService : BaseService<User>
         IPublishEndpoint publisher,
         IUnitOfWorkService uow,
         UserManager<User> manager,
+        SignInManager<User> signInManager,
         IPasswordHasher<User> passwordHasher,
         JwtService jwtService,
         IOptions<Domains> domains,
@@ -39,6 +44,7 @@ public class UserService : BaseService<User>
     {
         _publisher = publisher;
         _manager = manager ?? throw new ArgumentNullException(nameof(manager));
+        _signInManager = signInManager;
         _passwordHasher = passwordHasher ?? throw new ArgumentNullException(nameof(passwordHasher));
         _jwtService = jwtService ?? throw new ArgumentNullException(nameof(jwtService));
         _emailTokenService = emailTokenService;
@@ -51,6 +57,7 @@ public class UserService : BaseService<User>
     #region Registration Helpers
     private RegistrationResult Success(string message) => new RegistrationResult { Success = true, Message = message };
     private RegistrationResult Fail(string code, string message) => new RegistrationResult { Success = false, ErrorCode = code, Message = message };
+
     public async Task<(User user, IdentityResult result)> RegisterTenantAdmin(TenantCreatedPayload payload)
     {
         var user = new User
@@ -188,7 +195,7 @@ public class UserService : BaseService<User>
         await RemoveAsync(emailInfoDb.Id);
         await CommitChangesAsync(ctoken);
         return result;
-    } 
+    }
     public Task<User?> GetByIdAsync(string id) => _manager.FindByIdAsync(id);
     public Task<User?> GetByEmailAsync(string email) => _manager.FindByEmailAsync(email);
     public async Task<IdentityResult> UpdateAsync(UpdateUser payload)
@@ -243,6 +250,100 @@ public class UserService : BaseService<User>
         };
 
     }
+
+    public async Task<AuthenticationProperties> LoginWithGoogleAsync(string redirectUrl)
+    {
+        // 2. Configure the properties for the external login
+        var properties = _signInManager.ConfigureExternalAuthenticationProperties("Google", redirectUrl);
+        return properties;
+    }
+    public async Task<LoginResponse> GoogleCallback(CancellationToken token)
+    {
+        var info = await _signInManager.GetExternalLoginInfoAsync();
+        if (info == null)
+        {
+            return new LoginResponse { Success = false, Message = "External login failed." };
+        }
+
+        var email = info.Principal.FindFirstValue(ClaimTypes.Email);
+        if (email == null)
+        {
+            return new LoginResponse { Success = false, Message = "Email not provided by Google." };
+        }
+
+        // 1. Check if they already have a Google Login linked to an account
+        var user = await _manager.FindByLoginAsync(info.LoginProvider, info.ProviderKey);
+        if (user == null)
+        {
+            // 2. Check if a local email/password account exists (Account Linking)
+            user = await _manager.FindByEmailAsync(email); 
+            if (user != null)
+            {
+                // Link Google to the existing local account
+                await _manager.AddLoginAsync(user, info);
+            }
+            else
+            {
+                // 4. TRULY NEW USER: We need to create the "Account" (Tenant)
+                Guid tenantId;
+                try
+                {
+                    // TRY gRPC FIRST: Immediate creation in Tenant Service
+                    // Replace with your actual gRPC client call
+                    var tenantResponse = await _tenantGrpcClient.CreateAccountAsync(new { Email = email }, cancellationToken: token);
+                    tenantId = tenantResponse.Id;
+                }
+                catch (Exception ex)
+                {
+                    // FALLBACK TO RMQ: If Tenant Service is down, we don't want to fail the login.
+                    // We generate a temp ID or mark it pending, and let the Tenant Service catch up via RMQ.
+                    tenantId = Guid.NewGuid(); // Or a specific 'Pending' marker
+
+                    await _publisher.Publish(new CreateAccountMessage
+                    {
+                        Email = email,
+                        TemporaryId = tenantId
+                    });
+                    // Log the degradation: _logger.LogWarning("Tenant Service unreachable, falling back to RMQ");
+                }
+
+                // Create local Auth record with the retrieved or generated TenantId
+                user = new User
+                {
+                    UserName = email,
+                    Email = email,
+                    TenantId = tenantId,
+                    EmailConfirmed = true // Google already verified this email
+                };
+
+                var createResult = await _manager.CreateAsync(user);
+                if (!createResult.Succeeded)
+                {
+                    return new LoginResponse { Success = false, Message = "Failed to create user record." };
+                }
+
+                await _manager.AddLoginAsync(user, info);
+            }
+        }
+
+        // Generate Tokens
+        var accessToken = await _jwtService.CreateTokenAsync(user);
+        var refreshToken = await _jwtService.GenerateRefreshToken();
+
+        await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshToken), token);
+        await Context.SaveChangesAsync(token);
+        await CommitChangesAsync(token);
+
+        return new LoginResponse
+        {
+            Success = true,
+            AccessToken = accessToken,
+            RefreshToken = refreshToken,
+            Expiry = DateTime.UtcNow.AddMinutes(_jwtService.TokenExpiry),
+            TenantId = user.TenantId,
+        };
+    }
+
     public async Task<LoginResponse> RefreshLogin(string refreshToken, CancellationToken token)
     {
         var refreshTokenHash = _jwtService.Hash(refreshToken);
