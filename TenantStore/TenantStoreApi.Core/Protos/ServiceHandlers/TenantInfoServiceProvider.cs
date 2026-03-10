@@ -27,7 +27,6 @@ public class TenantInfoServiceProvider : GetTenantService.GetTenantServiceBase
         {
             Name = tenant.CompanyName,
             TenantId = tenant.Id.ToString(),
-            Token = tenant.ApiToken
         };
         return response;
     }

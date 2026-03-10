@@ -6,7 +6,7 @@ namespace TenantStoreApi
     {
         public MapperProfileConfig()
         {
-            CreateMap<CreateTenant, Tenant>();
+            CreateMap<UserCreated, Tenant>();
             CreateMap<UpdateTenant, Tenant>();
             CreateMap<Tenant, TenantModel>();
 

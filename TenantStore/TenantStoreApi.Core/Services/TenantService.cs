@@ -31,23 +31,16 @@ public class TenantService : BaseService<Tenant>
     protected override async Task<EvaluationResult> CreateValidatorAsync(Tenant model, CancellationToken token)
     {
         await base.CreateValidatorAsync(model, token);
-        Guard.ThrowIfNull(model, "Account Payload");
-        var fluentValResult = await new TenantValidator(UoW).ValidateAsync(model, token);
-        var result = EvaluationResult.Check(fluentValResult);
-        Guard.ThrowIfError(result);
-        return result;
+        Guard.ThrowIfNull(model, "Account Payload");  
+        return EvaluationResult.OK;
     }
 
-    public async Task<TenantModel> RegisterAsync(CreateTenant payload, CancellationToken token)
+    public async Task<TenantModel> CreateTenant(UserCreated payload, CancellationToken token)
     {
         var tenant = _mapper.Map<Tenant>(payload);
-        tenant.Status = "Pending";
-        tenant.ApiToken = TokenGenerator.GenerateRandomToken();
-        //create tenant
         await CreateAsync(tenant, token);
         await UoW.SaveChangesAsync(token);
         _tenantProvider.SetTenantId(tenant.Id);
-
         await _branchService.AddAsync(new CreateBranch
         {
             Code = "Main",
@@ -55,9 +48,6 @@ public class TenantService : BaseService<Tenant>
             TenantId = tenant.Id,
             Status = "Active"
         }, token);
-        var msgPayloadDto = CreateTenantPayload(tenant, payload);
-        await _publisher.Publish(msgPayloadDto);
-        await CommitChangesAsync(token);
         return _mapper.Map<TenantModel>(tenant);
     }
 
@@ -105,17 +95,6 @@ public class TenantService : BaseService<Tenant>
     internal async Task DeleteAsync(IEnumerable<Tenant> tenants, CancellationToken token)
     {
         await RemoveRangeAsync(tenants, token);
-    }
-
-    private TenantCreatedPayload CreateTenantPayload(Tenant tenant, CreateTenant payload)
-    {
-        var userPassword = _crypto.Encrypt(payload.Password);
-        return new TenantCreatedPayload
-        {
-            TenantId = tenant.Id,
-            Email = payload.Email,
-            Password = userPassword,
-        };
     }
 }
 

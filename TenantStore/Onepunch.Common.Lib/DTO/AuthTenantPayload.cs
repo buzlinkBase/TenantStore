@@ -1,13 +1,12 @@
-﻿using System.Runtime;
-
+﻿
 namespace Onepunch.Common.Lib.DTO;
-
 public record TenantCreatedPayload
 {
     public Guid TenantId { get; set; }
-    public string Email { get; set; } = string.Empty;
-    public string Password { get; set; } = string.Empty;
+    public Guid UserId  { get; set; } 
+    public string CompanyName  { get; set; }
 }
+
 public record TenantUserPayload
 {
     public Guid UserId { get; set; }
@@ -26,12 +25,10 @@ public class EmailCheckPayload
 public record UserEmailPayload
 {
     public string Token { get; set; } = string.Empty;
-    public Guid TenantId { get; set; }
-    public Guid UserId { get; set; }
     public string Email { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
-    public string TenantName { get; set; } = string.Empty;
     public string AppName { get; set; } = string.Empty;
+    public string TenantName   { get; set; } = string.Empty;
     public string Purpose { get; set; } = string.Empty;
     public DateTime IssuedAt { get; set; }
     public DateTime Expiry { get; set; }
@@ -50,7 +47,7 @@ public record NoticationResponse
 }
 public record EmailTokenInfo
 {
-    public Guid TenantId { get; set; }
+    public Guid UserId  { get; set; }
     public string Token { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string? Name { get; set; }
@@ -66,13 +63,12 @@ public record UserInvitionNotificationPayload
     public DateTime Expiry { get; set; } = DateTime.UtcNow.AddDays(2);
 }
 
-public record ResetPasswordEmail : UserInvitionNotificationPayload
+public record ResetPasswordEmail 
 {
-    public string? TenantName { get; set; }
     public string? Name { get; set; }
     public string? AppName { get; set; }
-    public string Email { get; set; }
-    public string Token { get; set; }
+    public required string Email { get; set; }
+    public required string Token { get; set; }
     public string ResetLink { get; set; } = string.Empty;
     public DateTime Expiry { get; set; } = DateTime.UtcNow.AddDays(1);
 }

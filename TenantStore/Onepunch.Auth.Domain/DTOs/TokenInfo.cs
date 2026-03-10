@@ -26,6 +26,5 @@ public record LoginResponse
     public string AccessToken { get; set; }
     public string RefreshToken { get; set; }
     public DateTime Expiry { get; set; }
-    public Guid TenantId  { get; set; }
     public string Message { get; set; } = "Success";
 }

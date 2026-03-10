@@ -10,14 +10,12 @@ public static class TenantRabbitMqConfiguration
 {
     public static void TenantConfigRabbitMq(this WebApplicationBuilder builder)
     {
-        // 1. Only fetch what you actually need
         var settings = builder.Configuration.GetSection("RabbitMqSettings").Get<RabbitMqSettings>();
         if (settings == null) return;
 
         builder.Services.AddMassTransit(x =>
         {
-            x.AddConsumer<UserConfirmedWorker, UserConfirmationConsumerDefinition>();
-            x.AddConsumer<UserCreatedWorker, UserCreatedConsumerDefinition>();
+            x.AddConsumer<UserCreatedWorker, UserCreatedDefinition>();
             x.SetEndpointNameFormatter(KebabCaseEndpointNameFormatter.Instance);
             x.AddEntityFrameworkOutbox<TenantContext>(o =>
             {
@@ -39,8 +37,6 @@ public static class TenantRabbitMqConfiguration
                     cb.TripThreshold = 15;
                     cb.ResetInterval = TimeSpan.FromMinutes(5);
                 });
-                cfg.UsePublishFilter(typeof(TenantPublishFilter<>), context);
-                cfg.UseConsumeFilter(typeof(TenantConsumeFilter<>), context);
                 cfg.Host(settings.Host, settings.VirtualHost, h =>
                 {
                     h.Username(settings.Username);
@@ -52,32 +48,10 @@ public static class TenantRabbitMqConfiguration
     }
 }
 
-public class UserConfirmationConsumerDefinition : ConsumerDefinition<UserConfirmedWorker>
+public class UserCreatedDefinition : ConsumerDefinition<UserCreatedWorker>
 {
-    public UserConfirmationConsumerDefinition()
+    public UserCreatedDefinition()
     {
         EndpointName = "tenant-user-confirmation-que";
-    }
-    //protected override void ConfigureConsumer(
-    //    IReceiveEndpointConfigurator endpointConfigurator,
-    //    IConsumerConfigurator<UserConfirmedWorker> consumerConfigurator,
-    //    IRegistrationContext context)
-    //{
-    //    base.ConfigureConsumer(endpointConfigurator, consumerConfigurator, context);
-    //    // Cast to the RabbitMQ-specific interface
-    //    if (endpointConfigurator is IRabbitMqReceiveEndpointConfigurator rabbit)
-    //    {
-    //        rabbit.Durable = true;
-    //        rabbit.AutoDelete = false;
-    //    }
-    //}
+    } 
 }
-
-public class UserCreatedConsumerDefinition : ConsumerDefinition<UserCreatedWorker>
-{
-    public UserCreatedConsumerDefinition()
-    {
-        EndpointName = "tenant-user-created-que";
-    }
-}
-

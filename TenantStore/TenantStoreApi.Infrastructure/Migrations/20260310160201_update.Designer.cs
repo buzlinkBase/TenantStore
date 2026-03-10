@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TenantStoreApi.Infrastructure;
 
@@ -11,9 +12,11 @@ using TenantStoreApi.Infrastructure;
 namespace TenantStoreApi.Infrastructure.Migrations
 {
     [DbContext(typeof(TenantContext))]
-    partial class TenantContextModelSnapshot : ModelSnapshot
+    [Migration("20260310160201_update")]
+    partial class update
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -238,6 +241,9 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("char(36)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Status");
@@ -251,6 +257,9 @@ namespace TenantStoreApi.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("AccountId")
                         .HasColumnType("char(36)");
 
                     b.Property<string>("CompanyName")
@@ -275,9 +284,9 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Status");
+                    b.HasIndex("AccountId");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("Status");
 
                     b.ToTable("Tenants");
                 });
@@ -336,6 +345,9 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("char(36)");
 
                     b.HasKey("Id");
 

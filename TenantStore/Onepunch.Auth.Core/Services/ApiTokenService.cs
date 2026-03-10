@@ -1,14 +1,15 @@
 ﻿using AutoMapper;
-using Microsoft.EntityFrameworkCore;
-using Serilog;
+using Onepunch.Auth.Domain.Entities;
+using OnePunch.Auth.Core;
+using OnePunch.Auth.Core.Services;
+using Serilog; 
 
-namespace TenantStoreApi.Core.Services;
+namespace Onepunch.Auth.Core.Services;
 
 public class ApiTokenService : BaseService<ApiToken>
 {
     private readonly IUnitOfWorkService _service;
     private readonly IMapper _mapper;
-
     public ApiTokenService(IUnitOfWorkService service,
         IMapper mapper) : base(service)
     {
@@ -20,7 +21,7 @@ public class ApiTokenService : BaseService<ApiToken>
         try
         {
             if (model == null) return default;
-            var token = TokenGenerator.Generate(model.TenantId, model?.Email ?? "");
+            var token = TokenGenerator.Generate(model.Email, model.UserId);
             var newToken = new ApiToken
             {
                 Description = model.Description,
@@ -76,5 +77,3 @@ public class ApiTokenService : BaseService<ApiToken>
             .FirstOrDefaultAsync();
     }
 }
-
-

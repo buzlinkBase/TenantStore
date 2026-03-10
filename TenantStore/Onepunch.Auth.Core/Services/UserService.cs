@@ -11,6 +11,7 @@ using OnePunch.Auth.Domain.Entities;
 using RTools_NTS.Util;
 using Serilog;
 using System.Security.Claims;
+using System.Security.Principal;
 using System.Text;
 
 namespace OnePunch.Auth.Core.Services;
@@ -22,12 +23,11 @@ public class UserService : BaseService<User>
     private readonly SignInManager<User> _signInManager;
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly JwtService _jwtService;
-    private readonly EmailTokenService _emailTokenService;
     private readonly TenantService _tenantService;
     private readonly Domains _domains;
     private readonly IConfiguration _configuration;
+    private readonly EmailNotificationService _notificationService;
     private readonly IMapper _mapper;
-
     public UserService(
         IPublishEndpoint publisher,
         IUnitOfWorkService uow,
@@ -36,10 +36,10 @@ public class UserService : BaseService<User>
         IPasswordHasher<User> passwordHasher,
         JwtService jwtService,
         IOptions<Domains> domains,
-        EmailTokenService emailTokenService,
         ITenantProvider tenantProvider,
         TenantService tenantService,
         IConfiguration configuration,
+        EmailNotificationService notificationService,
         IMapper mapper) : base(uow)
     {
         _publisher = publisher;
@@ -47,45 +47,53 @@ public class UserService : BaseService<User>
         _signInManager = signInManager;
         _passwordHasher = passwordHasher ?? throw new ArgumentNullException(nameof(passwordHasher));
         _jwtService = jwtService ?? throw new ArgumentNullException(nameof(jwtService));
-        _emailTokenService = emailTokenService;
         _tenantService = tenantService;
         _domains = domains.Value;
         _configuration = configuration;
+        _notificationService = notificationService;
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
     }
-
     #region Registration Helpers
     private RegistrationResult Success(string message) => new RegistrationResult { Success = true, Message = message };
     private RegistrationResult Fail(string code, string message) => new RegistrationResult { Success = false, ErrorCode = code, Message = message };
-
-    public async Task<(User user, IdentityResult result)> RegisterTenantAdmin(TenantCreatedPayload payload)
-    {
-        var user = new User
-        {
-            TenantId = payload.TenantId,
-            UserName = payload.Email,
-            Email = payload.Email,
-            Name = "Admin",
-            Status = "Pending"
-        };
-        var result = await _manager.CreateAsync(user, payload.Password);
-        return (user, result);
-    }
     private async Task<EmailToken?> FindToken(string emailToken) =>
         await Repository.Find<EmailToken>(x => x.TokenValue == emailToken).FirstOrDefaultAsync();
     private bool IsTokenExpired(EmailToken token) => token.Expiry < DateTime.UtcNow;
     #endregion
-
     #region Registration
+    public async Task<(User user, IdentityResult result)> RegisterAccount(CreateAccount payload, CancellationToken token)
+    {
+        var user = await _manager.FindByEmailAsync(payload.Email);
+        if (user != null)
+        {
+            throw new Exception("Email already exists, login instead");
+        }
+
+        var newAccount = new User
+        {
+            UserName = payload.Email,
+            Email = payload.Email,
+            Name = payload.Name ?? "Admin",
+            Status = "Pending"
+        };
+        var result = await _manager.CreateAsync(newAccount, payload.Password);
+        if (!result.Succeeded)
+        {
+            throw new Exception("Unable to create an account");
+        }
+        await CreateTenant(newAccount, payload.CompanyName, token);
+        await _notificationService.SendEmailVerification(newAccount, token);
+        return (newAccount, result);
+    }
+
     public async Task<RegistrationResult> ConfirmedRegistration(string emailToken, CancellationToken ctoken)
     {
         var token = Encoding.UTF8.GetString(TokenEncodingHelper.FromBase64Url(emailToken));
         var userToken = ObjectSerializer.Deserialize<EmailTokenInfo>(token);
-
+        if (userToken == null) throw new Exception("Unable to verify token");
         //update token
         var emailInfoDb = await FindToken(emailToken);
         if (emailInfoDb == null) throw new Exception("Unverified token");
-        if (emailInfoDb.TenantId != userToken.TenantId) return Fail("TENANT_MISMATCH", "Invalid tenant");
         if (emailInfoDb.Email != userToken.Email) return Fail("EMAIL_MISMATCH", "Cannot verify email");
         if (emailInfoDb == null) return Fail("TOKEN_NOT_FOUND", "Unable to verify Token");
         if (IsTokenExpired(emailInfoDb) || emailInfoDb.IsUsed) return Fail("TOKEN_EXPIRED", "User registration expired");
@@ -95,7 +103,6 @@ public class UserService : BaseService<User>
         //update user
         var user = await _manager.FindByEmailAsync(emailInfoDb.Email);
         if (user == null) return Fail("EMAIL_NOT_FOUND", "Email not found");
-        if (user.TenantId != emailInfoDb.TenantId) return Fail("TENANT_MISMATCH", "Invalid tenant");
         user.Status = "Active";
         user.EmailConfirmed = true;
         Context.Users.Update(user);
@@ -103,7 +110,6 @@ public class UserService : BaseService<User>
         var payload = new TenantUserPayload
         {
             Email = user.Email!,
-            TenantId = user.TenantId,
             UserId = user.Id,
         };
 
@@ -116,7 +122,6 @@ public class UserService : BaseService<User>
         return Success("User cannot be activated");
     }
     #endregion
-
     #region User Management 
 
     public async Task<IdentityResult?> ChangePassword(ChangePassword payload, CancellationToken token)
@@ -128,52 +133,21 @@ public class UserService : BaseService<User>
         var user = await _manager.FindByEmailAsync(payload.Email);
         if (user == null) throw new Exception("unable to change password");
         return await _manager.ChangePasswordAsync(user, payload.OldPassword, payload.NewPassword);
-
     }
     public async Task ResetPasswordRequestAsync(string email, CancellationToken token)
     {
-        var exp = DateTime.UtcNow.AddDays(1);
         var userInfo = await _manager.FindByEmailAsync(email);
         if (userInfo == null || string.IsNullOrEmpty(email))
         {
             Log.Logger.Error($"user trying to reset password for unknown email {email}");
-            return;//user dont exists bypass
-        }
-
-        var userToken = await _manager.GeneratePasswordResetTokenAsync(userInfo);
-        var tenant = await _tenantService.GetGrpcBgInfoAsync(userInfo.TenantId);
-        if (tenant == null)
-        {
-            Log.Logger.Error($"user trying to reset password for unknown tenant {email}");
             return;
         }
-        var emailToken = new CreateEmailToken
-        {
-            Expiry = exp,
-            TokenType = "reset-password",
-            TokenValue = userToken,
-            TenantId = userInfo.TenantId,
-            Email = email,
-            TenantName = tenant.Name
-        };
-        var message = new ResetPasswordEmail
-        {
-            Email = userInfo.Email ?? email,
-            Name = userInfo.Name,
-            ResetLink = $"{_domains.FrontEndDomain}/reset-password?token={emailToken.TokenValue}",
-            AppName = _configuration["AppName"],
-            TenantName = emailToken.TenantName,
-            Expiry = exp,
-            Token = emailToken.TokenValue,
-        };
-        await _emailTokenService.StoreToken(emailToken, token);
-        await _publisher.Publish(message, token);
-        await CommitChangesAsync(token);
-
+        var userToken = await _manager.GeneratePasswordResetTokenAsync(userInfo);
+        await _notificationService.SendResetPassword(userInfo, userToken, token);
     }
+
     public async Task<IdentityResult> ResetPassword(ResetPassword payload, CancellationToken ctoken)
     {
-
         if (payload.Password != payload.ConfirmPassword) throw new Exception("Password dont match");
         var emailInfoDb = await FindToken(payload.Token);
         if (emailInfoDb == null) throw new Exception("Unverified token");
@@ -183,7 +157,6 @@ public class UserService : BaseService<User>
             await CommitChangesAsync(ctoken);
             throw new Exception("Token expired");
         }
-
         var userInfo = await _manager.FindByEmailAsync(emailInfoDb.Email);
         if (userInfo == null) throw new Exception("User not found");
         if (userInfo == null)
@@ -196,6 +169,7 @@ public class UserService : BaseService<User>
         await CommitChangesAsync(ctoken);
         return result;
     }
+
     public Task<User?> GetByIdAsync(string id) => _manager.FindByIdAsync(id);
     public Task<User?> GetByEmailAsync(string email) => _manager.FindByEmailAsync(email);
     public async Task<IdentityResult> UpdateAsync(UpdateUser payload)
@@ -218,6 +192,7 @@ public class UserService : BaseService<User>
             : await _manager.DeleteAsync(user);
     }
     #endregion
+
     #region Authentication
     public async Task<LoginResponse> Login(LoginPayload payload, CancellationToken token)
     {
@@ -227,7 +202,6 @@ public class UserService : BaseService<User>
         {
             return new LoginResponse { Success = false, ErrorMessage = "Invalid email or password." };
         }
-
         if (user.Status != "Active" || !user.EmailConfirmed)
         {
             return new LoginResponse { Success = false, ErrorMessage = "User is not found" };
@@ -246,9 +220,7 @@ public class UserService : BaseService<User>
             AccessToken = accessToken,
             RefreshToken = refreshToken,
             Expiry = DateTime.UtcNow.AddMinutes(_jwtService.TokenExpiry),
-            TenantId = user.TenantId,
         };
-
     }
 
     public async Task<AuthenticationProperties> LoginWithGoogleAsync(string redirectUrl)
@@ -257,6 +229,17 @@ public class UserService : BaseService<User>
         var properties = _signInManager.ConfigureExternalAuthenticationProperties("Google", redirectUrl);
         return properties;
     }
+
+    public async Task CreateTenant(User user, string CompanyName = "", CancellationToken token = default)
+    {
+        var newTenant = new UserCreated
+        {
+            UserId = user.Id,
+            CompanyName = CompanyName ?? "My Organization",
+        };
+        await _publisher.Publish(newTenant, token);
+    }
+
     public async Task<LoginResponse> GoogleCallback(CancellationToken token)
     {
         var info = await _signInManager.GetExternalLoginInfoAsync();
@@ -276,7 +259,7 @@ public class UserService : BaseService<User>
         if (user == null)
         {
             // 2. Check if a local email/password account exists (Account Linking)
-            user = await _manager.FindByEmailAsync(email); 
+            user = await _manager.FindByEmailAsync(email);
             if (user != null)
             {
                 // Link Google to the existing local account
@@ -284,44 +267,22 @@ public class UserService : BaseService<User>
             }
             else
             {
-                // 4. TRULY NEW USER: We need to create the "Account" (Tenant)
-                Guid tenantId;
-                try
-                {
-                    // TRY gRPC FIRST: Immediate creation in Tenant Service
-                    // Replace with your actual gRPC client call
-                    var tenantResponse = await _tenantGrpcClient.CreateAccountAsync(new { Email = email }, cancellationToken: token);
-                    tenantId = tenantResponse.Id;
-                }
-                catch (Exception ex)
-                {
-                    // FALLBACK TO RMQ: If Tenant Service is down, we don't want to fail the login.
-                    // We generate a temp ID or mark it pending, and let the Tenant Service catch up via RMQ.
-                    tenantId = Guid.NewGuid(); // Or a specific 'Pending' marker
-
-                    await _publisher.Publish(new CreateAccountMessage
-                    {
-                        Email = email,
-                        TemporaryId = tenantId
-                    });
-                    // Log the degradation: _logger.LogWarning("Tenant Service unreachable, falling back to RMQ");
-                }
-
-                // Create local Auth record with the retrieved or generated TenantId
                 user = new User
                 {
                     UserName = email,
                     Email = email,
-                    TenantId = tenantId,
-                    EmailConfirmed = true // Google already verified this email
+                    EmailConfirmed = true
                 };
-
                 var createResult = await _manager.CreateAsync(user);
                 if (!createResult.Succeeded)
                 {
+                    //TODO
+                    //create the tenant separately not here
+                    //if user were invited only dont create tenant
+                    //else if this is called not from invitation Create tenant
+                    //CreateTenant(user);
                     return new LoginResponse { Success = false, Message = "Failed to create user record." };
                 }
-
                 await _manager.AddLoginAsync(user, info);
             }
         }
@@ -340,10 +301,8 @@ public class UserService : BaseService<User>
             AccessToken = accessToken,
             RefreshToken = refreshToken,
             Expiry = DateTime.UtcNow.AddMinutes(_jwtService.TokenExpiry),
-            TenantId = user.TenantId,
         };
     }
-
     public async Task<LoginResponse> RefreshLogin(string refreshToken, CancellationToken token)
     {
         var refreshTokenHash = _jwtService.Hash(refreshToken);

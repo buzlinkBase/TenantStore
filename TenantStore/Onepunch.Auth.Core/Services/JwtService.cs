@@ -47,7 +47,6 @@ public class JwtService
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new("TenantId", user.TenantId.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email ?? ""),
         };
 
@@ -103,7 +102,7 @@ public class JwtService
                 IsValid = false,
                 IsExpired = true,
                 ErrorMessage = "Token has expired",
-                ExpiresAt = ex.Expires // available in SecurityTokenExpiredException
+                ExpiresAt = ex.Expires 
             };
         }
         catch (Exception ex)

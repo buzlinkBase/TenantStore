@@ -1,10 +1,18 @@
-﻿namespace OnePunch.Auth.Domain.DTOs;
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace OnePunch.Auth.Domain.DTOs;
 
 public class CreateAccount
 {
+    [EmailAddress]
+    [Required]
     public string Email { get; set; }
+
+    public string? Name    { get; set; }
+
     public string Password { get; set; }
     public string CompanyName { get; set; }
+
 }
 public class CreateInvitedUser
 {

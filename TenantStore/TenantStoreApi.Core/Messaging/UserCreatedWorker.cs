@@ -1,29 +1,29 @@
-﻿
-using MassTransit;
-using Serilog;
+﻿using MassTransit;
 using TenantStoreApi.Core.Services;
 
-namespace TenantStoreApi.Core;
-
-public class UserCreatedWorker : IConsumer<UserEmailPayload>
+namespace TenantStoreApi.Core.Messaging;
+public class UserCreatedWorker : IConsumer<UserCreated>
 {
     private readonly TenantService _tenantService;
-
-    public UserCreatedWorker(TenantService tenantService) 
+    private readonly IPublishEndpoint _publisher;
+    public UserCreatedWorker(TenantService tenantService,
+        IPublishEndpoint publisher)
     {
         _tenantService = tenantService;
+        _publisher = publisher;
     }
-    public async Task Consume(ConsumeContext<UserEmailPayload> context)
+    public async Task Consume(ConsumeContext<UserCreated> context)
     {
-        var model = context.Message;
-        var tenant =  await _tenantService.FindTenantAsync(model.TenantId, context.CancellationToken);
-        if (tenant == null)
+        var message = context.Message;
+        var result = await _tenantService.CreateTenant(message, context.CancellationToken);
+        var createdTenant = new TenantCreatedPayload
         {
-            Log.Warning("Tenant {TenantId} not found. Nothing to activate.", model.TenantId);
-            return;
-        }
-        tenant.UserId = model.UserId;
-        tenant.Status = "User Created";
+            TenantId = result.Id,
+            UserId = message.UserId,
+            CompanyName = result.CompanyName,
+        };
+        await _publisher.Publish(createdTenant);
         await _tenantService.CommitChangesAsync(context.CancellationToken);
+
     }
 }

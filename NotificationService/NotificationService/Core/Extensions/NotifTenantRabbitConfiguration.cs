@@ -4,7 +4,6 @@ using OnePunch.Notification.Core.Messaging;
 using OnePunch.Notification.Infrastructure;
 
 namespace OnePunch.Notification.Core.Extensions;
-
 public static class NotifTenantRabbitConfiguration
 {
     public static void NotifConfigRabbitMq(this WebApplicationBuilder builder)
@@ -22,7 +21,7 @@ public static class NotifTenantRabbitConfiguration
             });
 
             x.SetEndpointNameFormatter(KebabCaseEndpointNameFormatter.Instance);
-            x.AddConsumer<UserCreatedWorker, UserCreatedConsumerDefinition>();
+            x.AddConsumer<AccountConfirmationWorker, AccountConfirmationDefinition>();
             x.AddConsumer<ResetPasswordWorker, ResetPasswordConsumerDefinition>();
             x.AddConsumer<UserInvitationWorker, UserInvitationConsumerDefinition>();
 
@@ -38,8 +37,6 @@ public static class NotifTenantRabbitConfiguration
                     cb.TripThreshold = 15; // Trip after 15 failures
                     cb.ResetInterval = TimeSpan.FromMinutes(5); // Wait 5 mins before trying again
                 });
-                //cfg.UsePublishFilter(typeof(TenantPublishFilter<>), context);
-                //cfg.UseConsumeFilter(typeof(TenantConsumeFilter<>), context);
                 cfg.Host(settings.Host, settings.VirtualHost, h =>
                 {
                     h.Username(settings.Username);
@@ -51,9 +48,9 @@ public static class NotifTenantRabbitConfiguration
     }
 }
 
-public class UserCreatedConsumerDefinition : ConsumerDefinition<UserCreatedWorker>
+public class AccountConfirmationDefinition : ConsumerDefinition<AccountConfirmationWorker>
 {
-    public UserCreatedConsumerDefinition()
+    public AccountConfirmationDefinition()
     {
         EndpointName = "notification-user-created-que";
     }

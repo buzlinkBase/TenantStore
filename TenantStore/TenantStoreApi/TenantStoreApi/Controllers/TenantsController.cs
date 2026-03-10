@@ -23,9 +23,9 @@ public class TenantsController : ControllerBase
 
     [HttpPost]
     [AllowAnonymous]
-    public async Task<IActionResult> Register([FromBody] CreateTenant payload, CancellationToken token)
+    public async Task<IActionResult> Register([FromBody] UserCreated payload, CancellationToken token)
     {
-        await _service.RegisterAsync(payload, token);
+        await _service.CreateTenant(payload, token);
         return Ok();
     }
 
@@ -38,7 +38,6 @@ public class TenantsController : ControllerBase
 
     //    return BadRequest("Failed sending invites");
     //}
-
 
     [HttpPut("{id}")]
     public async Task<IActionResult> Put(Guid id, [FromBody] UpdateTenant payload, CancellationToken token)

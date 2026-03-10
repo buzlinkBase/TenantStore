@@ -4,6 +4,7 @@ using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace OnePunch.Auth.Api;
+
 public class ConfigureSwaggerOptions : IConfigureOptions<SwaggerGenOptions>
 {
     private readonly IApiVersionDescriptionProvider _provider;
@@ -12,7 +13,6 @@ public class ConfigureSwaggerOptions : IConfigureOptions<SwaggerGenOptions>
     {
         foreach (var description in _provider.ApiVersionDescriptions)
         {
-            options.OperationFilter<SwaggerHeader>();
             options.SwaggerDoc("v1", new OpenApiInfo
             {
                 Title = "OnePunch Auth  API",

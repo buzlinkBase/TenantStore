@@ -50,16 +50,15 @@ namespace OnePunch.Auth.Api.Controllers
             var url = _options.FrontEndDomain;
             return Redirect($"{url}/forgot-password/success");
         }
+
         [HttpPost("create-account")]
-        public async Task<IActionResult> CreateAccount([FromBody] CreateAccount  payload, CancellationToken token)
+        [AllowAnonymous]
+        public async Task<IActionResult> CreateAccount([FromBody] CreateAccount payload, CancellationToken token)
         {
-            await _service.ChangePassword(email, token);
+            await _service.RegisterAccount(payload, token);
             var url = _options.FrontEndDomain;
-            return Redirect($"{url}/forgot-password/success");
+            return Redirect($"{url}/auth/create/success");
         }
-
-
-
 
         [AllowAnonymous]
         [HttpGet("confirm-email")]

@@ -19,11 +19,6 @@
 	<ItemGroup>
 	  <None Remove="Protos\tenant.proto" />
 	</ItemGroup>
-
-	<ItemGroup>
-		<None Include="Messaging\UserCreatedWorker.cs" />
-		<None Include="Messaging\UserConfirmedWorker.cs" />
-	</ItemGroup>
 	<ItemGroup>
 		<Protobuf Include="Protos\checkemail.proto" GrpcServices="Client" />
 		<Protobuf Include="Protos\tenant.proto" GrpcServices="Server" />

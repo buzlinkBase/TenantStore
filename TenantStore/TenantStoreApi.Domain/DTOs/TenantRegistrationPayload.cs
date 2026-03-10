@@ -3,17 +3,8 @@ using System.ComponentModel.DataAnnotations;
 
 namespace TenantStoreApi.Domain.DTOs;
 
-public record CreateTenant
-{
-    public required string CompanyName { get; set; }
-     
-}
 
-//public record TenantRegistrationRequest : CreateTenant
-//{
-//    public Guid TenantId { get; set; }
-//}
-
+ 
 public class UpdateTenant
 {
     public string Status { get; set; }
