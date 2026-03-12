@@ -13,6 +13,7 @@ public class UpdateTenant
 public class TenantModel
 {
     public Guid Id { get; set; }
+    public Guid UserId { get; set; }
     public string CompanyName { get; set; }
     public string Status { get; set; }
 }

@@ -6,4 +6,10 @@ public record UserCreated
     public Guid UserId { get; set; }
 }
 
+public record UserJoin
+{
+    public Guid UserId { get; set; }
+    public Guid TenantId  { get; set; }
+}
+
  

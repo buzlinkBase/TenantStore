@@ -39,7 +39,7 @@ public class EmailNotificationService
             Token = tokenModel.TokenValue,
             Email = account.Email!,
             AppName = _configuration["AppName"] ?? "OnePunch",
-            FullName = account.Name ?? "User",
+            FullName = account.FullName ?? "User",
             Expiry = tokenModel?.Expiry ?? DateTime.UtcNow.AddDays(2),
             IssuedAt = DateTime.UtcNow,
             Purpose = "account confirmation",
@@ -56,7 +56,7 @@ public class EmailNotificationService
         var message = new ResetPasswordEmail
         {
             Email = account.Email,
-            Name = account.Name ?? "User",
+            Name = account.FullName ?? "User",
             ResetLink = $"{_domainOptions.FrontEndDomain}/reset-password?token={userToken}",
             AppName = _configuration["AppName"] ?? "",
             Expiry = exp,

@@ -15,7 +15,7 @@ public class AuthContext : IdentityDbContext<User, Role, Guid>
     }
     public DbSet<EmailToken> EmailTokens { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
-    public DbSet<UserTenant> UserTenants { get; set; }
+    public DbSet<Invitation>  Invitations { get; set; }
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         base.OnConfiguring(optionsBuilder);

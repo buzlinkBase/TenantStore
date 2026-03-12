@@ -3,13 +3,13 @@ using TenantStoreApi.Core.Services;
 
 namespace TenantStoreApi.Core.Messaging;
 
-public class UserCreatedWorker : IConsumer<UserCreated>
+public class  UserJoinWorker : IConsumer<UserJoin>
 {
     private readonly TenantService _tenantService;
     private readonly UserMembershipService _userMembershipService;
     private readonly IPublishEndpoint _publisher;
 
-    public UserCreatedWorker(TenantService tenantService,
+    public UserJoinWorker(TenantService tenantService,
         UserMembershipService userMembershipService,
         IPublishEndpoint publisher)
     {
@@ -18,27 +18,21 @@ public class UserCreatedWorker : IConsumer<UserCreated>
         _publisher = publisher;
     }
 
-    public async Task Consume(ConsumeContext<UserCreated> context)
+    public async Task Consume(ConsumeContext<UserJoin> context)
     {
         var message = context.Message;
-        var result = await _tenantService.CreateTenant(message, context.CancellationToken);
-        //add user mebership
         await _userMembershipService.AddAsync(new UserMembership
         {
-            TenantId = result.Id,
+            TenantId = message.TenantId,
             UserId = message.UserId,
-            Role = "Owner"
+            Role = "Member"
         }, context.CancellationToken);
-
-        //publish created tenant to set defaultTenantId
         var createdTenant = new TenantCreatedPayload
         {
-            TenantId = result.Id,
+            TenantId = message.TenantId,
             UserId = message.UserId,
-            CompanyName = result.CompanyName,
         };
         await _publisher.Publish(createdTenant);
         await _tenantService.CommitChangesAsync(context.CancellationToken);
-
     }
 }

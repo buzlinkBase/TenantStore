@@ -17,14 +17,11 @@ public static class AuthRabbitConfiguration
         builder.Services.AddMassTransit(x =>
         {
             x.AddConsumer<TenantCreatedWorker, TenantCreatedConsumerDefinition>();
-            /// or for safe
-            /// x.AddConsumersFromNamespaceContaining<TenantCreatedWorker>();
             x.AddEntityFrameworkOutbox<AuthContext>(o =>
             {
                 o.UseMySql();
                 o.UseBusOutbox();
                 o.QueryDelay = TimeSpan.FromSeconds(5);
-                //o.DisableInboxCleanupService();
             });
             x.SetEndpointNameFormatter(KebabCaseEndpointNameFormatter.Instance);
             x.UsingRabbitMq((context, cfg) =>
@@ -39,8 +36,8 @@ public static class AuthRabbitConfiguration
                     cb.TripThreshold = 15; // Trip after 15 failures
                     cb.ResetInterval = TimeSpan.FromMinutes(5); // Wait 5 mins before trying again
                 });
-                cfg.UsePublishFilter(typeof(TenantPublishFilter<>), context);
-                cfg.UseConsumeFilter(typeof(TenantConsumeFilter<>), context);
+                //cfg.UsePublishFilter(typeof(TenantPublishFilter<>), context);
+                //cfg.UseConsumeFilter(typeof(TenantConsumeFilter<>), context);
                 cfg.Host(settings.Host, settings.VirtualHost, h =>
                 {
                     h.Username(settings.Username);

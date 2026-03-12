@@ -16,6 +16,7 @@ public static class TenantRabbitMqConfiguration
         builder.Services.AddMassTransit(x =>
         {
             x.AddConsumer<UserCreatedWorker, UserCreatedDefinition>();
+            x.AddConsumer<UserJoinWorker, UserJoinDefinition>();
             x.SetEndpointNameFormatter(KebabCaseEndpointNameFormatter.Instance);
             x.AddEntityFrameworkOutbox<TenantContext>(o =>
             {
@@ -53,5 +54,13 @@ public class UserCreatedDefinition : ConsumerDefinition<UserCreatedWorker>
     public UserCreatedDefinition()
     {
         EndpointName = "tenant-user-confirmation-que";
-    } 
+    }
+}
+
+public class UserJoinDefinition : ConsumerDefinition<UserJoinWorker>
+{
+    public UserJoinDefinition()
+    {
+        EndpointName = "tenant-user-confirmation-que";
+    }
 }

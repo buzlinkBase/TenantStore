@@ -1,17 +1,17 @@
 ﻿using AutoMapper;
+using Azure.Core;
 using MassTransit;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Onepunch.Auth.Core;
 using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Domain.DTOs;
 using OnePunch.Auth.Domain.Entities;
-using RTools_NTS.Util;
 using Serilog;
 using System.Security.Claims;
-using System.Security.Principal;
 using System.Text;
 
 namespace OnePunch.Auth.Core.Services;
@@ -66,14 +66,29 @@ public class UserService : BaseService<User>
         var user = await _manager.FindByEmailAsync(payload.Email);
         if (user != null)
         {
-            throw new Exception("Email already exists, login instead");
+            if (!string.IsNullOrEmpty(payload.InviteToken))
+            {
+                var invitation = await Context.Invitations
+                     .FirstOrDefaultAsync(i => i.Token == payload.InviteToken && i.Expiry > DateTime.UtcNow, token);
+                if (invitation != null)
+                {
+                    await HandleJoin(user, invitation);
+                }
+                else
+                {
+                    throw new Exception("Token expired");
+                }
+            }
+            else
+            {
+                throw new Exception("Email already exists, login instead");
+            }
         }
-
         var newAccount = new User
         {
             UserName = payload.Email,
             Email = payload.Email,
-            Name = payload.Name ?? "Admin",
+            FullName = payload.Name ?? "Admin",
             Status = "Pending"
         };
         var result = await _manager.CreateAsync(newAccount, payload.Password);
@@ -86,6 +101,11 @@ public class UserService : BaseService<User>
         return (newAccount, result);
     }
 
+    private async Task HandleJoin(User user,Invitation invitation)
+    {
+        Context.Invitations.Remove(invitation);
+        await Task.CompletedTask;
+    }
     public async Task<RegistrationResult> ConfirmedRegistration(string emailToken, CancellationToken ctoken)
     {
         var token = Encoding.UTF8.GetString(TokenEncodingHelper.FromBase64Url(emailToken));
@@ -209,20 +229,26 @@ public class UserService : BaseService<User>
 
         var accessToken = await _jwtService.CreateTokenAsync(user);
         var refreshToken = await _jwtService.GenerateRefreshToken();
-
         await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshToken), token);
         await Context.SaveChangesAsync(token);
         await CommitChangesAsync(token);
+        return ComposeLoginRespose(user, accessToken, refreshToken);
+    }
 
+    private LoginResponse ComposeLoginRespose(User user, string accessToken, string refreshToken)
+    {
+        //TODO capture users tenants
+        var tenants = new List<UsersTenant>();
         return new LoginResponse
         {
             Success = true,
             AccessToken = accessToken,
             RefreshToken = refreshToken,
             Expiry = DateTime.UtcNow.AddMinutes(_jwtService.TokenExpiry),
+            DefaultTenantId = user.DefaultTenantId,
+            Tenants = tenants
         };
     }
-
     public async Task<AuthenticationProperties> LoginWithGoogleAsync(string redirectUrl)
     {
         // 2. Configure the properties for the external login
@@ -240,69 +266,93 @@ public class UserService : BaseService<User>
         await _publisher.Publish(newTenant, token);
     }
 
-    public async Task<LoginResponse> GoogleCallback(CancellationToken token)
+    public async Task SetDefaultTenant(Guid tenantId, string token, CancellationToken ct)
+    {
+
+        var tokenInfo = _jwtService.ReadTokenToObject(token);
+        if (tokenInfo == null || !string.IsNullOrWhiteSpace(tokenInfo.ErrorMessage)) return;
+        var user = await _manager.FindByIdAsync(tokenInfo.UserId.ToString());
+        if (user == null) return;
+        user.DefaultTenantId = tenantId;
+        await _manager.UpdateAsync(user);
+        await CommitChangesAsync(ct);
+
+
+    }
+
+
+    public async Task<LoginResponse> GoogleCallback(string? inviteToken, CancellationToken token)
     {
         var info = await _signInManager.GetExternalLoginInfoAsync();
-        if (info == null)
-        {
-            return new LoginResponse { Success = false, Message = "External login failed." };
-        }
-
+        if (info == null) return new LoginResponse { Success = false, ErrorMessage = "External login failed." };
         var email = info.Principal.FindFirstValue(ClaimTypes.Email);
-        if (email == null)
+        if (email == null) return new LoginResponse { Success = false, ErrorMessage = "Email not provided by Google." };
+        try
         {
-            return new LoginResponse { Success = false, Message = "Email not provided by Google." };
-        }
-
-        // 1. Check if they already have a Google Login linked to an account
-        var user = await _manager.FindByLoginAsync(info.LoginProvider, info.ProviderKey);
-        if (user == null)
-        {
-            // 2. Check if a local email/password account exists (Account Linking)
-            user = await _manager.FindByEmailAsync(email);
-            if (user != null)
+            var user = await _manager.FindByLoginAsync(info.LoginProvider, info.ProviderKey);
+            if (user == null)
             {
-                // Link Google to the existing local account
-                await _manager.AddLoginAsync(user, info);
+                user = await _manager.FindByEmailAsync(email);
+                if (user != null)
+                {
+                    await _manager.AddLoginAsync(user, info);
+                }
+                else
+                {
+                    user = new User
+                    {
+                        UserName = email,
+                        Email = email,
+                        EmailConfirmed = true,
+                        FullName = info.Principal.FindFirstValue(ClaimTypes.Name) ?? email.Split('@')[0]
+                    };
+                    var createResult = await _manager.CreateAsync(user);
+                    if (!createResult.Succeeded)
+                    {
+                        return new LoginResponse { Success = false, ErrorMessage = "Failed to create user record." };
+                    }
+                    await _manager.AddLoginAsync(user, info);
+                }
+            }
+
+            if (!string.IsNullOrEmpty(inviteToken))
+            {
+                // FLOW: User was invited. Link them to the existing tenant.
+                var invitation = await Context.Invitations
+                    .FirstOrDefaultAsync(i => i.Token == inviteToken && i.Expiry > DateTime.UtcNow, token);
+                if (invitation != null)
+                {
+                    await HandleJoin(user, invitation);
+                }
+                else
+                {
+                    throw new Exception("Token expired");
+                }
             }
             else
             {
-                user = new User
+                //create tenant if not invited
+                var createTenant = new UserCreated
                 {
-                    UserName = email,
-                    Email = email,
-                    EmailConfirmed = true
+                    UserId = user.Id,
+                    CompanyName = email.Split('@')[0],
                 };
-                var createResult = await _manager.CreateAsync(user);
-                if (!createResult.Succeeded)
-                {
-                    //TODO
-                    //create the tenant separately not here
-                    //if user were invited only dont create tenant
-                    //else if this is called not from invitation Create tenant
-                    //CreateTenant(user);
-                    return new LoginResponse { Success = false, Message = "Failed to create user record." };
-                }
-                await _manager.AddLoginAsync(user, info);
+                await _publisher.Publish(createTenant, token);
             }
+            await _manager.UpdateAsync(user);
+            await Context.SaveChangesAsync(token);
+            var accessToken = await _jwtService.CreateTokenAsync(user);
+            var refreshToken = await _jwtService.GenerateRefreshToken();
+            await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshToken), token);
+            await Context.SaveChangesAsync(token);
+            return ComposeLoginRespose(user, accessToken, refreshToken);
         }
-
-        // Generate Tokens
-        var accessToken = await _jwtService.CreateTokenAsync(user);
-        var refreshToken = await _jwtService.GenerateRefreshToken();
-
-        await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshToken), token);
-        await Context.SaveChangesAsync(token);
-        await CommitChangesAsync(token);
-
-        return new LoginResponse
+        catch (Exception ex)
         {
-            Success = true,
-            AccessToken = accessToken,
-            RefreshToken = refreshToken,
-            Expiry = DateTime.UtcNow.AddMinutes(_jwtService.TokenExpiry),
-        };
+            return new LoginResponse { Success = false, ErrorMessage = "An error occurred during account setup." };
+        }
     }
+
     public async Task<LoginResponse> RefreshLogin(string refreshToken, CancellationToken token)
     {
         var refreshTokenHash = _jwtService.Hash(refreshToken);
@@ -318,19 +368,13 @@ public class UserService : BaseService<User>
 
         tokenEntity.Revoked = true;
         await RemoveAsync(tokenEntity.Id);
-        var newAccessToken = await _jwtService.CreateTokenAsync(user);
+
+        var accessToken = await _jwtService.CreateTokenAsync(user);
         var newRefreshToken = await _jwtService.GenerateRefreshToken();
         await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, newRefreshToken));
         await Context.SaveChangesAsync();
         await CommitChangesAsync(token);
-
-        return new LoginResponse
-        {
-            Success = true,
-            AccessToken = newAccessToken,
-            RefreshToken = newRefreshToken,
-            Expiry = DateTime.UtcNow.AddMinutes(_jwtService.TokenExpiry)
-        };
+        return ComposeLoginRespose(user, accessToken, newRefreshToken);
     }
     #endregion
     #region Helpers

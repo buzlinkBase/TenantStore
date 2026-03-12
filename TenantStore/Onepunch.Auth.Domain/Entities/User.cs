@@ -4,10 +4,11 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace OnePunch.Auth.Domain.Entities;
 
-public class User : IdentityUser<Guid>, IEntity 
+public class User : IdentityUser<Guid>, IEntity
 {
-    public string? Name { get; set; }
-    public string Status { get; set; } = "Pending";
+    public string? FullName { get; set; }
+    public Guid? DefaultTenantId { get; set; }
+    public string Status { get; set; } = "Active";
     [NotMapped]
     public string EntityType { get; set; } = string.Empty;
 }

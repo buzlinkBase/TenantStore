@@ -83,12 +83,11 @@ public class JwtService
         try
         {
             var principal = tokenHandler.ValidateToken(token, validationParameters, out SecurityToken validatedToken);
-
             return new TokenInfo
             {
                 UserId = Guid.Parse(principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value ?? Guid.Empty.ToString()),
                 Email = principal.FindFirst(JwtRegisteredClaimNames.Email)?.Value,
-                TenantId = Guid.Parse(principal.FindFirst("TenantId")?.Value ?? Guid.Empty.ToString()),
+                DefaultTenantId = Guid.Parse(principal.FindFirst("DefaultTenantId")?.Value ?? Guid.Empty.ToString()),
                 Roles = principal.FindAll(ClaimTypes.Role).Select(r => r.Value).ToList(),
                 IsValid = true,
                 IsExpired = false,

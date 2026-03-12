@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Onepunch.Auth.Core;
 using Onepunch.Auth.Domain.DTOs;
+using OnePunch.Auth.Api.Extensions;
 using OnePunch.Auth.Core.Services;
 
 namespace OnePunch.Auth.Api.Controllers
@@ -53,7 +54,8 @@ namespace OnePunch.Auth.Api.Controllers
 
         [HttpPost("create-account")]
         [AllowAnonymous]
-        public async Task<IActionResult> CreateAccount([FromBody] CreateAccount payload, CancellationToken token)
+        public async Task<IActionResult> CreateAccount([FromBody] CreateAccount payload,
+            CancellationToken token)
         {
             await _service.RegisterAccount(payload, token);
             var url = _options.FrontEndDomain;
@@ -86,12 +88,12 @@ namespace OnePunch.Auth.Api.Controllers
 
         [HttpGet("login-google")]
         [AllowAnonymous]
-        public async Task<IActionResult> LoginWithGoogle()
+        public async Task<IActionResult> LoginWithGoogle([FromQuery] string? inviteToken)
         {
             // 1. Define where the user goes AFTER the Google handshake is done
-            var redirectUrl = Url.Action("GoogleCallback", "users", null, Request.Scheme);
+            var redirectUrl = Url.Action("GoogleCallback", "users", new { inviteToken }, Request.Scheme);
             if (redirectUrl == null) return BadRequest("unable to resolve url");
-            var properties = await _service.LoginWithGoogleAsync(redirectUrl); 
+            var properties = await _service.LoginWithGoogleAsync(redirectUrl);
             // 3. Trigger the challenge. This sends a 302 Redirect to the browser, 
             // which then sends the user to Google's login page.
             return Challenge(properties, "Google");
@@ -99,15 +101,24 @@ namespace OnePunch.Auth.Api.Controllers
 
         [HttpGet("google-callback")]
         [AllowAnonymous]
-        public async Task<IActionResult> GoogleCallback(CancellationToken token)
+        public async Task<IActionResult> GoogleCallback([FromQuery] string? inviteToken, CancellationToken token)
         {
-            var data = await _service.GoogleCallback(token);
+            var data = await _service.GoogleCallback(inviteToken, token);
             return Ok(data);
         }
 
 
-        [HttpPost("logout")]
+        [HttpPost("set-default-tenant")]
+        public async Task<IActionResult> SetDefault([FromQuery(Name = "tenant-id")] Guid tenantId, CancellationToken ct)
+        {
+            var token = Request.GetAuthorizationToken();
+            if (token == null) return Unauthorized();
+            await _service.SetDefaultTenant(tenantId, token, ct);
+            return Ok();
+        }
+
         [AllowAnonymous]
+        [HttpPost("logout")]
         public async Task<IActionResult> Logout()
         {
             // 1. Sign out of the local app cookie
