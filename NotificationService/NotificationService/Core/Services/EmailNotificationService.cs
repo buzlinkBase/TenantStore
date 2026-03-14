@@ -1,6 +1,5 @@
 ﻿using Microsoft.Extensions.Options;
 using OnePunch.Notification.Domain.DTO;
-using RTools_NTS.Util;
 using System.Net;
 using System.Net.Mail;
 
@@ -13,7 +12,8 @@ public class EmailNotificationService
     {
         _setting = setting.Value;
     }
-    public async Task SendAccountConfirmation(MailPayload payload, string redirectSiteLink, CancellationToken token)
+
+    public async Task SendAccountConfirmation(SendAccountVerification payload, CancellationToken token)
     {
         string relativePath = Path.Combine("Core", "Templates", "AccountConfirmation.html");
         string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);
@@ -23,15 +23,14 @@ public class EmailNotificationService
         }
         string body = await File.ReadAllTextAsync(filePath, token);
         body = body
-            .Replace("{{confirmationLink}}", redirectSiteLink)
+            .Replace("{{confirmationLink}}", payload.ConfirmationRoute)
             ;
         MailMessage mail = new MailMessage();
-        mail.To.Add(payload.ToMail);
+        mail.To.Add(payload.Email);
         mail.From = new MailAddress(_setting.From);
         mail.Subject = "Confirm your account";
         mail.Body = body;
         mail.IsBodyHtml = true;
-
         var client = new SmtpClient(_setting.SmtpServer, 2525)
         {
             Credentials = new NetworkCredential(_setting.Username, _setting.Password),
@@ -39,8 +38,7 @@ public class EmailNotificationService
         };
         await client.SendMailAsync(mail, token);
     }
-
-    public async Task SendUserInvites(MailPayload payload, UserEmailPayload model, CancellationToken token)
+    public async Task SendUserInvites( UserInvitionNotificationPayload model, CancellationToken token)
     {
         string relativePath = Path.Combine("Core", "Templates", "UserInvitation.html");
         string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);
@@ -50,19 +48,20 @@ public class EmailNotificationService
         }
         string body = await File.ReadAllTextAsync(filePath, token);
         body = body
-            .Replace("{{InviteLink}}", model.ConfirmationRoute)
-            .Replace("{{OrganizationName}}", model.TenantName ?? "")
-            .Replace("{{UserName}}", model.FullName ?? model.Email)
+            .Replace("{{InviteLink}}", model.InviteLink)
+            .Replace("{{OrganizationName}}", model.Organization ?? "")
+            .Replace("{{Name}}", model.Name ?? model.Email)
             .Replace("{{ExpirationDateTime}}", model.Expiry.ToString())
-            .Replace("{{token}}", payload.Token)
             .Replace("{{CurrentYear}}", DateTime.UtcNow.Year.ToString())
             ;
+
         MailMessage mail = new MailMessage();
-        mail.To.Add(payload.ToMail);
+        mail.To.Add(model.Email);
         mail.From = new MailAddress(_setting.From);
-        mail.Subject = string.Concat(model.TenantName, "'s ", "invited you to ", !string.IsNullOrWhiteSpace(model.AppName) ? model.AppName : "Erp system");
+        mail.Subject = string.Concat(model.Organization, "'s", " ", "Invitation");
         mail.Body = body;
         mail.IsBodyHtml = true;
+
         var client = new SmtpClient(_setting.SmtpServer, 2525)
         {
             Credentials = new NetworkCredential(_setting.Username, _setting.Password),
@@ -70,8 +69,7 @@ public class EmailNotificationService
         };
         await client.SendMailAsync(mail, token);
     }
-
-    public async Task SendResetPassword(MailPayload payload, ResetPasswordEmail model, CancellationToken token)
+    public async Task SendResetPassword(ResetPasswordEmail model, CancellationToken token)
     {
         string relativePath = Path.Combine("Core", "Templates", "ResetPasssord.html");
         string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);
@@ -84,11 +82,10 @@ public class EmailNotificationService
             .Replace("{{InviteLink}}", model.ResetLink)
             .Replace("{{UserName}}", model.Name ?? model.Email)
             .Replace("{{ExpirationDateTime}}", model.Expiry.ToString())
-            .Replace("{{token}}", payload.Token)
             .Replace("{{CurrentYear}}", DateTime.UtcNow.Year.ToString())
             ;
         MailMessage mail = new MailMessage();
-        mail.To.Add(payload.ToMail);
+        mail.To.Add(model.Email);
         mail.From = new MailAddress(_setting.From);
         mail.Subject = $"Request password reset {(model?.Name ?? "").Substring(0, 100)}";
         mail.Body = body;

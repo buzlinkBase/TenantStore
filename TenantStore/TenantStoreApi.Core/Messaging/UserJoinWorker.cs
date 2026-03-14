@@ -21,18 +21,22 @@ public class  UserJoinWorker : IConsumer<UserJoin>
     public async Task Consume(ConsumeContext<UserJoin> context)
     {
         var message = context.Message;
+
+        //no tenant just a member
         await _userMembershipService.AddAsync(new UserMembership
         {
             TenantId = message.TenantId,
             UserId = message.UserId,
             Role = "Member"
         }, context.CancellationToken);
-        var createdTenant = new TenantCreatedPayload
+
+        var createdTenant = new UserJoinToTenantPayload
         {
             TenantId = message.TenantId,
             UserId = message.UserId,
         };
         await _publisher.Publish(createdTenant);
         await _tenantService.CommitChangesAsync(context.CancellationToken);
+
     }
 }

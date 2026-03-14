@@ -6,7 +6,7 @@ namespace Onepunch.Common.Lib;
 
 public class TokenGenerator
 {
-    public static string Generate(string email,Guid UserId )
+    public static string Generate(string email, Guid UserId)
     {
         using var rng = RandomNumberGenerator.Create();
         var rndToken = GenerateRandomToken();
@@ -19,12 +19,12 @@ public class TokenGenerator
         var token = ObjectSerializer.Serialize(eti);
         return TokenEncodingHelper.ToBase64Url(Encoding.UTF8.GetBytes(token));
     }
-    private static string GenerateRandomToken()
+    public static string GenerateRandomToken()
     {
         using var rng = RandomNumberGenerator.Create();
         var bytes = new byte[16];
         rng.GetBytes(bytes);
-        return Convert.ToBase64String(bytes);
+        return TokenEncodingHelper.ToBase64Url(bytes);
     }
 }
 

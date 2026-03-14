@@ -8,6 +8,7 @@ using Onepunch.Auth.Core;
 using Onepunch.Auth.Domain.DTOs;
 using OnePunch.Auth.Api.Extensions;
 using OnePunch.Auth.Core.Services;
+using System.Security.Claims;
 
 namespace OnePunch.Auth.Api.Controllers
 {
@@ -52,10 +53,21 @@ namespace OnePunch.Auth.Api.Controllers
             return Redirect($"{url}/forgot-password/success");
         }
 
+        [HttpPost("set-password")]
+        public async Task<IActionResult> SetPassword([FromBody] SetPassword payload , CancellationToken token)
+        {
+            var userId=HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var result=await _service.PromoteToPasswordAccount(userId, payload.Password, token);
+            if (!result.Succeeded)
+            {
+                return BadRequest(result.Errors);
+            }
+            return Ok();
+        }
+
         [HttpPost("create-account")]
         [AllowAnonymous]
-        public async Task<IActionResult> CreateAccount([FromBody] CreateAccount payload,
-            CancellationToken token)
+        public async Task<IActionResult> CreateAccount([FromBody] CreateAccount payload, CancellationToken token)
         {
             await _service.RegisterAccount(payload, token);
             var url = _options.FrontEndDomain;
@@ -101,12 +113,11 @@ namespace OnePunch.Auth.Api.Controllers
 
         [HttpGet("google-callback")]
         [AllowAnonymous]
-        public async Task<IActionResult> GoogleCallback([FromQuery] string? inviteToken, CancellationToken token)
+        public async Task<IActionResult> GoogleCallback(CancellationToken token)
         {
-            var data = await _service.GoogleCallback(inviteToken, token);
+            var data = await _service.GoogleCallback(token);
             return Ok(data);
         }
-
 
         [HttpPost("set-default-tenant")]
         public async Task<IActionResult> SetDefault([FromQuery(Name = "tenant-id")] Guid tenantId, CancellationToken ct)

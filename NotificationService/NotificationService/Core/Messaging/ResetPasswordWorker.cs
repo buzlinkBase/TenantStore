@@ -1,5 +1,6 @@
 ﻿using MassTransit;
 
+
 namespace OnePunch.Notification.Core.Messaging;
 
 public class ResetPasswordWorker : IConsumer<ResetPasswordEmail>
@@ -13,7 +14,6 @@ public class ResetPasswordWorker : IConsumer<ResetPasswordEmail>
     public async Task Consume(ConsumeContext<ResetPasswordEmail> context)
     {
         var message  = context.Message;
-        var mailPayload = new Domain.DTO.MailPayload(message.Email, message.Token);
-        await _service.SendResetPassword(mailPayload, message, context.CancellationToken);
+        await _service.SendResetPassword(message, context.CancellationToken);
     }
 }

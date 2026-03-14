@@ -3,7 +3,6 @@ using BuzlinkRepository;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Onepunch.Common.Lib.Exceptions;
-using Polly;
 using TenantStoreApi.Core.Validations;
 
 namespace TenantStoreApi.Core.Services;
@@ -28,7 +27,7 @@ public class BranchService : BaseService<Branch>
         await base.CreateValidatorAsync(model, token);
         Guard.ThrowIfNull(model, nameof(model));
         Guard.ThrowIfEmpty(model.Name, nameof(model.Name));
-        var fluentValResult = await new BranchValidator(UoW).ValidateAsync(model);
+        var fluentValResult = await new BranchValidator(Uow).ValidateAsync(model);
         var result = EvaluationResult.Check(fluentValResult);
         Guard.ThrowIfError(result);
         return result;
@@ -48,7 +47,7 @@ public class BranchService : BaseService<Branch>
         var branch = _mapper.Map<Branch>(model);
         GenerateCode(branch);
         await CreateAsync(branch, token);
-        await UoW.SaveChangesAsync(token);
+        await Uow.SaveChangesAsync(token);
         await PublishAsync(branch, token);
     }
     public async Task UpdateAsync(Guid Id, UpdateBranch model, CancellationToken token)

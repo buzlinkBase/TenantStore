@@ -25,7 +25,7 @@ public class TenantInfoServiceProvider : GetTenantService.GetTenantServiceBase
         }
         var response = new TenantInfoResponse
         {
-            Name = tenant.CompanyName,
+            Name = tenant.TenantName,
             TenantId = tenant.Id.ToString(),
         };
         return response;

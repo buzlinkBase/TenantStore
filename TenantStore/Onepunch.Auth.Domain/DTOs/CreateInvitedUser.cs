@@ -9,8 +9,6 @@ public class CreateAccount
     public required string Email { get; set; }
     public string? Name { get; set; }
     public required string Password { get; set; }
-    public string CompanyName { get; set; } = "";
-    public string? InviteToken { get; set; }
 }
 public class CreateInvitedUser
 {
@@ -43,4 +41,9 @@ public record ChangePassword
     public string NewPassword { get; set; }
     public string ConfirmPassword { get; set; }
 }
- 
+public record SetPassword 
+{
+    public string Password  { get; set; }
+    public string ConfirmPassword { get; set; }
+}
+

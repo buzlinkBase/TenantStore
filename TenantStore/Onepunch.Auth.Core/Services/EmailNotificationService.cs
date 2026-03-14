@@ -1,4 +1,5 @@
 ﻿using MassTransit;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Onepunch.Auth.Domain.Entities;
@@ -13,6 +14,7 @@ public class EmailNotificationService
 
     private readonly EmailTokenService _emailTokenService;
     private readonly IConfiguration _configuration;
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly Domains _domainOptions;
     private readonly IPublishEndpoint _publisher;
 
@@ -20,33 +22,36 @@ public class EmailNotificationService
         EmailTokenService emailTokenService,
         IConfiguration configuration,
         IOptions<Domains> domainOptions,
+        IHttpContextAccessor httpContextAccessor,
         IPublishEndpoint publisher)
     {
         _emailTokenService = emailTokenService;
         _configuration = configuration;
+        _httpContextAccessor = httpContextAccessor;
         _domainOptions = domainOptions.Value;
         _publisher = publisher;
     }
-    public async Task SendEmailVerification(User account, CancellationToken token)
+
+    public async Task SendEmailVerification(User account, CancellationToken ct)
     {
+
+        var request = _httpContextAccessor.HttpContext!.Request;
+        var baseUrl = $"{request.Scheme}://{request.Host}";
+
         if (account == null || account?.Email == null) return;
         var exp = DateTime.UtcNow.AddDays(1);
+        var tokenModel = await _emailTokenService.CreateModel(exp, account.Email);
+        await _emailTokenService.StoreToken(tokenModel, ct);
 
-        var tokenModel = await _emailTokenService.CreateModelAsync("user.created", exp, account.Id, account.Email);
-        await _emailTokenService.StoreToken(tokenModel, token); 
-        var emailDomain= new UserEmailPayload
+        var emailDomain = new SendAccountVerification
         {
-            Token = tokenModel.TokenValue,
             Email = account.Email!,
-            AppName = _configuration["AppName"] ?? "OnePunch",
             FullName = account.FullName ?? "User",
-            Expiry = tokenModel?.Expiry ?? DateTime.UtcNow.AddDays(2),
-            IssuedAt = DateTime.UtcNow,
-            Purpose = "account confirmation",
-            ConfirmationRoute = $"{_domainOptions.AuthDomain}/api/v1/users/confirm-email?token={token}"
+            ConfirmationRoute = $"{baseUrl}/api/v1/users/confirm-email?token={tokenModel.TokenValue}"
         };
-        await _publisher.Publish(emailDomain, token);
-        await _emailTokenService.CommitChangesAsync(token);
+        await _publisher.Publish(emailDomain, ct);
+        await _emailTokenService.CommitChangesAsync(ct);
+
     }
 
     public async Task SendResetPassword(User account, string userToken, CancellationToken token)
@@ -57,27 +62,25 @@ public class EmailNotificationService
         {
             Email = account.Email,
             Name = account.FullName ?? "User",
-            ResetLink = $"{_domainOptions.FrontEndDomain}/reset-password?token={userToken}",
+            ResetLink = $"{_domainOptions.FrontEnd}/reset-password?token={userToken}",
             AppName = _configuration["AppName"] ?? "",
             Expiry = exp,
             Token = userToken,
         };
-        var tokenModel = await _emailTokenService.CreateModelAsync("user.created", exp, account.Id, account.Email, userToken);
+        var tokenModel = await _emailTokenService.CreateModel("user.created", exp, account.Id, account.Email, userToken);
         await _emailTokenService.StoreToken(tokenModel, token);
         await _publisher.Publish(message, token);
         await _emailTokenService.CommitChangesAsync(token);
-    } 
+
+    }
 }
 
 public class EmailTokenService : BaseService<EmailToken>
 {
-    private readonly TenantService _tenantService;
-    public EmailTokenService(IUnitOfWorkService uow,
-        TenantService tenantService) : base(uow)
+    public EmailTokenService(IUnitOfWorkService uow) : base(uow)
     {
-        _tenantService = tenantService;
     }
-    public async Task<CreateEmailToken> CreateModelAsync(
+    public async Task<CreateEmailToken> CreateModel(
         string TokenType,
         DateTime expiry,
         Guid UserId,
@@ -93,6 +96,19 @@ public class EmailTokenService : BaseService<EmailToken>
             Email = email,
         };
     }
+
+    public async Task<CreateEmailToken> CreateModel(DateTime expiry, string email)
+    {
+        return new CreateEmailToken
+        {
+            Expiry = expiry,
+            TokenType = "",
+            TokenValue = TokenGenerator.GenerateRandomToken(),
+            Email = email,
+        };
+    }
+
+    public string GetRandomToken => TokenGenerator.GenerateRandomToken();
     public async Task StoreToken(CreateEmailToken payload, CancellationToken token)
     {
         var model = new EmailToken

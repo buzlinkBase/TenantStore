@@ -15,6 +15,7 @@ global using OnePunch.Notification.Core.Exceptions;
 global using OnePunch.Notification.Core.Validations;
 global using OnePunch.Notification.Core.Services;
 global using OnePunch.Notification.Core.Extensions;
+global using OnePunch.Notification.Domain.DTO;
 global using Serilog;
 
 

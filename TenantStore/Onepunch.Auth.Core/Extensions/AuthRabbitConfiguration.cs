@@ -17,6 +17,7 @@ public static class AuthRabbitConfiguration
         builder.Services.AddMassTransit(x =>
         {
             x.AddConsumer<TenantCreatedWorker, TenantCreatedConsumerDefinition>();
+            x.AddConsumer<UserJoinTenantCreatedWorker, UserJoinConsumerDefinition>();
             x.AddEntityFrameworkOutbox<AuthContext>(o =>
             {
                 o.UseMySql();
@@ -52,6 +53,13 @@ public static class AuthRabbitConfiguration
 public class TenantCreatedConsumerDefinition : ConsumerDefinition<TenantCreatedWorker>
 {
     public TenantCreatedConsumerDefinition() 
+    {
+        EndpointName = "auth-tenant-created-que";
+    }
+}
+public class UserJoinConsumerDefinition : ConsumerDefinition<UserJoinTenantCreatedWorker>
+{
+    public UserJoinConsumerDefinition()  
     {
         EndpointName = "auth-tenant-created-que";
     }

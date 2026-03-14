@@ -17,6 +17,7 @@ public static class TenantRabbitMqConfiguration
         {
             x.AddConsumer<UserCreatedWorker, UserCreatedDefinition>();
             x.AddConsumer<UserJoinWorker, UserJoinDefinition>();
+            x.AddConsumer<TenantJoinWorker, TenantJoinDefinition>();
             x.SetEndpointNameFormatter(KebabCaseEndpointNameFormatter.Instance);
             x.AddEntityFrameworkOutbox<TenantContext>(o =>
             {
@@ -53,7 +54,7 @@ public class UserCreatedDefinition : ConsumerDefinition<UserCreatedWorker>
 {
     public UserCreatedDefinition()
     {
-        EndpointName = "tenant-user-confirmation-que";
+        EndpointName = "tenant-service-create-user-que";
     }
 }
 
@@ -61,6 +62,13 @@ public class UserJoinDefinition : ConsumerDefinition<UserJoinWorker>
 {
     public UserJoinDefinition()
     {
-        EndpointName = "tenant-user-confirmation-que";
+        EndpointName = "tenant-service-user-join-que";
+    }
+}
+public class TenantJoinDefinition : ConsumerDefinition<TenantJoinWorker>
+{
+    public TenantJoinDefinition()
+    {
+        EndpointName = "tenant-service-tenant-join-que";
     }
 }

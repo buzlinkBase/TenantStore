@@ -1,5 +1,4 @@
 ﻿using BuzlinkRepository;
-
 namespace TenantStoreApi.Domain.Entities;
 public class Branch : BaseEntity , IEntityTenant
 {

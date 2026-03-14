@@ -1,10 +1,23 @@
 ﻿namespace OnePunch.Notification.Domain.DTO;
 
-public record MailPayload(string ToMail,string Token);
 public class MailSettings
 {
     public string From { get; set; }
     public string Username { get; set; }
     public string Password { get; set; }
     public string SmtpServer { get; set; }
+}
+
+public record AccountConfirmation
+{
+    public string Email { get; set; } = string.Empty;
+    public string ConfirmationLink { get; set; } = string.Empty;
+}
+public record AccountConfirmationPayload
+{
+    public string Email { get; set; } = string.Empty;
+    public string Name  { get; set; } = string.Empty;
+    public string Organization { get; set; } = string.Empty;
+    public DateTime Expiry { get; set; }
+    public string InviteLink { get; set; } = string.Empty;
 }

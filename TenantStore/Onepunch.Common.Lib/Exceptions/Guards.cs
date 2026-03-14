@@ -16,7 +16,11 @@ public static class Guard
         if (string.IsNullOrWhiteSpace(value))
             throw new ArgumentNullException(paramName ?? nameof(value));
     }
-
+    public static void ThrowIfEmpty(Guid value, string paramName)
+    {
+        if (Guid.Empty == value)
+            throw new ArgumentNullException(paramName ?? nameof(value));
+    }
 
     public static void EnsureTrue(bool condition, string message)
     {
@@ -48,6 +52,14 @@ public static class Guard
         if (!result.Success)
         {
             throw new GuardException(result.Message);
+        }
+    }
+    public static async Task ModelGuardAsync<T>(Func<T, CancellationToken, Task<EvaluationResult>> validator, IEnumerable<T> models, CancellationToken token)
+        where T : class, IEntity
+    {
+        foreach (var model in models)
+        {
+            await ModelGuardAsync(validator, model, token);
         }
     }
 

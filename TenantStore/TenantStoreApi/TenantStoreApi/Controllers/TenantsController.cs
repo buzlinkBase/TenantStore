@@ -29,19 +29,10 @@ public class TenantsController : ControllerBase
         return Ok();
     }
 
-    //[HttpPost("send-invite")]
-    //public async Task<IActionResult> InviteUser([FromQuery] InvitationPayload payload, CancellationToken token)
-    //{
-    //    var result = await _service.SendUserInvitation(payload, token);
-    //    if (result)
-    //        return Ok(result);
-
-    //    return BadRequest("Failed sending invites");
-    //}
-
+  
     [HttpPut("{id}")]
     public async Task<IActionResult> Put(Guid id, [FromBody] UpdateTenant payload, CancellationToken token)
-    {
+    { 
         await _service.UpdateAsync(id, payload, token);
         return Ok();
     }
