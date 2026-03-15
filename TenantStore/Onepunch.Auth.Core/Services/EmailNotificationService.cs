@@ -34,7 +34,6 @@ public class EmailNotificationService
 
     public async Task SendEmailVerification(User account, CancellationToken ct)
     {
-
         var request = _httpContextAccessor.HttpContext!.Request;
         var baseUrl = $"{request.Scheme}://{request.Host}";
 

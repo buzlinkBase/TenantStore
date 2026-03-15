@@ -2,7 +2,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Onepunch.Common.Lib;
+namespace Onepunch.Common.Lib; 
 
 public class PasswordCrypto
 {

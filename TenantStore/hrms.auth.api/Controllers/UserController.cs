@@ -30,7 +30,7 @@ namespace OnePunch.Auth.Api.Controllers
         public async Task<IActionResult> ResetPassword([FromBody] ResetPassword payload, CancellationToken token)
         {
             var result = await _service.ResetPassword(payload, token);
-            var url = _options.FrontEndDomain;
+            var url = _options.FrontEnd;
             if (!result.Succeeded)
             {
                 return Redirect($"{url}/auth/change-password/error?description={result.Errors.FirstOrDefault()?.Description ?? "error"}");
@@ -42,14 +42,14 @@ namespace OnePunch.Auth.Api.Controllers
         public async Task<IActionResult> ResetPasswordRequestAsync([FromQuery] string email, CancellationToken token)
         {
             await _service.ResetPasswordRequestAsync(email, token);
-            var url = _options.FrontEndDomain;
+            var url = _options.FrontEnd;
             return Redirect($"{url}/forgot-password/success");
         }
         [HttpPost("change-password")]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePassword email, CancellationToken token)
         {
             await _service.ChangePassword(email, token);
-            var url = _options.FrontEndDomain;
+            var url = _options.FrontEnd;
             return Redirect($"{url}/forgot-password/success");
         }
 
@@ -70,7 +70,7 @@ namespace OnePunch.Auth.Api.Controllers
         public async Task<IActionResult> CreateAccount([FromBody] CreateAccount payload, CancellationToken token)
         {
             await _service.RegisterAccount(payload, token);
-            var url = _options.FrontEndDomain;
+            var url = _options.FrontEnd;
             return Redirect($"{url}/auth/create/success");
         }
 
@@ -79,7 +79,7 @@ namespace OnePunch.Auth.Api.Controllers
         public async Task<IActionResult> Confirm([FromQuery(Name = "token")] string token, CancellationToken ct)
         {
             var result = await _service.ConfirmedRegistration(token, ct);
-            var url = _options.FrontEndDomain;
+            var url = _options.FrontEnd;
 
             if (!result.Success)
                 return Redirect($"{url}/tenant/error?code={result.ErrorCode}");

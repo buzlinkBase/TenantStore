@@ -1,4 +1,5 @@
-﻿namespace TenantStoreApi.Domain;
+﻿namespace Onepunch.Common.Lib;
+
 public class PaginatedResult<T>
 {
     public T? Data { get; set; }

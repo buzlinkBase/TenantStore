@@ -1,7 +1,4 @@
 ﻿using Microsoft.AspNetCore.Identity;
-using Serilog;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 
 namespace OnePunch.Auth.Core;
 

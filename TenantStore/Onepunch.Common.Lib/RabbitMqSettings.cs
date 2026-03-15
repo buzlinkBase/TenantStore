@@ -1,4 +1,4 @@
-﻿namespace TenantStoreApi.Core;
+﻿namespace Onepunch.Common.Lib;
 
 public class RabbitMqSettings
 {

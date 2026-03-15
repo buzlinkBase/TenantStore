@@ -52,7 +52,7 @@ namespace Onepunch.Auth.Core.Services
             var message = new UserInvitionNotificationPayload
             {
                 Email = payload.Email,
-                InviteLink = $"{_domains.FrontEndDomain}/invitations-list?token={token}",
+                InviteLink = $"{_domains.BaseUrl}/invitations-list?token={token}",
                 Organization = payload.TenantName ?? user.DefaultTenantName ?? "",
                 Name = user.FullName ?? user.Email ?? "User",
                 Expiry = exp,

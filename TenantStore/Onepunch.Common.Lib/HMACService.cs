@@ -1,8 +1,9 @@
 ﻿using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Onepunch.Common.Lib.Services;
+namespace Onepunch.Common.Lib;
 
 public interface IHMACService
 {
@@ -42,6 +43,6 @@ public class HMacInfo
             ExpiryDays = 365,
             Issuer = "easyfs"
         };
-        return ObjectSerializer.Serialize(payloadObj);
+        return JsonConvert.SerializeObject(payloadObj);
     }
 }

@@ -10,8 +10,8 @@ public class HMacSetting
     }
 }
 
-public class CryptoSetting
+public class ApiKeySetting
 {
-    public string AES_KEY { get; set; }
-    public string AES_IV { get; set; }
+    public string ApiKey { get; set; }
 }
+ 

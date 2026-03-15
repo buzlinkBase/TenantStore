@@ -3,9 +3,9 @@ using BuzlinkRepository;
 using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.IdentityModel.Tokens;
-using Onepunch.Common.Lib;
+using System.Net.Http.Headers;
 using System.Text;
 using TenantStoreApi.Core.Providers;
 using TenantStoreApi.Infrastructure;
@@ -14,6 +14,7 @@ public static class ServiceRegistrations
 {
     public static void RegisterSelfServices(this WebApplicationBuilder builder)
     {
+        builder.Services.AddHttpContextAccessor();
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
         builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));
         builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));
@@ -31,7 +32,14 @@ public static class ServiceRegistrations
             var authUrl = builder.Configuration["AuthUrl"]?.ToString() ?? "";
             options.Address = new Uri(authUrl);
         }).AddHeaderPropagation();
-        builder.Services.AddHttpContextAccessor();
+
+        var doToken = builder.Configuration["DigitalOcean:ApiToken"];
+        builder.Services.AddHttpClient<DigitalOceanDbService>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.digitalocean.com/v2/databases/");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", doToken);
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        }).AddStandardResilienceHandler();
         builder.Services.AddLogging();
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
         builder.Services.AddScoped<ITenantProvider, TenantProviderAccessor>();

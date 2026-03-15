@@ -9,6 +9,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="Polly" />
+		<PackageReference Include="Newtonsoft.Json" />
 		<PackageReference Include="Refit.HttpClientFactory" />
 		<PackageReference Include="MessagePack" />
 		<PackageReference Include="BuzlinkRepository" />

@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
-using Onepunch.Common.Lib.Services;
 using System.Reflection;
 
 namespace OnePunch.Auth.Core;

@@ -4,7 +4,6 @@ using MessagePack.AspNetCoreMvcFormatter;
 using MessagePack.Resolvers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using Onepunch.Common.Lib;
 using Serilog;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Text.Json;
@@ -27,10 +26,8 @@ internal class Program
 
         var mpackOptions = MessagePackSerializerOptions.Standard
             .WithResolver(CompositeResolver.Create(
-                // Priority 1: Compiled code (Fastest)
                 OneMessagePackResolver.Instance,
                 MessagePack.Resolvers.NativeDateTimeResolver.Instance,
-                // Priority 2: Handling for dynamic/contractless if still have old models
                 MessagePack.Resolvers.ContractlessStandardResolver.Instance
             ))
             .WithCompression(MessagePackCompression.Lz4BlockArray);

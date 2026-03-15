@@ -4,5 +4,6 @@ global using TenantStoreApi.Domain.Entities;
 global using TenantStoreApi.Core;
 global using TenantStoreApi.Domain;
 global using Onepunch.Common.Lib.DTO;
+global using Onepunch.Common.Lib;
 
 
