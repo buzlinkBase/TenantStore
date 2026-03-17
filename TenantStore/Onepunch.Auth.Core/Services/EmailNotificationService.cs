@@ -116,7 +116,6 @@ public class EmailTokenService : BaseService<EmailToken>
             TokenValue = payload.TokenValue,
             TokenType = payload.TokenType,
             Expiry = payload.Expiry,
-            Status = "Active",
             UserId = payload.UserId,
         };
         await Repository.AddAsync(model, token);

@@ -1,6 +1,7 @@
 ﻿using MassTransit;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using OnePunch.Auth.Core;
 using OnePunch.Auth.Domain.Entities;
 
 namespace Onepunch.Auth.Core.Services;
@@ -35,15 +36,18 @@ public class WorkspaceService
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IPublishEndpoint _publisher;
+    private readonly IUnitOfWorkService _uow;
     private readonly UserManager<User> _userManager;
     private readonly ITenantProvider _tenantProvider;
     public WorkspaceService( IHttpContextAccessor httpContextAccessor,
          IPublishEndpoint publisher,
+         IUnitOfWorkService uow,
         UserManager<User> userManager,
         ITenantProvider tenantProvider)
     {
         _httpContextAccessor = httpContextAccessor;
         _publisher = publisher;
+        _uow = uow;
         _userManager = userManager;
         _tenantProvider = tenantProvider;
     }
@@ -58,5 +62,6 @@ public class WorkspaceService
             TenantName = user.FullName ?? string.Concat(user.Email?.Split('@')[0] ?? "My", " Workspace"),
         };
         await _publisher.Publish(createTenant, token);
+        await _uow.CommitChangesAsync("",token);
     }
 }

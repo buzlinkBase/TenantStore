@@ -474,10 +474,6 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                     b.Property<bool>("IsUsed")
                         .HasColumnType("tinyint(1)");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
                     b.Property<string>("TokenType")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -516,12 +512,18 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                     b.Property<DateTime>("Expiry")
                         .HasColumnType("datetime(6)");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("longtext");
+                    b.Property<Guid>("Role")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("char(36)");
+
+                    b.Property<string>("TenantName")
+                        .IsRequired()
+                        .HasColumnType("longtext");
 
                     b.Property<string>("Token")
                         .IsRequired()
@@ -562,10 +564,6 @@ namespace Onepunch.Auth.Infrastructure.Migrations
 
                     b.Property<bool>("Revoked")
                         .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("longtext");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime(6)");

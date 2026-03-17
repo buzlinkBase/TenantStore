@@ -12,8 +12,8 @@ using Onepunch.Auth.Infrastructure;
 namespace Onepunch.Auth.Infrastructure.Migrations
 {
     [DbContext(typeof(AuthContext))]
-    [Migration("20260311094932_addinvitation")]
-    partial class addinvitation
+    [Migration("20260316042040_inititial")]
+    partial class inititial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -341,6 +341,9 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                     b.Property<Guid?>("DefaultTenantId")
                         .HasColumnType("char(36)");
 
+                    b.Property<string>("DefaultTenantName")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("Email")
                         .HasMaxLength(256)
                         .HasColumnType("varchar(256)");
@@ -474,10 +477,6 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                     b.Property<bool>("IsUsed")
                         .HasColumnType("tinyint(1)");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
                     b.Property<string>("TokenType")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -516,12 +515,18 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                     b.Property<DateTime>("Expiry")
                         .HasColumnType("datetime(6)");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("longtext");
+                    b.Property<Guid>("Role")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("char(36)");
+
+                    b.Property<string>("TenantName")
+                        .IsRequired()
+                        .HasColumnType("longtext");
 
                     b.Property<string>("Token")
                         .IsRequired()
@@ -562,10 +567,6 @@ namespace Onepunch.Auth.Infrastructure.Migrations
 
                     b.Property<bool>("Revoked")
                         .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("longtext");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime(6)");

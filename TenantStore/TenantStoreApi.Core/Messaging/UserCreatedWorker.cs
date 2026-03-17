@@ -1,4 +1,5 @@
 ﻿using MassTransit;
+using Serilog;
 using TenantStoreApi.Core.Services;
 
 namespace TenantStoreApi.Core.Messaging;
@@ -6,6 +7,7 @@ namespace TenantStoreApi.Core.Messaging;
 public class UserCreatedWorker : IConsumer<UserCreated>
 {
     private readonly TenantService _tenantService;
+    private readonly IUnitOfWorkService _unitOfWorkService;
     private readonly UserMembershipService _userMembershipService;
     private readonly SubscriptionService _subscriptionService;
     private readonly DigitalOceanDbService _digitalOceanDbService;
@@ -13,6 +15,7 @@ public class UserCreatedWorker : IConsumer<UserCreated>
     private readonly IPublishEndpoint _publisher;
 
     public UserCreatedWorker(TenantService tenantService,
+        IUnitOfWorkService unitOfWorkService,
         UserMembershipService userMembershipService,
         SubscriptionService subscriptionService,
         DigitalOceanDbService digitalOceanDbService,
@@ -20,11 +23,14 @@ public class UserCreatedWorker : IConsumer<UserCreated>
         IPublishEndpoint publisher)
     {
         _tenantService = tenantService;
+        _unitOfWorkService = unitOfWorkService;
         _userMembershipService = userMembershipService;
         _subscriptionService = subscriptionService;
         _digitalOceanDbService = digitalOceanDbService;
         _planService = planService;
         _publisher = publisher;
+        Console.WriteLine($"DEBUG: DO Client BaseAddress is: {digitalOceanDbService.GetBaseAddress()}");
+        Log.Logger.Debug($"DEBUG: DO Client BaseAddress is: {digitalOceanDbService.GetBaseAddress()}");
     }
 
     public async Task Consume(ConsumeContext<UserCreated> context)
@@ -34,12 +40,17 @@ public class UserCreatedWorker : IConsumer<UserCreated>
         var tenant = await _tenantService.CreateTenant(message, context.CancellationToken);
         //create db
         var hrisdbName = $"hris-{tenant.Id}";
-        var result = await _digitalOceanDbService.CreateTenantDatabaseAsync("hrms", tenant.Id);
+        var connectionString  = await _digitalOceanDbService.CreateTenantDatabaseAsync("hrms", tenant.Id);
         //store connectionstring
-        //var constr = new TenantConnection
-        //{
-        //    ConnetionString = result
-        //};
+        var connection  = new TenantConnection
+        {
+            ConnetionString = connectionString,
+            environment="Production",
+            service_owner="hrms",
+            TenantId = tenant.Id,
+        };
+        _unitOfWorkService.Repository.Add(connection);  
+
         await _userMembershipService.AddAsync(new UserMembership
         {
             TenantId = tenant.Id,

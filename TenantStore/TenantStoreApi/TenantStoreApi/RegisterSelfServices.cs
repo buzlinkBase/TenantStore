@@ -15,18 +15,6 @@ public static class ServiceRegistrations
     public static void RegisterSelfServices(this WebApplicationBuilder builder)
     {
         builder.Services.AddHttpContextAccessor();
-        builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
-        builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));
-        builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));
-        builder.Services.Configure<RabbitMqSettings>(builder.Configuration.GetSection("RabbitMqSettings"));
-        builder.Services.AddHeaderPropagation(options =>
-        {
-            options.Headers.Add("User-Agent");
-            options.Headers.Add("Authorization");
-            options.Headers.Add("X-Tenant-ID");
-            options.Headers.Add("X-Api-Key");
-        });
-        builder.Services.AddGrpc();
         builder.Services.AddGrpcClient<CheckEmailService.CheckEmailServiceClient>(options =>
         {
             var authUrl = builder.Configuration["AuthUrl"]?.ToString() ?? "";
@@ -39,7 +27,20 @@ public static class ServiceRegistrations
             client.BaseAddress = new Uri("https://api.digitalocean.com/v2/databases/");
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", doToken);
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        }).AddStandardResilienceHandler();
+        })
+         .AddStandardResilienceHandler();
+        builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
+        builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));
+        builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));
+        builder.Services.Configure<RabbitMqSettings>(builder.Configuration.GetSection("RabbitMqSettings"));
+        builder.Services.AddHeaderPropagation(options =>
+        {
+            options.Headers.Add("User-Agent");
+            options.Headers.Add("Authorization");
+            options.Headers.Add("X-Tenant-ID");
+            options.Headers.Add("X-Api-Key");
+        });
+        builder.Services.AddGrpc(); 
         builder.Services.AddLogging();
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
         builder.Services.AddScoped<ITenantProvider, TenantProviderAccessor>();

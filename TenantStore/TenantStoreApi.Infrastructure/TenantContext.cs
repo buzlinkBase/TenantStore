@@ -30,6 +30,8 @@ public class TenantContext : DbContext
         modelBuilder.ApplyConfigurationsFromAssembly(GetType().Assembly);
         modelBuilder.Entity<Tenant>().HasQueryFilter(x => x.DeletedAt == null);
         modelBuilder.Entity<Branch>().HasQueryFilter(x => x.DeletedAt == null);
+        modelBuilder.Entity<TenantSubscription>().HasQueryFilter(x => x.DeletedAt == null);
+
         modelBuilder.Entity<Branch>().HasIndex(x => x.TenantId);
         modelBuilder.Entity<Branch>().HasIndex(x => x.Status);
         modelBuilder.Entity<Tenant>().HasIndex(x => x.UserId);

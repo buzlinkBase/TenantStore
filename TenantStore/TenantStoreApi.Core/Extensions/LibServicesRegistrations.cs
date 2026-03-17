@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
-using Onepunch.Common.Lib.Services;
 using System.Reflection;
 
 namespace TenantStoreApi.Core.Extensions;
