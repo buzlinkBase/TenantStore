@@ -3,7 +3,6 @@
 namespace Onepunch.Common.Lib.DTO;
 public class CreateBranch
 {
-    public required Guid TenantId { get; set; }
     public required string Code  { get; set; }
     public required string Name { get; set; }
     public string? ShortName { get; set; } = string.Empty;

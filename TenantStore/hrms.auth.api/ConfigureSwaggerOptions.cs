@@ -1,6 +1,7 @@
 ﻿using Asp.Versioning.ApiExplorer;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
+using OnePunch.Auth.Api.Middlewares;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace OnePunch.Auth.Api;

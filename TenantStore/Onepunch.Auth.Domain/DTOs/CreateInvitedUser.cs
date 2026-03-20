@@ -8,7 +8,8 @@ public class CreateAccount
     [Required(ErrorMessage = "Email is required")]
     public required string Email { get; set; }
     public string? Name { get; set; }
-    public required string Password { get; set; }
+    public string? required { get; set; }
+    public required string Password { get; set; } 
 }
 public class CreateInvitedUser
 {

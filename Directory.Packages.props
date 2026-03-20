@@ -7,6 +7,8 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
+    <PackageVersion Include="Mapster" Version="7.4.0" />
+    <PackageVersion Include="Mapster.DependencyInjection" Version="1.0.1" />
     <PackageVersion Include="MassTransit" Version="8.2.5" />
     <PackageVersion Include="MassTransit.EntityFrameworkCore" Version="8.2.5" />
     <PackageVersion Include="MassTransit.Kafka" Version="8.3.0" />
@@ -70,7 +72,7 @@
     <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.5.0" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="7.2.0" />
     <PackageVersion Include="Refit.HttpClientFactory" Version="8.0.0" />
-    <PackageVersion Include="BuzlinkRepository" Version="1.2.8" />
+    <PackageVersion Include="BuzlinkRepository" Version="1.2.9" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.abstractions" Version="2.0.3" />
     <PackageVersion Include="xunit.analyzers" Version="1.25.0" />

@@ -1,8 +1,10 @@
 using Asp.Versioning;
 using Asp.Versioning.ApiExplorer;
+using Mapster;
 using Microsoft.Extensions.Options;
 using OnePunch.Notification.Infrastructure;
 using Swashbuckle.AspNetCore.SwaggerGen;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -34,7 +36,8 @@ builder.RegisterSelftServices();
 builder.RegisterCoreServices();
 //builder.NotifConfigKafka();
 builder.NotifConfigRabbitMq();
-builder.Services.AddAutoMapper(typeof(MappingProfile));
+
+builder.Services.AddMapster(typeof(MappingProfile).Assembly); 
 builder.Services.AddDbContext<NotifContext>(options => {
     var connectionstring = builder.Configuration.GetConnectionString("DefaultConnection");
     options.UseMySql(connectionstring,ServerVersion.AutoDetect(connectionstring));

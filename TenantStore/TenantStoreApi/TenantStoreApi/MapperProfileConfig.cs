@@ -1,19 +1,20 @@
-﻿using AutoMapper;
+﻿
+
+using Mapster;
 
 namespace TenantStoreApi
 {
-    public class MapperProfileConfig :Profile
+    public class MapperProfileConfig : IRegister
     {
-        public MapperProfileConfig()
+        public void Register(TypeAdapterConfig config)
         {
-            CreateMap<UserCreated, Tenant>();
-            CreateMap<UpdateTenant, Tenant>();
-            CreateMap<Tenant, TenantModel>();
-
-            CreateMap<CreateBranch, Branch>();
-            CreateMap<UpdateBranch, Branch>();
-            CreateMap<Branch, BranchModel>();
-
+            config.NewConfig<UserCreated, Tenant>();
+            config.NewConfig<UpdateTenant, Tenant>();
+            config.NewConfig<Tenant, TenantModel>();
+            config.NewConfig<CreateBranch, Branch>();
+            config.NewConfig<UpdateBranch, Branch>();
+            config.NewConfig<Branch, BranchModel>();
+            config.NewConfig<ConnectionStringPayload,ConnectionStringStore >().TwoWays();
         }
     }
 }

@@ -16,8 +16,8 @@ public static class NotifTenantRabbitConfiguration
             {
                 o.UseMySql();
                 o.UseBusOutbox();
-                o.QueryDelay = TimeSpan.FromSeconds(5);
-                o.DisableInboxCleanupService();
+                //o.QueryDelay = TimeSpan.FromSeconds(5);
+                //o.DisableInboxCleanupService();
             });
 
             x.SetEndpointNameFormatter(KebabCaseEndpointNameFormatter.Instance);
@@ -42,6 +42,7 @@ public static class NotifTenantRabbitConfiguration
                     h.Username(settings.Username);
                     h.Password(settings.Password);
                 });
+                cfg.SetQuorumQueue();
                 cfg.ConfigureEndpoints(context);
             });
         });

@@ -69,7 +69,8 @@ internal class Program
         //builder.Services.AddSingleton<IMapper>(config.CreateMapper()); 
 
         builder.Services.AddPollyPolicies();
-        builder.Services.AddAutoMapper(typeof(MapperProfileConfig).Assembly);
+        builder.Services.AddSignalR();
+        builder.Services.AddMapster(typeof(MapperProfileConfig).Assembly);
         builder.RegisterSelfServices();
         builder.RegisterCoreServices();
         //builder.TenantConfigKafka();

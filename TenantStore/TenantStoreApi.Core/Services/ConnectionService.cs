@@ -1,21 +1,30 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Microsoft.EntityFrameworkCore;
 
 namespace TenantStoreApi.Core.Services;
 
-public class ConnectionService : BaseService<TenantConnection>
+public class ConnectionService : BaseService<ConnectionStringStore>
 {
     public ConnectionService(IUnitOfWorkService service) : base(service)
     {
     }
 
-    public async Task<string> GetConnection(Guid tenantId)
+    public async Task<ConnectionQueryResponse?> GetConnection(Guid tenantId,string service)
     {
-        return GetQueryable(x => x.TenantId == tenantId)
-            .FirstOrDefault()?.ConnetionString ?? "";
+        var data = await GetQueryable(x =>
+                        x.TenantId == tenantId &&
+                        x.ServiceOwner== service &&
+                        x.IsActive)
+            .FirstOrDefaultAsync();
+
+        if (data == null) return null;
+
+        return new ConnectionQueryResponse
+        {
+            ConnectionString = data.ConnetionString,
+            TenantId = data.TenantId,
+            Success = true,
+        };
     }
+    public async Task AddAsync(ConnectionStringStore tenantConnection, CancellationToken token = default) => await Repository.AddAsync(tenantConnection, token);
 
 }

@@ -8,6 +8,8 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<PackageReference Include="Mapster" />
+		<PackageReference Include="Mapster.DependencyInjection" />
 		<PackageReference Include="Polly" />
 		<PackageReference Include="Newtonsoft.Json" />
 		<PackageReference Include="Refit.HttpClientFactory" />

@@ -1,10 +1,13 @@
-﻿using AutoMapper;
+﻿
+using Mapster;
+using MapsterMapper;
+using System.Reflection;
 
 namespace OnePunch.Notification.Core;
 
-public class MappingProfile:Profile
+public class MappingProfile:IRegister
 {
-    public MappingProfile()
+    public void Register(TypeAdapterConfig config)
     {
     }
-}
+} 

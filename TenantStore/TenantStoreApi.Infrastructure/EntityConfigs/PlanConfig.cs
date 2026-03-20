@@ -11,7 +11,7 @@ public class PlanConfig : IEntityTypeConfiguration<Plan>
         builder.HasData(
             new Plan()
             {
-                Id=Guid.Parse("D8CB5F8B-8E4E-4352-B41C-C311F73B5ED5"),
+                Id = Guid.Parse("D8CB5F8B-8E4E-4352-B41C-C311F73B5ED5"),
                 Name = "Free Trial",
                 Description = "Free Trial",
             });

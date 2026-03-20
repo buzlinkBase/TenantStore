@@ -1,5 +1,4 @@
-﻿using AutoMapper;
-using MassTransit;
+﻿using MassTransit;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -81,7 +80,7 @@ public class UserService : BaseService<User>
             if (!user.EmailConfirmed)
             {
                 await _notificationService.SendEmailVerification(user, token);
-            } 
+            }
             throw new Exception("An account with this email already exists.");
         }
         if (!user.EmailConfirmed)
@@ -313,6 +312,11 @@ public class UserService : BaseService<User>
             Log.Error(ex, "google callback failed, email: {email}", email);
             return new LoginResponse { Success = false, ErrorMessage = "An internal error occurred during setup." };
         }
+    }
+
+    public async Task<User?> Profile(ClaimsPrincipal user)
+    {
+        return await _manager.GetUserAsync(user);
     }
 
     public async Task<LoginResponse> RefreshLogin(string refreshToken, CancellationToken token)

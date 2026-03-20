@@ -59,7 +59,7 @@ public class WorkspaceService
         var createTenant = new UserCreated
         {
             UserId = user.Id,
-            TenantName = user.FullName ?? string.Concat(user.Email?.Split('@')[0] ?? "My", " Workspace"),
+            TenantName = payload.TenantName ?? user.FullName ?? string.Concat(user.Email?.Split('@')[0] ?? "My", " Workspace"),
         };
         await _publisher.Publish(createTenant, token);
         await _uow.CommitChangesAsync("",token);

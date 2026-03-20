@@ -29,10 +29,11 @@
 		<PackageReference Include="Grpc.Net.Client" />
 		<PackageReference Include="Grpc.Tools" />
 		<PackageReference Include="FluentValidation" />
+		<PackageReference Include="Mapster" />
+		<PackageReference Include="Mapster.DependencyInjection" />
 		<PackageReference Include="MassTransit.RabbitMQ" />
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.Google" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
-		<PackageReference Include="AutoMapper" /> 
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" /> 
 		<PackageReference Include="Microsoft.IdentityModel.Tokens" /> 
 		<PackageReference Include="RabbitMQ.Client" /> 
 

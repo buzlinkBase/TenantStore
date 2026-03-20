@@ -8,6 +8,7 @@ using Onepunch.Auth.Core;
 using Onepunch.Auth.Domain.DTOs;
 using OnePunch.Auth.Api.Extensions;
 using OnePunch.Auth.Core.Services;
+using RTools_NTS.Util;
 using System.Security.Claims;
 
 namespace OnePunch.Auth.Api.Controllers
@@ -20,10 +21,14 @@ namespace OnePunch.Auth.Api.Controllers
     public class UsersController : ControllerBase
     {
         private readonly UserService _service;
+        private readonly JwtService _jwtService;
         private readonly Domains _options;
-        public UsersController(UserService service, IOptions<Domains> options)
+        public UsersController(UserService service,
+            JwtService jwtService,
+            IOptions<Domains> options)
         {
             _service = service;
+            _jwtService = jwtService;
             _options = options.Value;
         }
         [HttpPost("reset-password")]
@@ -54,10 +59,10 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [HttpPost("set-password")]
-        public async Task<IActionResult> SetPassword([FromBody] SetPassword payload , CancellationToken token)
+        public async Task<IActionResult> SetPassword([FromBody] SetPassword payload, CancellationToken token)
         {
-            var userId=HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var result=await _service.PromoteToPasswordAccount(userId, payload.Password, token);
+            var userId = HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var result = await _service.PromoteToPasswordAccount(userId, payload.Password, token);
             if (!result.Succeeded)
             {
                 return BadRequest(result.Errors);
@@ -74,6 +79,7 @@ namespace OnePunch.Auth.Api.Controllers
             return Redirect($"{url}/auth/create/success");
         }
 
+
         [AllowAnonymous]
         [HttpGet("confirm-email")]
         public async Task<IActionResult> Confirm([FromQuery(Name = "token")] string token, CancellationToken ct)
@@ -85,6 +91,24 @@ namespace OnePunch.Auth.Api.Controllers
                 return Redirect($"{url}/tenant/error?code={result.ErrorCode}");
 
             return Redirect($"{url}/tenant/success");
+        }
+
+        [HttpGet("profile")]
+        public async Task<IActionResult> GetProfile(CancellationToken ct)
+        {
+            var token = HttpContext.Request.GetAuthorizationToken();
+            if (token == null) return Unauthorized();
+            var response = await _service.Profile(HttpContext.User);
+            return Ok(new
+            {
+                response.Id,
+                response.DefaultTenantName,
+                response.DefaultTenantId,
+                response.Email,
+                response.FullName,
+                response.PhoneNumber,
+                response.Status,
+            });
         }
 
         [AllowAnonymous]

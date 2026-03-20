@@ -1,5 +1,4 @@
-﻿using AutoMapper;
-using Onepunch.Auth.Domain.Entities;
+﻿using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Core;
 using OnePunch.Auth.Core.Services;
 using Serilog; 

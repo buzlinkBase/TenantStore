@@ -25,5 +25,6 @@ namespace OnePunch.Auth.Api.Controllers
             await _service.Create(payload, token);
             return Ok(); 
         }
+
     }
 }

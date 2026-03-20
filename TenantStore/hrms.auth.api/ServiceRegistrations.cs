@@ -130,7 +130,7 @@ public static class ServiceRegistrations
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SigningKey"]!))
                 };
             })
-            .AddCookie()
+            //.AddCookie()
             .AddGoogle(options =>
             {
                 options.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;

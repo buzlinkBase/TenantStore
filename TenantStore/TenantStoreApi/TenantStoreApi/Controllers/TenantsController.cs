@@ -1,5 +1,4 @@
-using Asp.Versioning;
-using AutoMapper;
+using Asp.Versioning; 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc; 
 

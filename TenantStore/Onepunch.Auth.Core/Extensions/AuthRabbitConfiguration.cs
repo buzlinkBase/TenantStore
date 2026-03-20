@@ -22,7 +22,6 @@ public static class AuthRabbitConfiguration
             {
                 o.UseMySql();
                 o.UseBusOutbox();
-                o.QueryDelay = TimeSpan.FromSeconds(5);
             });
             x.SetEndpointNameFormatter(KebabCaseEndpointNameFormatter.Instance);
             x.UsingRabbitMq((context, cfg) =>
@@ -37,13 +36,16 @@ public static class AuthRabbitConfiguration
                     cb.TripThreshold = 15; // Trip after 15 failures
                     cb.ResetInterval = TimeSpan.FromMinutes(5); // Wait 5 mins before trying again
                 });
-                //cfg.UsePublishFilter(typeof(TenantPublishFilter<>), context);
+                cfg.UsePublishFilter(typeof(TenantPublishFilter<>), context);
                 //cfg.UseConsumeFilter(typeof(TenantConsumeFilter<>), context);
                 cfg.Host(settings.Host, settings.VirtualHost, h =>
                 {
                     h.Username(settings.Username);
                     h.Password(settings.Password);
                 });
+                //cfg.ConfigurePublish(p => p.UseExecute(c => c.SetPersistent()));
+                //cfg.ConfigureSend(s => s.UseExecute(c => c.SetPersistent()));
+                cfg.SetQuorumQueue();
                 cfg.ConfigureEndpoints(context);
             });
         });
@@ -56,11 +58,12 @@ public class TenantCreatedConsumerDefinition : ConsumerDefinition<TenantCreatedW
     {
         EndpointName = "auth-tenant-created-que";
     }
+     
 }
 public class UserJoinConsumerDefinition : ConsumerDefinition<UserJoinTenantCreatedWorker>
 {
     public UserJoinConsumerDefinition()  
     {
-        EndpointName = "auth-tenant-created-que";
+        EndpointName = "auth-user-join-que";
     }
 }

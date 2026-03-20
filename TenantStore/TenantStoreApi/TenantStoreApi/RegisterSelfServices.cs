@@ -22,13 +22,14 @@ public static class ServiceRegistrations
         }).AddHeaderPropagation();
 
         var doToken = builder.Configuration["DigitalOcean:ApiToken"];
-        builder.Services.AddHttpClient<DigitalOceanDbService>(client =>
+        builder.Services.AddHttpClient<IDigitalOceanDbService, DigitalOceanDbService>(client =>
         {
-            client.BaseAddress = new Uri("https://api.digitalocean.com/v2/databases/");
+            // Root address
+            client.BaseAddress = new Uri("https://api.digitalocean.com/");
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", doToken);
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        })
-         .AddStandardResilienceHandler();
+        }).AddStandardResilienceHandler();
+
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
         builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));
         builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));
@@ -44,13 +45,21 @@ public static class ServiceRegistrations
         builder.Services.AddLogging();
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
         builder.Services.AddScoped<ITenantProvider, TenantProviderAccessor>();
-        builder.Services.AddDbContext<TenantContext>((provider, options) =>
+
+        builder.Services.AddDbContext<TenantContext>(options =>
         {
             var defaultConn = builder.Configuration.GetConnectionString("DbConnection");
             options.UseMySql(defaultConn, ServerVersion.AutoDetect(defaultConn));
             options.AddInterceptors(new SoftDeleteInterceptor());
             options.UseLazyLoadingProxies(true);
         });
+        //builder.Services.AddDbContext<MContext>((provider, options) =>
+        //{
+        //    var defaultConn = builder.Configuration.GetConnectionString("MConnection");
+        //    options.UseMySql(defaultConn, ServerVersion.AutoDetect(defaultConn));
+        //    options.AddInterceptors(new SoftDeleteInterceptor());
+        //    options.UseLazyLoadingProxies(true);
+        //});
 
         builder.Services.AddCors(options =>
         {

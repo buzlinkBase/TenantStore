@@ -23,18 +23,18 @@ internal class Program
 
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
-        builder.Services.AddSwaggerGen();
-        //builder.Services.AddSwaggerGen(options =>
-        //{
-        //    options.SchemaFilter<EnumSchemaFilter>();
-        //    options.OperationFilter<SwaggerHeader>(); 
-        //});
+        //builder.Services.AddSwaggerGen();
+        builder.Services.AddSwaggerGen(options =>
+        {
+            options.SchemaFilter<EnumSchemaFilter>();
+            //options.OperationFilter<SwaggerHeader>();
+        });
         builder.Services.AddPollyPolicies();
+        builder.Services.AddSignalR();
         builder.RegisterSelftServices();
         builder.Services.RegisterCoreServices();
-        //builder.AuthConfigKafka();
         builder.AuthConfigRabbitMq();
-        builder.Services.AddAutoMapper(typeof(MappingProfile));
+        builder.Services.AddMapster(typeof(MappingConfig).Assembly);
 
         var app = builder.Build();
         var apiVersionProvider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();

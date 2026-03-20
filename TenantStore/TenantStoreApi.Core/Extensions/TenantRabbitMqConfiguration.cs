@@ -18,13 +18,14 @@ public static class TenantRabbitMqConfiguration
             x.AddConsumer<UserCreatedWorker, UserCreatedDefinition>();
             x.AddConsumer<UserJoinWorker, UserJoinDefinition>();
             x.AddConsumer<TenantJoinWorker, TenantJoinDefinition>();
+            x.AddConsumer<DbCreatedWorker, DbCreatedWorkerDefinition>();
             x.SetEndpointNameFormatter(KebabCaseEndpointNameFormatter.Instance);
             x.AddEntityFrameworkOutbox<TenantContext>(o =>
             {
                 o.UseMySql();
                 o.UseBusOutbox();
-                o.QueryDelay = TimeSpan.FromSeconds(5);
-                o.DisableInboxCleanupService();
+                //o.QueryDelay = TimeSpan.FromSeconds(5);
+                //o.DisableInboxCleanupService();
             });
 
             x.UsingRabbitMq((context, cfg) =>
@@ -44,6 +45,8 @@ public static class TenantRabbitMqConfiguration
                     h.Username(settings.Username);
                     h.Password(settings.Password);
                 });
+                cfg.UsePublishFilter(typeof(TenantPublishFilter<>), context);
+                cfg.SetQuorumQueue();
                 cfg.ConfigureEndpoints(context);
             });
         });
@@ -70,5 +73,12 @@ public class TenantJoinDefinition : ConsumerDefinition<TenantJoinWorker>
     public TenantJoinDefinition()
     {
         EndpointName = "tenant-service-tenant-join-que";
+    }
+}
+public class DbCreatedWorkerDefinition : ConsumerDefinition<DbCreatedWorker>
+{
+    public DbCreatedWorkerDefinition()
+    {
+        EndpointName = "tenant-service-db-created-que";
     }
 }

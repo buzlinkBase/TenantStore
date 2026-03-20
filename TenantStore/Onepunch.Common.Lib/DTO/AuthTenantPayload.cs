@@ -2,6 +2,7 @@
 namespace Onepunch.Common.Lib.DTO;
 public record TenantCreatedPayload
 {
+    public string Event  { get; set; }
     public Guid TenantId { get; set; }
     public string? TenantName { get; set; } = "My Workspace";
     public Guid UserId  { get; set; }

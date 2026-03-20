@@ -22,6 +22,8 @@
 	<ItemGroup>
 		<Protobuf Include="Protos\checkemail.proto" GrpcServices="Client" />
 		<Protobuf Include="Protos\tenant.proto" GrpcServices="Server" />
+		<PackageReference Include="Mapster" />
+		<PackageReference Include="Mapster.DependencyInjection" />
 		<PackageReference Include="MassTransit.RabbitMQ" />
 		<PackageReference Include="MessagePack" />
 		<PackageReference Include="MessagePack.AspNetCoreMvcFormatter" />
@@ -32,8 +34,7 @@
 		<PackageReference Include="MassTransit" />
 		<PackageReference Include="MassTransit.EntityFrameworkCore" />
 		<PackageReference Include="FluentValidation" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
-		<PackageReference Include="AutoMapper" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" /> 
 		<PackageReference Include="Microsoft.Extensions.Hosting" />
 		<PackageReference Include="Polly" />
 		<PackageReference Include="RabbitMQ.Client" />

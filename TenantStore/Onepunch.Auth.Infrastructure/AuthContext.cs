@@ -23,14 +23,8 @@ public class AuthContext : IdentityDbContext<User, Role, Guid>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-
-        modelBuilder.Entity<ApiToken>()
-        .Property(x => x.Status)
-        .HasConversion(
-                v => v.ToString(),
-                v => EnumParserConfig.SafeParseEnum(v, Domain.TokenStatus.Revoke)
-            );
-        modelBuilder.UseSoftDelete(Guid.Empty);
+        modelBuilder.ApplyConfigurationsFromAssembly(GetType().Assembly);
+        modelBuilder.UseDateFilter(); 
         modelBuilder.Entity<RefreshToken>().HasIndex(x => x.RefreshTokenHash);
         modelBuilder.Entity<User>().HasIndex(x => x.Email).IsUnique();
         modelBuilder.AddInboxStateEntity();

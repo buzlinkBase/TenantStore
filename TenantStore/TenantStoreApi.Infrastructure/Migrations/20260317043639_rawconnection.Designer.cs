@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TenantStoreApi.Infrastructure;
 
@@ -11,9 +12,11 @@ using TenantStoreApi.Infrastructure;
 namespace TenantStoreApi.Infrastructure.Migrations
 {
     [DbContext(typeof(TenantContext))]
-    partial class TenantContextModelSnapshot : ModelSnapshot
+    [Migration("20260317043639_rawconnection")]
+    partial class rawconnection
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -247,60 +250,6 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.ToTable("Branches");
                 });
 
-            modelBuilder.Entity("TenantStoreApi.Domain.Entities.ConnectionStringStore", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
-
-                    b.Property<string>("ConnetionString")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("Environment")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("Module")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("RawConnection")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("SchemaVersion")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("ServiceOwner")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Connections");
-                });
-
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.ExtraService", b =>
                 {
                     b.Property<Guid>("Id")
@@ -443,6 +392,53 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("Tenants");
+                });
+
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.TenantConnection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("ConnetionString")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Module")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("RawConnection")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("environment")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("service_owner")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Connections");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.TenantDelegation", b =>

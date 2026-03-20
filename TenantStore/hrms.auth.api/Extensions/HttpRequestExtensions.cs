@@ -1,4 +1,5 @@
-﻿namespace OnePunch.Auth.Api.Extensions;
+﻿
+namespace OnePunch.Auth.Api.Extensions;
 
 public static class HttpRequestExtensions
 {
@@ -18,5 +19,5 @@ public static class HttpRequestExtensions
             return authHeader.Substring("Bearer ".Length).Trim();
         }
         return null;
-    }
+    } 
 }

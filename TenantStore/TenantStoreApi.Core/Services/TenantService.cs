@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+﻿
 using BuzlinkRepository;
 using MassTransit;
 using Onepunch.Common.Lib.Exceptions;
@@ -9,18 +9,15 @@ public class TenantService : BaseService<Tenant>
 {
     private readonly IMapper _mapper;
     private readonly ITenantProvider _tenantProvider;
-    private readonly BranchService _branchService;
     public TenantService(IUnitOfWorkService service,
         IMapper mapper,
         ITenantProvider tenantProvider,
         IPublishEndpoint publisher,
-        BranchService branchService,
 
         PasswordCrypto crypto) : base(service)
     {
         _mapper = mapper;
         _tenantProvider = tenantProvider;
-        _branchService = branchService;
     }
 
     protected override async Task<EvaluationResult> CreateValidatorAsync(Tenant model, CancellationToken token)
@@ -35,15 +32,7 @@ public class TenantService : BaseService<Tenant>
         var tenant = _mapper.Map<Tenant>(payload);
         await CreateAsync(tenant, token);
         await Uow.SaveChangesAsync(token);
-
         _tenantProvider.SetTenantId(tenant.Id);
-        await _branchService.AddAsync(new CreateBranch
-        {
-            Code = "Main",
-            Name = "Main Branch",
-            TenantId = tenant.Id,
-            Status = "Active"
-        }, token);
         return _mapper.Map<TenantModel>(tenant);
     }
     public async Task UpdateAsync(Guid Id, UpdateTenant payload, CancellationToken token)

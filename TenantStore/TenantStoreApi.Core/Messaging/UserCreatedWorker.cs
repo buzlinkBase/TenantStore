@@ -1,5 +1,5 @@
-﻿using MassTransit;
-using Serilog;
+﻿using BuzlinkRepository;
+using MassTransit;
 using TenantStoreApi.Core.Services;
 
 namespace TenantStoreApi.Core.Messaging;
@@ -7,58 +7,42 @@ namespace TenantStoreApi.Core.Messaging;
 public class UserCreatedWorker : IConsumer<UserCreated>
 {
     private readonly TenantService _tenantService;
-    private readonly IUnitOfWorkService _unitOfWorkService;
     private readonly UserMembershipService _userMembershipService;
     private readonly SubscriptionService _subscriptionService;
-    private readonly DigitalOceanDbService _digitalOceanDbService;
+    private readonly ITenantProvider _tenantProvider;
+    private readonly ConnectionService _connectionService;
     private readonly PlanService _planService;
     private readonly IPublishEndpoint _publisher;
 
     public UserCreatedWorker(TenantService tenantService,
-        IUnitOfWorkService unitOfWorkService,
         UserMembershipService userMembershipService,
         SubscriptionService subscriptionService,
-        DigitalOceanDbService digitalOceanDbService,
+        ITenantProvider tenantProvider,
         PlanService planService,
         IPublishEndpoint publisher)
     {
         _tenantService = tenantService;
-        _unitOfWorkService = unitOfWorkService;
         _userMembershipService = userMembershipService;
         _subscriptionService = subscriptionService;
-        _digitalOceanDbService = digitalOceanDbService;
+        _tenantProvider = tenantProvider;
         _planService = planService;
         _publisher = publisher;
-        Console.WriteLine($"DEBUG: DO Client BaseAddress is: {digitalOceanDbService.GetBaseAddress()}");
-        Log.Logger.Debug($"DEBUG: DO Client BaseAddress is: {digitalOceanDbService.GetBaseAddress()}");
     }
 
     public async Task Consume(ConsumeContext<UserCreated> context)
     {
         var message = context.Message;
-        //create tenant
-        var tenant = await _tenantService.CreateTenant(message, context.CancellationToken);
-        //create db
-        var hrisdbName = $"hris-{tenant.Id}";
-        var connectionString  = await _digitalOceanDbService.CreateTenantDatabaseAsync("hrms", tenant.Id);
-        //store connectionstring
-        var connection  = new TenantConnection
-        {
-            ConnetionString = connectionString,
-            environment="Production",
-            service_owner="hrms",
-            TenantId = tenant.Id,
-        };
-        _unitOfWorkService.Repository.Add(connection);  
+        var tenant = await _tenantService
+            .CreateTenant(message, context.CancellationToken);
+        _tenantProvider.SetTenantId(tenant.Id);
+        await CreateMemberShip(tenant, context.CancellationToken);
+        await CreateSubsAsync(context, tenant);
+        await PublishTenantAsync(tenant);
+        await _tenantService.CommitChangesAsync(context.CancellationToken);
+    }
 
-        await _userMembershipService.AddAsync(new UserMembership
-        {
-            TenantId = tenant.Id,
-            UserId = message.UserId,
-            Role = "Owner"
-        }, context.CancellationToken);
-
-        //trial plan
+    public async Task CreateSubsAsync(ConsumeContext<UserCreated> context, TenantModel tenant)
+    {
         var freePlan = await _planService.FindFreeTrialAsync(context.CancellationToken);
         if (freePlan == null)
         {
@@ -79,14 +63,25 @@ public class UserCreatedWorker : IConsumer<UserCreated>
             EndDate = DateTime.UtcNow.AddDays(30)
         };
         await _subscriptionService.AddAsync(sub, context.CancellationToken);
-        //publish created tenant to set defaultTenantId
+    }
+    private async Task PublishTenantAsync(TenantModel tenant)
+    {
         var createdTenant = new TenantCreatedPayload
         {
+            Event = "tenant.created",
             TenantId = tenant.Id,
-            UserId = message.UserId,
+            UserId = tenant.UserId,
             TenantName = tenant.TenantName,
         };
         await _publisher.Publish(createdTenant);
-        await _tenantService.CommitChangesAsync(context.CancellationToken);
+    }
+    private async Task CreateMemberShip(TenantModel tenant, CancellationToken token)
+    {
+        await _userMembershipService.AddAsync(new UserMembership
+        {
+            TenantId = tenant.Id,
+            UserId = tenant.UserId,
+            Role = "Owner"
+        }, token);
     }
 }

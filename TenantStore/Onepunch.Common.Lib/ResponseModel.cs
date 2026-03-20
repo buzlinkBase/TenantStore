@@ -1,16 +1,26 @@
-﻿namespace Onepunch.Common.Lib;
+﻿using MessagePack;
+
+namespace Onepunch.Common.Lib;
 
 public class PaginatedResult<T>
 {
     public T? Data { get; set; }
     public PaginationMetaData MetaData { get; set; }
 }
+
+[MessagePackObject]
 public class ResponseModel<T>
 {
+    [Key(0)]
     public string? Message { get; set; } = "Success";
+
+    [Key(1)]
     public int? Status { get; set; } = 200;
-    public T? Data { get; set; } 
+
+    [Key(2)]
+    public T? Data { get; set; }
 }
+
 public class PaginationMetaData
 {
     public PaginationMetaData(int totalRecordCount, int page, int? limit)
