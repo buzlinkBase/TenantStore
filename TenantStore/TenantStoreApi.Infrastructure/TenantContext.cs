@@ -2,6 +2,7 @@
 using MassTransit;
 using Microsoft.EntityFrameworkCore; 
 using TenantStoreApi.Domain.Entities;
+using TenantStoreApi.Domain.Entities.Subs;
 
 namespace TenantStoreApi.Infrastructure;
 
@@ -11,6 +12,7 @@ public class TenantContext : DbContext
     public DbSet<ConnectionStringStore> Connections { get; set; }
     public DbSet<Branch> Branches { get; set; }
     public DbSet<Tenant> Tenants { get; set; }
+    public DbSet<SchemaVersion> SchemaVersions { get; set; } 
     public DbSet<UserMembership> Memberships  { get; set; }
     public DbSet<TenantDelegation> TenantDelegations { get; set; }
 

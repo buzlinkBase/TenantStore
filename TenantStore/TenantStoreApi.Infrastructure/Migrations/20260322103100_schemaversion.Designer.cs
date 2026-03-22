@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TenantStoreApi.Infrastructure;
 
@@ -11,9 +12,11 @@ using TenantStoreApi.Infrastructure;
 namespace TenantStoreApi.Infrastructure.Migrations
 {
     [DbContext(typeof(TenantContext))]
-    partial class TenantContextModelSnapshot : ModelSnapshot
+    [Migration("20260322103100_schemaversion")]
+    partial class schemaversion
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -256,20 +259,12 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
-                    b.Property<string>("ClusterId")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("ConnectionString")
+                    b.Property<string>("ConnetionString")
                         .IsRequired()
                         .HasColumnType("longtext");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
-
-                    b.Property<string>("DatabaseName")
-                        .IsRequired()
-                        .HasColumnType("longtext");
 
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime(6)");

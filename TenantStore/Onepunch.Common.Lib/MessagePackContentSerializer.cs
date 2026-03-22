@@ -26,6 +26,11 @@ public class MessagePackContentSerializer : IHttpContentSerializer
     // This is used for reading the response body (Server -> Client)
     public async Task<T?> DeserializeAsync<T>(HttpContent content, CancellationToken cancellationToken = default)
     {
+        if (content.Headers.ContentType?.MediaType != "application/x-msgpack")
+        {
+            var raw = await content.ReadAsStringAsync();
+            throw new Exception($"Expected MsgPack but got {content.Headers.ContentType?.MediaType}. Body: {raw}");
+        }
         var stream = await content.ReadAsStreamAsync(cancellationToken);
         return await MessagePackSerializer.DeserializeAsync<T>(stream, _options, cancellationToken);
     }

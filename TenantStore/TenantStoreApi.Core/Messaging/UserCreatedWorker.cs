@@ -1,6 +1,7 @@
 ﻿using BuzlinkRepository;
 using MassTransit;
 using TenantStoreApi.Core.Services;
+using TenantStoreApi.Domain.Entities.Subs;
 
 namespace TenantStoreApi.Core.Messaging;
 
@@ -49,7 +50,7 @@ public class UserCreatedWorker : IConsumer<UserCreated>
             freePlan = new Plan
             {
                 Description = "Free Trial",
-                Name = "Free Trial"
+                Name = "Free Trial" 
             };
             _planService.Repository.Add(freePlan);
             await _planService.SaveChangesAsync(context.CancellationToken);
@@ -60,7 +61,7 @@ public class UserCreatedWorker : IConsumer<UserCreated>
             PlanId = freePlan.Id,
             SubStatus = SubscriptionStatus.Trialing,
             StartDate = DateTime.UtcNow,
-            EndDate = DateTime.UtcNow.AddDays(30)
+            EndDate = DateTime.UtcNow.AddDays(365)
         };
         await _subscriptionService.AddAsync(sub, context.CancellationToken);
     }

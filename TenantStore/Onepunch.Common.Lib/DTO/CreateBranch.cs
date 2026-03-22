@@ -1,19 +1,22 @@
 ﻿using MessagePack;
+using System.Drawing;
 
 namespace Onepunch.Common.Lib.DTO;
+
 public class CreateBranch
 {
-    public required string Code  { get; set; }
+    public required string Code { get; set; }
     public required string Name { get; set; }
     public string? ShortName { get; set; } = string.Empty;
     public string? Address { get; set; }
     public string? Contact { get; set; }
     public string? ManagerName { get; set; }
-    public string Status { get; set; } = "Active";
+    public Point? Corrdinates { get; set; }
 }
 public class UpdateBranch : CreateBranch
 {
     public Guid Id { get; set; }
+    public string Status { get; set; }
 }
 
 [MessagePackObject]

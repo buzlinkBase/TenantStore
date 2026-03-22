@@ -1,4 +1,6 @@
-﻿namespace TenantStoreApi.Core.Services;
+﻿using TenantStoreApi.Domain.Entities.Subs;
+
+namespace TenantStoreApi.Core.Services;
 
 public class SubscriptionService : BaseService<TenantSubscription>
 {

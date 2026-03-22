@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Onepunch.Common.Lib;
-using TenantStoreApi.Domain.Entities;
+using TenantStoreApi.Domain.Entities.Subs;
 
 namespace TenantStoreApi.Infrastructure.EntityConfigs;
 

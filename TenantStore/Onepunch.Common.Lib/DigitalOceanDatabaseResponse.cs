@@ -11,47 +11,48 @@ using System.Text.Json.Serialization;
 
 namespace Onepunch.Common.Lib;
 
-public interface IDigitalOceanDbService
+public interface IDbService
 {
-    Task<ConnectionModel?> CreateTenantDatabaseAsync(string dbName);
-    Task<List<string>> ListTenantDatabasesAsync();
-    Task<bool> DeleteTenantDatabaseAsync(string dbName);
-}
+    Task<ConnectionModel?> CreateTenantDatabaseAsync(string clusterId, string dbName);
+    Task<List<string>> ListTenantDatabasesAsync(string clusterId);
+    Task<bool> DeleteTenantDatabaseAsync(string clusterId, string dbName);
+} 
 
-public class DigitalOceanDbService : IDigitalOceanDbService
+public class DigitalOceanDbService : IDbService
 {
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
-
-    public DigitalOceanDbService(HttpClient httpClient,
-        IPollyPolicyFactory policyFactory,
+    public DigitalOceanDbService(
+        HttpClient httpClient,
         IConfiguration configuration)
     {
-        _configuration = configuration;
         _httpClient = httpClient;
+        _configuration = configuration; 
     }
 
-    public async Task<ConnectionModel?> CreateTenantDatabaseAsync(string dbName)
+    public async Task<ConnectionModel?> CreateTenantDatabaseAsync(string clusterId, string dbName)
     {
-        var clusterId = _configuration["DigitalOcean:ClusterId"];
-        // 1. Create the Database in DigitalOcean (The only API call needed)
+        // 1. Create the Database via DigitalOcean API
         var createResponse = await _httpClient.PostAsJsonAsync(
             $"v2/databases/{clusterId}/dbs",
             new { name = dbName }
         );
+
         if (!createResponse.IsSuccessStatusCode)
         {
             var error = await createResponse.Content.ReadAsStringAsync();
-            // Check for 422 (Already exists) or other errors
-            throw new DOException((int)createResponse.StatusCode, $"DO API Error: {error}");
+            // Handle specific case: 422 usually means the DB already exists
+            throw new DOException((int)createResponse.StatusCode, $"DigitalOcean API Error: {error}");
         }
 
-        // 2. Build the Connection String using Configuration (No second API call!)
+        // 2. Load Cluster Credentials from Config
         var host = _configuration["DigitalOcean:DbHost"];
         var port = uint.Parse(_configuration["DigitalOcean:DbPort"] ?? "25060");
         var user = _configuration["DigitalOcean:DbUser"];
         var pass = _configuration["DigitalOcean:DbPassword"];
 
+        // 3. Build the highly-restricted Connection String
+        // This is the "Magic Sauce" that protects your $15 plan limits
         var builder = new MySqlConnectionStringBuilder
         {
             Server = host,
@@ -60,14 +61,21 @@ public class DigitalOceanDbService : IDigitalOceanDbService
             Password = pass,
             Database = dbName,
             SslMode = MySqlSslMode.Required,
-            AllowPublicKeyRetrieval = true,
+
+            // POOLING CONSTRAINTS
             Pooling = true,
-            MaximumPoolSize = 100
+            MinimumPoolSize = 0,      // Don't hold connections for idle tenants
+            MaximumPoolSize = 2,      // STRICT LIMIT: Only 2 pipes per tenant
+            ConnectionTimeout = 30,   // Wait 30s before failing if pool is full
+
+            // Stability settings
+            AllowPublicKeyRetrieval = true,
+            DefaultCommandTimeout = 60
         };
 
-        // 3. Manually construct the Raw URI for consistency
-        // Format: mysql://user:pass@host:port/database
+        // 4. Construct the Raw URI (Used by some migration tools or external libs)
         string rawUri = $"mysql://{user}:{pass}@{host}:{port}/{dbName}?ssl-mode=REQUIRED";
+
         return new ConnectionModel
         {
             ConnectionString = builder.ConnectionString,
@@ -75,97 +83,52 @@ public class DigitalOceanDbService : IDigitalOceanDbService
         };
     }
 
-    //public async Task<ConnectionModel?> CreateTenantDatabaseAsync(string dbName)
-    //{
-    //    var clusterId = _configuration["DigitalOcean:ClusterId"];
-    //    // 1. Create the Database in DigitalOcean
-    //    var createResponse = await _httpClient.PostAsJsonAsync($"v2/databases/{clusterId}/dbs", new { name = dbName });
-    //    if (!createResponse.IsSuccessStatusCode)
-    //    {
-    //        var error = await createResponse.Content.ReadAsStringAsync();
-    //        var parseErr = ObjectSerializer.Deserialize<DigitalOceanErrorResponse>(error);
-    //        if (parseErr == null) throw new DOException(-1, error);
-    //        int statusCodeInt = (int)createResponse.StatusCode;
-    //        parseErr.Code= statusCodeInt;
-    //        Log.Logger.Error(error, parseErr);
-    //        throw new DOException(parseErr.Code, parseErr.message);
-    //    }
-    //    // 2. Get Cluster Details to extract the base connection URI
-    //    // DigitalOcean returns the "primary" connection string for the whole cluster
-    //    var clusterResponse = await _httpClient.GetAsync($"v2/databases/{clusterId}");
-
-    //    if (!clusterResponse.IsSuccessStatusCode) return null;
-
-    //    var data = await clusterResponse.Content.ReadFromJsonAsync<DigitalOceanDatabaseResponse>();
-    //    var baseUriStr = data?.Database?.Connection?.Uri;
-
-    //    if (string.IsNullOrEmpty(baseUriStr)) return null;
-
-    //    // 3. Parse URI and build the EF Core Connection String
-    //    var uri = new Uri(baseUriStr);
-    //    var userInfo = uri.UserInfo.Split(':');
-
-    //    if (userInfo.Length < 2) return null;
-
-    //    var builder = new MySqlConnectionStringBuilder
-    //    {
-    //        Server = uri.Host,
-    //        Port = (uint)uri.Port,
-    //        UserID = userInfo[0],
-    //        Password = userInfo[1],
-    //        Database = dbName,
-    //        SslMode = MySqlSslMode.Required,
-    //        AllowPublicKeyRetrieval = true,
-    //        Pooling = true,
-    //        MaximumPoolSize = 100
-    //    };
-    //    var finalUri = new UriBuilder(uri)
-    //    {
-    //        Path = dbName
-    //    }.Uri;
-    //    return new ConnectionModel
-    //    {
-    //        ConnectionString = builder.ConnectionString,
-    //        RawConnectionString = finalUri.ToString(), 
-    //    };
-    //}
-
-    public async Task<bool> DeleteTenantDatabaseAsync(string dbName)
+    public async Task<bool> DeleteTenantDatabaseAsync(string clusterId, string dbName)
     {
-        var clusterId = _configuration["DigitalOcean:ClusterId"];
         // DO API: DELETE /v2/databases/{cluster_id}/dbs/{db_name}
         var response = await _httpClient.DeleteAsync($"v2/databases/{clusterId}/dbs/{dbName}");
+
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"Failed to rollback/delete DO database {dbName}: {error}");
+            // Log this as a warning - if deletion fails during rollback, it needs manual intervention
+            Console.WriteLine($"[CRITICAL] Failed to delete DO database {dbName}: {error}");
             return false;
         }
+
         return true;
     }
 
-    public async Task<List<string>> ListTenantDatabasesAsync()
+    public async Task<List<string>> ListTenantDatabasesAsync(string clusterId)
     {
-        var clusterId = _configuration["DigitalOcean:ClusterId"];
-        var response = await _httpClient.GetFromJsonAsync<DbListWrapper>($"v2/databases/{clusterId}/dbs");
-        return response?.Databases?.Select(d => d.Name).ToList() ?? new List<string>();
+        try
+        {
+            var response = await _httpClient.GetFromJsonAsync<DbListWrapper>($"v2/databases/{clusterId}/dbs");
+            return response?.Databases?.Select(d => d.Name).ToList() ?? new List<string>();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error listing databases: {ex.Message}");
+            return new List<string>();
+        }
     }
 }
+ 
+
+
 
 public class DigitalOceanErrorResponse
 {
     public int Code { get; set; }
-    public string message  { get; set; }
+    public string message { get; set; }
     public string id { get; set; }
-    public string request_Id { get; set; } 
+    public string request_Id { get; set; }
 }
-
 public class DigitalOceanDatabaseResponse
 {
     [JsonPropertyName("database")]
     public DatabaseDetail Database { get; set; }
 }
-
 public class DatabaseDetail
 {
     [JsonPropertyName("id")]
@@ -237,7 +200,6 @@ public class DatabaseDetail
     [JsonPropertyName("do_settings")]
     public DoSettings DoSettings { get; set; }
 }
-
 public class ConnectionInfo
 {
     [JsonPropertyName("uri")]
@@ -261,7 +223,6 @@ public class ConnectionInfo
     [JsonPropertyName("ssl")]
     public bool Ssl { get; set; }
 }
-
 public class DatabaseUser
 {
     [JsonPropertyName("name")]
@@ -273,7 +234,6 @@ public class DatabaseUser
     [JsonPropertyName("password")]
     public string Password { get; set; }
 }
-
 public class MaintenanceWindow
 {
     [JsonPropertyName("day")]
@@ -288,19 +248,16 @@ public class MaintenanceWindow
     [JsonPropertyName("description")]
     public List<string> Description { get; set; }
 }
-
 public class DoSettings
 {
     [JsonPropertyName("service_cnames")]
     public List<string> ServiceCnames { get; set; }
 }
-
 public class DbListWrapper
 {
     [JsonPropertyName("dbs")]
     public List<DbInfo> Databases { get; set; }
 }
-
 public class DbInfo
 {
     [JsonPropertyName("name")]

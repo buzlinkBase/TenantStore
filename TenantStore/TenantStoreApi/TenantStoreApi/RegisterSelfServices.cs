@@ -3,7 +3,6 @@ using BuzlinkRepository;
 using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Http.Resilience;
 using Microsoft.IdentityModel.Tokens;
 using System.Net.Http.Headers;
 using System.Text;
@@ -22,7 +21,7 @@ public static class ServiceRegistrations
         }).AddHeaderPropagation();
 
         var doToken = builder.Configuration["DigitalOcean:ApiToken"];
-        builder.Services.AddHttpClient<IDigitalOceanDbService, DigitalOceanDbService>(client =>
+        builder.Services.AddHttpClient<IDbService, DigitalOceanDbService>(client =>
         {
             // Root address
             client.BaseAddress = new Uri("https://api.digitalocean.com/");
