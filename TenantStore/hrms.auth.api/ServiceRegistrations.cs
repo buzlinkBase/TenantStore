@@ -18,7 +18,6 @@ public static class ServiceRegistrations
         builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));
         builder.Services.Configure<Domains>(builder.Configuration.GetSection("Domains"));
         builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
-        //builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("KafkaSettings"));
         builder.Services.Configure<RabbitMqSettings>(builder.Configuration.GetSection("RabbitMqSettings"));
         builder.Services.AddHeaderPropagation(options =>
         {

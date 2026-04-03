@@ -6,5 +6,6 @@ global using TenantStoreApi.Domain;
 global using Onepunch.Common.Lib.DTO;
 global using Onepunch.Common.Lib;
 global using MapsterMapper;
+global using TenantStoreApi.Extensions; 
 
 

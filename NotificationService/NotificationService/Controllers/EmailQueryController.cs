@@ -13,8 +13,7 @@ namespace NotificationService.Controllers
         {
             return Ok(new {
                 Message="Success" 
-            });
-            //return Redirect("https://mysite-frontend/verified");
+            }); 
         }
     }
 }

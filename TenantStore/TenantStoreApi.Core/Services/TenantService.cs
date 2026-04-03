@@ -1,6 +1,7 @@
 ﻿
 using BuzlinkRepository;
 using MassTransit;
+using Microsoft.EntityFrameworkCore;
 using Onepunch.Common.Lib.Exceptions;
 
 namespace TenantStoreApi.Core.Services;
@@ -47,17 +48,19 @@ public class TenantService : BaseService<Tenant>
     {
         await CreateOrUpdateAsync(tenant, token);
     }
-    public async Task<List<Tenant>> FindAll()
-    {
-        var tenant = Repository.FindAll<Tenant>();
-        return tenant.ToList();
-    }
-
+ 
     public async Task<Tenant?> FindTenantAsync(Guid Id, CancellationToken token)
     {
         var tenant = await Repository.FindOneAsync<Tenant>(Id, token);
         return tenant;
     }
+
+    public async Task<List<Tenant>> FindAlltenants(Guid userId, CancellationToken token)
+    {
+        return await GetQueryable(x => x.UserId == userId)
+            .ToListAsync(token);
+    }
+
     public async Task DeleteAsync(IEnumerable<Tenant> tenants, CancellationToken token)
     {
         await RemoveRangeAsync(tenants, token);

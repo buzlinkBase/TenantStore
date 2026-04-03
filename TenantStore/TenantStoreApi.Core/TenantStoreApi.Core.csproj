@@ -9,10 +9,13 @@
 
 	<ItemGroup>
 		<Compile Remove="Exceptions\**" />
+		<Compile Remove="Interfaces\**" />
 		<Compile Remove="Messaging\Message Handlers\**" />
 		<EmbeddedResource Remove="Exceptions\**" />
+		<EmbeddedResource Remove="Interfaces\**" />
 		<EmbeddedResource Remove="Messaging\Message Handlers\**" />
 		<None Remove="Exceptions\**" />
+		<None Remove="Interfaces\**" />
 		<None Remove="Messaging\Message Handlers\**" />
 	</ItemGroup>
 
@@ -49,9 +52,6 @@
 		<ProjectReference Include="..\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
 		<ProjectReference Include="..\TenantStoreApi.Domain\TenantStoreApi.Domain.csproj" />
 		<ProjectReference Include="..\TenantStoreApi.Infrastructure\TenantStoreApi.Infrastructure.csproj" />
-	</ItemGroup>
-	<ItemGroup>
-	  <Folder Include="Interfaces\" />
 	</ItemGroup>
 
 </Project>

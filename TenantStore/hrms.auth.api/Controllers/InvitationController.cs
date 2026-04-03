@@ -35,15 +35,16 @@ public class InvitationController : ControllerBase
     }
 
     [HttpPost("accept")]
-    public async Task<IActionResult> Accept([FromQuery] string invitationToken,CancellationToken token)
+    public async Task<IActionResult> Accept([FromQuery] string invitationToken, CancellationToken token)
     {
         try
         {
             await _service.Accept(invitationToken, token);
             return Ok();
         }
-        catch (UnauthorizedException){
-            return Unauthorized();  
+        catch (UnauthorizedException)
+        {
+            return Unauthorized();
         }
         catch (Exception ex)
         {

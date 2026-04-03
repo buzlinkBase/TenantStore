@@ -1,4 +1,5 @@
 using Asp.Versioning.ApiExplorer;
+using Mapster;
 using MessagePack;
 using MessagePack.AspNetCoreMvcFormatter;
 using MessagePack.Resolvers;
@@ -6,11 +7,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Serilog;
 using Swashbuckle.AspNetCore.SwaggerGen;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using TenantStoreApi;
 using TenantStoreApi.Core.Extensions;
 using TenantStoreApi.Core.Protos.ServiceHandlers;
+using TenantStoreApi.Exceptions;
 using TenantStoreApi.Filters;
 using TenantStoreApi.Middlewares;
 
@@ -18,55 +21,47 @@ internal class Program
 {
     private static void Main(string[] args)
     {
-        var builder = WebApplication.CreateBuilder(args); 
+        var builder = WebApplication.CreateBuilder(args);
         Log.Logger = new LoggerConfiguration()
         .ReadFrom.Configuration(builder.Configuration)
         .CreateLogger();
         builder.Host.UseSerilog();
 
         var mpackOptions = MessagePackSerializerOptions.Standard
-            .WithResolver(CompositeResolver.Create(
-                OneMessagePackResolver.Instance,
-                MessagePack.Resolvers.NativeDateTimeResolver.Instance,
-                MessagePack.Resolvers.ContractlessStandardResolver.Instance
-            ))
-            .WithCompression(MessagePackCompression.Lz4BlockArray);
+                .WithResolver(CompositeResolver.Create(
+                    OneMessagePackResolver.Instance, // Your generated resolver
+                    MessagePack.Resolvers.NativeDateTimeResolver.Instance,
+                    MessagePack.Resolvers.ContractlessStandardResolver.Instance
+                ))
+                .WithCompression(MessagePackCompression.Lz4BlockArray);
         MessagePackSerializer.DefaultOptions = mpackOptions;
-
         builder.Services.AddControllers(options =>
         {
+            options.InputFormatters.Insert(0, new MessagePackInputFormatter(mpackOptions));
+            options.OutputFormatters.Insert(0, new MessagePackOutputFormatter(mpackOptions));
             options.Filters.Add<ResponseWrapperFilter>();
-            var mpackOptions = ContractlessStandardResolver.Options
-                .WithCompression(MessagePackCompression.Lz4BlockArray);
-            options.InputFormatters.Add(new MessagePackInputFormatter(mpackOptions));
-            options.OutputFormatters.Add(new MessagePackOutputFormatter(mpackOptions));
-        }).AddJsonOptions(options =>
+        })
+        .AddJsonOptions(options =>
         {
-            options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-            options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+            options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+            options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
         });
 
         builder.Services.Configure<ApiBehaviorOptions>(options =>
         {
-            // Stops the default framework behavior of returning a 400 immediately
             options.SuppressModelStateInvalidFilter = true;
         });
-        //builder.Services.AddProblemDetails(c =>
-        //{
-        //    //c.CustomizeProblemDetails = context =>
-        //    //{
-        //    //    context.ProblemDetails.Extensions.TryAdd("requestId", context.HttpContext.TraceIdentifier);
-        //    //};
-        //});
-        //builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
-        //var config = new MapperConfiguration(cfg =>
-        //{
-        //    cfg.SourceMemberNamingConvention = new PascalCaseNamingConvention();
-        //    cfg.DestinationMemberNamingConvention = new LowerUnderscoreNamingConvention();
-        //    cfg.AddProfile<MappingProfile>();
-        //    cfg.AddProfile<AspAutoMapperProfile>();
-        //});
-        //builder.Services.AddSingleton<IMapper>(config.CreateMapper()); 
+        builder.Services.AddProblemDetails(c =>
+        {
+            //c.CustomizeProblemDetails = context =>
+            //{
+            //    context.ProblemDetails.Extensions.TryAdd("requestId", context.HttpContext.TraceIdentifier);
+            //};
+        });
+
+        builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+        var config = new TypeAdapterConfig();
+        config.Default.NameMatchingStrategy(NameMatchingStrategy.Flexible);
 
         builder.Services.AddPollyPolicies();
         builder.Services.AddSignalR();
@@ -82,7 +77,6 @@ internal class Program
             options.SchemaFilter<EnumSchemaFilter>();
             options.OperationFilter<SwaggerHeader>();
         });
-
 
         //Console.WriteLine("--- LOADING DIAGNOSTIC ---");
         //foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
@@ -108,7 +102,7 @@ internal class Program
         //Console.WriteLine("--- DETECTIVE DIAGNOSTIC END ---");
 
 
-        var app = builder.Build(); 
+        var app = builder.Build();
         // Configure the HTTP request pipeline.
         //if (app.Environment.IsDevelopment())
         //{
@@ -130,11 +124,13 @@ internal class Program
         });
 
         app.UseHttpsRedirection();
-        //app.UseExceptionHandler();
+        app.UseStatusCodePages();
+        app.UseExceptionHandler();
         app.UseRouting();
         app.UseCors("AllowAll");
         //app.UseMiddleware<CorrelationIdMiddleware>(); 
         //app.UseMiddleware<ApiKeyMiddleware>();
+        app.UseSerilogRequestLogging();
         app.UseHeaderPropagation();
         app.UseAuthentication();
         app.UseAuthorization();

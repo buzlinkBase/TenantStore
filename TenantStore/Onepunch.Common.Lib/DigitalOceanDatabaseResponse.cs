@@ -3,9 +3,6 @@
 using Microsoft.Extensions.Configuration;
 using MySqlConnector;
 using Onepunch.Common.Lib.Exceptions;
-using Polly;
-using Serilog;
-using Serilog.Events;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 
@@ -65,7 +62,7 @@ public class DigitalOceanDbService : IDbService
             // POOLING CONSTRAINTS
             Pooling = true,
             MinimumPoolSize = 0,      // Don't hold connections for idle tenants
-            MaximumPoolSize = 2,      // STRICT LIMIT: Only 2 pipes per tenant
+            MaximumPoolSize = 10,      // STRICT LIMIT: Only x pipes per tenant
             ConnectionTimeout = 30,   // Wait 30s before failing if pool is full
 
             // Stability settings
@@ -78,8 +75,7 @@ public class DigitalOceanDbService : IDbService
 
         return new ConnectionModel
         {
-            ConnectionString = builder.ConnectionString,
-            RawConnectionString = rawUri
+            ConnectionString = builder.ConnectionString, 
         };
     }
 
@@ -265,6 +261,6 @@ public class DbInfo
 }
 public class ConnectionModel
 {
-    public string ConnectionString { get; set; }
-    public string RawConnectionString { get; set; }
-}
+    public required string ConnectionString { get; set; }
+
+} 

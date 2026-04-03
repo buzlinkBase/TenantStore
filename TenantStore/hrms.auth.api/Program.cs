@@ -3,6 +3,8 @@ using Microsoft.Extensions.Options;
 using Onepunch.Auth.Core.Protos;
 using Onepunch.Common.Lib;
 using OnePunch.Auth.Api;
+using OnePunch.Auth.Api.Exceptions;
+using OnePunch.Auth.Api.Filters;
 using OnePunch.Auth.Api.Middlewares;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Text.Json;
@@ -13,14 +15,24 @@ internal class Program
     private static void Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
-        builder.Services.AddControllers()
+        builder.Services.AddControllers(options =>
+        {
+            options.Filters.Add<ResponseWrapperFilter>();
+        })
         .AddJsonOptions(options =>
         {
             options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
             //options.JsonSerializerOptions.PropertyNamingPolicy = new SnakeCaseNamingPolicy();
             options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-        }); 
-
+        });
+        builder.Services.AddProblemDetails(c =>
+        {
+            //c.CustomizeProblemDetails = context =>
+            //{
+            //    context.ProblemDetails.Extensions.TryAdd("requestId", context.HttpContext.TraceIdentifier);
+            //};
+        });
+        builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
         //builder.Services.AddSwaggerGen();
@@ -52,6 +64,8 @@ internal class Program
             }
         });
 
+        app.UseStatusCodePages();
+        app.UseExceptionHandler();
         app.UseRouting(); 
         app.UseCors("AllowAll");
         //app.UseMiddleware<ApiKeyMiddleware>(); 

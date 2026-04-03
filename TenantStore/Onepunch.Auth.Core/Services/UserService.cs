@@ -8,7 +8,6 @@ using OnePunch.Auth.Domain.DTOs;
 using OnePunch.Auth.Domain.Entities;
 using Serilog;
 using System.Security.Claims;
-using System.Text;
 
 namespace OnePunch.Auth.Core.Services;
 
@@ -199,11 +198,11 @@ public class UserService : BaseService<User>
         if (user == null ||
             _passwordHasher.VerifyHashedPassword(user, user.PasswordHash ?? "", payload.Password) == PasswordVerificationResult.Failed)
         {
-            return new LoginResponse { Success = false, ErrorMessage = "Invalid email or password." };
+            return new LoginResponse { ErrorMessage = "Invalid email or password." };
         }
         if (user.Status != "Active" || !user.EmailConfirmed)
         {
-            return new LoginResponse { Success = false, ErrorMessage = "User is not found" };
+            return new LoginResponse { ErrorMessage = "User is not found" };
         }
         var accessToken = await _jwtService.CreateTokenAsync(user);
         var refreshToken = await _jwtService.GenerateRefreshToken();
@@ -219,11 +218,11 @@ public class UserService : BaseService<User>
         var tenants = new List<UsersTenant>();
         return new LoginResponse
         {
-            Success = true,
             AccessToken = accessToken,
             RefreshToken = refreshToken,
             Expiry = DateTime.UtcNow.AddMinutes(_jwtService.TokenExpiry),
             DefaultTenantId = user.DefaultTenantId,
+            DefaultTenantName = user.DefaultTenantName,
             Tenants = tenants
         };
     }
@@ -260,11 +259,11 @@ public class UserService : BaseService<User>
     {
         var info = await _signInManager.GetExternalLoginInfoAsync();
         if (info == null)
-            return new LoginResponse { Success = false, ErrorMessage = "External login failed." };
+            return new LoginResponse { ErrorMessage = "External login failed." };
 
         var email = info.Principal.FindFirstValue(ClaimTypes.Email);
         if (string.IsNullOrEmpty(email))
-            return new LoginResponse { Success = false, ErrorMessage = "Email not provided by Google." };
+            return new LoginResponse { ErrorMessage = "Email not provided by Google." };
 
         try
         {
@@ -278,7 +277,7 @@ public class UserService : BaseService<User>
                     // Link Google to existing email account
                     var linkResult = await _manager.AddLoginAsync(user, info);
                     if (!linkResult.Succeeded)
-                        return new LoginResponse { Success = false, ErrorMessage = "Failed to link Google account." };
+                        return new LoginResponse { ErrorMessage = "Failed to link Google account." };
                 }
                 else
                 {
@@ -295,7 +294,7 @@ public class UserService : BaseService<User>
                     if (!createResult.Succeeded)
                     {
                         var error = createResult.Errors.FirstOrDefault()?.Description ?? "User creation failed.";
-                        return new LoginResponse { Success = false, ErrorMessage = error };
+                        return new LoginResponse { ErrorMessage = error };
                     }
                     await _manager.AddLoginAsync(user, info);
                 }
@@ -310,7 +309,7 @@ public class UserService : BaseService<User>
         catch (Exception ex)
         {
             Log.Error(ex, "google callback failed, email: {email}", email);
-            return new LoginResponse { Success = false, ErrorMessage = "An internal error occurred during setup." };
+            return new LoginResponse { ErrorMessage = "An internal error occurred during setup." };
         }
     }
 
@@ -326,11 +325,11 @@ public class UserService : BaseService<User>
             .FirstOrDefaultAsync(t => t.RefreshTokenHash == refreshTokenHash);
 
         if (tokenEntity == null || tokenEntity.Revoked || tokenEntity.Expiry <= DateTime.UtcNow)
-            return new LoginResponse { Success = false, ErrorMessage = "Invalid or expired refresh token." };
+            return new LoginResponse { ErrorMessage = "Invalid or expired refresh token." };
 
         var user = await Context.Users.FindAsync(tokenEntity.UserId);
         if (user == null)
-            return new LoginResponse { Success = false, ErrorMessage = "User not found." };
+            return new LoginResponse { ErrorMessage = "User not found." };
 
         tokenEntity.Revoked = true;
         await RemoveAsync(tokenEntity.Id);

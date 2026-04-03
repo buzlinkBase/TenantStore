@@ -20,11 +20,12 @@ public class ConnectionService : BaseService<ConnectionStringStore>
 
         return new ConnectionQueryResponse
         {
-            ConnectionString = data.ConnetionString,
+            ConnectionString = data.ConnectionString,
             TenantId = data.TenantId,
             Success = true,
         };
     }
+
     public async Task AddAsync(ConnectionStringStore tenantConnection, CancellationToken token = default) => await Repository.AddAsync(tenantConnection, token);
 
 }

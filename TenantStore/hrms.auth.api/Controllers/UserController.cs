@@ -61,7 +61,7 @@ namespace OnePunch.Auth.Api.Controllers
         [HttpPost("set-password")]
         public async Task<IActionResult> SetPassword([FromBody] SetPassword payload, CancellationToken token)
         {
-            var userId = HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var result = await _service.PromoteToPasswordAccount(userId, payload.Password, token);
             if (!result.Succeeded)
             {
@@ -99,6 +99,8 @@ namespace OnePunch.Auth.Api.Controllers
             var token = HttpContext.Request.GetAuthorizationToken();
             if (token == null) return Unauthorized();
             var response = await _service.Profile(HttpContext.User);
+            if (response == null) return  NotFound(); 
+
             return Ok(new
             {
                 response.Id,
@@ -116,7 +118,7 @@ namespace OnePunch.Auth.Api.Controllers
         public async Task<IActionResult> Login([FromBody] LoginPayload payload, CancellationToken token)
         {
             var response = await _service.Login(payload, token);
-            if (!response.Success)
+            if (!string.IsNullOrWhiteSpace(response.ErrorMessage))
                 return Unauthorized(new { response.ErrorMessage });
 
             return Ok(response);
@@ -166,11 +168,11 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [AllowAnonymous]
-        [HttpGet("refresh/{refresh}")]
-        public async Task<IActionResult> Refresh(string RefreshToken, CancellationToken token)
+        [HttpGet("refresh")]
+        public async Task<IActionResult> Refresh([FromQuery(Name ="refresh-token")]string refreshToken , CancellationToken token)
         {
-            var response = await _service.RefreshLogin(RefreshToken, token);
-            if (!response.Success)
+            var response = await _service.RefreshLogin(refreshToken, token);
+            if (!string.IsNullOrWhiteSpace(response.ErrorMessage))
                 return Unauthorized(new { response.ErrorMessage });
 
             return Ok(response);

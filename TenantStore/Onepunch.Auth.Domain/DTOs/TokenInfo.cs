@@ -25,11 +25,11 @@ public record LoginPayload
 
 public record LoginResponse
 {
-    public bool Success { get; set; }
     public string ErrorMessage { get; set; }
     public string AccessToken { get; set; }
     public string RefreshToken { get; set; }
     public Guid? DefaultTenantId { get; set; }
+    public string? DefaultTenantName  { get; set; }
     public List<UsersTenant> Tenants  { get; set; }
     public DateTime Expiry { get; set; } 
 }

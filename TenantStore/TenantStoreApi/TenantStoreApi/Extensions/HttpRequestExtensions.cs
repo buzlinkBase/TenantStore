@@ -1,8 +1,7 @@
 ﻿
-using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
-namespace OnePunch.Auth.Api.Extensions;
+namespace TenantStoreApi.Extensions;
 
 public static class HttpRequestExtensions
 {
@@ -23,13 +22,11 @@ public static class HttpRequestExtensions
         }
         return null;
     }
-    public static Guid? GetUserId(this ClaimsPrincipal user)
+    private static Guid? GetUserId(this ClaimsPrincipal user)
     {
         var value = user.FindFirstValue(ClaimTypes.NameIdentifier);
         return Guid.TryParse(value, out Guid guid) ? guid : null;
     }
-
-    // The "Strict" version (throws an exception if not found)
     public static Guid GetRequiredUserId(this ClaimsPrincipal user)
     {
         return user.GetUserId()

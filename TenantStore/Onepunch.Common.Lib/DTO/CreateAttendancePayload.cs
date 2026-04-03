@@ -1,4 +1,7 @@
-﻿namespace Onepunch.Common.Lib.DTO;
+﻿
+using NetTopologySuite.Geometries;
+
+namespace Onepunch.Common.Lib.DTO;
 public class CreateAttendancePayload
 {
     public int BioId { get; set; }
@@ -8,4 +11,5 @@ public class CreateAttendancePayload
     public Guid? ClientId { get; set; }
     public Guid? DepartmentId { get; set; }
     public string DeviceName { get; set; }
+    public Point? Coordinates  { get; set; }
 }

@@ -1,14 +1,21 @@
 ﻿
 namespace Onepunch.Common.Lib.DTO;
+
 public record TenantCreatedPayload
 {
-    public string Event  { get; set; }
+    public string Event { get; set; }
     public Guid TenantId { get; set; }
     public string? TenantName { get; set; } = "My Workspace";
-    public Guid UserId  { get; set; }
-
+    public Guid UserId { get; set; }
 }
-public record UserJoinToTenantPayload 
+
+public class TenantSetInitData
+{
+    public Guid TenantId { get; set; }
+    public string ConnectionString  { get; set; }
+}
+
+public record UserJoinToTenantPayload
 {
     public Guid TenantId { get; set; }
     public string? TenantName { get; set; } = "My Workspace";
@@ -19,7 +26,7 @@ public class EmailCheckPayload
 {
     public Guid TenantId { get; set; }
     public string Email { get; set; }
-    public string Status { get; set; } 
+    public string Status { get; set; }
 }
 
 public record SendAccountVerification
@@ -42,7 +49,7 @@ public record NoticationResponse
 }
 public record EmailTokenInfo
 {
-    public Guid UserId  { get; set; }
+    public Guid UserId { get; set; }
     public string Token { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string? Name { get; set; }

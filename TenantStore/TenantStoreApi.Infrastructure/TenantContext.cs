@@ -15,13 +15,11 @@ public class TenantContext : DbContext
     public DbSet<SchemaVersion> SchemaVersions { get; set; } 
     public DbSet<UserMembership> Memberships  { get; set; }
     public DbSet<TenantDelegation> TenantDelegations { get; set; }
-
     //plan
     public DbSet<TenantSubscription> TenantSubscriptions { get; set; }
     public DbSet<Plan> Plans { get; set; }
     public DbSet<PlanProduct> PlanServices { get; set; }
     public DbSet<ExtraService> ExtraServices { get; set; }
-
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {

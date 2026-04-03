@@ -1,6 +1,7 @@
-using Asp.Versioning; 
+using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc; 
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 
 namespace TenantStoreApi.Controllers;
 
@@ -20,29 +21,29 @@ public class TenantsController : ControllerBase
         _mapper = mapper;
     }
 
-    [HttpPost]
-    [AllowAnonymous]
-    public async Task<IActionResult> Register([FromBody] UserCreated payload, CancellationToken token)
-    {
-        await _service.CreateTenant(payload, token);
-        return Ok();
-    }
+    //[HttpPost]
+    //[AllowAnonymous]
+    //public async Task<IActionResult> Register([FromBody] UserCreated payload, CancellationToken token)
+    //{
+    //    await _service.CreateTenant(payload, token);
+    //    return Ok();
+    //}
 
-  
     [HttpPut("{id}")]
     public async Task<IActionResult> Put(Guid id, [FromBody] UpdateTenant payload, CancellationToken token)
-    { 
+    {
         await _service.UpdateAsync(id, payload, token);
         return Ok();
     }
+
     [HttpGet()]
-    public async Task<ActionResult<TenantModel>> FindAll()
+    public async Task<ActionResult<List<TenantModel>>> FindAll(CancellationToken token)
     {
-        var tenantResult = await _service.FindAll();
+        var userId = User.GetRequiredUserId();
+        var tenantResult = await _service.FindAlltenants(userId, token);
         var tenants = _mapper.Map<List<TenantModel>>(tenantResult);
         return Ok(tenants);
     }
-
 
     [HttpGet("{Id:guid}")]
     public async Task<ActionResult<TenantModel>> FindOne(Guid Id, CancellationToken token)
@@ -55,4 +56,5 @@ public class TenantsController : ControllerBase
         var tenant = _mapper.Map<TenantModel>(tenantResult);
         return Ok(tenant);
     }
+
 }

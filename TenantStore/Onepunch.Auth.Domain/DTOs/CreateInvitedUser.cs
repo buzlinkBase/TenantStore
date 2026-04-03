@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 
 namespace OnePunch.Auth.Domain.DTOs;
 
@@ -8,7 +9,7 @@ public class CreateAccount
     [Required(ErrorMessage = "Email is required")]
     public required string Email { get; set; }
     public string? Name { get; set; }
-    public string? required { get; set; }
+    [Required(ErrorMessage = "Invalid Password")]
     public required string Password { get; set; } 
 }
 public class CreateInvitedUser
