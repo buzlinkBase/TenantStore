@@ -6,14 +6,7 @@ using Onepunch.Common.Lib.Exceptions;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 
-namespace Onepunch.Common.Lib;
-
-public interface IDbService
-{
-    Task<ConnectionModel?> CreateTenantDatabaseAsync(string clusterId, string dbName);
-    Task<List<string>> ListTenantDatabasesAsync(string clusterId);
-    Task<bool> DeleteTenantDatabaseAsync(string clusterId, string dbName);
-} 
+namespace Onepunch.Common.Lib.DbServices;
 
 public class DigitalOceanDbService : IDbService
 {
@@ -110,8 +103,6 @@ public class DigitalOceanDbService : IDbService
     }
 }
  
-
-
 
 public class DigitalOceanErrorResponse
 {

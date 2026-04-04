@@ -19,16 +19,6 @@ public static class ServiceRegistrations
             var authUrl = builder.Configuration["AuthUrl"]?.ToString() ?? "";
             options.Address = new Uri(authUrl);
         }).AddHeaderPropagation();
-
-        var doToken = builder.Configuration["DigitalOcean:ApiToken"];
-        builder.Services.AddHttpClient<IDbService, DigitalOceanDbService>(client =>
-        {
-            // Root address
-            client.BaseAddress = new Uri("https://api.digitalocean.com/");
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", doToken);
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        }).AddStandardResilienceHandler();
-
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
         builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));
         builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));
@@ -52,13 +42,6 @@ public static class ServiceRegistrations
             options.AddInterceptors(new SoftDeleteInterceptor());
             options.UseLazyLoadingProxies(true);
         });
-        //builder.Services.AddDbContext<MContext>((provider, options) =>
-        //{
-        //    var defaultConn = builder.Configuration.GetConnectionString("MConnection");
-        //    options.UseMySql(defaultConn, ServerVersion.AutoDetect(defaultConn));
-        //    options.AddInterceptors(new SoftDeleteInterceptor());
-        //    options.UseLazyLoadingProxies(true);
-        //});
 
         builder.Services.AddCors(options =>
         {
