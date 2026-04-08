@@ -37,11 +37,12 @@ public static class NotifTenantRabbitConfiguration
                     cb.TripThreshold = 15; // Trip after 15 failures
                     cb.ResetInterval = TimeSpan.FromMinutes(5); // Wait 5 mins before trying again
                 });
-                cfg.Host(settings.Host, settings.VirtualHost, h =>
-                {
-                    h.Username(settings.Username);
-                    h.Password(settings.Password);
-                });
+                //cfg.Host(settings.Host, settings.VirtualHost, h =>
+                //{
+                //    h.Username(settings.Username);
+                //    h.Password(settings.Password);
+                //});
+                cfg.Host("amqps://lriumdis:PNHXZ9uy2nWDyLQC4yJQEtN5H8zMRUSm@armadillo.rmq.cloudamqp.com/lriumdis");
                 cfg.SetQuorumQueue();
                 cfg.ConfigureEndpoints(context);
             });

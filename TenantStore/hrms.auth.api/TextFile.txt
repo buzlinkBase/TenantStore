@@ -1,4 +1,4 @@
-﻿Front Routes
+﻿ Front Routes
  return Redirect($"{url}/forgot-password/success");
  return Redirect($"{url}/success");
  return Redirect($"{url}/error/{result.ErrorCode}");

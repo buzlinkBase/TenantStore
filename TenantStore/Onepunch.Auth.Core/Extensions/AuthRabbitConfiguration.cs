@@ -38,11 +38,12 @@ public static class AuthRabbitConfiguration
                 });
                 cfg.UsePublishFilter(typeof(TenantPublishFilter<>), context);
                 //cfg.UseConsumeFilter(typeof(TenantConsumeFilter<>), context);
-                cfg.Host(settings.Host, settings.VirtualHost, h =>
-                {
-                    h.Username(settings.Username);
-                    h.Password(settings.Password);
-                });
+                //cfg.Host(settings.Host, settings.VirtualHost, h =>
+                //{
+                //    h.Username(settings.Username);
+                //    h.Password(settings.Password);
+                //});
+                cfg.Host("amqps://lriumdis:PNHXZ9uy2nWDyLQC4yJQEtN5H8zMRUSm@armadillo.rmq.cloudamqp.com/lriumdis");
                 //cfg.ConfigurePublish(p => p.UseExecute(c => c.SetPersistent()));
                 //cfg.ConfigureSend(s => s.UseExecute(c => c.SetPersistent()));
                 cfg.SetQuorumQueue();
