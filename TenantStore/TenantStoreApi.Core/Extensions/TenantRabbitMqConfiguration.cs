@@ -46,7 +46,7 @@ public static class TenantRabbitMqConfiguration
                 //    h.Username(settings.Username);
                 //    h.Password(settings.Password);
                 //});
-                cfg.Host("amqps://lriumdis:PNHXZ9uy2nWDyLQC4yJQEtN5H8zMRUSm@armadillo.rmq.cloudamqp.com/lriumdis");
+                cfg.Host(settings.Uri);
                 cfg.UsePublishFilter(typeof(TenantPublishFilter<>), context);
                 cfg.SetQuorumQueue();
                 cfg.ConfigureEndpoints(context);

@@ -12,13 +12,13 @@ public static class NotifTenantRabbitConfiguration
         if (settings == null) return;
         builder.Services.AddMassTransit(x =>
         {
-            x.AddEntityFrameworkOutbox<NotifContext>(o =>
-            {
-                o.UseMySql();
-                o.UseBusOutbox();
-                //o.QueryDelay = TimeSpan.FromSeconds(5);
-                //o.DisableInboxCleanupService();
-            });
+            //x.AddEntityFrameworkOutbox<NotifContext>(o =>
+            //{
+            //    o.UseMySql();
+            //    o.UseBusOutbox();
+            //    //o.QueryDelay = TimeSpan.FromSeconds(5);
+            //    //o.DisableInboxCleanupService();
+            //});
 
             x.SetEndpointNameFormatter(KebabCaseEndpointNameFormatter.Instance);
             x.AddConsumer<AccountConfirmationWorker, AccountConfirmationDefinition>();
@@ -42,7 +42,7 @@ public static class NotifTenantRabbitConfiguration
                 //    h.Username(settings.Username);
                 //    h.Password(settings.Password);
                 //});
-                cfg.Host("amqps://lriumdis:PNHXZ9uy2nWDyLQC4yJQEtN5H8zMRUSm@armadillo.rmq.cloudamqp.com/lriumdis");
+                cfg.Host(settings.Uri);
                 cfg.SetQuorumQueue();
                 cfg.ConfigureEndpoints(context);
             });

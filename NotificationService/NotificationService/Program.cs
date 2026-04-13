@@ -46,8 +46,7 @@ var app = builder.Build();
 var apiVersionProvider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
 //if (app.Environment.IsDevelopment())
 //{
-//}
-
+//} 
 app.UseSwagger();
 app.UseSwaggerUI(options =>
 {
