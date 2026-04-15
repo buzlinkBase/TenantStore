@@ -1,4 +1,5 @@
-﻿using TenantStoreApi.Domain.Entities.Subs;
+﻿using Microsoft.EntityFrameworkCore;
+using TenantStoreApi.Domain.Entities.Subs;
 
 namespace TenantStoreApi.Core.Services;
 
@@ -8,9 +9,19 @@ public class SubscriptionService : BaseService<TenantSubscription>
     {
     }
 
-    public async Task AddAsync(TenantSubscription subscription,CancellationToken token=default)
+    public async Task AddAsync(TenantSubscription subscription, CancellationToken token = default)
     {
-         await   CreateAsync(subscription, token);
+        await CreateAsync(subscription, token);
+    }
+
+    public async Task UpdateAsync(TenantSubscription subscription, CancellationToken token = default)
+    {
+        await UpdateAsync(subscription, token);
+    }
+
+    public async Task<TenantSubscription?> FindOne(Guid tenantId)
+    {
+        return await GetQueryable(x=>x.TenantId== tenantId).FirstOrDefaultAsync();
     }
 
     //public async Task<bool> IsFeatureEnabled(Guid tenantId, ServiceType feature)

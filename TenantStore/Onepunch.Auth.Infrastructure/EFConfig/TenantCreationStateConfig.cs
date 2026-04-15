@@ -5,15 +5,15 @@ using Onepunch.Common.Lib;
 
 namespace Onepunch.Auth.Infrastructure.EFConfig;
 
-internal class ApiTokenConfig : IEntityTypeConfiguration<ApiToken>
+internal class TenantCreationStateConfig : IEntityTypeConfiguration<TenantCreationRequestStatus>
 {
-    public void Configure(EntityTypeBuilder<ApiToken> builder)
+    public void Configure(EntityTypeBuilder<TenantCreationRequestStatus> builder)
     {
-        builder 
+        builder
         .Property(x => x.Status)
         .HasConversion(
                 v => v.ToString(),
-                v => EnumParserConfig.SafeParseEnum(v, Domain.TokenStatus.Revoke)
+                v => EnumParserConfig.SafeParseEnum(v, TenantCreationStatus.Pending)
             );
     }
 }

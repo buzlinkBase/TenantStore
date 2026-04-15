@@ -40,19 +40,21 @@ public class JwtService
         var hashBytes = sha256.ComputeHash(bytes);
         return Convert.ToBase64String(hashBytes);
     }
-    public async Task<string> CreateTokenAsync(User user)
+    public async Task<string> CreateTokenAsync(User user) =>
+        await CreateTokenAsync(user, user?.DefaultTenantId?.ToString() ?? "", user?.DefaultTenantName ?? "");
+    public async Task<string> CreateTokenAsync(User user, string tenantId, string tenantName)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SigningKey));
-
         var claims = new List<Claim>
         {
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email ?? ""),
+            new("TenantId", tenantId),
+            new("TenantName", tenantName),
         };
-
         var roles = await _userManager.GetRolesAsync(user);
         claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
-
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
         var token = new JwtSecurityToken(
             issuer: _jwtSettings.Issuer,
@@ -61,9 +63,9 @@ public class JwtService
             expires: DateTime.UtcNow.AddMinutes(_jwtSettings.TokenExpiry),
             signingCredentials: creds
         );
-
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
+
     public TokenInfo? ReadTokenToObject(string token)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SigningKey));
@@ -83,15 +85,19 @@ public class JwtService
         try
         {
             var principal = tokenHandler.ValidateToken(token, validationParameters, out SecurityToken validatedToken);
+            var tenantId = principal.FindFirst("TenantId")?.Value ??   Guid.Empty.ToString();
+            var tenantName = principal.FindFirst("TenantName")?.Value ??  "";
             return new TokenInfo
             {
+                JTI = Guid.Parse(principal.FindFirst(JwtRegisteredClaimNames.Jti)?.Value ?? Guid.Empty.ToString()),
                 UserId = Guid.Parse(principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value ?? Guid.Empty.ToString()),
                 Email = principal.FindFirst(JwtRegisteredClaimNames.Email)?.Value,
-                DefaultTenantId = Guid.Parse(principal.FindFirst("DefaultTenantId")?.Value ?? Guid.Empty.ToString()),
                 Roles = principal.FindAll(ClaimTypes.Role).Select(r => r.Value).ToList(),
                 IsValid = true,
                 IsExpired = false,
-                ExpiresAt = (validatedToken as JwtSecurityToken)?.ValidTo
+                ExpiresAt = (validatedToken as JwtSecurityToken)?.ValidTo,
+                TenantId= Guid.Parse(tenantId),
+                TenantName= tenantName,
             };
         }
         catch (SecurityTokenExpiredException ex)
@@ -101,7 +107,7 @@ public class JwtService
                 IsValid = false,
                 IsExpired = true,
                 ErrorMessage = "Token has expired",
-                ExpiresAt = ex.Expires 
+                ExpiresAt = ex.Expires
             };
         }
         catch (Exception ex)
@@ -114,7 +120,7 @@ public class JwtService
             };
         }
     }
-    public   string GenerateKey(int size = 32)
+    public string GenerateKey(int size = 32)
     {
         var keyBytes = new byte[size];
         using var rng = RandomNumberGenerator.Create();

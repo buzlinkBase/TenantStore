@@ -11,6 +11,7 @@ public class TenantInfoServiceProvider : GetTenantService.GetTenantServiceBase
     {
         _service = service;
     }
+
     public override async Task<TenantInfoResponse> GetInfo(TenantRequest request, ServerCallContext context)
     {
         if (!Guid.TryParse(request.TenantId, out var id))

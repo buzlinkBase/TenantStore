@@ -1,5 +1,4 @@
-﻿using BuzlinkRepository;
-using MassTransit;
+﻿using MassTransit;
 
 namespace OnePunch.Auth.Core.Messaging;
 

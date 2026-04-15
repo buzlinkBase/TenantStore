@@ -79,8 +79,10 @@ public static class ServiceRegistrations
              options.ClaimsIdentity.SecurityStampClaimType = "AspNet.Identity.SecurityStamp";
              //options.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
          })
+         .AddRoles<Role>()
          .AddEntityFrameworkStores<AuthContext>()
-         .AddApiEndpoints(); // Optional, enables MapIdentityApi
+         .AddApiEndpoints();  
+
         builder.Services.AddApiVersioning(
                 options =>
                 {
@@ -108,32 +110,59 @@ public static class ServiceRegistrations
                 setup.SubstituteApiVersionInUrl = true;
             });
 
-            builder.Services.AddAuthentication(options =>
+        builder.Services.AddAuthentication(options =>
+        {
+            // Default to JWT for API requests
+            options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+            options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            // IMPORTANT: This handles the temporary data Google sends back
+            options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
+        })
+        .AddJwtBearer(options =>
+        {
+            options.TokenValidationParameters = new TokenValidationParameters
             {
-                // Default to JWT for API requests
-                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-                // IMPORTANT: This handles the temporary data Google sends back
-                options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
-            })
-            .AddJwtBearer(options =>
+                ValidateIssuer = true,
+                ValidIssuer = "Onepunch",
+                ValidateAudience = true,
+                ValidAudience = "Onepunch.AuthService",
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SigningKey"]!))
+            };
+
+            options.Events = new JwtBearerEvents
             {
-                options.TokenValidationParameters = new TokenValidationParameters
+                OnMessageReceived = context =>
                 {
-                    ValidateIssuer = true,
-                    ValidIssuer = "Onepunch",
-                    ValidateAudience = true,
-                    ValidAudience = "Onepunch.AuthService",
-                    ValidateLifetime = true,
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SigningKey"]!))
-                };
-            })
-            //.AddCookie()
-            .AddGoogle(options =>
-            {
-                options.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;
-                options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]!;
-            });
+                    // Capture the token as it arrives
+                    var token = context.Token;
+                    return Task.CompletedTask;
+                },
+                OnTokenValidated = context =>
+                {
+                    //var jwtToken = context.SecurityToken as JsonWebToken;
+                    //// Safely look for the claim
+                    //var tenantIdClaim = context.Principal?.FindFirst("tenant_id")?.Value;
+                    //if (!string.IsNullOrEmpty(tenantIdClaim))
+                    //{
+                    //    var tenantService = context.HttpContext.RequestServices.GetRequiredService<ITenantProvider>();
+                    //    if (Guid.TryParse(tenantIdClaim, out var tenantId))
+                    //    {
+                    //        tenantService.SetTenantId(tenantId);
+                    //    }
+                    //}
+                    // If it's missing, we just skip setting the tenant context 
+                    // instead of crashing the whole request.
+                    return Task.CompletedTask;
+                }
+            };
+        })
+        //.AddCookie()
+        .AddGoogle(options =>
+        {
+            options.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;
+            options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]!;
+        });
     }
 }

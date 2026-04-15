@@ -16,6 +16,7 @@ public class UserService : BaseService<User>
     private readonly IPublishEndpoint _publisher;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly UserManager<User> _manager;
+    private readonly RoleManager<Role> _roleManager;
     private readonly SignInManager<User> _signInManager;
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly JwtService _jwtService;
@@ -26,6 +27,7 @@ public class UserService : BaseService<User>
         IPublishEndpoint publisher,
         IHttpContextAccessor httpContextAccessor,
         UserManager<User> manager,
+        RoleManager<Role> roleManager,
         SignInManager<User> signInManager,
         IPasswordHasher<User> passwordHasher,
         JwtService jwtService,
@@ -35,11 +37,13 @@ public class UserService : BaseService<User>
         EmailTokenService emailTokenService,
         InvitationService invitationService,
         EmailNotificationService notificationService,
+
         IMapper mapper) : base(uow)
     {
         _publisher = publisher;
         _httpContextAccessor = httpContextAccessor;
         _manager = manager ?? throw new ArgumentNullException(nameof(manager));
+        _roleManager = roleManager;
         _signInManager = signInManager;
         _passwordHasher = passwordHasher ?? throw new ArgumentNullException(nameof(passwordHasher));
         _jwtService = jwtService ?? throw new ArgumentNullException(nameof(jwtService));
@@ -68,6 +72,7 @@ public class UserService : BaseService<User>
                 Status = "Pending"
             };
             var result = await _manager.CreateAsync(user, payload.Password);
+            await _manager.AddToRoleAsync(user, "Admin");
             if (!result.Succeeded)
             {
                 var error = result.Errors.FirstOrDefault()?.Description ?? "Unable to create an account";
@@ -212,7 +217,7 @@ public class UserService : BaseService<User>
         return ComposeLoginRespose(user, accessToken, refreshToken);
     }
 
-    private LoginResponse ComposeLoginRespose(User user, string accessToken, string refreshToken)
+    internal LoginResponse ComposeLoginRespose(User user, string accessToken, string refreshToken)
     {
         //TODO capture users tenants
         var tenants = new List<UsersTenant>();
@@ -221,8 +226,6 @@ public class UserService : BaseService<User>
             AccessToken = accessToken,
             RefreshToken = refreshToken,
             Expiry = DateTime.UtcNow.AddMinutes(_jwtService.TokenExpiry),
-            DefaultTenantId = user.DefaultTenantId,
-            DefaultTenantName = user.DefaultTenantName,
             Tenants = tenants
         };
     }
@@ -235,7 +238,7 @@ public class UserService : BaseService<User>
 
     public async Task CreateTenant(User user, string CompanyName = "", CancellationToken token = default)
     {
-        var newTenant = new UserCreated
+        var newTenant = new TenantCreationRequest
         {
             UserId = user.Id,
             TenantName = CompanyName ?? "My Organization",
@@ -243,16 +246,21 @@ public class UserService : BaseService<User>
         await _publisher.Publish(newTenant, token);
     }
 
-    public async Task SetDefaultTenant(Guid tenantId, string token, CancellationToken ct)
+    public async Task<LoginResponse> SetDefaultTenant(Guid tenantId, string token, CancellationToken ct)
     {
-
         var tokenInfo = _jwtService.ReadTokenToObject(token);
-        if (tokenInfo == null || !string.IsNullOrWhiteSpace(tokenInfo.ErrorMessage)) return;
+        if (tokenInfo == null || !string.IsNullOrWhiteSpace(tokenInfo.ErrorMessage)) throw new UnauthorizedException();
         var user = await _manager.FindByIdAsync(tokenInfo.UserId.ToString());
-        if (user == null) return;
+        if (user == null) throw new UnauthorizedException();
         user.DefaultTenantId = tenantId;
         await _manager.UpdateAsync(user);
+
+        var accessToken = await _jwtService.CreateTokenAsync(user);
+        var refreshTokenString = await _jwtService.GenerateRefreshToken();
+        await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshTokenString), ct);
         await CommitChangesAsync(ct);
+        return ComposeLoginRespose(user, accessToken, refreshTokenString);
+
     }
 
     public async Task<LoginResponse> GoogleCallback(CancellationToken token)
@@ -343,7 +351,7 @@ public class UserService : BaseService<User>
     }
     #endregion
     #region Helpers
-    private RefreshToken CreateRefreshToken(User user, string newRefreshToken) =>
+    internal RefreshToken CreateRefreshToken(User user, string newRefreshToken) =>
         new RefreshToken
         {
             UserId = user.Id,

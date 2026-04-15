@@ -6,6 +6,6 @@ global using Asp.Versioning;
 global using BuzlinkRepository;
 global using Microsoft.AspNetCore.Identity;
 global using Microsoft.EntityFrameworkCore;
-global using Microsoft.EntityFrameworkCore.Infrastructure;
 global using Onepunch.Auth.Core.Services;
-global using Onepunch.Auth.Domain;
+global using OnePunch.Auth.Api.Extensions;
+

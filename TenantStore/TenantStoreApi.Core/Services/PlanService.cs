@@ -15,10 +15,11 @@ public class PlanService : BaseService<Plan>
         await CommitChangesAsync(token);
     }
 
-    public async Task<Plan?> FindPlanAsync(string name,CancellationToken token=default)
+    public async Task<Plan?> FindPlanAsync(Guid Id, CancellationToken token = default)
     {
-        return await GetQueryable(x=>x.Name==name).FirstOrDefaultAsync(token);
+        return await GetOneAsync(Id, token);
     }
+
     public async Task<Plan?> FindFreeTrialAsync(CancellationToken token = default)
     {
         return await GetQueryable(x => x.Name == "Free Trial").FirstOrDefaultAsync(token);

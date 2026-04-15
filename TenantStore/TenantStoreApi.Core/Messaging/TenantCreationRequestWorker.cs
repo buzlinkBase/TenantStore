@@ -5,17 +5,16 @@ using TenantStoreApi.Domain.Entities.Subs;
 
 namespace TenantStoreApi.Core.Messaging;
 
-public class UserCreatedWorker : IConsumer<UserCreated>
+public class TenantCreationRequestWorker : IConsumer<TenantCreationRequest>
 {
     private readonly TenantService _tenantService;
     private readonly UserMembershipService _userMembershipService;
     private readonly SubscriptionService _subscriptionService;
     private readonly ITenantProvider _tenantProvider;
-    private readonly ConnectionService _connectionService;
     private readonly PlanService _planService;
     private readonly IPublishEndpoint _publisher;
 
-    public UserCreatedWorker(TenantService tenantService,
+    public TenantCreationRequestWorker(TenantService tenantService,
         UserMembershipService userMembershipService,
         SubscriptionService subscriptionService,
         ITenantProvider tenantProvider,
@@ -30,41 +29,45 @@ public class UserCreatedWorker : IConsumer<UserCreated>
         _publisher = publisher;
     }
 
-    public async Task Consume(ConsumeContext<UserCreated> context)
+    public async Task Consume(ConsumeContext<TenantCreationRequest> context)
     {
+
         var message = context.Message;
-        var tenant = await _tenantService
-            .CreateTenant(message, context.CancellationToken);
+        var tenant = await _tenantService.CreateTenant(message, context.CancellationToken);
         _tenantProvider.SetTenantId(tenant.Id);
         await CreateMemberShip(tenant, context.CancellationToken);
-        await CreateSubsAsync(context, tenant);
+        await CreateSubsAsync(message, tenant, context.CancellationToken);
         await PublishTenantAsync(tenant);
         await _tenantService.CommitChangesAsync(context.CancellationToken);
     }
 
-    public async Task CreateSubsAsync(ConsumeContext<UserCreated> context, TenantModel tenant)
+    public async Task CreateSubsAsync(TenantCreationRequest model,
+        TenantModel tenant, CancellationToken token)
     {
-        var freePlan = await _planService.FindFreeTrialAsync(context.CancellationToken);
-        if (freePlan == null)
+        var plan = await _planService.FindPlanAsync(tenant.Id, token);
+        if (plan == null)
         {
-            freePlan = new Plan
+            var notFound = new ServicePlanNotFound
             {
-                Description = "Free Trial",
-                Name = "Free Trial" 
+                PlanId = model.Plan.PlanId,
+                TenantId = tenant.Id,
+                UserId = model.UserId,
             };
-            _planService.Repository.Add(freePlan);
-            await _planService.SaveChangesAsync(context.CancellationToken);
+            await _publisher.Publish(notFound);
+            return;
         }
         var sub = new TenantSubscription
         {
             TenantId = tenant.Id,
-            PlanId = freePlan.Id,
-            SubStatus = SubscriptionStatus.Trialing,
+            PlanId = model.Plan.PlanId,
+            SubStatus = SubscriptionStatus.Active,
             StartDate = DateTime.UtcNow,
-            EndDate = DateTime.UtcNow.AddDays(365)
+            EndDate = DateTime.UtcNow,
+            //DateTime.UtcNow.AddDays(plan.Days) //this can be incremented when payment received/paid
         };
-        await _subscriptionService.AddAsync(sub, context.CancellationToken);
+        await _subscriptionService.AddAsync(sub);
     }
+
     private async Task PublishTenantAsync(TenantModel tenant)
     {
         var createdTenant = new TenantCreatedPayload
@@ -76,6 +79,7 @@ public class UserCreatedWorker : IConsumer<UserCreated>
         };
         await _publisher.Publish(createdTenant);
     }
+
     private async Task CreateMemberShip(TenantModel tenant, CancellationToken token)
     {
         await _userMembershipService.AddAsync(new UserMembership

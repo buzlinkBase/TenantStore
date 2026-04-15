@@ -15,7 +15,7 @@ public static class TenantRabbitMqConfiguration
 
         builder.Services.AddMassTransit(x =>
         {
-            x.AddConsumer<UserCreatedWorker, UserCreatedDefinition>();
+            x.AddConsumer<TenantCreationRequestWorker, UserCreatedDefinition>();
             x.AddConsumer<UserJoinWorker, UserJoinDefinition>();
             x.AddConsumer<TenantJoinWorker, TenantJoinDefinition>();
             x.AddConsumer<DbCreatedWorker, DbCreatedWorkerDefinition>();
@@ -55,7 +55,7 @@ public static class TenantRabbitMqConfiguration
     }
 }
 
-public class UserCreatedDefinition : ConsumerDefinition<UserCreatedWorker>
+public class UserCreatedDefinition : ConsumerDefinition<TenantCreationRequestWorker>
 {
     public UserCreatedDefinition()
     {

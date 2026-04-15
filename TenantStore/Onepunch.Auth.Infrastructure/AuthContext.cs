@@ -15,7 +15,8 @@ public class AuthContext : IdentityDbContext<User, Role, Guid>
     }
     public DbSet<EmailToken> EmailTokens { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
-    public DbSet<Invitation>  Invitations { get; set; }
+    public DbSet<Invitation> Invitations { get; set; }
+    public DbSet<TenantCreationRequestStatus>  TenantCreationRequests  { get; set; }
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         base.OnConfiguring(optionsBuilder);
@@ -24,7 +25,7 @@ public class AuthContext : IdentityDbContext<User, Role, Guid>
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(GetType().Assembly);
-        modelBuilder.UseDateFilter(); 
+        modelBuilder.UseDateFilter();
         modelBuilder.Entity<RefreshToken>().HasIndex(x => x.RefreshTokenHash);
         modelBuilder.Entity<User>().HasIndex(x => x.Email).IsUnique();
         modelBuilder.AddInboxStateEntity();
