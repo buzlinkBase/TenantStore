@@ -46,5 +46,4 @@ public class UsersTenant
 public class CreateWorkspaceRequest
 {
     public string TenantName  { get; set; } = string.Empty;
-    public Guid PlanId  { get; set; }
 }

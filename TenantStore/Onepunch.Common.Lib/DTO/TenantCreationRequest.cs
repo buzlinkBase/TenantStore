@@ -6,7 +6,6 @@ public record TenantCreationRequest
     public required string TenantName { get; set; }
     public Guid TenantId  { get; set; }
     public Guid UserId { get; set; }
-    public TenantCreationPlanRequest Plan { get; set; } 
 }
 
 public class TenantCreationPlanRequest 

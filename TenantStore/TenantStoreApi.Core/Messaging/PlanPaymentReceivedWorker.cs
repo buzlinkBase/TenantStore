@@ -8,7 +8,6 @@ public class PlanPaymentReceivedWorker : IConsumer<TenantPaymentReceived>
     private readonly SubscriptionService _subscriptionService;
     private readonly UnitOfWorkService _unitOfWorkService;
     private readonly PlanService _planService;
-    private readonly IPublishEndpoint _publisher;
 
     public PlanPaymentReceivedWorker(
         SubscriptionService subscriptionService,
@@ -19,7 +18,6 @@ public class PlanPaymentReceivedWorker : IConsumer<TenantPaymentReceived>
         _subscriptionService = subscriptionService;
         _unitOfWorkService = unitOfWorkService;
         _planService = planService;
-        _publisher = publisher;
     }
 
     public async Task Consume(ConsumeContext<TenantPaymentReceived> context)

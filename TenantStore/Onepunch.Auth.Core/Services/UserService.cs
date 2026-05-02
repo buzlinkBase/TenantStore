@@ -59,7 +59,7 @@ public class UserService : BaseService<User>
     #endregion
 
     #region Registration
-    public async Task RegisterAccount(CreateAccount payload, CancellationToken token)
+    public async Task<User> RegisterAccount(CreateAccount payload, CancellationToken token)
     {
         var user = await _manager.FindByEmailAsync(payload.Email);
         if (user == null)
@@ -85,7 +85,7 @@ public class UserService : BaseService<User>
             {
                 await _notificationService.SendEmailVerification(user, token);
             }
-            throw new Exception("An account with this email already exists.");
+            throw new Exception("Email confirmation were sent.");
         }
         if (!user.EmailConfirmed)
         {
@@ -93,6 +93,7 @@ public class UserService : BaseService<User>
         }
         await _manager.UpdateAsync(user);
         await CommitChangesAsync(token);
+        return user;
     }
 
     public async Task<RegistrationResult> ConfirmedRegistration(string emailToken, CancellationToken ctoken)

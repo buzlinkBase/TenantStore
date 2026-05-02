@@ -31,6 +31,7 @@ namespace OnePunch.Auth.Api.Controllers
             _jwtService = jwtService;
             _options = options.Value;
         }
+
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPassword payload, CancellationToken token)
         {
@@ -74,11 +75,17 @@ namespace OnePunch.Auth.Api.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> CreateAccount([FromBody] CreateAccount payload, CancellationToken token)
         {
-            await _service.RegisterAccount(payload, token);
+            var user= await _service.RegisterAccount(payload, token);
+            if (Request.Headers["X-Client-Type"] == "WF")
+            {
+                return Ok(new
+                {
+                    Email=user.Email,
+                });
+            }
             var url = _options.FrontEnd;
             return Redirect($"{url}/auth/create/success");
         }
-
 
         [AllowAnonymous]
         [HttpGet("confirm-email")]
