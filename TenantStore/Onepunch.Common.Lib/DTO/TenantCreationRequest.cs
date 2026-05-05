@@ -8,9 +8,12 @@ public record TenantCreationRequest
     public Guid UserId { get; set; }
 }
 
-public class TenantCreationPlanRequest 
+public class PlanRequest 
 {
+    public Guid TenantId { get; set; }
+    public Guid UserId  { get; set; }
     public Guid PlanId { get; set; }
+    public DateTime? ValidUntil  { get; set; }
 
 }
 

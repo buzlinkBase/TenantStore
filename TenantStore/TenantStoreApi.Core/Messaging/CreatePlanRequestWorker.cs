@@ -5,7 +5,7 @@ using TenantStoreApi.Domain.Entities.Subs;
 
 namespace TenantStoreApi.Core.Messaging;
 
-public class CreatePlanRequestWorker : IConsumer<CreatePlanRequest>
+public class CreatePlanRequestWorker : IConsumer<PlanRequest>
 {
     private readonly TenantService _tenantService;
     private readonly UserMembershipService _userMembershipService;
@@ -29,64 +29,37 @@ public class CreatePlanRequestWorker : IConsumer<CreatePlanRequest>
         _publisher = publisher;
     }
 
-    public async Task Consume(ConsumeContext<CreatePlanRequest> context)
+    public async Task Consume(ConsumeContext<PlanRequest> context)
     {
-
-        var message = context.Message;
-        var tenant = await _tenantService.CreateTenant(message, context.CancellationToken);
-        _tenantProvider.SetTenantId(tenant.Id);
-        await CreateMemberShip(tenant, context.CancellationToken);
-        await CreateSubsAsync(message, tenant, context.CancellationToken);
-        await PublishTenantAsync(tenant);
+        var message = context.Message; 
+        _tenantProvider.SetTenantId(message.TenantId);
+        await CreateSubsAsync(message, context.CancellationToken);
         await _tenantService.CommitChangesAsync(context.CancellationToken);
     }
 
-    public async Task CreateSubsAsync(CreatePlanRequest model,
-        TenantModel tenant, CancellationToken token)
+    public async Task CreateSubsAsync(PlanRequest model, CancellationToken token)
     {
-        var plan = await _planService.FindPlanAsync(tenant.Id, token);
+        var plan = await _planService.FindPlanAsync(model.TenantId, token);
         if (plan == null)
         {
             var notFound = new ServicePlanNotFound
             {
-                PlanId = model.Plan.PlanId,
-                TenantId = tenant.Id,
+                PlanId = model.PlanId,
+                TenantId = model.TenantId,
                 UserId = model.UserId,
             };
             await _publisher.Publish(notFound);
             return;
         }
+        //DateTime.UtcNow.AddDays(plan.Days) //this can be incremented when payment received/paid
         var sub = new TenantSubscription
         {
-            TenantId = tenant.Id,
-            PlanId = model.Plan.PlanId,
-            SubStatus = SubscriptionStatus.Active,
+            TenantId = model.TenantId,
+            PlanId = model.PlanId,
+            SubStatus = model.ValidUntil == null ? SubscriptionStatus.Active : SubscriptionStatus.Expired,
             StartDate = DateTime.UtcNow,
-            EndDate = DateTime.UtcNow,
-            //DateTime.UtcNow.AddDays(plan.Days) //this can be incremented when payment received/paid
+            EndDate = model.ValidUntil ?? DateTime.UtcNow,
         };
         await _subscriptionService.AddAsync(sub);
-    }
-
-    private async Task PublishTenantAsync(TenantModel tenant)
-    {
-        var createdTenant = new TenantCreatedPayload
-        {
-            Event = "tenant.created",
-            TenantId = tenant.Id,
-            UserId = tenant.UserId,
-            TenantName = tenant.TenantName,
-        };
-        await _publisher.Publish(createdTenant);
-    }
-
-    private async Task CreateMemberShip(TenantModel tenant, CancellationToken token)
-    {
-        await _userMembershipService.AddAsync(new UserMembership
-        {
-            TenantId = tenant.Id,
-            UserId = tenant.UserId,
-            Role = "Owner"
-        }, token);
     }
 }

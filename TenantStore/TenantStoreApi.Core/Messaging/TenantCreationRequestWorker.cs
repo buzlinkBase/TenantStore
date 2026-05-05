@@ -41,32 +41,7 @@ public class TenantCreationRequestWorker : IConsumer<TenantCreationRequest>
         await _tenantService.CommitChangesAsync(context.CancellationToken);
     }
 
-    public async Task CreateSubsAsync(TenantCreationRequest model,
-        TenantModel tenant, CancellationToken token)
-    {
-        var plan = await _planService.FindPlanAsync(tenant.Id, token);
-        if (plan == null)
-        {
-            var notFound = new ServicePlanNotFound
-            {
-                PlanId = model.Plan.PlanId,
-                TenantId = tenant.Id,
-                UserId = model.UserId,
-            };
-            await _publisher.Publish(notFound);
-            return;
-        }
-        var sub = new TenantSubscription
-        {
-            TenantId = tenant.Id,
-            PlanId = model.Plan.PlanId,
-            SubStatus = SubscriptionStatus.Active,
-            StartDate = DateTime.UtcNow,
-            EndDate = DateTime.UtcNow,
-            //DateTime.UtcNow.AddDays(plan.Days) //this can be incremented when payment received/paid
-        };
-        await _subscriptionService.AddAsync(sub);
-    }
+    
 
     private async Task PublishTenantAsync(TenantModel tenant)
     {
