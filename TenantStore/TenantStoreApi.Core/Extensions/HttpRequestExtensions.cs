@@ -1,8 +1,7 @@
-﻿
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Http;
 using System.Security.Claims;
 
-namespace OnePunch.Auth.Api.Extensions;
+namespace TenantStoreApi.Core.Extensions;
 
 public static class HttpRequestExtensions
 {
@@ -23,19 +22,17 @@ public static class HttpRequestExtensions
         }
         return null;
     }
-
-
     public static Guid? GetUserId(this ClaimsPrincipal user)
     {
+        if (user == null) throw new ArgumentNullException(nameof(user));
         var value = user.FindFirstValue(ClaimTypes.NameIdentifier);
         return Guid.TryParse(value, out Guid guid) ? guid : null;
     }
-
-    // The "Strict" version (throws an exception if not found)
     public static Guid GetRequiredUserId(this ClaimsPrincipal user)
     {
+        if (user == null) throw new ArgumentNullException(nameof(user));
         return user.GetUserId()
-               ?? throw new UnauthorizedAccessException("User Id claim is missing or invalid.");
+               ?? throw new UnauthorizedAccessException("User ID claim is missing or invalid.");
     }
     public static string? GetUserClaim(this ClaimsPrincipal user, string claim)
     {
@@ -44,4 +41,5 @@ public static class HttpRequestExtensions
 
         return user.FindFirstValue(claim);
     }
+
 }

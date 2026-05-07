@@ -8,7 +8,6 @@ namespace TenantStoreApi.Core.Messaging;
 public class CreatePlanRequestWorker : IConsumer<PlanRequest>
 {
     private readonly TenantService _tenantService;
-    private readonly UserMembershipService _userMembershipService;
     private readonly SubscriptionService _subscriptionService;
     private readonly ITenantProvider _tenantProvider;
     private readonly PlanService _planService;
@@ -22,7 +21,6 @@ public class CreatePlanRequestWorker : IConsumer<PlanRequest>
         IPublishEndpoint publisher)
     {
         _tenantService = tenantService;
-        _userMembershipService = userMembershipService;
         _subscriptionService = subscriptionService;
         _tenantProvider = tenantProvider;
         _planService = planService;

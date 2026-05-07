@@ -1,8 +1,6 @@
 ﻿
-using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
-
-namespace OnePunch.Auth.Api.Extensions;
+namespace OnePunch.Notification.Extensions;
 
 public static class HttpRequestExtensions
 {

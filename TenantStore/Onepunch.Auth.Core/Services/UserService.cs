@@ -57,7 +57,6 @@ public class UserService : BaseService<User>
         await Repository.Find<EmailToken>(x => x.TokenValue == emailToken).FirstOrDefaultAsync();
     private bool IsTokenExpired(EmailToken token) => token.Expiry < DateTime.UtcNow;
     #endregion
-
     #region Registration
     public async Task<User> RegisterAccount(CreateAccount payload, CancellationToken token)
     {

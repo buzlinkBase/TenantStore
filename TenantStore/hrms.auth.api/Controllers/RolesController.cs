@@ -1,0 +1,29 @@
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using Onepunch.Auth.Core;
+using OnePunch.Auth.Core.Services;
+
+namespace OnePunch.Auth.Api.Controllers
+{
+
+    [Route("api/v{version:apiVersion}/[controller]")]
+    [ApiVersion("1.0")]
+    [ApiController]
+    [Authorize]
+    public class RolesController : ControllerBase
+    {
+        private readonly RoleService _service;
+        public RolesController(RoleService service, IOptions<Domains> options)
+        {
+            _service = service;
+        }
+
+        [HttpPost()]
+        public async Task<IActionResult> Create([FromQuery] string roleName, CancellationToken token)
+        {
+            await _service.Create(roleName);
+            return Ok();
+        }
+    }
+}

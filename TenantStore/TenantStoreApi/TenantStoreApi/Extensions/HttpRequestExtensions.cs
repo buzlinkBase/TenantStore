@@ -32,4 +32,11 @@ public static class HttpRequestExtensions
         return user.GetUserId()
                ?? throw new UnauthorizedAccessException("User ID claim is missing or invalid.");
     }
+    public static string? GetUserClaim(this ClaimsPrincipal user, string claim)
+    {
+        if (user == null) throw new ArgumentNullException(nameof(user));
+        if (string.IsNullOrWhiteSpace(claim)) throw new ArgumentException("Claim type must be provided.", nameof(claim));
+
+        return user.FindFirstValue(claim);
+    }
 }

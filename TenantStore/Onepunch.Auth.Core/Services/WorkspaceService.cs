@@ -55,11 +55,13 @@ public class WorkspaceService : BaseService<User>
 
         //generate token
         await _publisher.Publish(createTenant, token);
+
         var accessToken = await _jwtService.CreateTokenAsync(user, createTenant.TenantId.ToString(), createTenant.TenantName);
         var refreshTokenString = await _jwtService.GenerateRefreshToken();
         await Context.RefreshTokens.AddAsync(_userService.CreateRefreshToken(user, refreshTokenString), token);
         await CommitChangesAsync(token);
-
         return _userService.ComposeLoginRespose(user, accessToken, refreshTokenString);
+
+
     }
 }

@@ -14,7 +14,6 @@ public class PlanRequest
     public Guid UserId  { get; set; }
     public Guid PlanId { get; set; }
     public DateTime? ValidUntil  { get; set; }
-
 }
 
 public record UserJoin
