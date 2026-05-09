@@ -1,0 +1,78 @@
+name: main-deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    # 1. Build and Push Auth API
+    - name: Build and push Auth API
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: Dockerfile
+        target: auth-service
+        push: true
+        tags: jhoncee2018/hrms-auth-api:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    # 2. Build and Push Tenant API
+    - name: Build and push Tenant API
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: Dockerfile
+        target: tenant-service
+        push: true
+        tags: jhoncee2018/hrms-tenant-api:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    # 3. Build and Push Notification Service
+    - name: Build and push Notification Service
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: Dockerfile
+        target: notification-service
+        push: true
+        tags: jhoncee2018/hrms-notification:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    # 4. Deploy to Droplet
+    - name: SSH into Droplet and deploy
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.DIGITALOCEAN_DROPLET_IP }}
+        username: ${{ secrets.DIGITALOCEAN_DROPLET_USERNAME }}
+        key: ${{ secrets.DIGITALOCEAN_SSH_PRIVATE_KEY }}
+        script: |
+          cd tenant-api/
+          
+          echo "Pulling updated images..."
+          docker compose pull
+          
+          echo "Restarting containers..."
+          docker compose up -d --force-recreate
+          
+          echo "Cleaning up..."
+          docker image prune -f

@@ -47,7 +47,7 @@ public static class ServiceRegistrations
         builder.Services.AddScoped<JwtService>();
         builder.Services.AddDbContext<AuthContext>((provider, options) =>
         {
-            var defaultConn = builder.Configuration.GetConnectionString("DefaultConnection");
+            var defaultConn = builder.Configuration.GetConnectionString("AuthConnection");
             var connectionString = defaultConn!;
             options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
             options.AddInterceptors(new SoftDeleteInterceptor());

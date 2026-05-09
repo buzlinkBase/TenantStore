@@ -39,7 +39,7 @@ builder.NotifConfigRabbitMq();
 
 builder.Services.AddMapster(typeof(MappingProfile).Assembly); 
 builder.Services.AddDbContext<NotifContext>(options => {
-    var connectionstring = builder.Configuration.GetConnectionString("DefaultConnection");
+    var connectionstring = builder.Configuration.GetConnectionString("NotifConnection");
     options.UseMySql(connectionstring,ServerVersion.AutoDetect(connectionstring));
 });
 var app = builder.Build();

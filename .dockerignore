@@ -1,0 +1,33 @@
+# 1. Git and IDE Metadata (The source of your 1.4GB bloat)
+.git
+.github
+.vs
+.vscode
+*.swp
+*.user
+*.suo
+
+# 2. .NET Build Artifacts
+**/bin
+**/obj
+
+# 3. UI/Frontend (If not needed for this API build)
+**/node_modules
+Buzlink.HR.UI
+hrms-ui
+
+# 4. Local Settings
+.env
+.env.*
+appsettings.Development.json
+appsettings.Local.json
+
+# 5. Sibling Projects NOT in Dockerfile
+# (Keep dtr-api, tenantstore, and MigrationHrns)
+hrms.test
+hrms-adms-api
+
+# 6. Docker itself
+.dockerignore
+Dockerfile
+docker-compose*

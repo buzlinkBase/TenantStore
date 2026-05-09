@@ -6,21 +6,21 @@ WORKDIR /src
 COPY ["Directory.Packages.props", "./"]
 
 # 2. Copy all .csproj files preserving directory structure
-COPY ["Services/Shared/Onepunch.Common.Lib/Onepunch.Common.Lib.csproj", "TenantStore/Onepunch.Common.Lib/"]
-COPY ["Services/NotificationApi/NotificationService.csproj", "TenantStore/NotificationService/"]
-COPY ["Services/AuthApi/hrms.auth.api/OnePunch.Auth.Api.csproj", "TenantStore/hrms.auth.api/"]
-COPY ["Services/AuthApi/Onepunch.Auth.Core/Onepunch.Auth.Core.csproj", "TenantStore/Onepunch.Auth.Core/"]
-COPY ["Services/AuthApi/Onepunch.Auth.Domain/Onepunch.Auth.Domain.csproj", "TenantStore/Onepunch.Auth.Domain/"]
-COPY ["Services/AuthApi/Onepunch.Auth.Infrastructure/Onepunch.Auth.Infrastructure.csproj", "TenantStore/Onepunch.Auth.Infrastructure/"]
-COPY ["Services/TenantApi/TenantStoreApi/TenantStoreApi/TenantStoreApi.csproj", "TenantStore/TenantStoreApi/"]
-COPY ["Services/TenantApi/TenantStoreApi.Core/TenantStoreApi.Core.csproj", "TenantStore/TenantStoreApi.Core/"]
-COPY ["Services/TenantApi/TenantStoreApi.Domain/TenantStoreApi.Domain.csproj", "TenantStore/TenantStoreApi.Domain/"]
-COPY ["Services/TenantApi/TenantStoreApi.Infrastructure/TenantStoreApi.Infrastructure.csproj", "TenantStore/TenantStoreApi.Infrastructure/"]
+COPY ["Services/Shared/Onepunch.Common.Lib/Onepunch.Common.Lib.csproj", "Services/Shared/Onepunch.Common.Lib/"]
+COPY ["Services/NotificationApi/NotificationService.csproj", "Services/NotificationApi/"]
+COPY ["Services/AuthApi/hrms.auth.api/OnePunch.Auth.Api.csproj", "Services/AuthApi/hrms.auth.api/"]
+COPY ["Services/AuthApi/Onepunch.Auth.Core/Onepunch.Auth.Core.csproj", "Services/AuthApi/Onepunch.Auth.Core/"]
+COPY ["Services/AuthApi/Onepunch.Auth.Domain/Onepunch.Auth.Domain.csproj", "Services/AuthApi/Onepunch.Auth.Domain/"]
+COPY ["Services/AuthApi/Onepunch.Auth.Infrastructure/Onepunch.Auth.Infrastructure.csproj", "Services/AuthApi/Onepunch.Auth.Infrastructure/"]
+COPY ["Services/TenantApi/TenantStoreApi/TenantStoreApi.csproj", "Services/TenantApi/TenantStoreApi/"]
+COPY ["Services/TenantApi/TenantStoreApi.Core/TenantStoreApi.Core.csproj", "Services/TenantApi/TenantStoreApi.Core/"]
+COPY ["Services/TenantApi/TenantStoreApi.Domain/TenantStoreApi.Domain.csproj", "Services/TenantApi/TenantStoreApi.Domain/"]
+COPY ["Services/TenantApi/TenantStoreApi.Infrastructure/TenantStoreApi.Infrastructure.csproj", "Services/TenantApi/TenantStoreApi.Infrastructure/"]
 
 # 3. Restore all dependencies once
 RUN dotnet restore "Services/AuthApi/hrms.auth.api/OnePunch.Auth.Api.csproj"
-RUN dotnet restore "Services/TenantApi/TenantStoreApi/TenantStoreApi/TenantStoreApi.csproj"
-RUN dotnet restore "Services/NotificationApi/NotificationService/NotificationService.csproj"
+RUN dotnet restore "Services/TenantApi/TenantStoreApi/TenantStoreApi.csproj"
+RUN dotnet restore "Services/NotificationApi/NotificationService.csproj"
 
 # 4. Copy the rest of the source code
 COPY . .
@@ -30,10 +30,10 @@ FROM build AS publish-auth
 RUN dotnet publish "Services/AuthApi/hrms.auth.api/OnePunch.Auth.Api.csproj" -c Release -o /app/publish/auth
 
 FROM build AS publish-tenant
-RUN dotnet publish "Services/TenantApi/TenantStoreApi/TenantStoreApi/TenantStoreApi.csproj" -c Release -o /app/publish/tenant
+RUN dotnet publish "Services/TenantApi/TenantStoreApi/TenantStoreApi.csproj" -c Release -o /app/publish/tenant
 
 FROM build AS publish-notification
-RUN dotnet publish "Services/NotificationApi/NotificationService/NotificationService.csproj" -c Release -o /app/publish/notification
+RUN dotnet publish "Services/NotificationApi/NotificationService.csproj" -c Release -o /app/publish/notification
 
 # --- Stage 3: Final Runtime Images ---
 
