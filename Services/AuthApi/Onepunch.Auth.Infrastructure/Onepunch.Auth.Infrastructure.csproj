@@ -35,7 +35,7 @@
 		
 	</ItemGroup>
 	<ItemGroup>
+		<ProjectReference Include="..\..\Shared\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
 		<ProjectReference Include="..\Onepunch.Auth.Domain\Onepunch.Auth.Domain.csproj" />
-		<ProjectReference Include="..\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
 	</ItemGroup>
 </Project>

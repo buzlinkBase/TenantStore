@@ -37,7 +37,7 @@ public static class ServiceRegistrations
 
         builder.Services.AddDbContext<TenantContext>(options =>
         {
-            var defaultConn = builder.Configuration.GetConnectionString("DbConnection");
+            var defaultConn = builder.Configuration.GetConnectionString("DefaultConnection");
             options.UseMySql(defaultConn, ServerVersion.AutoDetect(defaultConn));
             options.AddInterceptors(new SoftDeleteInterceptor());
             options.UseLazyLoadingProxies(true);

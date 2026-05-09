@@ -13,7 +13,7 @@ public class TenantContextFactory : IDesignTimeDbContextFactory<TenantContext>
             .SetBasePath(basePath)
             .AddJsonFile("appsettings.Development.json")
             .Build();
-        var connectionString = configuration.GetConnectionString("DbConnection");
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
         var optionsBuilder = new DbContextOptionsBuilder<TenantContext>();
         optionsBuilder.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
         return new TenantContext(optionsBuilder.Options);

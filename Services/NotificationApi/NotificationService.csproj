@@ -62,9 +62,8 @@
 		<PackageReference Include="Serilog.Sinks.Seq" />
 	</ItemGroup>
 
-
 	<ItemGroup>
-		<ProjectReference Include="..\..\TenantStore\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
+	  <ProjectReference Include="..\Shared\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

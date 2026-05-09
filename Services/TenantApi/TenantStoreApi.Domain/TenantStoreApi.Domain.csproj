@@ -11,6 +11,6 @@
 		<PackageReference Include="MessagePack" /> 
 	</ItemGroup>
 	<ItemGroup>
-	  <ProjectReference Include="..\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
+	  <ProjectReference Include="..\..\Shared\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
 	</ItemGroup>
 </Project>
