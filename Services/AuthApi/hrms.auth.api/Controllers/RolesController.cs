@@ -25,5 +25,12 @@ namespace OnePunch.Auth.Api.Controllers
             await _service.Create(roleName);
             return Ok();
         }
+
+        [HttpGet()]
+        public async Task<IActionResult> GetAll(CancellationToken token)
+        {
+            var roles = await _service.GetAll();
+            return Ok(roles.Select(x=>x.Name).ToArray());
+        }
     }
 }

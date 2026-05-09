@@ -24,9 +24,14 @@ public class RoleService : BaseService<Role>
     {
         var role = new Role()
         {
-            Name=roleName,
+            Name = roleName,
         };
         await _roleManager.CreateAsync(role);
         await CommitChangesAsync();
+    }
+
+    public async Task<List<Role>> GetAll()
+    {
+        return await _roleManager.Roles.ToListAsync();
     }
 }
