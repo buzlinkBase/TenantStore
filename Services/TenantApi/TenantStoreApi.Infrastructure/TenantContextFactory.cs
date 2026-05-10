@@ -8,7 +8,7 @@ public class TenantContextFactory : IDesignTimeDbContextFactory<TenantContext>
 {
     public TenantContext CreateDbContext(string[] args)
     {
-        string basePath = Path.Combine(Directory.GetCurrentDirectory(), "..", "TenantStoreApi", "TenantStoreApi");
+        string basePath = Path.Combine(Directory.GetCurrentDirectory(), "..", "TenantStoreApi");
         IConfigurationRoot configuration = new ConfigurationBuilder()
             .SetBasePath(basePath)
             .AddJsonFile("appsettings.Development.json")
