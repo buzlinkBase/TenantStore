@@ -16,7 +16,7 @@ public class AuthContextFactory : IDesignTimeDbContextFactory<AuthContext>
             .Build();
         var connectionString = configuration.GetConnectionString("AuthConnection");
         var optionsBuilder = new DbContextOptionsBuilder<AuthContext>();
-        optionsBuilder.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
+        optionsBuilder.UseMySql(connectionString, new MySqlServerVersion(new Version(9,2,0)));
         return new AuthContext(optionsBuilder.Options,null);
     }
 }

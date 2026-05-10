@@ -37,10 +37,11 @@ builder.RegisterCoreServices();
 //builder.NotifConfigKafka();
 builder.NotifConfigRabbitMq();
 
-builder.Services.AddMapster(typeof(MappingProfile).Assembly); 
-builder.Services.AddDbContext<NotifContext>(options => {
+builder.Services.AddMapster(typeof(MappingProfile).Assembly);
+builder.Services.AddDbContext<NotifContext>(options =>
+{
     var connectionstring = builder.Configuration.GetConnectionString("NotifConnection");
-    options.UseMySql(connectionstring,ServerVersion.AutoDetect(connectionstring));
+    options.UseMySql(connectionstring, new MySqlServerVersion(new Version(9, 2, 0)));
 });
 var app = builder.Build();
 var apiVersionProvider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();

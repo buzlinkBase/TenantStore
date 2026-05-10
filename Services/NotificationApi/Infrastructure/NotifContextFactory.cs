@@ -16,7 +16,7 @@ public class NotifContextFactory : IDesignTimeDbContextFactory<NotifContext>
             .Build();
         var connectionString = configuration.GetConnectionString("NotifConnection");
         var optionsBuilder = new DbContextOptionsBuilder<NotifContext>();
-        optionsBuilder.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
+        optionsBuilder.UseMySql(connectionString, new MySqlServerVersion(new Version(9, 2, 0)));
         return new NotifContext(optionsBuilder.Options);
     }
 }
