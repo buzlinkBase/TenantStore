@@ -44,4 +44,7 @@ services:
     env_file:
       - .env
 
- 
+networks:
+  hrmsnet:
+    external: true
+    name: root_hrmsnet 
