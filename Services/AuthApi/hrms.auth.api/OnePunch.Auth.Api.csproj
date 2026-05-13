@@ -19,7 +19,12 @@
 		<PackageReference Include="Microsoft.Extensions.Hosting" /> 
 		<PackageReference Include="Swashbuckle.AspNetCore" />
 		<PackageReference Include="Asp.Versioning.Http" />
-		<PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" /> 
+		<PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" />
+		<PackageReference Include="Serilog.AspNetCore" />
+		<PackageReference Include="Serilog.Exceptions" />
+		<PackageReference Include="Serilog.Sinks.Console" />
+		<PackageReference Include="Serilog.Sinks.File" />
+		<PackageReference Include="Serilog.Sinks.Seq" />
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
 	</ItemGroup>
 

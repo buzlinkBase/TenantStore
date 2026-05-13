@@ -16,7 +16,7 @@ public static class ServiceRegistrations
         builder.Services.AddHttpContextAccessor(); 
         builder.Services.AddDataProtection(); 
         builder.Services.AddLogging();
-        var bootstrapServers = builder.Configuration["KafkaSettings:BootstrapServers"] ?? "";
+        //var bootstrapServers = builder.Configuration["KafkaSettings:BootstrapServers"] ?? "";
         builder.Services.AddCors(options =>
         {
             options.AddPolicy("AllowAll", policy =>

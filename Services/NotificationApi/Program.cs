@@ -10,6 +10,16 @@ using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
+
+Log.Logger = new LoggerConfiguration()
+   .ReadFrom.Configuration(builder.Configuration)
+   .CreateLogger();
+builder.Host.UseSerilog();
+
+Log.Information("Notif api");
+Serilog.Debugging.SelfLog.Enable(Console.Error);
+
+
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -65,4 +75,5 @@ app.UseSwaggerUI(options =>
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
+app.UseSerilogRequestLogging();
 app.Run();

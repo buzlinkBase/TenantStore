@@ -17,6 +17,7 @@ public class ConnectionsController : ControllerBase
     }
 
     [HttpGet()]
+    [AllowAnonymous]
     public async Task<IActionResult> Get(
         [FromQuery(Name = "tenant-id")] Guid tenantId,
         [FromQuery(Name = "service")] string service,
@@ -25,5 +26,4 @@ public class ConnectionsController : ControllerBase
         var connectionStr = await _service.GetConnection(tenantId, service);
         return Ok(connectionStr);
     }
-
 }

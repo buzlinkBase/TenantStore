@@ -6,6 +6,7 @@ using OnePunch.Auth.Api;
 using OnePunch.Auth.Api.Exceptions;
 using OnePunch.Auth.Api.Filters;
 using OnePunch.Auth.Api.Middlewares;
+using Serilog;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -15,6 +16,15 @@ internal class Program
     private static void Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+
+        Log.Logger = new LoggerConfiguration()
+        .ReadFrom.Configuration(builder.Configuration)
+        .CreateLogger();
+        builder.Host.UseSerilog();
+
+        Log.Information("Auth api");
+        Serilog.Debugging.SelfLog.Enable(Console.Error);
+
         builder.Services.AddControllers(options =>
         {
             options.Filters.Add<ResponseWrapperFilter>();
@@ -64,6 +74,7 @@ internal class Program
             }
         });
 
+        app.UseSerilogRequestLogging();
         app.UseStatusCodePages();
         app.UseExceptionHandler();
         app.UseRouting(); 

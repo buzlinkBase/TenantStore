@@ -22,10 +22,14 @@ internal class Program
     private static void Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+
         Log.Logger = new LoggerConfiguration()
         .ReadFrom.Configuration(builder.Configuration)
         .CreateLogger();
         builder.Host.UseSerilog();
+
+        Log.Information("Tenant api");
+        Serilog.Debugging.SelfLog.Enable(Console.Error);
 
         var mpackOptions = MessagePackSerializerOptions.Standard
                 .WithResolver(CompositeResolver.Create(

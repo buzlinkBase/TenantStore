@@ -1,23 +1,23 @@
 services:
-  mysql:
-    image: mysql:${MYSQL_VERSION:-8.0}
-    container_name: mysql
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-    ports:
-      - "3306:3306"
-    networks:
-      - hrmsnet
-    volumes:
-      - mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$${MYSQL_ROOT_PASSWORD} --silent"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+  # mysql:
+  #   image: mysql:${MYSQL_VERSION:-8.0}
+  #   container_name: mysql
+  #   restart: always
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+  #     MYSQL_DATABASE: ${MYSQL_DATABASE}
+  #   ports:
+  #     - "3306:3306"
+  #   networks:
+  #     - hrmsnet
+  #   volumes:
+  #     - mysql_data:/var/lib/mysql
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$${MYSQL_ROOT_PASSWORD} --silent"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 30s
 
   redis:
     image: redis:7-alpine
@@ -33,6 +33,7 @@ services:
   redis-commander:
     image: rediscommander/redis-commander:latest
     container_name: redis-commander
+    restart: always 
     environment:
       - REDIS_HOSTS=local:redis:6379
     ports:
@@ -42,10 +43,49 @@ services:
     depends_on:
       - redis
 
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - hrmsnet
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Serilog Sink: Seq Dashboard
+  seq:
+    image: datalust/seq:latest
+    container_name: seq
+    restart: always 
+    ports:
+      - "5341:5341"
+      - "5342:80" # Standard UI port often used by Seq
+    environment:
+      - ACCEPT_EULA=Y
+      # Add one of the following two options:
+      - SEQ_FIRSTRUN_ADMINPASSWORD=Administrator! 
+      # OR, if this is just for local dev and you don't want a login:
+      # - SEQ_FIRSTRUN_NOAUTHENTICATION=Y 
+    volumes:
+      - seq_data:/data
+
 networks:
   hrmsnet:
     driver: bridge
 
 volumes:
-  mysql_data:
+  # mysql_data:
   redis_data:
+  rabbitmq_data:
+  seq_data:
