@@ -4,7 +4,9 @@ using Microsoft.IdentityModel.Tokens;
 using Onepunch.Auth.Core;
 using Onepunch.Auth.Infrastructure;
 using Onepunch.Common.Lib;
+using Onepunch.Common.Lib.Cache;
 using OnePunch.Auth.Core.Providers;
+using StackExchange.Redis;
 using System.Text;
 
 namespace OnePunch.Auth.Api;
@@ -19,6 +21,10 @@ public static class ServiceRegistrations
         builder.Services.Configure<Domains>(builder.Configuration.GetSection("Domains"));
         builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
         builder.Services.Configure<RabbitMqSettings>(builder.Configuration.GetSection("RabbitMqSettings"));
+        builder.Services.AddSingleton<IConnectionMultiplexer>(sp => 
+        ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));
+        builder.Services.AddScoped<ICacheService, RedisCacheService>();
+
         builder.Services.AddHeaderPropagation(options =>
         {
             options.Headers.Add("User-Agent");
@@ -37,7 +43,7 @@ public static class ServiceRegistrations
         builder.Services.AddLogging();
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddScoped<ITenantProvider, TenantProviderAccessor>();
-        builder.Services.AddIdentity<User, Role>(options =>
+        builder.Services.AddIdentity<User, Domain.Entities.Role>(options =>
         {
             options.User.RequireUniqueEmail = true;
         })
@@ -79,7 +85,7 @@ public static class ServiceRegistrations
              options.ClaimsIdentity.SecurityStampClaimType = "AspNet.Identity.SecurityStamp";
              //options.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
          })
-         .AddRoles<Role>()
+         .AddRoles<Domain.Entities.Role>()
          .AddEntityFrameworkStores<AuthContext>()
          .AddApiEndpoints();  
 
@@ -163,6 +169,7 @@ public static class ServiceRegistrations
         {
             options.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;
             options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]!;
-        });
+        })
+        ;
     }
 }

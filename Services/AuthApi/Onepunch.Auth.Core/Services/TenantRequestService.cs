@@ -4,9 +4,9 @@ using OnePunch.Auth.Core.Services;
 
 namespace Onepunch.Auth.Core.Services
 {
-    public class TenantCreationRequestStatusService : BaseService<TenantCreationRequestStatus>
+    public class TenantRequestService : BaseService<TenantCreationRequestStatus>
     {
-        public TenantCreationRequestStatusService(IUnitOfWorkService uow) : base(uow)
+        public TenantRequestService(IUnitOfWorkService uow) : base(uow)
         {
         }
         public async Task<TenantCreationRequestStatus?> FindOne(Guid tenantId)

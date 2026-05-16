@@ -1,15 +1,16 @@
 ﻿using MassTransit;
 using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Core.Services;
+using Serilog;
 namespace OnePunch.Auth.Core.Messaging;
 
 public class TenantCreatedWorker : IConsumer<TenantCreatedPayload>
 {
     private readonly UserService _userService;
-    private readonly TenantCreationRequestStatusService _tenantCreationRequest;
+    private readonly TenantRequestService _tenantCreationRequest;
 
     public TenantCreatedWorker(UserService userService,
-        TenantCreationRequestStatusService tenantCreationRequest)
+        TenantRequestService tenantCreationRequest)
     {
         _userService = userService;
         _tenantCreationRequest = tenantCreationRequest;
@@ -17,9 +18,15 @@ public class TenantCreatedWorker : IConsumer<TenantCreatedPayload>
 
     public async Task Consume(ConsumeContext<TenantCreatedPayload> context)
     {
+
         var message = context.Message;
         var user = await _userService.GetByIdAsync(context.Message.UserId.ToString());
-        if (user == null) return;
+        if (user == null)
+        {
+            Log.Logger.Error("TenantCreatedWorker user not found:{0}", message.UserId);
+            return;
+        }
+
         var request = await _tenantCreationRequest.FindOne(message.TenantId);
         if (request != null)
         {
@@ -30,5 +37,6 @@ public class TenantCreatedWorker : IConsumer<TenantCreatedPayload>
         user.DefaultTenantName = context.Message.TenantName;
         await _userService.UpdateAsync(user);
         _userService.CommitChanges();
+
     } 
 }

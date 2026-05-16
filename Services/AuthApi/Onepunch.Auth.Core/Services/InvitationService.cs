@@ -13,13 +13,13 @@ namespace Onepunch.Auth.Core.Services
     public class InvitationService : BaseService<Invitation>
     {
         private readonly EmailTokenService _emailTokenService;
-        private readonly TenantCreationRequestStatusService _tenantCreationRequestStatusService;
+        private readonly TenantRequestService _tenantCreationRequestStatusService;
         private readonly Domains _domains;
         private readonly UserManager<User> _manager;
         private readonly IPublishEndpoint publisher;
         public InvitationService(IUnitOfWorkService uow,
              EmailTokenService emailTokenService,
-             TenantCreationRequestStatusService tenantCreationRequestStatusService,
+             TenantRequestService tenantCreationRequestStatusService,
               IOptions<Domains> domains,
               IHttpContextAccessor contextAccessor,
               UserManager<User> manager,

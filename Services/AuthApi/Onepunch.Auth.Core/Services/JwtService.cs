@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Onepunch.Common.Lib.Cache;
 using OnePunch.Auth.Domain.Entities;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -13,11 +14,15 @@ namespace Onepunch.Auth.Core.Services;
 public class JwtService
 {
     private readonly UserManager<User> _userManager;
+    private readonly TenantRequestService _tenantRequestService;
     private readonly JwtSettings _jwtSettings;
 
-    public JwtService(UserManager<User> userManager, IOptions<JwtSettings> jwtSettings)
+    public JwtService(UserManager<User> userManager,
+        TenantRequestService tenantRequestService,
+        IOptions<JwtSettings> jwtSettings)
     {
         _userManager = userManager;
+        _tenantRequestService = tenantRequestService;
         _jwtSettings = jwtSettings.Value;
     }
     public async Task<string> GenerateRefreshToken()
@@ -45,6 +50,20 @@ public class JwtService
     public async Task<string> CreateTokenAsync(User user, string tenantId, string tenantName)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SigningKey));
+        string tenantState = "Pending";
+
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            if (Guid.TryParse(tenantId, out Guid parseTenantId))
+            {
+                var tenantRequest = await _tenantRequestService.FindOne(parseTenantId);
+                if (tenantRequest != null)
+                {
+                    tenantState = tenantRequest.Status.ToString();
+                }
+            }
+        }
+
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
@@ -52,7 +71,9 @@ public class JwtService
             new(JwtRegisteredClaimNames.Email, user.Email ?? ""),
             new("TenantId", tenantId),
             new("TenantName", tenantName),
+            new("TenantState", tenantState),
         };
+
         var roles = await _userManager.GetRolesAsync(user);
         claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -85,8 +106,8 @@ public class JwtService
         try
         {
             var principal = tokenHandler.ValidateToken(token, validationParameters, out SecurityToken validatedToken);
-            var tenantId = principal.FindFirst("TenantId")?.Value ??   Guid.Empty.ToString();
-            var tenantName = principal.FindFirst("TenantName")?.Value ??  "";
+            var tenantId = principal.FindFirst("TenantId")?.Value ?? Guid.Empty.ToString();
+            var tenantName = principal.FindFirst("TenantName")?.Value ?? "";
             return new TokenInfo
             {
                 JTI = Guid.Parse(principal.FindFirst(JwtRegisteredClaimNames.Jti)?.Value ?? Guid.Empty.ToString()),
@@ -96,8 +117,8 @@ public class JwtService
                 IsValid = true,
                 IsExpired = false,
                 ExpiresAt = (validatedToken as JwtSecurityToken)?.ValidTo,
-                TenantId= Guid.Parse(tenantId),
-                TenantName= tenantName,
+                TenantId = Guid.Parse(tenantId),
+                TenantName = tenantName,
             };
         }
         catch (SecurityTokenExpiredException ex)

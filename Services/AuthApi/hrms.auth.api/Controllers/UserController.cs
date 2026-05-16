@@ -75,12 +75,12 @@ namespace OnePunch.Auth.Api.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> CreateAccount([FromBody] CreateAccount payload, CancellationToken token)
         {
-            var user= await _service.RegisterAccount(payload, token);
+            var user = await _service.RegisterAccount(payload, token);
             if (Request.Headers["X-Client-Type"] == "WF")
             {
                 return Ok(new
                 {
-                    Email=user.Email,
+                    Email = user.Email,
                 });
             }
             var url = _options.FrontEnd;
@@ -106,7 +106,7 @@ namespace OnePunch.Auth.Api.Controllers
             var token = HttpContext.Request.GetAuthorizationToken();
             if (token == null) return Unauthorized();
             var response = await _service.Profile(HttpContext.User);
-            if (response == null) return  NotFound(); 
+            if (response == null) return NotFound();
 
             return Ok(new
             {
@@ -176,7 +176,7 @@ namespace OnePunch.Auth.Api.Controllers
 
         [AllowAnonymous]
         [HttpGet("refresh")]
-        public async Task<IActionResult> Refresh([FromQuery(Name ="refresh-token")]string refreshToken , CancellationToken token)
+        public async Task<IActionResult> Refresh([FromQuery(Name = "refresh-token")] string refreshToken, CancellationToken token)
         {
             var response = await _service.RefreshLogin(refreshToken, token);
             if (!string.IsNullOrWhiteSpace(response.ErrorMessage))
@@ -185,11 +185,12 @@ namespace OnePunch.Auth.Api.Controllers
             return Ok(response);
         }
 
-        //[HttpPost("key-gen")]
-        //public async Task<IActionResult> KeyGen()
-        //{
-        //    var response = _service.KeyGen();
-        //    return Ok(response);
-        //}
+        [HttpPost("key-gen")]
+        public async Task<IActionResult> KeyGen()
+        {
+            //for jwt key
+            var response = _service.KeyGen();
+            return Ok(response);
+        }
     }
 }

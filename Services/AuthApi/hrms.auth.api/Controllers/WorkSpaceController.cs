@@ -22,9 +22,8 @@ namespace OnePunch.Auth.Api.Controllers
         [HttpPost()]
         public async Task<IActionResult> Create(CreateWorkspaceRequest payload, CancellationToken token)
         {
-            await _service.Create(payload,User, token);
-            return Ok(); 
+            var result=await _service.Create(payload,User, token);
+            return Ok(result); 
         }
-
     }
 }

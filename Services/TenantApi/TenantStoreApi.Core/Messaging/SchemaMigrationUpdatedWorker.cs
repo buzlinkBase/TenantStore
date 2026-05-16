@@ -41,7 +41,6 @@ public class SchemaMigrationUpdatedWorker : IConsumer<SchemaVersionUpdatePayload
             }
             _unitOfWork.Repository.Update(schema);
         }
-
         // Pass the user/system name for audit logs if your UnitOfWork supports it
         await _unitOfWork.CommitChangesAsync($"MigrationUpdate-{message.System}", context.CancellationToken);
     }

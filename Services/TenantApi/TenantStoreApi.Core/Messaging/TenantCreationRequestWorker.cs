@@ -1,7 +1,6 @@
 ﻿using BuzlinkRepository;
 using MassTransit;
 using TenantStoreApi.Core.Services;
-using TenantStoreApi.Domain.Entities.Subs;
 
 namespace TenantStoreApi.Core.Messaging;
 
@@ -33,8 +32,6 @@ public class TenantCreationRequestWorker : IConsumer<TenantCreationRequest>
         await PublishTenantAsync(tenant);
         await _tenantService.CommitChangesAsync(context.CancellationToken);
     }
-
-    
 
     private async Task PublishTenantAsync(TenantModel tenant)
     {

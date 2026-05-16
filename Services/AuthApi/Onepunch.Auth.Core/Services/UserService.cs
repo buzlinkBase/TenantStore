@@ -61,40 +61,59 @@ public class UserService : BaseService<User>
     public async Task<User> RegisterAccount(CreateAccount payload, CancellationToken token)
     {
         var user = await _manager.FindByEmailAsync(payload.Email);
-        if (user == null)
-        {
-            user = new User
-            {
-                UserName = payload.Email,
-                Email = payload.Email,
-                FullName = payload.Name ?? "Admin",
-                Status = "Pending"
-            };
-            var result = await _manager.CreateAsync(user, payload.Password);
-            await _manager.AddToRoleAsync(user, "Admin");
-            if (!result.Succeeded)
-            {
-                var error = result.Errors.FirstOrDefault()?.Description ?? "Unable to create an account";
-                throw new Exception(error);
-            }
-        }
-        else
+        if (user != null)
         {
             if (!user.EmailConfirmed)
             {
                 await _notificationService.SendEmailVerification(user, token);
             }
-            throw new Exception("Email confirmation were sent.");
+            return user;
         }
+
+        user = new User
+        {
+            UserName = payload.Email,
+            Email = payload.Email,
+            FullName = payload.Name ?? "Admin",
+            Status = "Pending"
+        };
+        // 1. Create the user first
+        var createResult = await _manager.CreateAsync(user, payload.Password);
+        if (!createResult.Succeeded)
+        {
+            var error = createResult.Errors.FirstOrDefault()?.Description ?? "Unable to create user";
+            Log.Logger.Error("User creation failed: {0}", error);
+            throw new Exception(error);
+        }
+
+        // 2. Ensure the Role exists (Fixed: Checking for "Admin" since you assign "Admin")
+        string roleName = "Admin";
+        if (!await _roleManager.RoleExistsAsync(roleName))
+        {
+            await _roleManager.CreateAsync(new Role { Name = roleName });
+        }
+
+        // 3. Assign the Role (This populates 'aspnetuserroles', NOT 'aspnetuserclaims')
+        var roleAssignResult = await _manager.AddToRoleAsync(user, roleName);
+        if (!roleAssignResult.Succeeded)
+        {
+            var error = roleAssignResult.Errors.FirstOrDefault()?.Description ?? "Role assignment failed";
+            Log.Logger.Error("Role assignment failed for {0}: {1}", user.Email, error);
+            throw new Exception(error);
+        }
+
+        // 4. OPTIONAL: If you WANT data in 'aspnetuserclaims', you must add it explicitly
+        await _manager.AddClaimAsync(user, new Claim("Permission", "CanAccessDashboard"));
+
         if (!user.EmailConfirmed)
         {
             await _notificationService.SendEmailVerification(user, token);
         }
-        await _manager.UpdateAsync(user);
-        await CommitChangesAsync(token);
+
+        // NOTE: _manager.CreateAsync and AddToRoleAsync save to the DB automatically.
+        // Only call UpdateAsync or CommitChanges if you changed properties on 'user' manually.
         return user;
     }
-
     public async Task<RegistrationResult> ConfirmedRegistration(string emailToken, CancellationToken ctoken)
     {
         var emailInfoDb = await FindToken(emailToken);

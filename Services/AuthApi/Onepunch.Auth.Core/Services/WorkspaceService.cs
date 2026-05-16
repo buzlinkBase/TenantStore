@@ -12,14 +12,14 @@ public class WorkspaceService : BaseService<User>
 {
     private readonly IPublishEndpoint _publisher;
     private readonly UserService _userService;
-    private readonly TenantCreationRequestStatusService _requestService;
+    private readonly TenantRequestService _requestService;
     private readonly UserManager<User> _userManager;
     private readonly JwtService _jwtService;
     private readonly ITenantProvider _tenantProvider;
     public WorkspaceService(
          IPublishEndpoint publisher,
          UserService userService,
-         TenantCreationRequestStatusService requestService,
+         TenantRequestService requestService,
          IUnitOfWorkService uow,
          UserManager<User> userManager,
          JwtService jwtService,
@@ -61,7 +61,5 @@ public class WorkspaceService : BaseService<User>
         await Context.RefreshTokens.AddAsync(_userService.CreateRefreshToken(user, refreshTokenString), token);
         await CommitChangesAsync(token);
         return _userService.ComposeLoginRespose(user, accessToken, refreshTokenString);
-
-
     }
 }
