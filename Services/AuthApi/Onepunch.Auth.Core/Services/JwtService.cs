@@ -52,7 +52,7 @@ public class JwtService
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SigningKey));
         string tenantState = "Pending";
 
-        if (string.IsNullOrWhiteSpace(tenantId))
+        if (!string.IsNullOrWhiteSpace(tenantId))
         {
             if (Guid.TryParse(tenantId, out Guid parseTenantId))
             {

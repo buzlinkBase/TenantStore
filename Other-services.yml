@@ -55,6 +55,8 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    entrypoint: >
+      sh -c "rabbitmq-plugins enable --offline rabbitmq_shovel rabbitmq_shovel_management && rabbitmq-server"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
