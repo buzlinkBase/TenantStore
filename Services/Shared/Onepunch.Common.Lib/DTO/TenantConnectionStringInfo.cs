@@ -1,6 +1,6 @@
 ﻿namespace Onepunch.Common.Lib;
 
-public class TenantConnectionInfo
+public class TenantConnectionStringInfo
 {
     public string? ConnectionString { get; set; }
     public Guid TenantId { get; set; } = Guid.NewGuid();
