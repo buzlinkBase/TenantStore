@@ -5,7 +5,7 @@ namespace Onepunch.Common.Lib.DTO;
 
 public class AttendancePayloadWrapper
 {
-    public List<CreateAttendancePayload> AttLogs  { get; set; } 
+    public List<CreateAttendancePayload> AttLogs { get; set; }
 }
 
 public class CreateAttendancePayload
@@ -18,11 +18,22 @@ public class CreateAttendancePayload
     public Guid? ClientId { get; set; }
     public Guid? DepartmentId { get; set; }
     public string DeviceName { get; set; } = string.Empty;
-    public string IPAddress  { get; set; } = string.Empty;
+    public string IPAddress { get; set; } = string.Empty;
     public Polygon? Coordinates { get; set; }
 }
 
 public record BatchAttConfirmation
 {
     public Guid BatchId { get; set; }
+}
+
+public class DeviceCommandWrapper
+{
+    List<DeviceCommandPayload> Commands = new List<DeviceCommandPayload>();
+}
+public class DeviceCommandPayload
+{
+    public string DeviceSN { get; set; } = string.Empty;
+    public Guid TenantId { get; set; }
+    public string CommandMessage { get; set; } = string.Empty;
 }
