@@ -3,6 +3,11 @@ using NetTopologySuite.Geometries;
 
 namespace Onepunch.Common.Lib.DTO;
 
+public class AttendancePayloadWrapper
+{
+    public List<CreateAttendancePayload> AttLogs  { get; set; } 
+}
+
 public class CreateAttendancePayload
 {
     public Guid BatchId { get; set; }
