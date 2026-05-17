@@ -18,9 +18,9 @@ public class CreateAttendancePayload
     public Guid? ClientId { get; set; }
     public Guid? DepartmentId { get; set; }
     public string DeviceName { get; set; } = string.Empty;
+    public string IPAddress  { get; set; } = string.Empty;
     public Polygon? Coordinates { get; set; }
 }
-
 
 public record BatchAttConfirmation
 {
