@@ -29,7 +29,7 @@ public record BatchAttConfirmation
 
 public class DeviceCommandWrapper
 {
-    List<DeviceCommandPayload> Commands = new List<DeviceCommandPayload>();
+    public List<DeviceCommandPayload> Commands = new List<DeviceCommandPayload>();
 }
 public class DeviceCommandPayload
 {
