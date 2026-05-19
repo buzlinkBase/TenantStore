@@ -29,11 +29,11 @@ public record BatchAttConfirmation
     public Guid BatchId { get; set; }
 }
 
-public class DeviceCommandWrapper<T>
+public class DeviceCommandWrapper<T> where T : class, new()
 {
     public Guid TenantId { get; set; }
     public string DeviceSN { get; set; } = string.Empty;
-    public List<T> Commands = new List<T>();
+    public T Commands = new();
 }
 
 public class SetEmployeeCommandPayload
