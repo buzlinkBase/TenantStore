@@ -36,9 +36,9 @@ public class DeviceCommandWrapper<T>
     public List<T> Commands = new List<T>();
 }
 
-public class SetEmployeePayload
+public class SetEmployeeCommandPayload
 {
-    public int BioId  { get; set; }
+    public int BioId { get; set; }
     public string Name { get; set; }
     public int Privilege { get; set; }
     public string Password { get; set; }
@@ -51,4 +51,3 @@ public class SetEmployeePayload
     //public string valid_from { get; set; }
     //public string valid_until { get; set; }
 }
- 
