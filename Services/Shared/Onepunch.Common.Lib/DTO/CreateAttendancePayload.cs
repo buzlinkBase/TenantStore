@@ -1,5 +1,7 @@
 ﻿
 using NetTopologySuite.Geometries;
+using System.Net.NetworkInformation;
+using System.Runtime;
 
 namespace Onepunch.Common.Lib.DTO;
 
@@ -27,13 +29,26 @@ public record BatchAttConfirmation
     public Guid BatchId { get; set; }
 }
 
-public class DeviceCommandWrapper
+public class DeviceCommandWrapper<T>
 {
-    public List<DeviceCommandPayload> Commands = new List<DeviceCommandPayload>();
-}
-public class DeviceCommandPayload
-{
-    public string DeviceSN { get; set; } = string.Empty;
     public Guid TenantId { get; set; }
-    public string CommandMessage { get; set; } = string.Empty;
+    public string DeviceSN { get; set; } = string.Empty;
+    public List<T> Commands = new List<T>();
 }
+
+public class SetEmployeePayload
+{
+    public int BioId  { get; set; }
+    public string Name { get; set; }
+    public int Privilege { get; set; }
+    public string Password { get; set; }
+    public string Card { get; set; }
+
+    //public string group_code { get; set; }
+    //public string timezone_code { get; set; }
+    //public string verification_mode { get; set; }
+    //public string vice_card_no { get; set; }
+    //public string valid_from { get; set; }
+    //public string valid_until { get; set; }
+}
+ 
