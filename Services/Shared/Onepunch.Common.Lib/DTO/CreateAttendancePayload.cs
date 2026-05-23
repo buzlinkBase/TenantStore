@@ -31,7 +31,6 @@ public record BatchAttConfirmation
 
 public class DeviceCommandWrapper<T> where T : class, new()
 {
-    public Guid TenantId { get; set; }
     public string DeviceSN { get; set; } = string.Empty;
     public T Commands = new();
 }
@@ -50,4 +49,13 @@ public class SetEmployeeCommandPayload
     //public string vice_card_no { get; set; }
     //public string valid_from { get; set; }
     //public string valid_until { get; set; }
+
+}
+
+public class SyncBioPayload
+{
+    public int BioId { get; set; }
+    public int Index { get; set; }
+    public string Template { get; set; }
+    public bool Dures  { get; set; }
 }
