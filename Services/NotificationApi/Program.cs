@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using Asp.Versioning.ApiExplorer;
 using Mapster;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
 using OnePunch.Notification.Infrastructure;
 using Swashbuckle.AspNetCore.SwaggerGen;
@@ -53,6 +54,9 @@ builder.Services.AddDbContext<NotifContext>(options =>
     var connectionstring = builder.Configuration.GetConnectionString("NotifConnection");
     options.UseMySql(connectionstring, new MySqlServerVersion(new Version(9, 2, 0)));
 });
+builder.Services.AddDataProtection()
+        .PersistKeysToFileSystem(new DirectoryInfo(@"/app/dp-keys"));
+
 var app = builder.Build();
 var apiVersionProvider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
 //if (app.Environment.IsDevelopment())

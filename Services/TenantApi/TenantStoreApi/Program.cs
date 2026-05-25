@@ -3,6 +3,7 @@ using Mapster;
 using MessagePack;
 using MessagePack.AspNetCoreMvcFormatter;
 using MessagePack.Resolvers;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Serilog;
@@ -79,29 +80,8 @@ internal class Program
             options.OperationFilter<SwaggerHeader>();
         });
 
-        //Console.WriteLine("--- LOADING DIAGNOSTIC ---");
-        //foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-        //{
-        //    if (assembly.FullName.Contains("RabbitMQ.Client"))
-        //    {
-        //        Console.WriteLine($"Name: {assembly.FullName}");
-        //        Console.WriteLine($"Location: {assembly.Location}");
-        //    }
-        //}
-        //Console.WriteLine("--------------------------");
-
-
-        //Console.WriteLine("--- DETECTIVE DIAGNOSTIC START ---");
-        //var rabbitAssemblies = AppDomain.CurrentDomain.GetAssemblies()
-        //    .Where(a => a.FullName.Contains("RabbitMQ.Client"));
-
-        //foreach (var asm in rabbitAssemblies)
-        //{
-        //    Console.WriteLine($"LOADED: {asm.FullName}");
-        //    Console.WriteLine($"PATH: {asm.Location}");
-        //}
-        //Console.WriteLine("--- DETECTIVE DIAGNOSTIC END ---");
-
+        builder.Services.AddDataProtection()
+        .PersistKeysToFileSystem(new DirectoryInfo(@"/app/dp-keys"));
 
         var app = builder.Build();
         // Configure the HTTP request pipeline.

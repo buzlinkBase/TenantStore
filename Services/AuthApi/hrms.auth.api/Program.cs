@@ -1,4 +1,5 @@
 using Asp.Versioning.ApiExplorer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
 using Onepunch.Auth.Core.Protos;
 using Onepunch.Common.Lib;
@@ -57,6 +58,8 @@ internal class Program
         builder.Services.RegisterCoreServices();
         builder.AuthConfigRabbitMq();
         builder.Services.AddMapster(typeof(MappingConfig).Assembly);
+        builder.Services.AddDataProtection()
+        .PersistKeysToFileSystem(new DirectoryInfo(@"/app/dp-keys"));
 
         var app = builder.Build();
         var apiVersionProvider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
