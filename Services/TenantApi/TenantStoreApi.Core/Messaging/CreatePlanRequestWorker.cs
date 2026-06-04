@@ -1,4 +1,4 @@
-﻿using BuzlinkRepository;
+using BuzlinkRepository;
 using MassTransit;
 using TenantStoreApi.Core.Services;
 using TenantStoreApi.Domain.Entities.Subs;
@@ -13,7 +13,8 @@ public class CreatePlanRequestWorker : IConsumer<PlanRequest>
     private readonly PlanService _planService;
     private readonly IPublishEndpoint _publisher;
 
-    public CreatePlanRequestWorker(TenantService tenantService,
+    public CreatePlanRequestWorker(
+        TenantService tenantService,
         UserMembershipService userMembershipService,
         SubscriptionService subscriptionService,
         ITenantProvider tenantProvider,
@@ -29,35 +30,41 @@ public class CreatePlanRequestWorker : IConsumer<PlanRequest>
 
     public async Task Consume(ConsumeContext<PlanRequest> context)
     {
-        var message = context.Message; 
+        var message = context.Message;
         _tenantProvider.SetTenantId(message.TenantId);
         await CreateSubsAsync(message, context.CancellationToken);
         await _tenantService.CommitChangesAsync(context.CancellationToken);
     }
 
-    public async Task CreateSubsAsync(PlanRequest model, CancellationToken token)
+    private async Task CreateSubsAsync(PlanRequest model, CancellationToken token)
     {
-        var plan = await _planService.FindPlanAsync(model.TenantId, token);
+        var plan = await _planService.FindPlanAsync(model.PlanId, token);
         if (plan == null)
         {
-            var notFound = new ServicePlanNotFound
+            await _publisher.Publish(new ServicePlanNotFound
             {
                 PlanId = model.PlanId,
                 TenantId = model.TenantId,
                 UserId = model.UserId,
-            };
-            await _publisher.Publish(notFound);
+            });
             return;
         }
-        //DateTime.UtcNow.AddDays(plan.Days) //this can be incremented when payment received/paid
-        var sub = new TenantSubscription
+
+        var existing = await _subscriptionService.FindActiveAsync(model.TenantId, token);
+        if (existing != null)
+        {
+            existing.SubStatus = SubscriptionStatus.Expired;
+            await _subscriptionService.UpdateAsync(existing, token);
+        }
+
+        var endDate = model.ValidUntil ?? DateTime.UtcNow.AddDays(plan.Days);
+        await _subscriptionService.AddAsync(new TenantSubscription
         {
             TenantId = model.TenantId,
             PlanId = model.PlanId,
-            SubStatus = model.ValidUntil == null ? SubscriptionStatus.Active : SubscriptionStatus.Expired,
+            SubStatus = endDate > DateTime.UtcNow ? SubscriptionStatus.Active : SubscriptionStatus.Expired,
             StartDate = DateTime.UtcNow,
-            EndDate = model.ValidUntil ?? DateTime.UtcNow,
-        };
-        await _subscriptionService.AddAsync(sub);
+            EndDate = endDate,
+        }, token);
     }
 }

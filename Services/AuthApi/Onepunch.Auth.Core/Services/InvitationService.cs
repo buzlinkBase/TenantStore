@@ -1,6 +1,7 @@
-﻿using MassTransit;
+using MassTransit;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Core;
@@ -16,26 +17,30 @@ namespace Onepunch.Auth.Core.Services
         private readonly TenantRequestService _tenantCreationRequestStatusService;
         private readonly Domains _domains;
         private readonly UserManager<User> _manager;
-        private readonly IPublishEndpoint publisher;
-        public InvitationService(IUnitOfWorkService uow,
-             EmailTokenService emailTokenService,
-             TenantRequestService tenantCreationRequestStatusService,
-              IOptions<Domains> domains,
-              IHttpContextAccessor contextAccessor,
-              UserManager<User> manager,
-              IPublishEndpoint publisher) : base(uow)
+        private readonly IPublishEndpoint _publisher;
+
+        public InvitationService(
+            IUnitOfWorkService uow,
+            EmailTokenService emailTokenService,
+            TenantRequestService tenantCreationRequestStatusService,
+            IOptions<Domains> domains,
+            IHttpContextAccessor contextAccessor,
+            UserManager<User> manager,
+            IPublishEndpoint publisher) : base(uow)
         {
             _emailTokenService = emailTokenService;
             _tenantCreationRequestStatusService = tenantCreationRequestStatusService;
             _domains = domains.Value;
             _manager = manager;
-            this.publisher = publisher;
+            _publisher = publisher;
         }
 
-        public async Task SendUserInvitationAsync(InvitationRequest payload,
+        public async Task SendUserInvitationAsync(
+            InvitationRequest payload,
             Guid tenantId,
             string tenantName,
-            ClaimsPrincipal userClaim, CancellationToken ct)
+            ClaimsPrincipal userClaim,
+            CancellationToken ct)
         {
             var user = await _manager.GetUserAsync(userClaim);
             if (user == null) throw new UnauthorizedException();
@@ -44,59 +49,79 @@ namespace Onepunch.Auth.Core.Services
 
             var request = await _tenantCreationRequestStatusService.FindOne(tenantId);
             if (request != null && request.Status == TenantCreationStatus.Pending)
-            {
                 throw new Exception("Your organization is still being provisioned or is inactive.");
-            }
 
-            var exp = DateTime.UtcNow.AddDays(1);
             var token = _emailTokenService.GetRandomToken;
+            var exp = DateTime.UtcNow.AddDays(1);
+
             var invitation = new Invitation
             {
                 Email = payload.Email,
                 TenantId = tenantId,
+                TenantName = tenantName,
                 UserId = user.Id,
                 Expiry = exp,
-                Token = token
+                Token = token,
+                Status = InvitationStatus.Pending,
+                Role = string.IsNullOrWhiteSpace(payload.Role) ? "Member" : payload.Role,
             };
             Repository.Add(invitation);
-            var message = new UserInvitionNotificationPayload
+
+            await _publisher.Publish(new UserInvitionNotificationPayload
             {
                 Email = payload.Email,
                 InviteLink = $"{_domains.BaseUrl}/invitations-list?token={token}",
                 Organization = tenantName ?? user.DefaultTenantName ?? "",
                 Name = user.FullName ?? user.Email ?? "User",
                 Expiry = exp,
-            };
-            await publisher.Publish(message, ct);
+            }, ct);
+
             await CommitChangesAsync(ct);
         }
 
-        public async Task Accept(string invitationToken, ClaimsPrincipal userClaim,
-            CancellationToken token)
+        public async Task Accept(string invitationToken, ClaimsPrincipal userClaim, CancellationToken token)
         {
             var user = await _manager.GetUserAsync(userClaim);
             if (user == null) throw new UnauthorizedException();
 
-            var invRequest = await GetQueryable(x => x.Token == invitationToken && x.Expiry > DateTime.UtcNow)
+            var invitation = await GetQueryable(x =>
+                x.Token == invitationToken &&
+                x.Status == InvitationStatus.Pending &&
+                x.Expiry > DateTime.UtcNow)
                 .FirstOrDefaultAsync(token);
 
-            if (invRequest == null) throw new Exception("Invitation token is expired");
-            var joinRequest = new UserJoin
+            if (invitation == null) throw new Exception("Invitation is invalid or has already been used.");
+
+            invitation.Status = InvitationStatus.Accepted;
+
+            await _publisher.Publish(new UserJoin
             {
                 UserId = user.Id,
-                TenantId = invRequest.TenantId,
-            };
-            await publisher.Publish(joinRequest);
-            Context.Invitations.Remove(invRequest);
+                TenantId = invitation.TenantId,
+                TenantName = invitation.TenantName ?? string.Empty,
+                Role = invitation.Role,
+            });
+
             await CommitChangesAsync(token);
         }
 
         public async Task<bool> IsValidAsync(string invitationToken, CancellationToken token = default)
         {
-            var result = await GetQueryable(x => x.Token == invitationToken && x.Expiry > DateTime.UtcNow)
+            var result = await GetQueryable(x =>
+                x.Token == invitationToken &&
+                x.Status == InvitationStatus.Pending &&
+                x.Expiry > DateTime.UtcNow)
                 .FirstOrDefaultAsync(token);
             return result != null;
         }
 
+        public async Task<List<Invitation>> GetPendingByEmailAsync(string email, CancellationToken token = default)
+        {
+            return await GetQueryable(x =>
+                x.Email == email &&
+                x.Status == InvitationStatus.Pending &&
+                x.Expiry > DateTime.UtcNow)
+                .ToListAsync(token);
+        }
     }
 }

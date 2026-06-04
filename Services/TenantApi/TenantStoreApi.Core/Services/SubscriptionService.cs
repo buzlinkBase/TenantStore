@@ -21,7 +21,14 @@ public class SubscriptionService : BaseService<TenantSubscription>
 
     public async Task<TenantSubscription?> FindOne(Guid tenantId)
     {
-        return await GetQueryable(x=>x.TenantId== tenantId).FirstOrDefaultAsync();
+        return await GetQueryable(x => x.TenantId == tenantId).FirstOrDefaultAsync();
+    }
+
+    public async Task<TenantSubscription?> FindActiveAsync(Guid tenantId, CancellationToken token = default)
+    {
+        return await GetQueryable(x => x.TenantId == tenantId &&
+            (x.SubStatus == SubscriptionStatus.Active || x.SubStatus == SubscriptionStatus.Trialing))
+            .FirstOrDefaultAsync(token);
     }
 
     //public async Task<bool> IsFeatureEnabled(Guid tenantId, ServiceType feature)

@@ -19,7 +19,9 @@ public class PlanRequest
 public record UserJoin
 {
     public Guid UserId { get; set; }
-    public Guid TenantId  { get; set; }
+    public Guid TenantId { get; set; }
+    public string TenantName { get; set; } = string.Empty;
+    public string Role { get; set; } = "Member";
 }
 public record TenantJoin 
 {

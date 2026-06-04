@@ -11,8 +11,8 @@ public class Invitation : BaseEntity
     public string Email { get; set; }//invited
     public string Token { get; set; }
     public DateTime Expiry { get; set; }
-    public   InvitationStatus Status  { get; set; }
-    public Guid Role { get; set; }
+    public InvitationStatus Status { get; set; }
+    public string Role { get; set; } = "Member";
 }
 
 public enum InvitationStatus

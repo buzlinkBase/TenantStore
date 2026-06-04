@@ -1,9 +1,8 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace OnePunch.Auth.Api.Controllers
 {
-
     [Route("api/v{version:apiVersion}/[controller]")]
     [ApiVersion("1.0")]
     [ApiController]
@@ -12,11 +11,22 @@ namespace OnePunch.Auth.Api.Controllers
     {
         private readonly TenantRequestService _service;
 
-        public TenantRequestController(TenantRequestService service )
+        public TenantRequestController(TenantRequestService service)
         {
             _service = service;
         }
 
-        //public async Task<IActionResult>
+        [HttpGet("status/{tenantId:guid}")]
+        public async Task<IActionResult> GetStatus(Guid tenantId, CancellationToken token)
+        {
+            var status = await _service.FindOne(tenantId);
+            if (status == null) return NotFound();
+            return Ok(new
+            {
+                status.TenantId,
+                Status = status.Status.ToString(),
+                IsReady = status.Status == TenantCreationStatus.Created,
+            });
+        }
     }
 }

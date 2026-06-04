@@ -22,21 +22,19 @@ public class  UserJoinWorker : IConsumer<UserJoin>
     {
         var message = context.Message;
 
-        //no tenant just a member
         await _userMembershipService.AddAsync(new UserMembership
         {
             TenantId = message.TenantId,
             UserId = message.UserId,
-            Role = "Member"
+            Role = string.IsNullOrWhiteSpace(message.Role) ? "Member" : message.Role,
         }, context.CancellationToken);
 
-        var createdTenant = new UserJoinToTenantPayload
+        await _publisher.Publish(new UserJoinToTenantPayload
         {
             TenantId = message.TenantId,
+            TenantName = message.TenantName,
             UserId = message.UserId,
-        };
-        await _publisher.Publish(createdTenant);
+        });
         await _tenantService.CommitChangesAsync(context.CancellationToken);
-
     }
 }
