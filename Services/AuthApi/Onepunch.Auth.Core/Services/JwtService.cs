@@ -109,6 +109,7 @@ public class JwtService
             var principal = tokenHandler.ValidateToken(token, validationParameters, out SecurityToken validatedToken);
             var tenantId = principal.FindFirst("TenantId")?.Value ?? Guid.Empty.ToString();
             var tenantName = principal.FindFirst("TenantName")?.Value ?? "";
+            var tenantMemberRole = principal.FindFirst("TenantMemberRole")?.Value ?? "";
             return new TokenInfo
             {
                 JTI = Guid.Parse(principal.FindFirst(JwtRegisteredClaimNames.Jti)?.Value ?? Guid.Empty.ToString()),
@@ -120,6 +121,7 @@ public class JwtService
                 ExpiresAt = (validatedToken as JwtSecurityToken)?.ValidTo,
                 TenantId = Guid.Parse(tenantId),
                 TenantName = tenantName,
+                TenantMemberRole = tenantMemberRole,
             };
         }
         catch (SecurityTokenExpiredException ex)

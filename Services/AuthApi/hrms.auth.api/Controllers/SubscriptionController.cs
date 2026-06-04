@@ -20,28 +20,29 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [HttpPost()]
-        public async Task<IActionResult> Create(PlanRequestDto request, CancellationToken token)
+        public async Task<IActionResult> Create([FromBody] PlanRequestDto request, CancellationToken token)
         {
             var userId = HttpContext.User.GetRequiredUserId();
             var tenantId = HttpContext.User.GetUserClaim("TenantId")?.ToString() ?? "";
+            var memberRole = HttpContext.User.GetUserClaim("TenantMemberRole") ?? "";
+
             if (string.IsNullOrEmpty(tenantId) || Guid.Parse(tenantId) == Guid.Empty)
-            {
-                return BadRequest("Invalid tenant");
-            }
-            else if (userId == Guid.Empty)
-            {
+                return BadRequest("Invalid tenant context.");
+
+            if (userId == Guid.Empty)
                 return Unauthorized();
-            }
-            var payload = new PlanRequest
+
+            if (memberRole != "Owner" && memberRole != "Admin")
+                return Forbid();
+
+            await _service.Create(new PlanRequest
             {
                 PlanId = request.PlanId,
                 ValidUntil = request.ValidUntil,
                 TenantId = Guid.Parse(tenantId),
                 UserId = userId
-            };
-            await _service.Create(payload, token);
+            }, token);
             return Ok();
-
         }
     }
 }

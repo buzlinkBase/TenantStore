@@ -243,6 +243,15 @@ public class UserService : BaseService<User>
     internal LoginResponse ComposeLoginRespose(User user, string accessToken, string refreshToken)
     {
         var tenants = new List<UsersTenant>();
+        if (user.DefaultTenantId.HasValue && user.DefaultTenantId != Guid.Empty)
+        {
+            tenants.Add(new UsersTenant
+            {
+                TenantId = user.DefaultTenantId.Value,
+                Name = user.DefaultTenantName ?? "",
+                Type = user.DefaultTenantRole ?? "",
+            });
+        }
         return new LoginResponse
         {
             AccessToken = accessToken,
