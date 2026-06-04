@@ -34,23 +34,24 @@ public class EmailNotificationService
 
     public async Task SendEmailVerification(User account, CancellationToken ct)
     {
-        var request = _httpContextAccessor.HttpContext!.Request;
-        var baseUrl = $"{request.Scheme}://{request.Host}";
+        if (account?.Email == null) return;
 
-        if (account == null || account?.Email == null) return;
+        var baseUrl = _domainOptions.BaseUrl;
+        var httpContext = _httpContextAccessor.HttpContext;
+        if (httpContext != null)
+            baseUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}";
+
         var exp = DateTime.UtcNow.AddDays(1);
         var tokenModel = await _emailTokenService.CreateModel(exp, account.Email);
         await _emailTokenService.StoreToken(tokenModel, ct);
 
-        var emailDomain = new SendAccountVerification
+        await _publisher.Publish(new SendAccountVerification
         {
-            Email = account.Email!,
+            Email = account.Email,
             FullName = account.FullName ?? "User",
             ConfirmationRoute = $"{baseUrl}/api/v1/users/confirm-email?token={tokenModel.TokenValue}"
-        };
-        await _publisher.Publish(emailDomain, ct);
+        }, ct);
         await _emailTokenService.CommitChangesAsync(ct);
-
     }
 
     public async Task SendResetPassword(User account, string userToken, CancellationToken token)

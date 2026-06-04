@@ -20,7 +20,6 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [HttpPost()]
-        [AllowAnonymous]
         public async Task<IActionResult> Create([FromQuery] string roleName, CancellationToken token)
         {
             await _service.Create(roleName);

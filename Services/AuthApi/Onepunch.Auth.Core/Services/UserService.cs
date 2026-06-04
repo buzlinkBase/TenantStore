@@ -1,4 +1,4 @@
-﻿using MassTransit;
+using MassTransit;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -22,6 +22,7 @@ public class UserService : BaseService<User>
     private readonly JwtService _jwtService;
     private readonly EmailNotificationService _notificationService;
     private readonly IMapper _mapper;
+
     public UserService(
         IUnitOfWorkService uow,
         IPublishEndpoint publisher,
@@ -37,7 +38,6 @@ public class UserService : BaseService<User>
         EmailTokenService emailTokenService,
         InvitationService invitationService,
         EmailNotificationService notificationService,
-
         IMapper mapper) : base(uow)
     {
         _publisher = publisher;
@@ -50,120 +50,101 @@ public class UserService : BaseService<User>
         _notificationService = notificationService;
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
     }
+
     #region Registration Helpers
-    private RegistrationResult Success(string message) => new RegistrationResult { Success = true, Message = message };
-    private RegistrationResult Fail(string code, string message) => new RegistrationResult { Success = false, ErrorCode = code, Message = message };
+    private RegistrationResult Success(string message, string? email = null) =>
+        new() { Success = true, Message = message, Email = email };
+    private RegistrationResult Fail(string code, string message) =>
+        new() { Success = false, ErrorCode = code, Message = message };
     private async Task<EmailToken?> FindToken(string emailToken) =>
         await Repository.Find<EmailToken>(x => x.TokenValue == emailToken).FirstOrDefaultAsync();
     private bool IsTokenExpired(EmailToken token) => token.Expiry < DateTime.UtcNow;
     #endregion
+
     #region Registration
-    public async Task<User> RegisterAccount(CreateAccount payload, CancellationToken token)
+    public async Task<RegistrationResult> RegisterAccount(CreateAccount payload, CancellationToken token)
     {
-        var user = await _manager.FindByEmailAsync(payload.Email);
-        if (user != null)
+        var existing = await _manager.FindByEmailAsync(payload.Email);
+        if (existing != null)
         {
-            if (!user.EmailConfirmed)
-            {
-                await _notificationService.SendEmailVerification(user, token);
-            }
-            return user;
+            if (!existing.EmailConfirmed)
+                await _notificationService.SendEmailVerification(existing, token);
+            return Success("Please check your email to verify your account.", existing.Email);
         }
 
-        user = new User
+        var user = new User
         {
             UserName = payload.Email,
             Email = payload.Email,
-            FullName = payload.Name ?? "Admin",
+            FullName = payload.Name,
             Status = "Pending"
         };
-        // 1. Create the user first
+
         var createResult = await _manager.CreateAsync(user, payload.Password);
         if (!createResult.Succeeded)
         {
-            var error = createResult.Errors.FirstOrDefault()?.Description ?? "Unable to create user";
-            Log.Logger.Error("User creation failed: {0}", error);
-            throw new Exception(error);
+            var error = createResult.Errors.FirstOrDefault()?.Description ?? "Unable to create account.";
+            Log.Logger.Error("User creation failed: {Error}", error);
+            return Fail("CREATE_FAILED", error);
         }
 
-        // 2. Ensure the Role exists (Fixed: Checking for "Admin" since you assign "Admin")
-        string roleName = "Admin";
-        if (!await _roleManager.RoleExistsAsync(roleName))
-        {
-            await _roleManager.CreateAsync(new Role { Name = roleName });
-        }
-
-        // 3. Assign the Role (This populates 'aspnetuserroles', NOT 'aspnetuserclaims')
-        var roleAssignResult = await _manager.AddToRoleAsync(user, roleName);
-        if (!roleAssignResult.Succeeded)
-        {
-            var error = roleAssignResult.Errors.FirstOrDefault()?.Description ?? "Role assignment failed";
-            Log.Logger.Error("Role assignment failed for {0}: {1}", user.Email, error);
-            throw new Exception(error);
-        }
-
-        // 4. OPTIONAL: If you WANT data in 'aspnetuserclaims', you must add it explicitly
-        await _manager.AddClaimAsync(user, new Claim("Permission", "CanAccessDashboard"));
-
-        if (!user.EmailConfirmed)
-        {
-            await _notificationService.SendEmailVerification(user, token);
-        }
-
-        // NOTE: _manager.CreateAsync and AddToRoleAsync save to the DB automatically.
-        // Only call UpdateAsync or CommitChanges if you changed properties on 'user' manually.
-        return user;
+        await _notificationService.SendEmailVerification(user, token);
+        return Success("Account created. Check your email to verify.", user.Email);
     }
+
     public async Task<RegistrationResult> ConfirmedRegistration(string emailToken, CancellationToken ctoken)
     {
         var emailInfoDb = await FindToken(emailToken);
-        if (emailInfoDb == null) throw new Exception("Invalid token");
-        if (IsTokenExpired(emailInfoDb) || emailInfoDb.IsUsed) return Fail("TOKEN_EXPIRED", "User registration expired");
+        if (emailInfoDb == null) return Fail("INVALID_TOKEN", "Invalid verification link.");
+        if (IsTokenExpired(emailInfoDb) || emailInfoDb.IsUsed)
+            return Fail("TOKEN_EXPIRED", "Verification link has expired.");
+
         var user = await _manager.FindByEmailAsync(emailInfoDb.Email);
-        if (user == null) return Fail("USER_NOT_FOUND", "user not found");
+        if (user == null) return Fail("USER_NOT_FOUND", "Account not found.");
 
         user.Status = "Active";
         user.EmailConfirmed = true;
-        Repository.Update(user);
-        await RemoveAsync(emailInfoDb.Id);
+
+        var updateResult = await _manager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+            return Fail("UPDATE_FAILED", "Failed to activate account.");
+
+        emailInfoDb.IsUsed = true;
+        Context.EmailTokens.Update(emailInfoDb);
         await CommitChangesAsync(ctoken);
-        return Success("User successfully activated");
+        return Success("Account verified successfully.");
     }
     #endregion
-    #region User Management 
 
+    #region User Management
     public async Task<IdentityResult?> ChangePassword(ChangePassword payload, CancellationToken token)
     {
         if (payload.NewPassword != payload.ConfirmPassword)
-        {
-            throw new Exception("Password dont match");
-        }
+            throw new GuardException("Passwords do not match.");
         var user = await _manager.FindByEmailAsync(payload.Email);
-        if (user == null) throw new Exception("unable to change password");
+        if (user == null) throw new GuardException("Invalid request.");
         return await _manager.ChangePasswordAsync(user, payload.OldPassword, payload.NewPassword);
     }
+
     public async Task<IdentityResult> PromoteToPasswordAccount(string? userId, string newPassword, CancellationToken token)
     {
         var user = await _manager.FindByIdAsync(userId ?? "");
-        if (user == null) throw new Exception("User not found");
-        var hasPassword = await _manager.HasPasswordAsync(user);
-        if (hasPassword)
-        {
-            throw new Exception("User already has a password. Use ChangePassword instead.");
-        }
+        if (user == null) throw new GuardException("User not found.");
+        if (await _manager.HasPasswordAsync(user))
+            throw new GuardException("User already has a password. Use change-password instead.");
         var result = await _manager.AddPasswordAsync(user, newPassword);
         if (result.Succeeded)
-        {
             await CommitChangesAsync(token);
-        }
         return result;
     }
+
     public async Task ResetPasswordRequestAsync(string email, CancellationToken token)
     {
+        if (string.IsNullOrEmpty(email)) return;
         var userInfo = await _manager.FindByEmailAsync(email);
-        if (userInfo == null || string.IsNullOrEmpty(email))
+        if (userInfo == null)
         {
-            Log.Logger.Error($"user trying to reset password for unknown email {email}");
+            Log.Logger.Warning("Password reset requested for unknown email {Email}", email);
             return;
         }
         var userToken = await _manager.GeneratePasswordResetTokenAsync(userInfo);
@@ -172,44 +153,55 @@ public class UserService : BaseService<User>
 
     public async Task<IdentityResult> ResetPassword(ResetPassword payload, CancellationToken ctoken)
     {
-        if (payload.Password != payload.ConfirmPassword) throw new Exception("Password dont match");
+        if (payload.Password != payload.ConfirmPassword)
+            throw new GuardException("Passwords do not match.");
+
         var emailInfoDb = await FindToken(payload.Token);
-        if (emailInfoDb == null) throw new Exception("Unverified token");
+        if (emailInfoDb == null) throw new GuardException("Invalid or expired token.");
+
         if (IsTokenExpired(emailInfoDb) || emailInfoDb.IsUsed)
         {
-            await RemoveAsync(emailInfoDb.Id);
+            emailInfoDb.IsUsed = true;
+            Context.EmailTokens.Update(emailInfoDb);
             await CommitChangesAsync(ctoken);
-            throw new Exception("Token expired");
+            throw new GuardException("Reset link has expired. Please request a new one.");
         }
+
         var userInfo = await _manager.FindByEmailAsync(emailInfoDb.Email);
-        if (userInfo == null) throw new Exception("User not found");
+        if (userInfo == null) throw new GuardException("Invalid request.");
+
         var result = await _manager.ResetPasswordAsync(userInfo, payload.Token, payload.Password);
-        await RemoveAsync(emailInfoDb.Id);
+        emailInfoDb.IsUsed = true;
+        Context.EmailTokens.Update(emailInfoDb);
         await CommitChangesAsync(ctoken);
         return result;
     }
 
     public Task<User?> GetByIdAsync(string id) => _manager.FindByIdAsync(id);
     public Task<User?> GetByEmailAsync(string email) => _manager.FindByEmailAsync(email);
+
     public async Task<IdentityResult> UpdateAsync(UpdateUser payload)
     {
         var user = await _manager.FindByIdAsync(payload.Id.ToString());
-        if (user == null) return IdentityResult.Failed(new IdentityError { Description = "User not found" });
+        if (user == null) return IdentityResult.Failed(new IdentityError { Description = "User not found." });
         _mapper.Map(payload, user);
         return await _manager.UpdateAsync(user);
     }
+
     public async Task<IdentityResult> UpdateAsync(User user) =>
         user == null
-            ? IdentityResult.Failed(new IdentityError { Description = "User not found" })
+            ? IdentityResult.Failed(new IdentityError { Description = "User not found." })
             : await _manager.UpdateAsync(user);
+
     public async Task<IdentityResult> DeleteAsync(string id)
     {
         var user = await _manager.FindByIdAsync(id);
         return user == null
-            ? IdentityResult.Failed(new IdentityError { Description = "User not found" })
+            ? IdentityResult.Failed(new IdentityError { Description = "User not found." })
             : await _manager.DeleteAsync(user);
     }
     #endregion
+
     #region Authentication
     public async Task<LoginResponse> Login(LoginPayload payload, CancellationToken token)
     {
@@ -219,21 +211,22 @@ public class UserService : BaseService<User>
         {
             return new LoginResponse { ErrorMessage = "Invalid email or password." };
         }
+
+        if (user.LockoutEnabled && user.LockoutEnd > DateTimeOffset.UtcNow)
+            return new LoginResponse { ErrorMessage = "Account is temporarily locked. Please try again later." };
+
         if (user.Status != "Active" || !user.EmailConfirmed)
-        {
-            return new LoginResponse { ErrorMessage = "User is not found" };
-        }
+            return new LoginResponse { ErrorMessage = "Account is not active. Please verify your email." };
+
         var accessToken = await _jwtService.CreateTokenAsync(user);
         var refreshToken = await _jwtService.GenerateRefreshToken();
         await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshToken), token);
-        await Context.SaveChangesAsync(token);
         await CommitChangesAsync(token);
         return ComposeLoginRespose(user, accessToken, refreshToken);
     }
 
     internal LoginResponse ComposeLoginRespose(User user, string accessToken, string refreshToken)
     {
-        //TODO capture users tenants
         var tenants = new List<UsersTenant>();
         return new LoginResponse
         {
@@ -243,11 +236,10 @@ public class UserService : BaseService<User>
             Tenants = tenants
         };
     }
+
     public async Task<AuthenticationProperties> LoginWithGoogleAsync(string redirectUrl)
     {
-        // 2. Configure the properties for the external login
-        var properties = _signInManager.ConfigureExternalAuthenticationProperties("Google", redirectUrl);
-        return properties;
+        return _signInManager.ConfigureExternalAuthenticationProperties("Google", redirectUrl);
     }
 
     public async Task CreateTenant(User user, string CompanyName = "", CancellationToken token = default)
@@ -263,9 +255,11 @@ public class UserService : BaseService<User>
     public async Task<LoginResponse> SetDefaultTenant(Guid tenantId, string token, CancellationToken ct)
     {
         var tokenInfo = _jwtService.ReadTokenToObject(token);
-        if (tokenInfo == null || !string.IsNullOrWhiteSpace(tokenInfo.ErrorMessage)) throw new UnauthorizedException();
+        if (tokenInfo == null || !string.IsNullOrWhiteSpace(tokenInfo.ErrorMessage))
+            throw new UnauthorizedException();
         var user = await _manager.FindByIdAsync(tokenInfo.UserId.ToString());
         if (user == null) throw new UnauthorizedException();
+
         user.DefaultTenantId = tenantId;
         await _manager.UpdateAsync(user);
 
@@ -274,7 +268,6 @@ public class UserService : BaseService<User>
         await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshTokenString), ct);
         await CommitChangesAsync(ct);
         return ComposeLoginRespose(user, accessToken, refreshTokenString);
-
     }
 
     public async Task<LoginResponse> GoogleCallback(CancellationToken token)
@@ -289,29 +282,26 @@ public class UserService : BaseService<User>
 
         try
         {
-            // 1. Find or Create User
             var user = await _manager.FindByLoginAsync(info.LoginProvider, info.ProviderKey);
             if (user == null)
             {
                 user = await _manager.FindByEmailAsync(email);
                 if (user != null)
                 {
-                    // Link Google to existing email account
                     var linkResult = await _manager.AddLoginAsync(user, info);
                     if (!linkResult.Succeeded)
                         return new LoginResponse { ErrorMessage = "Failed to link Google account." };
                 }
                 else
                 {
-                    // Create brand new user
                     user = new User
                     {
                         UserName = email,
                         Email = email,
+                        EmailConfirmed = true,
                         FullName = info.Principal.FindFirstValue(ClaimTypes.Name) ?? email.Split('@')[0],
                         Status = "Active"
                     };
-
                     var createResult = await _manager.CreateAsync(user);
                     if (!createResult.Succeeded)
                     {
@@ -321,7 +311,7 @@ public class UserService : BaseService<User>
                     await _manager.AddLoginAsync(user, info);
                 }
             }
-            await _manager.UpdateAsync(user);
+
             var accessToken = await _jwtService.CreateTokenAsync(user);
             var refreshTokenString = await _jwtService.GenerateRefreshToken();
             await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshTokenString), token);
@@ -330,8 +320,8 @@ public class UserService : BaseService<User>
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "google callback failed, email: {email}", email);
-            return new LoginResponse { ErrorMessage = "An internal error occurred during setup." };
+            Log.Error(ex, "Google callback failed for {Email}", email);
+            return new LoginResponse { ErrorMessage = "An internal error occurred during sign-in." };
         }
     }
 
@@ -354,19 +344,28 @@ public class UserService : BaseService<User>
             return new LoginResponse { ErrorMessage = "User not found." };
 
         tokenEntity.Revoked = true;
-        await RemoveAsync(tokenEntity.Id);
 
         var accessToken = await _jwtService.CreateTokenAsync(user);
         var newRefreshToken = await _jwtService.GenerateRefreshToken();
         await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, newRefreshToken));
-        await Context.SaveChangesAsync();
         await CommitChangesAsync(token);
         return ComposeLoginRespose(user, accessToken, newRefreshToken);
     }
+
+    public async Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken ct)
+    {
+        var hash = _jwtService.Hash(refreshToken);
+        var tokenEntity = await Context.RefreshTokens
+            .FirstOrDefaultAsync(t => t.RefreshTokenHash == hash && !t.Revoked, ct);
+        if (tokenEntity == null) return;
+        tokenEntity.Revoked = true;
+        await CommitChangesAsync(ct);
+    }
     #endregion
+
     #region Helpers
     internal RefreshToken CreateRefreshToken(User user, string newRefreshToken) =>
-        new RefreshToken
+        new()
         {
             UserId = user.Id,
             RefreshTokenHash = _jwtService.Hash(newRefreshToken),
