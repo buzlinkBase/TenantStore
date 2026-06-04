@@ -6,7 +6,8 @@ using System.Security.Claims;
 
 namespace OnePunch.Auth.Api.Controllers;
 
-[Route("api/[controller]")]
+[Route("api/v{version:apiVersion}/[controller]")]
+[ApiVersion("1.0")]
 [ApiController]
 [Authorize]
 public class InvitationController : ControllerBase
