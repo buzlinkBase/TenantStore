@@ -17,7 +17,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.24")
+                .HasAnnotation("ProductVersion", "9.0.2")
                 .HasAnnotation("Proxies:ChangeTracking", false)
                 .HasAnnotation("Proxies:CheckEquality", false)
                 .HasAnnotation("Proxies:LazyLoading", true)
@@ -398,6 +398,9 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<int>("Days")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime(6)");
 
@@ -427,6 +430,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         {
                             Id = new Guid("d8cb5f8b-8e4e-4352-b41c-c311f73b5ed5"),
                             CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Days = 0,
                             Description = "Free Trial",
                             Name = "Free Trial",
                             Status = "Active"

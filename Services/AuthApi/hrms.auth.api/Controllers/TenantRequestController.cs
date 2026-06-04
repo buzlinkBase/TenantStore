@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Onepunch.Auth.Domain.Entities;
 
 namespace OnePunch.Auth.Api.Controllers
 {
