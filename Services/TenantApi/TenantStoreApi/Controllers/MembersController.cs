@@ -27,8 +27,7 @@ public class MembersController : ControllerBase
         if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
 
         var members = await _service.GetMembersAsync(tenantId, token);
-        var result = members.Select(m => new { m.UserId, m.Role });
-        return Ok(result);
+        return Ok(members.Select(m => new { m.UserId, m.Role }));
     }
 
     [HttpPatch("{userId:guid}/role")]
@@ -44,7 +43,8 @@ public class MembersController : ControllerBase
             await _service.CommitChangesAsync(token);
             return Ok();
         }
-        catch (UnauthorizedAccessException ex) { return Forbid(); }
+        catch (ArgumentException ex) { return BadRequest(ex.Message); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
         catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
     }
@@ -62,7 +62,24 @@ public class MembersController : ControllerBase
             await _service.CommitChangesAsync(token);
             return Ok();
         }
-        catch (UnauthorizedAccessException ex) { return Forbid(); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+    }
+
+    [HttpDelete("me")]
+    public async Task<IActionResult> LeaveTenant(CancellationToken token)
+    {
+        var tenantId = _tenantProvider.TenantId;
+        if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
+
+        var userId = User.GetRequiredUserId();
+        try
+        {
+            await _service.LeaveTenantAsync(userId, tenantId, token);
+            await _service.CommitChangesAsync(token);
+            return Ok();
+        }
         catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
         catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
     }

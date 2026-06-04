@@ -99,11 +99,22 @@ namespace OnePunch.Auth.Api.Controllers
                 response.Id,
                 response.DefaultTenantName,
                 response.DefaultTenantId,
+                response.DefaultTenantRole,
                 response.Email,
                 response.FullName,
                 response.PhoneNumber,
                 response.Status,
             });
+        }
+
+        [HttpPatch("profile")]
+        public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest payload, CancellationToken ct)
+        {
+            var userId = User.GetRequiredUserId();
+            var result = await _service.UpdateProfileAsync(userId, payload);
+            if (!result.Succeeded)
+                return BadRequest(new { Errors = result.Errors.Select(e => e.Description) });
+            return Ok();
         }
 
         [AllowAnonymous]

@@ -2,6 +2,16 @@ using Microsoft.EntityFrameworkCore;
 
 namespace TenantStoreApi.Core.Services;
 
+public static class TenantRoles
+{
+    public const string Owner = "Owner";
+    public const string Admin = "Admin";
+    public const string Member = "Member";
+
+    public static readonly string[] Assignable = [Admin, Member];
+    public static bool IsValid(string role) => Assignable.Contains(role);
+}
+
 public class UserMembershipService : BaseService<UserMembership>
 {
     public UserMembershipService(IUnitOfWorkService service) : base(service)
@@ -31,15 +41,18 @@ public class UserMembershipService : BaseService<UserMembership>
 
     public async Task UpdateRoleAsync(Guid callerUserId, Guid targetUserId, Guid tenantId, string newRole, CancellationToken token = default)
     {
+        if (!TenantRoles.IsValid(newRole))
+            throw new ArgumentException($"Invalid role '{newRole}'. Allowed: {string.Join(", ", TenantRoles.Assignable)}.");
+
         var caller = await GetMemberAsync(callerUserId, tenantId, token);
-        if (caller == null || (caller.Role != "Owner" && caller.Role != "Admin"))
+        if (caller == null || (caller.Role != TenantRoles.Owner && caller.Role != TenantRoles.Admin))
             throw new UnauthorizedAccessException("Only Owner or Admin can change roles.");
         if (callerUserId == targetUserId)
             throw new InvalidOperationException("Cannot change your own role.");
 
         var target = await GetMemberAsync(targetUserId, tenantId, token);
         if (target == null) throw new KeyNotFoundException("Member not found.");
-        if (target.Role == "Owner") throw new InvalidOperationException("Cannot change the Owner's role.");
+        if (target.Role == TenantRoles.Owner) throw new InvalidOperationException("Cannot change the Owner's role.");
 
         target.Role = newRole;
         await ModifyAsync(target, token);
@@ -48,15 +61,24 @@ public class UserMembershipService : BaseService<UserMembership>
     public async Task RemoveMemberAsync(Guid callerUserId, Guid targetUserId, Guid tenantId, CancellationToken token = default)
     {
         var caller = await GetMemberAsync(callerUserId, tenantId, token);
-        if (caller == null || (caller.Role != "Owner" && caller.Role != "Admin"))
+        if (caller == null || (caller.Role != TenantRoles.Owner && caller.Role != TenantRoles.Admin))
             throw new UnauthorizedAccessException("Only Owner or Admin can remove members.");
         if (callerUserId == targetUserId)
-            throw new InvalidOperationException("Cannot remove yourself.");
+            throw new InvalidOperationException("Cannot remove yourself. Use leave-tenant instead.");
 
         var target = await GetMemberAsync(targetUserId, tenantId, token);
         if (target == null) throw new KeyNotFoundException("Member not found.");
-        if (target.Role == "Owner") throw new InvalidOperationException("Cannot remove the Owner.");
+        if (target.Role == TenantRoles.Owner) throw new InvalidOperationException("Cannot remove the Owner.");
 
         await RemoveAsync(target);
+    }
+
+    public async Task LeaveTenantAsync(Guid userId, Guid tenantId, CancellationToken token = default)
+    {
+        var membership = await GetMemberAsync(userId, tenantId, token);
+        if (membership == null) throw new KeyNotFoundException("You are not a member of this tenant.");
+        if (membership.Role == TenantRoles.Owner)
+            throw new InvalidOperationException("Owner cannot leave the tenant. Transfer ownership first.");
+        await RemoveAsync(membership);
     }
 }

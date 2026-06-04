@@ -25,6 +25,11 @@ public class PlanService : BaseService<Plan>
         return await GetQueryable(x => x.Name == "Free Trial").FirstOrDefaultAsync(token);
     }
 
+    public async Task<List<Plan>> GetAllAsync(CancellationToken token = default)
+    {
+        return await GetQueryable().ToListAsync(token);
+    }
+
     //public async Task<bool> IsFeatureEnabled(Guid tenantId, ServiceType feature)
     //{
     //    var sub = await Context.TenantSubscriptions

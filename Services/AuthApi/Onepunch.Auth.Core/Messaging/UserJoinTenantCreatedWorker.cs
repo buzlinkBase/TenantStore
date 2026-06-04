@@ -22,6 +22,7 @@ public class UserJoinTenantCreatedWorker : IConsumer<UserJoinToTenantPayload>
         {
             user.DefaultTenantId = context.Message.TenantId;
             user.DefaultTenantName = context.Message.TenantName;
+            user.DefaultTenantRole = context.Message.Role;
             await _userService.UpdateAsync(user);
             await _userService.CommitChangesAsync();
         }

@@ -13,6 +13,8 @@ namespace Onepunch.Auth.Core.Services
 {
     public class InvitationService : BaseService<Invitation>
     {
+        private static readonly string[] AllowedInviteRoles = ["Admin", "Member"];
+
         private readonly EmailTokenService _emailTokenService;
         private readonly TenantRequestService _tenantCreationRequestStatusService;
         private readonly Domains _domains;
@@ -44,12 +46,33 @@ namespace Onepunch.Auth.Core.Services
         {
             var user = await _manager.GetUserAsync(userClaim);
             if (user == null) throw new UnauthorizedException();
+
             Guard.ThrowIfEmpty(tenantId, "tenant");
             Guard.ThrowIfEmpty(payload.Email, "email");
 
+            // Caller must be Owner or Admin of this tenant
+            if (user.DefaultTenantRole != "Owner" && user.DefaultTenantRole != "Admin")
+                throw new UnauthorizedException();
+
+            // Validate role value
+            var role = string.IsNullOrWhiteSpace(payload.Role) ? "Member" : payload.Role;
+            if (!AllowedInviteRoles.Contains(role))
+                throw new GuardException($"Invalid role '{role}'. Allowed values: {string.Join(", ", AllowedInviteRoles)}.");
+
+            // Tenant must not be pending provisioning
             var request = await _tenantCreationRequestStatusService.FindOne(tenantId);
             if (request != null && request.Status == TenantCreationStatus.Pending)
-                throw new Exception("Your organization is still being provisioned or is inactive.");
+                throw new GuardException("Your organization is still being provisioned. Please try again shortly.");
+
+            // Prevent duplicate pending invitations
+            var existing = await GetQueryable(x =>
+                x.Email == payload.Email &&
+                x.TenantId == tenantId &&
+                x.Status == InvitationStatus.Pending &&
+                x.Expiry > DateTime.UtcNow)
+                .FirstOrDefaultAsync(ct);
+            if (existing != null)
+                throw new GuardException("An active invitation already exists for this email.");
 
             var token = _emailTokenService.GetRandomToken;
             var exp = DateTime.UtcNow.AddDays(1);
@@ -63,7 +86,7 @@ namespace Onepunch.Auth.Core.Services
                 Expiry = exp,
                 Token = token,
                 Status = InvitationStatus.Pending,
-                Role = string.IsNullOrWhiteSpace(payload.Role) ? "Member" : payload.Role,
+                Role = role,
             };
             Repository.Add(invitation);
 
@@ -90,7 +113,8 @@ namespace Onepunch.Auth.Core.Services
                 x.Expiry > DateTime.UtcNow)
                 .FirstOrDefaultAsync(token);
 
-            if (invitation == null) throw new Exception("Invitation is invalid or has already been used.");
+            if (invitation == null)
+                throw new GuardException("Invitation is invalid or has already been used.");
 
             invitation.Status = InvitationStatus.Accepted;
 

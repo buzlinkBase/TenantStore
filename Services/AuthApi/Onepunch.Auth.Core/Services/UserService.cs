@@ -180,6 +180,15 @@ public class UserService : BaseService<User>
     public Task<User?> GetByIdAsync(string id) => _manager.FindByIdAsync(id);
     public Task<User?> GetByEmailAsync(string email) => _manager.FindByEmailAsync(email);
 
+    public async Task<IdentityResult> UpdateProfileAsync(Guid userId, UpdateProfileRequest payload)
+    {
+        var user = await _manager.FindByIdAsync(userId.ToString());
+        if (user == null) return IdentityResult.Failed(new IdentityError { Description = "User not found." });
+        if (payload.FullName != null) user.FullName = payload.FullName;
+        if (payload.PhoneNumber != null) user.PhoneNumber = payload.PhoneNumber;
+        return await _manager.UpdateAsync(user);
+    }
+
     public async Task<IdentityResult> UpdateAsync(UpdateUser payload)
     {
         var user = await _manager.FindByIdAsync(payload.Id.ToString());
@@ -206,18 +215,24 @@ public class UserService : BaseService<User>
     public async Task<LoginResponse> Login(LoginPayload payload, CancellationToken token)
     {
         var user = await GetByEmailAsync(payload.Email);
-        if (user == null ||
-            _passwordHasher.VerifyHashedPassword(user, user.PasswordHash ?? "", payload.Password) == PasswordVerificationResult.Failed)
+        if (user == null)
+            return new LoginResponse { ErrorMessage = "Invalid email or password." };
+
+        if (await _manager.IsLockedOutAsync(user))
+            return new LoginResponse { ErrorMessage = "Account is temporarily locked. Please try again later." };
+
+        if (_passwordHasher.VerifyHashedPassword(user, user.PasswordHash ?? "", payload.Password) == PasswordVerificationResult.Failed)
         {
+            await _manager.AccessFailedAsync(user);
+            if (await _manager.IsLockedOutAsync(user))
+                return new LoginResponse { ErrorMessage = "Too many failed attempts. Account is temporarily locked." };
             return new LoginResponse { ErrorMessage = "Invalid email or password." };
         }
-
-        if (user.LockoutEnabled && user.LockoutEnd > DateTimeOffset.UtcNow)
-            return new LoginResponse { ErrorMessage = "Account is temporarily locked. Please try again later." };
 
         if (user.Status != "Active" || !user.EmailConfirmed)
             return new LoginResponse { ErrorMessage = "Account is not active. Please verify your email." };
 
+        await _manager.ResetAccessFailedCountAsync(user);
         var accessToken = await _jwtService.CreateTokenAsync(user);
         var refreshToken = await _jwtService.GenerateRefreshToken();
         await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshToken), token);
@@ -261,6 +276,7 @@ public class UserService : BaseService<User>
         if (user == null) throw new UnauthorizedException();
 
         user.DefaultTenantId = tenantId;
+        user.DefaultTenantRole = null; // cleared until TenantApi confirms membership role async
         await _manager.UpdateAsync(user);
 
         var accessToken = await _jwtService.CreateTokenAsync(user);

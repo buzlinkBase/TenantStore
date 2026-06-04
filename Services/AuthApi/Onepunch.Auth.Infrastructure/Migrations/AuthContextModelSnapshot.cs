@@ -341,6 +341,10 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                     b.Property<string>("DefaultTenantName")
                         .HasColumnType("longtext");
 
+                    b.Property<string>("DefaultTenantRole")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
                     b.Property<string>("Email")
                         .HasMaxLength(256)
                         .HasColumnType("varchar(256)");

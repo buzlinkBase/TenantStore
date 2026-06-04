@@ -72,6 +72,7 @@ public class JwtService
             new("TenantId", tenantId),
             new("TenantName", tenantName),
             new("TenantState", tenantState),
+            new("TenantMemberRole", user.DefaultTenantRole ?? ""),
         };
 
         var roles = await _userManager.GetRolesAsync(user);

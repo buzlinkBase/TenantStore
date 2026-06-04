@@ -43,9 +43,15 @@ public record ChangePassword
     public string NewPassword { get; set; }
     public string ConfirmPassword { get; set; }
 }
-public record SetPassword 
+public record SetPassword
 {
-    public string Password  { get; set; }
+    public string Password { get; set; }
     public string ConfirmPassword { get; set; }
+}
+
+public record UpdateProfileRequest
+{
+    public string? FullName { get; set; }
+    public string? PhoneNumber { get; set; }
 }
 

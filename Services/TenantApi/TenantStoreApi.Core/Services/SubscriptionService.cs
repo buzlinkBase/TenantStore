@@ -31,6 +31,13 @@ public class SubscriptionService : BaseService<TenantSubscription>
             .FirstOrDefaultAsync(token);
     }
 
+    public async Task<TenantSubscription?> GetCurrentAsync(Guid tenantId, CancellationToken token = default)
+    {
+        return await GetQueryable(x => x.TenantId == tenantId, noTracking: true)
+            .OrderByDescending(x => x.StartDate)
+            .FirstOrDefaultAsync(token);
+    }
+
     //public async Task<bool> IsFeatureEnabled(Guid tenantId, ServiceType feature)
     //{
     //    var sub = await Context.TenantSubscriptions
