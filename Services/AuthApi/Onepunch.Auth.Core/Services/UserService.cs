@@ -154,7 +154,7 @@ public class UserService : BaseService<User>
         var result = await _manager.AddPasswordAsync(user, newPassword);
         if (result.Succeeded)
         {
-            await CommitChangesAsync();
+            await CommitChangesAsync(token);
         }
         return result;
     }
@@ -183,11 +183,6 @@ public class UserService : BaseService<User>
         }
         var userInfo = await _manager.FindByEmailAsync(emailInfoDb.Email);
         if (userInfo == null) throw new Exception("User not found");
-        if (userInfo == null)
-        {
-            // Don't reveal the user doesn't exist; just return a generic error
-            return IdentityResult.Failed(new IdentityError { Description = "Invalid Request" });
-        }
         var result = await _manager.ResetPasswordAsync(userInfo, payload.Token, payload.Password);
         await RemoveAsync(emailInfoDb.Id);
         await CommitChangesAsync(ctoken);

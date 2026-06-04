@@ -4,9 +4,10 @@ public class TenantService
 {
     private readonly GetTenantService.GetTenantServiceClient _client;
     private readonly ITenantProvider _tenantProvider;
-    public TenantService(GetTenantService.GetTenantServiceClient client)
+    public TenantService(GetTenantService.GetTenantServiceClient client, ITenantProvider tenantProvider)
     {
         _client = client;
+        _tenantProvider = tenantProvider;
     }
 
     public async Task<TenantInfoResponse> GetInfoAsync()

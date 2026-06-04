@@ -27,6 +27,7 @@ public static class HttpRequestExtensions
 
     public static Guid? GetUserId(this ClaimsPrincipal user)
     {
+        if (user == null) return null;
         var value = user.FindFirstValue(ClaimTypes.NameIdentifier);
         return Guid.TryParse(value, out Guid guid) ? guid : null;
     }

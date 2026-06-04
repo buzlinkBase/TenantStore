@@ -36,6 +36,6 @@ public class TenantCreatedWorker : IConsumer<TenantCreatedPayload>
         user.DefaultTenantId = context.Message.TenantId;
         user.DefaultTenantName = context.Message.TenantName;
         await _userService.UpdateAsync(user);
-        _userService.CommitChanges();
+        await _userService.CommitChangesAsync();
     } 
 }

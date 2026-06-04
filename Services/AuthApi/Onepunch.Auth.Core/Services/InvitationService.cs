@@ -93,7 +93,7 @@ namespace Onepunch.Auth.Core.Services
 
         public async Task<bool> IsValidAsync(string invitationToken, CancellationToken token = default)
         {
-            var result = await GetQueryable(x => x.Token == invitationToken && x.Expiry < DateTime.UtcNow)
+            var result = await GetQueryable(x => x.Token == invitationToken && x.Expiry > DateTime.UtcNow)
                 .FirstOrDefaultAsync(token);
             return result != null;
         }

@@ -16,7 +16,7 @@ public class SubscriptionService : BaseService<TenantSubscription>
 
     public async Task UpdateAsync(TenantSubscription subscription, CancellationToken token = default)
     {
-        await UpdateAsync(subscription, token);
+        await ModifyAsync(subscription, token);
     }
 
     public async Task<TenantSubscription?> FindOne(Guid tenantId)

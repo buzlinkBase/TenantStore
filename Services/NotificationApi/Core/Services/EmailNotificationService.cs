@@ -31,7 +31,7 @@ public class EmailNotificationService
         mail.Subject = "Confirm your account";
         mail.Body = body;
         mail.IsBodyHtml = true;
-        var client = new SmtpClient(_setting.SmtpServer, 2525)
+        using var client = new SmtpClient(_setting.SmtpServer, _setting.SmtpPort)
         {
             Credentials = new NetworkCredential(_setting.Username, _setting.Password),
             EnableSsl = true
@@ -62,7 +62,7 @@ public class EmailNotificationService
         mail.Body = body;
         mail.IsBodyHtml = true;
 
-        var client = new SmtpClient(_setting.SmtpServer, 2525)
+        using var client = new SmtpClient(_setting.SmtpServer, _setting.SmtpPort)
         {
             Credentials = new NetworkCredential(_setting.Username, _setting.Password),
             EnableSsl = true
@@ -87,10 +87,11 @@ public class EmailNotificationService
         MailMessage mail = new MailMessage();
         mail.To.Add(model.Email);
         mail.From = new MailAddress(_setting.From);
-        mail.Subject = $"Request password reset {(model?.Name ?? "").Substring(0, 100)}";
+        var displayName = model?.Name ?? "";
+        mail.Subject = $"Request password reset {(displayName.Length > 100 ? displayName[..100] : displayName)}";
         mail.Body = body;
         mail.IsBodyHtml = true;
-        var client = new SmtpClient(_setting.SmtpServer, 2525)
+        using var client = new SmtpClient(_setting.SmtpServer, _setting.SmtpPort)
         {
             Credentials = new NetworkCredential(_setting.Username, _setting.Password),
             EnableSsl = true
