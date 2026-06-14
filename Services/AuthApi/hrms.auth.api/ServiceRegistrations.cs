@@ -1,5 +1,6 @@
 ﻿using Asp.Versioning.Conventions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using Onepunch.Auth.Core;
 using Onepunch.Auth.Infrastructure;
@@ -7,6 +8,7 @@ using Onepunch.Common.Lib;
 using Onepunch.Common.Lib.Cache;
 using OnePunch.Auth.Core.Providers;
 using StackExchange.Redis;
+using System.Net;
 using System.Text;
 
 namespace OnePunch.Auth.Api;
@@ -136,31 +138,61 @@ public static class ServiceRegistrations
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SigningKey"]!))
             };
-
             options.Events = new JwtBearerEvents
             {
-                OnMessageReceived = context =>
+                OnAuthenticationFailed = context =>
                 {
-                    // Capture the token as it arrives
-                    var token = context.Token;
+                    Console.WriteLine("Auth failed: " + context.Exception.Message);
                     return Task.CompletedTask;
                 },
-                OnTokenValidated = context =>
+
+                OnChallenge = async context =>
                 {
-                    //var jwtToken = context.SecurityToken as JsonWebToken;
-                    //// Safely look for the claim
-                    //var tenantIdClaim = context.Principal?.FindFirst("tenant_id")?.Value;
-                    //if (!string.IsNullOrEmpty(tenantIdClaim))
-                    //{
-                    //    var tenantService = context.HttpContext.RequestServices.GetRequiredService<ITenantProvider>();
-                    //    if (Guid.TryParse(tenantIdClaim, out var tenantId))
-                    //    {
-                    //        tenantService.SetTenantId(tenantId);
-                    //    }
-                    //}
-                    // If it's missing, we just skip setting the tenant context 
-                    // instead of crashing the whole request.
-                    return Task.CompletedTask;
+                    // Skip the default response
+                    context.HandleResponse();
+
+                    context.Response.StatusCode = 401;
+                    context.Response.ContentType = "application/json";
+
+                    var errorDetail = new ProblemDetails
+                    {
+                        Type = $"https://httpstatuses.com/{401}",
+                        Title = "Unauthorized",
+                        Status = (int)HttpStatusCode.Unauthorized,
+                        Detail = "Unauthorized. Token is missing or invalid.",
+                        Instance = $"{context.Request.Method} {context.Request.Path}"
+                    };
+                    var response = new ResponseModel<ProblemDetails>
+                    {
+                        Message = errorDetail.Detail,
+                        Status = (int)HttpStatusCode.Unauthorized,
+                        Data = errorDetail
+                    };
+                    await context.Response.WriteAsJsonAsync(response);
+                },
+
+                // ✅ Add this — fires when token is valid but user lacks permission
+                OnForbidden = async context =>
+                {
+                    context.Response.StatusCode = 403;
+                    context.Response.ContentType = "application/json";
+
+                    var errorDetail = new ProblemDetails
+                    {
+                        Type = $"https://httpstatuses.com/{403}",
+                        Title = "Forbidden",
+                        Status = (int)HttpStatusCode.Forbidden,
+                        Detail = "Forbidden. You do not have permission to access this resource.",
+                        Instance = $"{context.Request.Method} {context.Request.Path}"
+                    };
+                    var response = new ResponseModel<ProblemDetails>
+                    {
+                        Message = errorDetail.Detail,
+                        Status = (int)HttpStatusCode.Unauthorized,
+                        Data = errorDetail
+                    };
+
+                    await context.Response.WriteAsJsonAsync(response);
                 }
             };
         })

@@ -17,6 +17,7 @@ namespace OnePunch.Auth.Api.Controllers
     [ProducesResponseType(typeof(ResponseModel<ProblemDetails>), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ResponseModel<ProblemDetails>), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ResponseModel<ProblemDetails>), StatusCodes.Status500InternalServerError)]
+
     public class UsersController : ControllerBase
     {
         private readonly UserService _service;
@@ -55,7 +56,6 @@ namespace OnePunch.Auth.Api.Controllers
 
         [AllowAnonymous]
         [HttpGet("confirm-email")]
-        [ProducesResponseType(typeof(MessageErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> Confirm([FromQuery(Name = "token")] string token, CancellationToken ct)
         {
@@ -77,7 +77,6 @@ namespace OnePunch.Auth.Api.Controllers
         [HttpPost("reset-password")]
         [AllowAnonymous]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPassword payload, CancellationToken token)
         {
             var result = await _service.ResetPassword(payload, token);
@@ -88,7 +87,6 @@ namespace OnePunch.Auth.Api.Controllers
 
         [HttpPost("change-password")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePassword payload, CancellationToken token)
         {
             var result = await _service.ChangePassword(payload, token);
@@ -99,7 +97,6 @@ namespace OnePunch.Auth.Api.Controllers
 
         [HttpPost("set-password")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> SetPassword([FromBody] SetPassword payload, CancellationToken token)
         {
             if (payload.Password != payload.ConfirmPassword)
@@ -113,7 +110,6 @@ namespace OnePunch.Auth.Api.Controllers
 
         [HttpGet("profile")]
         [ProducesResponseType(typeof(UserProfileResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetProfile(CancellationToken ct)
         {
             var response = await _service.Profile(HttpContext.User);
@@ -133,7 +129,6 @@ namespace OnePunch.Auth.Api.Controllers
 
         [HttpPatch("profile")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest payload, CancellationToken ct)
         {
             var user = User;
@@ -147,7 +142,6 @@ namespace OnePunch.Auth.Api.Controllers
         [AllowAnonymous]
         [HttpPost("login")]
         [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(UnauthorizedResponse), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> Login([FromBody] LoginPayload payload, CancellationToken token)
         {
             var response = await _service.Login(payload, token);
