@@ -149,7 +149,6 @@ public static class ServiceRegistrations
                     Console.WriteLine("Auth failed: " + context.Exception.Message);
                     return Task.CompletedTask;
                 },
-
                 OnChallenge = async context =>
                 {
                     // Skip the default response

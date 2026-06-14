@@ -1,5 +1,6 @@
 using Asp.Versioning.ApiExplorer;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
 using Onepunch.Auth.Core.Protos;
 using Onepunch.Common.Lib;
@@ -83,6 +84,12 @@ internal class Program
         app.UseRouting(); 
         app.UseCors("AllowAll");
         //app.UseMiddleware<ApiKeyMiddleware>(); 
+        app.UseForwardedHeaders(new ForwardedHeadersOptions
+        {
+            ForwardedHeaders = ForwardedHeaders.XForwardedFor
+                     | ForwardedHeaders.XForwardedProto
+                     | ForwardedHeaders.XForwardedHost
+        });
         app.UseAuthentication();  
         app.UseAuthorization();
         app.MapGrpcService<CheckEmailHandler>();

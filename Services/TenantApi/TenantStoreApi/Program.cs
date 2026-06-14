@@ -4,6 +4,7 @@ using MessagePack;
 using MessagePack.AspNetCoreMvcFormatter;
 using MessagePack.Resolvers;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Serilog;
@@ -113,6 +114,12 @@ internal class Program
         //app.UseMiddleware<ApiKeyMiddleware>();
         app.UseSerilogRequestLogging();
         app.UseHeaderPropagation();
+        app.UseForwardedHeaders(new ForwardedHeadersOptions
+        {
+            ForwardedHeaders = ForwardedHeaders.XForwardedFor
+                     | ForwardedHeaders.XForwardedProto
+                     | ForwardedHeaders.XForwardedHost
+        });
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapGrpcService<TenantInfoServiceProvider>();
