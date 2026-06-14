@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Onepunch.Auth.Domain.DTOs;
+using Onepunch.Auth.Domain.Entities;
 using Onepunch.Common.Lib;
 using System.Security.Claims;
 
@@ -22,6 +23,8 @@ public class InvitationController : ControllerBase
     }
 
     [HttpPost("send-invite")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> InviteUser([FromBody] InvitationRequest payload, CancellationToken ct)
     {
         try
@@ -40,6 +43,9 @@ public class InvitationController : ControllerBase
     }
 
     [HttpPost("accept")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Accept([FromQuery] string invitationToken, CancellationToken token)
     {
         try
@@ -59,12 +65,15 @@ public class InvitationController : ControllerBase
 
     [HttpGet("check-invitation")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
     public async Task<IActionResult> IsInvitationValid([FromQuery(Name = "invitation-token")] string invitationToken, CancellationToken token)
     {
         return Ok(await _service.IsValidAsync(invitationToken, token));
     }
 
     [HttpGet("my-invitations")]
+    [ProducesResponseType(typeof(List<Invitation>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> MyInvitations(CancellationToken token)
     {
         var email = User.FindFirstValue(ClaimTypes.Email);

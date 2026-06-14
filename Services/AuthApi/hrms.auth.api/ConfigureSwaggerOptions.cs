@@ -1,7 +1,7 @@
-﻿using Asp.Versioning.ApiExplorer;
+using Asp.Versioning.ApiExplorer;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
-using OnePunch.Auth.Api.Middlewares;
+using OnePunch.Auth.Api.Filters;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace OnePunch.Auth.Api;
@@ -12,15 +12,16 @@ public class ConfigureSwaggerOptions : IConfigureOptions<SwaggerGenOptions>
     public ConfigureSwaggerOptions(IApiVersionDescriptionProvider provider) => _provider = provider;
     public void Configure(SwaggerGenOptions options)
     {
+        options.OperationFilter<ResponseModelOperationFilter>();
+
         foreach (var description in _provider.ApiVersionDescriptions)
         {
             options.SwaggerDoc("v1", new OpenApiInfo
             {
-                Title = "OnePunch Auth  API",
+                Title = "OnePunch Auth API",
                 Version = "v1"
             });
 
-            // JWT Bearer
             options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
             {
                 Name = "Authorization",
@@ -31,7 +32,6 @@ public class ConfigureSwaggerOptions : IConfigureOptions<SwaggerGenOptions>
                 Description = "Enter 'Bearer' [space] and then your valid JWT token.\nExample: \"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6...\""
             });
 
-            // API Key
             options.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
             {
                 Description = "API Key needed to access the endpoints. Example: \"X-Api-Key: {key}\"",
@@ -41,32 +41,23 @@ public class ConfigureSwaggerOptions : IConfigureOptions<SwaggerGenOptions>
                 Scheme = "ApiKeyScheme"
             });
 
-            // Apply both globally
             options.AddSecurityRequirement(new OpenApiSecurityRequirement
+            {
                 {
-                        {
-                            new OpenApiSecurityScheme
-                            {
-                                Reference = new OpenApiReference
-                                {
-                                    Type = ReferenceType.SecurityScheme,
-                                    Id = "Bearer"
-                                }
-                            },
-                            Array.Empty<string>()
-                        },
-                        {
-                            new OpenApiSecurityScheme
-                            {
-                                Reference = new OpenApiReference
-                                {
-                                    Type = ReferenceType.SecurityScheme,
-                                    Id = "ApiKey"
-                                }
-                            },
-                            Array.Empty<string>()
-                        }
-                });
+                    new OpenApiSecurityScheme
+                    {
+                        Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+                    },
+                    Array.Empty<string>()
+                },
+                {
+                    new OpenApiSecurityScheme
+                    {
+                        Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "ApiKey" }
+                    },
+                    Array.Empty<string>()
+                }
+            });
         }
     }
 }

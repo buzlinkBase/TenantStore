@@ -21,16 +21,22 @@ public class MembersController : ControllerBase
     }
 
     [HttpGet]
+    [ProducesResponseType(typeof(List<MemberResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetMembers(CancellationToken token)
     {
         var tenantId = _tenantProvider.TenantId;
         if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
 
         var members = await _service.GetMembersAsync(tenantId, token);
-        return Ok(members.Select(m => new { m.UserId, m.Role }));
+        return Ok(members.Select(m => new MemberResponse { UserId = m.UserId, Role = m.Role }).ToList());
     }
 
     [HttpPatch("{userId:guid}/role")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateRole(Guid userId, [FromBody] UpdateRoleRequest request, CancellationToken token)
     {
         var tenantId = _tenantProvider.TenantId;
@@ -50,6 +56,10 @@ public class MembersController : ControllerBase
     }
 
     [HttpDelete("{userId:guid}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RemoveMember(Guid userId, CancellationToken token)
     {
         var tenantId = _tenantProvider.TenantId;
@@ -68,6 +78,9 @@ public class MembersController : ControllerBase
     }
 
     [HttpDelete("me")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> LeaveTenant(CancellationToken token)
     {
         var tenantId = _tenantProvider.TenantId;

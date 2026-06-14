@@ -28,20 +28,23 @@ namespace OnePunch.Auth.Api.Controllers
 
         [HttpPost("create-account")]
         [AllowAnonymous]
+        [ProducesResponseType(typeof(CreateAccountResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(CreateAccountErrorResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> CreateAccount([FromBody] CreateAccount payload, CancellationToken token)
         {
             var result = await _service.RegisterAccount(payload, token);
             if (!result.Success)
-                return BadRequest(new { result.ErrorCode, result.Message });
+                return BadRequest(new CreateAccountErrorResponse { ErrorCode = result.ErrorCode, Message = result.Message });
 
             if (Request.Headers["X-Client-Type"] == "WF")
-                return Ok(new { result.Email, result.Message });
+                return Ok(new CreateAccountResponse { Email = result.Email, Message = result.Message });
 
             return Redirect($"{_options.FrontEnd}/auth/create/success");
         }
 
         [AllowAnonymous]
         [HttpGet("confirm-email")]
+        [ProducesResponseType(StatusCodes.Status302Found)]
         public async Task<IActionResult> Confirm([FromQuery(Name = "token")] string token, CancellationToken ct)
         {
             var result = await _service.ConfirmedRegistration(token, ct);
@@ -52,6 +55,7 @@ namespace OnePunch.Auth.Api.Controllers
 
         [HttpPost("forgot-password")]
         [AllowAnonymous]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> ResetPasswordRequestAsync([FromQuery] string email, CancellationToken token)
         {
             await _service.ResetPasswordRequestAsync(email, token);
@@ -60,106 +64,125 @@ namespace OnePunch.Auth.Api.Controllers
 
         [HttpPost("reset-password")]
         [AllowAnonymous]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPassword payload, CancellationToken token)
         {
             var result = await _service.ResetPassword(payload, token);
             if (!result.Succeeded)
-                return BadRequest(new { Errors = result.Errors.Select(e => e.Description) });
+                return BadRequest(new ErrorResponse { Errors = result.Errors.Select(e => e.Description) });
             return Ok();
         }
 
         [HttpPost("change-password")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePassword payload, CancellationToken token)
         {
             var result = await _service.ChangePassword(payload, token);
             if (result == null || !result.Succeeded)
-                return BadRequest(new { Errors = result?.Errors.Select(e => e.Description) ?? new[] { "Unable to change password." } });
+                return BadRequest(new ErrorResponse { Errors = result?.Errors.Select(e => e.Description) ?? ["Unable to change password."] });
             return Ok();
         }
 
         [HttpPost("set-password")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> SetPassword([FromBody] SetPassword payload, CancellationToken token)
         {
             if (payload.Password != payload.ConfirmPassword)
-                return BadRequest(new { Message = "Passwords do not match." });
+                return BadRequest(new ErrorResponse { Errors = ["Passwords do not match."] });
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var result = await _service.PromoteToPasswordAccount(userId, payload.Password, token);
             if (!result.Succeeded)
-                return BadRequest(new { Errors = result.Errors.Select(e => e.Description) });
+                return BadRequest(new ErrorResponse { Errors = result.Errors.Select(e => e.Description) });
             return Ok();
         }
 
         [HttpGet("profile")]
+        [ProducesResponseType(typeof(UserProfileResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetProfile(CancellationToken ct)
         {
             var response = await _service.Profile(HttpContext.User);
             if (response == null) return NotFound();
-            return Ok(new
+            return Ok(new UserProfileResponse
             {
-                response.Id,
-                response.DefaultTenantName,
-                response.DefaultTenantId,
-                response.DefaultTenantRole,
-                response.Email,
-                response.FullName,
-                response.PhoneNumber,
-                response.Status,
+                Id = response.Id,
+                DefaultTenantName = response.DefaultTenantName,
+                DefaultTenantId = response.DefaultTenantId,
+                DefaultTenantRole = response.DefaultTenantRole,
+                Email = response.Email,
+                FullName = response.FullName,
+                PhoneNumber = response.PhoneNumber,
+                Status = response.Status,
             });
         }
 
         [HttpPatch("profile")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest payload, CancellationToken ct)
         {
             var userId = User.GetRequiredUserId();
             var result = await _service.UpdateProfileAsync(userId, payload);
             if (!result.Succeeded)
-                return BadRequest(new { Errors = result.Errors.Select(e => e.Description) });
+                return BadRequest(new ErrorResponse { Errors = result.Errors.Select(e => e.Description) });
             return Ok();
         }
 
         [AllowAnonymous]
         [HttpPost("login")]
+        [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(UnauthorizedResponse), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> Login([FromBody] LoginPayload payload, CancellationToken token)
         {
             var response = await _service.Login(payload, token);
             if (!string.IsNullOrWhiteSpace(response.ErrorMessage))
-                return Unauthorized(new { response.ErrorMessage });
+                return Unauthorized(new UnauthorizedResponse { ErrorMessage = response.ErrorMessage });
             return Ok(response);
         }
 
         [HttpGet("login-google")]
         [AllowAnonymous]
+        [ProducesResponseType(StatusCodes.Status302Found)]
+        [ProducesResponseType(typeof(MessageErrorResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> LoginWithGoogle([FromQuery] string? inviteToken)
         {
             var redirectUrl = Url.Action("GoogleCallback", "users", new { inviteToken }, Request.Scheme);
-            if (redirectUrl == null) return BadRequest("Unable to resolve callback URL.");
+            if (redirectUrl == null) return BadRequest(new MessageErrorResponse { Message = "Unable to resolve callback URL." });
             var properties = await _service.LoginWithGoogleAsync(redirectUrl);
             return Challenge(properties, "Google");
         }
 
         [HttpGet("google-callback")]
         [AllowAnonymous]
+        [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(UnauthorizedResponse), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GoogleCallback(CancellationToken token)
         {
             var data = await _service.GoogleCallback(token);
             if (!string.IsNullOrWhiteSpace(data.ErrorMessage))
-                return Unauthorized(new { data.ErrorMessage });
+                return Unauthorized(new UnauthorizedResponse { ErrorMessage = data.ErrorMessage });
             return Ok(data);
         }
 
         [HttpPost("set-default-tenant")]
+        [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(UnauthorizedResponse), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> SetDefault([FromQuery(Name = "tenant-id")] Guid tenantId, CancellationToken ct)
         {
             var token = Request.GetAuthorizationToken();
             if (token == null) return Unauthorized();
             var response = await _service.SetDefaultTenant(tenantId, token, ct);
             if (!string.IsNullOrWhiteSpace(response.ErrorMessage))
-                return Unauthorized(new { response.ErrorMessage });
+                return Unauthorized(new UnauthorizedResponse { ErrorMessage = response.ErrorMessage });
             return Ok(response);
         }
 
         [AllowAnonymous]
         [HttpPost("logout")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> Logout([FromQuery(Name = "refresh-token")] string? refreshToken, CancellationToken ct)
         {
             if (!string.IsNullOrWhiteSpace(refreshToken))
@@ -169,15 +192,18 @@ namespace OnePunch.Auth.Api.Controllers
 
         [AllowAnonymous]
         [HttpGet("refresh")]
+        [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(UnauthorizedResponse), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> Refresh([FromQuery(Name = "refresh-token")] string refreshToken, CancellationToken token)
         {
             var response = await _service.RefreshLogin(refreshToken, token);
             if (!string.IsNullOrWhiteSpace(response.ErrorMessage))
-                return Unauthorized(new { response.ErrorMessage });
+                return Unauthorized(new UnauthorizedResponse { ErrorMessage = response.ErrorMessage });
             return Ok(response);
         }
 
         [HttpPost("key-gen")]
+        [ProducesResponseType(typeof(ApiTokenModel), StatusCodes.Status200OK)]
         public async Task<IActionResult> KeyGen()
         {
             return Ok(_service.KeyGen());

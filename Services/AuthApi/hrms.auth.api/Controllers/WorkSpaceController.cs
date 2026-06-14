@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Onepunch.Auth.Core;
@@ -13,17 +13,18 @@ namespace OnePunch.Auth.Api.Controllers
     public class WorkSpaceController : ControllerBase
     {
         private readonly WorkspaceService _service;
-        public WorkSpaceController(WorkspaceService service, 
+        public WorkSpaceController(WorkspaceService service,
             IOptions<Domains> options)
         {
             _service = service;
         }
 
         [HttpPost()]
+        [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Create([FromBody] CreateWorkspaceRequest payload, CancellationToken token)
         {
             var result=await _service.Create(payload,User, token);
-            return Ok(result); 
+            return Ok(result);
         }
     }
 }

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Onepunch.Auth.Domain.DTOs;
 using Onepunch.Auth.Domain.Entities;
 
 namespace OnePunch.Auth.Api.Controllers
@@ -18,13 +19,15 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [HttpGet("status/{tenantId:guid}")]
+        [ProducesResponseType(typeof(TenantStatusResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetStatus(Guid tenantId, CancellationToken token)
         {
             var status = await _service.FindOne(tenantId);
             if (status == null) return NotFound();
-            return Ok(new
+            return Ok(new TenantStatusResponse
             {
-                status.TenantId,
+                TenantId = status.TenantId,
                 Status = status.Status.ToString(),
                 IsReady = status.Status == TenantCreationStatus.Created,
             });

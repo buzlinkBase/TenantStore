@@ -1,4 +1,4 @@
-﻿using Asp.Versioning;
+using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -18,6 +18,7 @@ public class ConnectionsController : ControllerBase
 
     [HttpGet()]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(ConnectionStringResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> Get(
         [FromQuery(Name = "tenant-id")] Guid tenantId,
         [FromQuery(Name = "service")] string service,

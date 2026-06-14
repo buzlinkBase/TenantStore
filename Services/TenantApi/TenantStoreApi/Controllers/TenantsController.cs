@@ -21,15 +21,8 @@ public class TenantsController : ControllerBase
         _mapper = mapper;
     }
 
-    //[HttpPost]
-    //[AllowAnonymous]
-    //public async Task<IActionResult> Register([FromBody] UserCreated payload, CancellationToken token)
-    //{
-    //    await _service.CreateTenant(payload, token);
-    //    return Ok();
-    //}
-
     [HttpPut("{id}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> Put(Guid id, [FromBody] UpdateTenant payload, CancellationToken token)
     {
         await _service.UpdateAsync(id, payload, token);
@@ -37,6 +30,7 @@ public class TenantsController : ControllerBase
     }
 
     [HttpGet()]
+    [ProducesResponseType(typeof(List<TenantModel>), StatusCodes.Status200OK)]
     public async Task<ActionResult<List<TenantModel>>> FindAll(CancellationToken token)
     {
         var userId = User.GetRequiredUserId();
@@ -46,6 +40,8 @@ public class TenantsController : ControllerBase
     }
 
     [HttpGet("{Id:guid}")]
+    [ProducesResponseType(typeof(TenantModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<TenantModel>> FindOne(Guid Id, CancellationToken token)
     {
         var tenantResult = await _service.FindTenantAsync(Id, token);

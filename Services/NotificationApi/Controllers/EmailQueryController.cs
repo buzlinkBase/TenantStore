@@ -1,5 +1,6 @@
-﻿using Asp.Versioning;
+using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
+using NotificationService.Domain.DTO;
 
 namespace NotificationService.Controllers
 {
@@ -9,11 +10,10 @@ namespace NotificationService.Controllers
     public class EmailQueryController : ControllerBase
     {
         [HttpGet]
+        [ProducesResponseType(typeof(MessageResponse), StatusCodes.Status200OK)]
         public IActionResult Get()
         {
-            return Ok(new {
-                Message="Success" 
-            }); 
+            return Ok(new MessageResponse { Message = "Success" });
         }
     }
 }

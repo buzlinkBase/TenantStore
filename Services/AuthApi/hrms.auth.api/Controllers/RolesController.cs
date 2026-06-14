@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Onepunch.Auth.Core;
@@ -20,6 +20,8 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [HttpPost()]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> Create([FromQuery] string roleName, CancellationToken token)
         {
             await _service.Create(roleName);
@@ -27,6 +29,7 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [HttpGet()]
+        [ProducesResponseType(typeof(string[]), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAll(CancellationToken token)
         {
             var roles = await _service.GetAll();

@@ -27,6 +27,9 @@ public class SubscriptionsController : ControllerBase
     }
 
     [HttpGet("current")]
+    [ProducesResponseType(typeof(SubscriptionResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetCurrent(CancellationToken token)
     {
         var tenantId = _tenantProvider.TenantId;
@@ -35,32 +38,32 @@ public class SubscriptionsController : ControllerBase
         var sub = await _subscriptionService.GetCurrentAsync(tenantId, token);
         if (sub == null) return NotFound("No subscription found for this tenant.");
 
-        return Ok(new
+        var isActive = sub.SubStatus == SubscriptionStatus.Active || sub.SubStatus == SubscriptionStatus.Trialing;
+        return Ok(new SubscriptionResponse
         {
-            sub.Id,
-            sub.TenantId,
-            sub.PlanId,
+            Id = sub.Id,
+            TenantId = sub.TenantId,
+            PlanId = sub.PlanId,
             PlanName = sub.Plan?.Name,
-            sub.SubStatus,
-            sub.StartDate,
-            sub.EndDate,
-            DaysRemaining = sub.SubStatus == SubscriptionStatus.Active || sub.SubStatus == SubscriptionStatus.Trialing
-                ? Math.Max(0, (int)(sub.EndDate - DateTime.UtcNow).TotalDays)
-                : 0,
-            IsActive = sub.SubStatus == SubscriptionStatus.Active || sub.SubStatus == SubscriptionStatus.Trialing,
+            SubStatus = sub.SubStatus.ToString(),
+            StartDate = sub.StartDate,
+            EndDate = sub.EndDate,
+            DaysRemaining = isActive ? Math.Max(0, (int)(sub.EndDate - DateTime.UtcNow).TotalDays) : 0,
+            IsActive = isActive,
         });
     }
 
     [HttpGet("plans")]
+    [ProducesResponseType(typeof(List<PlanResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetPlans(CancellationToken token)
     {
         var plans = await _planService.GetAllAsync(token);
-        return Ok(plans.Select(p => new
+        return Ok(plans.Select(p => new PlanResponse
         {
-            p.Id,
-            p.Name,
-            p.Description,
-            p.Days,
-        }));
+            Id = p.Id,
+            Name = p.Name,
+            Description = p.Description,
+            Days = p.Days,
+        }).ToList());
     }
 }
