@@ -150,25 +150,37 @@ namespace OnePunch.Auth.Api.Controllers
             return Ok(response);
         }
 
-        [HttpGet("login-google")]
-        [AllowAnonymous]
-        public async Task<IActionResult> LoginWithGoogle([FromQuery] string? inviteToken)
-        {
-            var redirectUrl = Url.Action("GoogleCallback", "users", new { inviteToken }, Request.Scheme);
-            if (redirectUrl == null)
-                return BadRequest(new MessageErrorResponse { Message = "Unable to resolve callback URL." });
+        //[HttpGet("login-google")]
+        //[AllowAnonymous]
+        //public async Task<IActionResult> LoginWithGoogle([FromQuery] string? inviteToken)
+        //{
+        //    var redirectUrl = Url.Action("GoogleCallback", "users", new { inviteToken }, Request.Scheme);
+        //    if (redirectUrl == null)
+        //        return BadRequest(new MessageErrorResponse { Message = "Unable to resolve callback URL." });
 
-            var properties = await _service.LoginWithGoogleAsync(redirectUrl);
-            return Challenge(properties, "Google");
+        //    var properties = await _service.LoginWithGoogleAsync(redirectUrl);
+        //    return Challenge(properties, "Google");
 
-        }
+        //}
+        //[HttpGet("google-callback")]
+        //[AllowAnonymous]
+        //[ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+        //public async Task<IActionResult> GoogleCallback(CancellationToken token)
+        //{
+        //    var data = await _service.GoogleCallback(token);
+        //    if (!string.IsNullOrWhiteSpace(data.ErrorMessage))
+        //        return Unauthorized(new UnauthorizedResponse { ErrorMessage = data.ErrorMessage });
+        //    return Ok(data);
+        //}
 
-        [HttpGet("google-callback")]
-        [AllowAnonymous]
+
+        [HttpPost("login-google-callback")]
         [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GoogleCallback(CancellationToken token)
+        [AllowAnonymous]
+        public async Task<IActionResult> LoginWithGoogle([FromBody] GoogleLoginRequest request,CancellationToken token)
         {
-            var data = await _service.GoogleCallback(token);
+            // exchange request.Code with Google to get user info
+            var data = await _service.LoginWithGoogleAsync2(request.Code, token);
             if (!string.IsNullOrWhiteSpace(data.ErrorMessage))
                 return Unauthorized(new UnauthorizedResponse { ErrorMessage = data.ErrorMessage });
             return Ok(data);
@@ -213,5 +225,9 @@ namespace OnePunch.Auth.Api.Controllers
         {
             return Ok(_service.KeyGen());
         }
+    }
+    public class GoogleLoginRequest
+    {
+        public string Code { get; set; } = string.Empty;
     }
 }

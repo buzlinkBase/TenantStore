@@ -1,3 +1,4 @@
+using Google.Apis.Auth;
 using MassTransit;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
@@ -8,6 +9,7 @@ using OnePunch.Auth.Domain.DTOs;
 using OnePunch.Auth.Domain.Entities;
 using Serilog;
 using System.Security.Claims;
+using System.Text.Json;
 
 namespace OnePunch.Auth.Core.Services;
 
@@ -20,6 +22,7 @@ public class UserService : BaseService<User>
     private readonly SignInManager<User> _signInManager;
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly JwtService _jwtService;
+    private readonly IConfiguration _configuration;
     private readonly EmailNotificationService _notificationService;
     private readonly IMapper _mapper;
 
@@ -47,6 +50,7 @@ public class UserService : BaseService<User>
         _signInManager = signInManager;
         _passwordHasher = passwordHasher ?? throw new ArgumentNullException(nameof(passwordHasher));
         _jwtService = jwtService ?? throw new ArgumentNullException(nameof(jwtService));
+        _configuration = configuration;
         _notificationService = notificationService;
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
     }
@@ -261,9 +265,82 @@ public class UserService : BaseService<User>
         };
     }
 
+    /// <summary>
+    /// for full api google 
+    /// </summary>
+    /// <param name="redirectUrl"></param>
+    /// <returns></returns>
     public async Task<AuthenticationProperties> LoginWithGoogleAsync(string redirectUrl)
     {
         return _signInManager.ConfigureExternalAuthenticationProperties("Google", redirectUrl);
+    }
+
+    public async Task<LoginResponse> LoginWithGoogleAsync2(string code,CancellationToken ct)
+    {
+        try
+        {
+            // Exchange auth code for Google tokens
+            var tokenResponse = await new HttpClient().PostAsync("https://oauth2.googleapis.com/token",
+                new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    ["code"] = code,
+                    ["client_id"] = _configuration["Authentication:Google:ClientId"]!,
+                    ["client_secret"] = _configuration["Authentication:Google:ClientSecret"]!,
+                    ["redirect_uri"] = "postmessage", // required for popup/auth-code flow
+                    ["grant_type"] = "authorization_code",
+                })
+            );
+
+            var tokenJson = await tokenResponse.Content.ReadAsStringAsync();
+            var tokenData = JsonSerializer.Deserialize<JsonElement>(tokenJson);
+
+            if (!tokenData.TryGetProperty("id_token", out var idTokenElement))
+                return new LoginResponse { ErrorMessage = "Failed to retrieve token from Google." };
+
+            // Validate the id_token and extract user info
+            var payload = await GoogleJsonWebSignature.ValidateAsync(
+                idTokenElement.GetString(),
+                new GoogleJsonWebSignature.ValidationSettings
+                {
+                    Audience = new[] { _configuration["Authentication:Google:ClientId"] }
+                }
+            );
+
+            // Find or create user
+            var user = await _manager.FindByEmailAsync(payload.Email);
+            if (user == null)
+            {
+                user = new User
+                {
+                    Email = payload.Email,
+                    UserName = payload.Email,
+                    FullName = string.Concat(payload.GivenName," ", payload.FamilyName),
+                    EmailConfirmed = true, // Google already verified the email,
+                    Status="Active",
+                };
+
+                var createResult = await _manager.CreateAsync(user);
+                if (!createResult.Succeeded)
+                    return new LoginResponse
+                    {
+                        ErrorMessage = string.Join(", ", createResult.Errors.Select(e => e.Description))
+                    };
+            }
+            // Generate your JWT same as normal login
+            var refreshTokenString = await _jwtService.GenerateRefreshToken();
+            var accessToken = await _jwtService.CreateTokenAsync(user);
+            await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshTokenString), ct);
+            await CommitChangesAsync(ct);
+            return ComposeLoginRespose(user, accessToken, refreshTokenString);
+        }
+        catch (InvalidJwtException)
+        {
+            return new LoginResponse { ErrorMessage = "Invalid Google token." };
+        }
+        catch (Exception ex)
+        {
+            return new LoginResponse { ErrorMessage = $"Google login failed: {ex.Message}" };
+        }
     }
 
     public async Task CreateTenant(User user, string CompanyName = "", CancellationToken token = default)
