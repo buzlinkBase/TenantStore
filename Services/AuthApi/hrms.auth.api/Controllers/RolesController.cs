@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Onepunch.Auth.Core;
+using Onepunch.Common.Lib;
 using OnePunch.Auth.Core.Services;
 
 namespace OnePunch.Auth.Api.Controllers
@@ -11,6 +12,9 @@ namespace OnePunch.Auth.Api.Controllers
     [ApiVersion("1.0")]
     [ApiController]
     [Authorize]
+    [ProducesResponseType(typeof(ResponseModel<ProblemDetails>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ResponseModel<ProblemDetails>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ResponseModel<ProblemDetails>), StatusCodes.Status500InternalServerError)]
     public class RolesController : ControllerBase
     {
         private readonly RoleService _service;
@@ -20,20 +24,19 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [HttpPost()]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ResponseModel<Role>), StatusCodes.Status200OK)]
         public async Task<IActionResult> Create([FromQuery] string roleName, CancellationToken token)
         {
-            await _service.Create(roleName);
-            return Ok();
+            var role = await _service.Create(roleName);
+            return Ok(role);
         }
 
         [HttpGet()]
-        [ProducesResponseType(typeof(string[]), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ResponseModel<List<string>>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAll(CancellationToken token)
         {
             var roles = await _service.GetAll();
-            return Ok(roles.Select(x=>x.Name).ToArray());
+            return Ok(roles.Select(x => x.Name).ToArray());
         }
     }
 }

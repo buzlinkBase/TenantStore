@@ -20,7 +20,7 @@ public class RoleService : BaseService<Role>
         _roleManager = roleManager;
     }
 
-    public async Task Create(string roleName)
+    public async Task<Role> Create(string roleName)
     {
         var role = new Role()
         {
@@ -28,6 +28,7 @@ public class RoleService : BaseService<Role>
         };
         await _roleManager.CreateAsync(role);
         await CommitChangesAsync();
+        return role;
     }
 
     public async Task<List<Role>> GetAll()

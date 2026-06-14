@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Onepunch.Auth.Core;
+using Onepunch.Common.Lib;
 using Onepunch.Common.Lib.DTO;
 using OnePunch.Auth.Api.RequestModels;
 
@@ -11,6 +12,10 @@ namespace OnePunch.Auth.Api.Controllers
     [ApiVersion("1.0")]
     [ApiController]
     [Authorize]
+    [ProducesResponseType(typeof(ResponseModel<ProblemDetails>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ResponseModel<ProblemDetails>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ResponseModel<ProblemDetails>), StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(typeof(ResponseModel<ProblemDetails>), StatusCodes.Status403Forbidden)]
     public class SubscriptionController : ControllerBase
     {
         private readonly SubscriptionService _service;
@@ -21,9 +26,6 @@ namespace OnePunch.Auth.Api.Controllers
 
         [HttpPost()]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> Create([FromBody] PlanRequestDto request, CancellationToken token)
         {
             var userId = HttpContext.User.GetRequiredUserId();

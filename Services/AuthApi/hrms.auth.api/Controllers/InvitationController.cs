@@ -11,6 +11,9 @@ namespace OnePunch.Auth.Api.Controllers;
 [ApiVersion("1.0")]
 [ApiController]
 [Authorize]
+[ProducesResponseType(typeof(ResponseModel<ProblemDetails>), StatusCodes.Status400BadRequest)]
+[ProducesResponseType(typeof(ResponseModel<ProblemDetails>), StatusCodes.Status401Unauthorized)]
+[ProducesResponseType(typeof(ResponseModel<ProblemDetails>), StatusCodes.Status500InternalServerError)]
 public class InvitationController : ControllerBase
 {
     private readonly InvitationService _service;
@@ -23,8 +26,7 @@ public class InvitationController : ControllerBase
     }
 
     [HttpPost("send-invite")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> InviteUser([FromBody] InvitationRequest payload, CancellationToken ct)
     {
         try
@@ -34,7 +36,7 @@ public class InvitationController : ControllerBase
             var tokenInfo = _jwtService.ReadTokenToObject(token);
             if (tokenInfo == null) return Unauthorized();
             await _service.SendUserInvitationAsync(payload, tokenInfo.TenantId, tokenInfo.TenantName, User, ct);
-            return Ok();
+            return NoContent();
         }
         catch (UnauthorizedException)
         {
@@ -43,15 +45,13 @@ public class InvitationController : ControllerBase
     }
 
     [HttpPost("accept")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)] 
     public async Task<IActionResult> Accept([FromQuery] string invitationToken, CancellationToken token)
     {
         try
         {
             await _service.Accept(invitationToken, User, token);
-            return Ok();
+            return NoContent();
         }
         catch (UnauthorizedException)
         {
@@ -68,12 +68,12 @@ public class InvitationController : ControllerBase
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
     public async Task<IActionResult> IsInvitationValid([FromQuery(Name = "invitation-token")] string invitationToken, CancellationToken token)
     {
-        return Ok(await _service.IsValidAsync(invitationToken, token));
+        var result = await _service.IsValidAsync(invitationToken, token);
+        return Ok(result);
     }
 
     [HttpGet("my-invitations")]
     [ProducesResponseType(typeof(List<Invitation>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> MyInvitations(CancellationToken token)
     {
         var email = User.FindFirstValue(ClaimTypes.Email);

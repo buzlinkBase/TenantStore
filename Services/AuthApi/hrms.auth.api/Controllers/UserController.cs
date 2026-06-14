@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Onepunch.Auth.Core;
 using Onepunch.Auth.Domain.DTOs;
+using Onepunch.Common.Lib;
 using OnePunch.Auth.Api.Extensions;
 using OnePunch.Auth.Core.Services;
 using System.Security.Claims;
@@ -13,6 +14,9 @@ namespace OnePunch.Auth.Api.Controllers
     [ApiVersion("1.0")]
     [ApiController]
     [Authorize]
+    [ProducesResponseType(typeof(ResponseModel<ProblemDetails>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ResponseModel<ProblemDetails>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ResponseModel<ProblemDetails>), StatusCodes.Status500InternalServerError)]
     public class UsersController : ControllerBase
     {
         private readonly UserService _service;
@@ -29,28 +33,36 @@ namespace OnePunch.Auth.Api.Controllers
         [HttpPost("create-account")]
         [AllowAnonymous]
         [ProducesResponseType(typeof(CreateAccountResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(CreateAccountErrorResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> CreateAccount([FromBody] CreateAccount payload, CancellationToken token)
         {
             var result = await _service.RegisterAccount(payload, token);
+
             if (!result.Success)
-                return BadRequest(new CreateAccountErrorResponse { ErrorCode = result.ErrorCode, Message = result.Message });
+            {
+                return BadRequest(new CreateAccountErrorResponse
+                {
+                    ErrorCode = result.ErrorCode,
+                    Message = result.Message
+                });
+            }
 
-            if (Request.Headers["X-Client-Type"] == "WF")
-                return Ok(new CreateAccountResponse { Email = result.Email, Message = result.Message });
-
-            return Redirect($"{_options.FrontEnd}/auth/create/success");
+            return Ok(new CreateAccountResponse
+            {
+                Email = result.Email,
+                Message = result.Message
+            });
         }
 
         [AllowAnonymous]
         [HttpGet("confirm-email")]
-        [ProducesResponseType(StatusCodes.Status302Found)]
+        [ProducesResponseType(typeof(MessageErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> Confirm([FromQuery(Name = "token")] string token, CancellationToken ct)
         {
             var result = await _service.ConfirmedRegistration(token, ct);
             if (!result.Success)
-                return Redirect($"{_options.FrontEnd}/tenant/error?code={result.ErrorCode}");
-            return Redirect($"{_options.FrontEnd}/tenant/success");
+                return BadRequest(new MessageErrorResponse { Message = result.ErrorCode });
+            return Ok();
         }
 
         [HttpPost("forgot-password")]
@@ -96,7 +108,7 @@ namespace OnePunch.Auth.Api.Controllers
             var result = await _service.PromoteToPasswordAccount(userId, payload.Password, token);
             if (!result.Succeeded)
                 return BadRequest(new ErrorResponse { Errors = result.Errors.Select(e => e.Description) });
-            return Ok();
+            return NoContent();
         }
 
         [HttpGet("profile")]
@@ -124,6 +136,7 @@ namespace OnePunch.Auth.Api.Controllers
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest payload, CancellationToken ct)
         {
+            var user = User;
             var userId = User.GetRequiredUserId();
             var result = await _service.UpdateProfileAsync(userId, payload);
             if (!result.Succeeded)
@@ -145,20 +158,20 @@ namespace OnePunch.Auth.Api.Controllers
 
         [HttpGet("login-google")]
         [AllowAnonymous]
-        [ProducesResponseType(StatusCodes.Status302Found)]
-        [ProducesResponseType(typeof(MessageErrorResponse), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> LoginWithGoogle([FromQuery] string? inviteToken)
         {
             var redirectUrl = Url.Action("GoogleCallback", "users", new { inviteToken }, Request.Scheme);
-            if (redirectUrl == null) return BadRequest(new MessageErrorResponse { Message = "Unable to resolve callback URL." });
+            if (redirectUrl == null)
+                return BadRequest(new MessageErrorResponse { Message = "Unable to resolve callback URL." });
+
             var properties = await _service.LoginWithGoogleAsync(redirectUrl);
             return Challenge(properties, "Google");
+
         }
 
         [HttpGet("google-callback")]
         [AllowAnonymous]
         [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(UnauthorizedResponse), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GoogleCallback(CancellationToken token)
         {
             var data = await _service.GoogleCallback(token);
@@ -169,7 +182,6 @@ namespace OnePunch.Auth.Api.Controllers
 
         [HttpPost("set-default-tenant")]
         [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(UnauthorizedResponse), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> SetDefault([FromQuery(Name = "tenant-id")] Guid tenantId, CancellationToken ct)
         {
             var token = Request.GetAuthorizationToken();
@@ -193,7 +205,6 @@ namespace OnePunch.Auth.Api.Controllers
         [AllowAnonymous]
         [HttpGet("refresh")]
         [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(UnauthorizedResponse), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> Refresh([FromQuery(Name = "refresh-token")] string refreshToken, CancellationToken token)
         {
             var response = await _service.RefreshLogin(refreshToken, token);
