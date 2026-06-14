@@ -1,5 +1,6 @@
 ﻿using Asp.Versioning.Conventions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using Onepunch.Auth.Core;
@@ -117,7 +118,10 @@ public static class ServiceRegistrations
                 setup.GroupNameFormat = "'v'VVV";
                 setup.SubstituteApiVersionInUrl = true;
             });
-
+        builder.Services.AddAuthorizationBuilder()
+         .SetFallbackPolicy(new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build());
         builder.Services.AddAuthentication(options =>
         {
             // Default to JWT for API requests

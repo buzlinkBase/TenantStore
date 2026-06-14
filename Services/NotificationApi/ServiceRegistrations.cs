@@ -1,5 +1,6 @@
 ﻿using Asp.Versioning;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using System.Net;
@@ -41,7 +42,11 @@ public static class ServiceRegistrations
                 options.SubstituteApiVersionInUrl = true;
             });
 
-        builder.Services.AddEndpointsApiExplorer(); 
+        builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddAuthorizationBuilder()
+         .SetFallbackPolicy(new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build());
         builder.Services.AddAuthentication(options =>
         {
             options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
