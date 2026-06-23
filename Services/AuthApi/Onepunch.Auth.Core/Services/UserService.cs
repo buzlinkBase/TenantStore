@@ -314,7 +314,7 @@ public class UserService : BaseService<User>
                 {
                     Email = payload.Email,
                     UserName = payload.Email,
-                    FullName = string.Concat(payload.GivenName," ", payload.FamilyName),
+                    FullName = payload.Name,
                     EmailConfirmed = true, // Google already verified the email,
                     Status="Active",
                 };

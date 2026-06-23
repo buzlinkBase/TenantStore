@@ -57,9 +57,9 @@ namespace OnePunch.Auth.Api.Controllers
         [AllowAnonymous]
         [HttpGet("confirm-email")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<IActionResult> Confirm([FromQuery(Name = "token")] string token, CancellationToken ct)
+        public async Task<IActionResult> Confirm([FromBody] TokenPayload payload, CancellationToken ct)
         {
-            var result = await _service.ConfirmedRegistration(token, ct);
+            var result = await _service.ConfirmedRegistration(payload.Token, ct);
             if (!result.Success)
                 return BadRequest(new MessageErrorResponse { Message = result.ErrorCode });
             return Ok();
@@ -68,9 +68,9 @@ namespace OnePunch.Auth.Api.Controllers
         [HttpPost("forgot-password")]
         [AllowAnonymous]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<IActionResult> ResetPasswordRequestAsync([FromQuery] string email, CancellationToken token)
+        public async Task<IActionResult> ResetPasswordRequestAsync([FromBody] EmailPayload payload, CancellationToken token)
         {
-            await _service.ResetPasswordRequestAsync(email, token);
+            await _service.ResetPasswordRequestAsync(payload.Email, token);
             return Ok();
         }
 
@@ -177,7 +177,7 @@ namespace OnePunch.Auth.Api.Controllers
         [HttpPost("login-google-callback")]
         [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
         [AllowAnonymous]
-        public async Task<IActionResult> LoginWithGoogle([FromBody] GoogleLoginRequest request,CancellationToken token)
+        public async Task<IActionResult> LoginWithGoogle([FromBody] GoogleLoginRequest request, CancellationToken token)
         {
             // exchange request.Code with Google to get user info
             var data = await _service.LoginWithGoogleAsync2(request.Code, token);
@@ -188,10 +188,15 @@ namespace OnePunch.Auth.Api.Controllers
 
         [HttpPost("set-default-tenant")]
         [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> SetDefault([FromQuery(Name = "tenant-id")] Guid tenantId, CancellationToken ct)
+        public async Task<IActionResult> SetDefault([FromBody] TenantIdPayload payload, CancellationToken ct)
         {
             var token = Request.GetAuthorizationToken();
             if (token == null) return Unauthorized();
+            var tenantId = Guid.Parse(payload.TenantId);
+            if (tenantId == Guid.Empty)
+            {
+                throw new ArgumentException("Invalid tenant Id format");
+            }
             var response = await _service.SetDefaultTenant(tenantId, token, ct);
             if (!string.IsNullOrWhiteSpace(response.ErrorMessage))
                 return Unauthorized(new UnauthorizedResponse { ErrorMessage = response.ErrorMessage });
@@ -201,10 +206,10 @@ namespace OnePunch.Auth.Api.Controllers
         [AllowAnonymous]
         [HttpPost("logout")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<IActionResult> Logout([FromQuery(Name = "refresh-token")] string? refreshToken, CancellationToken ct)
+        public async Task<IActionResult> Logout([FromBody] RefreshTokenPayload payload, CancellationToken ct)
         {
-            if (!string.IsNullOrWhiteSpace(refreshToken))
-                await _service.RevokeRefreshTokenAsync(refreshToken, ct);
+            if (!string.IsNullOrWhiteSpace(payload.RefreshToken))
+                await _service.RevokeRefreshTokenAsync(payload.RefreshToken, ct);
             return Ok();
         }
 
@@ -229,5 +234,23 @@ namespace OnePunch.Auth.Api.Controllers
     public class GoogleLoginRequest
     {
         public string Code { get; set; } = string.Empty;
+    }
+
+    public record EmailPayload
+    {
+        public required string Email { get; set; }
+    }
+    public record TokenPayload
+    {
+        public required string Token { get; set; }
+    }
+    public record RefreshTokenPayload
+    {
+        public required string RefreshToken { get; set; }
+    }
+
+    public record TenantIdPayload
+    {
+        public required string TenantId { get; set; }
     }
 }
