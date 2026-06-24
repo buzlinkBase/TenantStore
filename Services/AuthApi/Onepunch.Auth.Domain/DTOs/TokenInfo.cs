@@ -25,16 +25,21 @@ public record LoginPayload
     public required string Password { get; set; }
 }
 
-public record LoginResponse
+public record LoginResponse : LoginResponseSimple
+{
+    public string RefreshToken { get; set; } = string.Empty; 
+}
+
+public record LoginResponseSimple
 {
     public string ErrorMessage { get; set; } = string.Empty;
     public string AccessToken { get; set; } = string.Empty;
-    public string RefreshToken { get; set; } = string.Empty;
     //public Guid? DefaultTenantId { get; set; }
     //public string? DefaultTenantName  { get; set; }
-    public List<UsersTenant> Tenants  { get; set; }
-    public DateTime Expiry { get; set; } 
+    public List<UsersTenant> Tenants { get; set; }
+    public DateTime Expiry { get; set; }
 }
+
 
 public class UsersTenant
 {

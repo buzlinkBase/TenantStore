@@ -55,7 +55,7 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [AllowAnonymous]
-        [HttpGet("confirm-email")]
+        [HttpPost("confirm-email")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> Confirm([FromBody] TokenPayload payload, CancellationToken ct)
         {
@@ -147,7 +147,7 @@ namespace OnePunch.Auth.Api.Controllers
             var response = await _service.Login(payload, token);
             if (!string.IsNullOrWhiteSpace(response.ErrorMessage))
                 return Unauthorized(new UnauthorizedResponse { ErrorMessage = response.ErrorMessage });
-            return Ok(response);
+            return Ok(ConvertLoginResponse(response));
         }
 
         //[HttpGet("login-google")]
@@ -183,7 +183,7 @@ namespace OnePunch.Auth.Api.Controllers
             var data = await _service.LoginWithGoogleAsync2(request.Code, token);
             if (!string.IsNullOrWhiteSpace(data.ErrorMessage))
                 return Unauthorized(new UnauthorizedResponse { ErrorMessage = data.ErrorMessage });
-            return Ok(data);
+            return Ok(ConvertLoginResponse(data));
         }
 
         [HttpPost("set-default-tenant")]
@@ -200,7 +200,7 @@ namespace OnePunch.Auth.Api.Controllers
             var response = await _service.SetDefaultTenant(tenantId, token, ct);
             if (!string.IsNullOrWhiteSpace(response.ErrorMessage))
                 return Unauthorized(new UnauthorizedResponse { ErrorMessage = response.ErrorMessage });
-            return Ok(response);
+            return Ok(ConvertLoginResponse(response));
         }
 
         [AllowAnonymous]
@@ -208,20 +208,56 @@ namespace OnePunch.Auth.Api.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> Logout([FromBody] RefreshTokenPayload payload, CancellationToken ct)
         {
+            SetRefreshTokenCookies("", -1);
             if (!string.IsNullOrWhiteSpace(payload.RefreshToken))
                 await _service.RevokeRefreshTokenAsync(payload.RefreshToken, ct);
             return Ok();
         }
 
         [AllowAnonymous]
-        [HttpGet("refresh")]
+        [HttpPost("refresh")]
         [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Refresh([FromQuery(Name = "refresh-token")] string refreshToken, CancellationToken token)
+        public async Task<IActionResult> Refresh(CancellationToken ct) // Renamed to 'ct' to avoid conflict
         {
-            var response = await _service.RefreshLogin(refreshToken, token);
+            if (!Request.Cookies.TryGetValue("X-Refresh-Token", out var refreshToken) || string.IsNullOrWhiteSpace(refreshToken))
+            {
+                return Unauthorized(new UnauthorizedResponse { ErrorMessage = "Refresh token is missing or invalid." });
+            }
+            // 2. Pass the extracted token to your service
+            var response = await _service.RefreshLogin(refreshToken, ct);
             if (!string.IsNullOrWhiteSpace(response.ErrorMessage))
+            {
                 return Unauthorized(new UnauthorizedResponse { ErrorMessage = response.ErrorMessage });
-            return Ok(response);
+            }
+            // Optional: If your RefreshLogin method generates a *new* refresh token (rotation), 
+            // remember to append the new cookie back to the response here before returning Ok.
+            return Ok(ConvertLoginResponse(response));
+        }
+
+        [NonAction]
+        private LoginResponseSimple ConvertLoginResponse(LoginResponse response)
+        {
+            SetRefreshTokenCookies(response.RefreshToken,  _jwtService.RefreshExpiry);
+            return new LoginResponseSimple
+            {
+                AccessToken = response.AccessToken,
+                ErrorMessage = response.ErrorMessage,
+                Expiry = response.Expiry,
+                Tenants = response.Tenants
+            };
+        }
+
+        [NonAction]
+        private void SetRefreshTokenCookies(string refreshToken, int expiryDays )
+        {
+            var cookieOptions = new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Strict,
+                Expires = DateTimeOffset.UtcNow.AddDays(expiryDays)
+            };
+            Response.Cookies.Append("X-Refresh-Token", refreshToken, cookieOptions);
         }
 
         [HttpPost("key-gen")]
