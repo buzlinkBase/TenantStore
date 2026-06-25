@@ -24,7 +24,7 @@ public static class ServiceRegistrations
         {
             options.AddPolicy("AllowAll", policy =>
             {
-                policy.AllowAnyOrigin()
+                policy.WithOrigins("http://localhost:5173", "http://localhost:4200")
                       .AllowAnyMethod()
                       .AllowAnyHeader();
             });

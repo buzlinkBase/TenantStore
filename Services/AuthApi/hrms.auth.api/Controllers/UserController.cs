@@ -21,12 +21,16 @@ namespace OnePunch.Auth.Api.Controllers
     public class UsersController : ControllerBase
     {
         private readonly UserService _service;
+        private readonly IWebHostEnvironment _hostEnvironment;
         private readonly JwtService _jwtService;
         private readonly Domains _options;
 
-        public UsersController(UserService service, JwtService jwtService, IOptions<Domains> options)
+        public UsersController(UserService service,
+            IWebHostEnvironment hostEnvironment,
+            JwtService jwtService, IOptions<Domains> options)
         {
             _service = service;
+            _hostEnvironment = hostEnvironment;
             _jwtService = jwtService;
             _options = options.Value;
         }
@@ -237,7 +241,7 @@ namespace OnePunch.Auth.Api.Controllers
         [NonAction]
         private LoginResponseSimple ConvertLoginResponse(LoginResponse response)
         {
-            SetRefreshTokenCookies(response.RefreshToken,  _jwtService.RefreshExpiry);
+            SetRefreshTokenCookies(response.RefreshToken, _jwtService.RefreshExpiry);
             return new LoginResponseSimple
             {
                 AccessToken = response.AccessToken,
@@ -248,8 +252,9 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [NonAction]
-        private void SetRefreshTokenCookies(string refreshToken, int expiryDays )
+        private void SetRefreshTokenCookies(string refreshToken, int expiryDays)
         {
+            var isDevelopment = _hostEnvironment.IsDevelopment();
             var cookieOptions = new CookieOptions
             {
                 HttpOnly = true,
@@ -257,7 +262,7 @@ namespace OnePunch.Auth.Api.Controllers
                 SameSite = SameSiteMode.Lax,
                 // 2. Change to false IF your local backend environment or your proxy is running on HTTP.
                 // If you aren't using an SSL certificate locally or on your droplet IP yet, set this to false.
-                Secure = false,
+                Secure = false,// !isDevelopment, when we have domain later
                 Expires = DateTimeOffset.UtcNow.AddDays(expiryDays)
             };
             Response.Cookies.Append("X-Refresh-Token", refreshToken, cookieOptions);
