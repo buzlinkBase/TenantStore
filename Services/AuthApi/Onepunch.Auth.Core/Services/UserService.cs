@@ -56,10 +56,11 @@ public class UserService : BaseService<User>
     }
 
     #region Registration Helpers
-    private RegistrationResult Success(string message, string? email = null) =>
-        new() { Success = true, Message = message, Email = email };
+    private RegistrationResult Success(string message, string? email = null, string? name = "") =>
+        new() { Success = true, Message = message, Email = email, Name = name };
     private RegistrationResult Fail(string code, string message) =>
         new() { Success = false, ErrorCode = code, Message = message };
+
     private async Task<EmailToken?> FindToken(string emailToken) =>
         await Repository.Find<EmailToken>(x => x.TokenValue == emailToken).FirstOrDefaultAsync();
     private bool IsTokenExpired(EmailToken token) => token.Expiry < DateTime.UtcNow;
@@ -93,7 +94,7 @@ public class UserService : BaseService<User>
         }
 
         await _notificationService.SendEmailVerification(user, token);
-        return Success("Account created. Check your email to verify.", user.Email);
+        return Success("Account created. Check your email to verify.", user.Email, user.FullName);
     }
 
     public async Task<RegistrationResult> ConfirmedRegistration(string emailToken, CancellationToken ctoken)
@@ -116,7 +117,7 @@ public class UserService : BaseService<User>
         emailInfoDb.IsUsed = true;
         Context.EmailTokens.Update(emailInfoDb);
         await CommitChangesAsync(ctoken);
-        return Success("Account verified successfully.");
+        return Success("Account verified successfully.", user.Email, user.FullName);
     }
     #endregion
 
@@ -275,7 +276,7 @@ public class UserService : BaseService<User>
         return _signInManager.ConfigureExternalAuthenticationProperties("Google", redirectUrl);
     }
 
-    public async Task<LoginResponse> LoginWithGoogleAsync2(string code,CancellationToken ct)
+    public async Task<LoginResponse> LoginWithGoogleAsync2(string code, CancellationToken ct)
     {
         try
         {
@@ -316,7 +317,7 @@ public class UserService : BaseService<User>
                     UserName = payload.Email,
                     FullName = payload.Name,
                     EmailConfirmed = true, // Google already verified the email,
-                    Status="Active",
+                    Status = "Active",
                 };
 
                 var createResult = await _manager.CreateAsync(user);

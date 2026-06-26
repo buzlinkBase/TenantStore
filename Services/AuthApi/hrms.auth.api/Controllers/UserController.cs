@@ -59,14 +59,16 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [AllowAnonymous]
-        [HttpPost("confirm-email")]
+        [HttpGet("confirm-email")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<IActionResult> Confirm([FromBody] TokenPayload payload, CancellationToken ct)
+        public async Task<IActionResult> Confirm([FromQuery(Name = "token")] string token, CancellationToken ct)
         {
-            var result = await _service.ConfirmedRegistration(payload.Token, ct);
+            var result = await _service.ConfirmedRegistration(token, ct);
             if (!result.Success)
-                return BadRequest(new MessageErrorResponse { Message = result.ErrorCode });
-            return Ok();
+            {
+                return Redirect($"{_options.FrontEnd}/account-confirmation/error?code={result.ErrorCode}&reason={result.Message}");
+            }
+            return Redirect($"{_options.FrontEnd}/account-confirmation/success?email={result.Email}&name={result.Name}");
         }
 
         [HttpPost("forgot-password")]
