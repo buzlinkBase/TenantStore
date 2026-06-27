@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.Options;
-using OnePunch.Notification.Domain.DTO;
 using System.Net;
 using System.Net.Mail;
 
@@ -70,6 +69,34 @@ public class EmailNotificationService
         };
         await client.SendMailAsync(mail, token);
     }
+    public async Task SendSignInGoogleInformation(SignInGoogleEmail model, CancellationToken token)
+    {
+        string relativePath = Path.Combine("Core", "Templates", "SignInGoogleEmail.html");
+        string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);
+        if (!File.Exists(filePath))
+        {
+            throw new FileNotFoundException($"Template not found at: {filePath}");
+        }
+        string body = await File.ReadAllTextAsync(filePath, token);
+        body = body
+            .Replace("{{LoginLink}}", model.LoginLink)
+            .Replace("{{UserName}}", model.Name ?? model.Email)
+            .Replace("{{CurrentYear}}", DateTime.UtcNow.Year.ToString())
+            ;
+        MailMessage mail = new MailMessage();
+        mail.To.Add(model.Email);
+        mail.From = new MailAddress(_setting.From);
+        var displayName = model?.Name ?? "";
+        mail.Subject = $"Request password reset {(displayName.Length > 100 ? displayName[..100] : displayName)}";
+        mail.Body = body;
+        mail.IsBodyHtml = true;
+        using var client = new SmtpClient(_setting.SmtpServer, _setting.SmtpPort)
+        {
+            Credentials = new NetworkCredential(_setting.Username, _setting.Password),
+            EnableSsl = true
+        };
+        await client.SendMailAsync(mail, token);
+    }
     public async Task SendResetPassword(ResetPasswordEmail model, CancellationToken token)
     {
         string relativePath = Path.Combine("Core", "Templates", "ResetPassword.html");
@@ -99,4 +126,5 @@ public class EmailNotificationService
         };
         await client.SendMailAsync(mail, token);
     }
+
 }

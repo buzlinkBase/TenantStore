@@ -72,6 +72,20 @@ public class EmailNotificationService
         await _publisher.Publish(message, token);
         await _emailTokenService.CommitChangesAsync(token);
     }
+
+    public async Task SendGoogleSiginInform(User account, CancellationToken token)
+    {
+        if (account == null || account?.Email == null) return;
+        var message = new SignInGoogleEmail
+        {
+            Email = account.Email,
+            Name = account.FullName ?? "User",
+            LoginLink = $"{_domainOptions.FrontEnd}/login?provider=google",
+            AppName = _configuration["AppName"] ?? "",
+        };
+        await _publisher.Publish(message, token);
+    }
+
 }
 
 public class EmailTokenService : BaseService<EmailToken>

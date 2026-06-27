@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Domain.DTOs;
 using OnePunch.Auth.Domain.Entities;
+using RTools_NTS.Util;
 using Serilog;
 using System.Security.Claims;
 using System.Text.Json;
@@ -152,9 +153,26 @@ public class UserService : BaseService<User>
             Log.Logger.Warning("Password reset requested for unknown email {Email}", email);
             return;
         }
+        var hasPassword = await _manager.HasPasswordAsync(userInfo);
+        if (hasPassword)
+        {
+            await SendForgotPasswordAsync(userInfo, token);
+        }
+        else
+        {
+            await SendGoogleSignInAsync(userInfo, token);
+        }
+    }
+
+    private async Task SendForgotPasswordAsync(User userInfo, CancellationToken token)
+    {
         var userToken = await _manager.GeneratePasswordResetTokenAsync(userInfo);
         string routeSafeToken = Microsoft.AspNetCore.WebUtilities.WebEncoders.Base64UrlEncode(System.Text.Encoding.UTF8.GetBytes(userToken));
         await _notificationService.SendResetPassword(userInfo, routeSafeToken, token);
+    }
+    private async Task SendGoogleSignInAsync(User userInfo, CancellationToken token)
+    {
+        await _notificationService.SendGoogleSiginInform(userInfo,  token);
     }
 
     public async Task<IdentityResult> ResetPassword(ResetPassword payload, CancellationToken ctoken)

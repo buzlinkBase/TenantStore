@@ -72,6 +72,9 @@
 		<None Update="Core\Templates\AccountConfirmation.html">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
+		<None Update="Core\Templates\SignInGoogleEmail.html">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
 		<None Update="Core\Templates\ResetPassword.html">
 		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>

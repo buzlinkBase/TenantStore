@@ -4,6 +4,7 @@ using OnePunch.Notification.Core.Messaging;
 using OnePunch.Notification.Infrastructure;
 
 namespace OnePunch.Notification.Core.Extensions;
+
 public static class NotifTenantRabbitConfiguration
 {
     public static void NotifConfigRabbitMq(this WebApplicationBuilder builder)
@@ -24,6 +25,7 @@ public static class NotifTenantRabbitConfiguration
             x.AddConsumer<AccountConfirmationWorker, AccountConfirmationDefinition>();
             x.AddConsumer<ResetPasswordWorker, ResetPasswordConsumerDefinition>();
             x.AddConsumer<UserInvitationWorker, UserInvitationConsumerDefinition>();
+            x.AddConsumer<SignInGoogleWorker, SignInGoogleConsumerDefinition>();
 
             x.UsingRabbitMq((context, cfg) =>
             {
@@ -71,6 +73,13 @@ public class UserInvitationConsumerDefinition : ConsumerDefinition<UserInvitatio
     public UserInvitationConsumerDefinition()
     {
         EndpointName = "notification-user-invitation-que";
+    }
+}
+public class SignInGoogleConsumerDefinition : ConsumerDefinition<SignInGoogleWorker>
+{
+    public SignInGoogleConsumerDefinition()
+    {
+        EndpointName = "notification-user-signingoogle-que";
     }
 }
 

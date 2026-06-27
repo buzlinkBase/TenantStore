@@ -64,6 +64,14 @@ public record ResetPasswordEmail
     public string ResetLink { get; set; } = string.Empty;
     public DateTime Expiry { get; set; } = DateTime.UtcNow.AddDays(1);
 }
+
+public record SignInGoogleEmail
+{
+    public string? Name { get; set; }
+    public string? AppName { get; set; }
+    public required string Email { get; set; }
+    public string LoginLink { get; set; } = string.Empty;
+}
 public record UserInvitionNotificationPayload
 {
     public string Email { get; set; } = string.Empty;
