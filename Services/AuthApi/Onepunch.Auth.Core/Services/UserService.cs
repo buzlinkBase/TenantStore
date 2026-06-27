@@ -153,7 +153,8 @@ public class UserService : BaseService<User>
             return;
         }
         var userToken = await _manager.GeneratePasswordResetTokenAsync(userInfo);
-        await _notificationService.SendResetPassword(userInfo, userToken, token);
+        string routeSafeToken = Microsoft.AspNetCore.WebUtilities.WebEncoders.Base64UrlEncode(System.Text.Encoding.UTF8.GetBytes(userToken));
+        await _notificationService.SendResetPassword(userInfo, routeSafeToken, token);
     }
 
     public async Task<IdentityResult> ResetPassword(ResetPassword payload, CancellationToken ctoken)
@@ -172,7 +173,10 @@ public class UserService : BaseService<User>
         var userInfo = await _manager.FindByEmailAsync(emailInfoDb.Email);
         if (userInfo == null) throw new GuardException("Invalid request.");
 
-        var result = await _manager.ResetPasswordAsync(userInfo, payload.Token, payload.NewPassword);
+        var decodedTokenBytes = Microsoft.AspNetCore.WebUtilities.WebEncoders.Base64UrlDecode(payload.Token);
+        var actualToken = System.Text.Encoding.UTF8.GetString(decodedTokenBytes);
+
+        var result = await _manager.ResetPasswordAsync(userInfo, actualToken, payload.NewPassword);
         emailInfoDb.IsUsed = true;
         Context.EmailTokens.Update(emailInfoDb);
         await CommitChangesAsync(ctoken);
