@@ -50,7 +50,10 @@ public static class ServiceRegistrations
         {
             options.AddPolicy("AllowAll", policy =>
             {
-                policy.WithOrigins("http://localhost:5173", "http://localhost:4200")
+                policy.WithOrigins(
+                    "http://localhost:5173", 
+                    "http://localhost:4200",
+                    "https://api.onepunch.site")
                       .AllowCredentials()
                       .AllowAnyMethod()
                       .AllowAnyHeader();

@@ -85,10 +85,11 @@ internal class Program
             options.EnablePersistAuthorization();
             foreach (var description in apiVersionProvider.ApiVersionDescriptions)
             {
-                options.SwaggerEndpoint($"/swagger/{description.GroupName}/swagger.json",
-                                        $"AUTH API {description.ApiVersion}");
+                options.SwaggerEndpoint($"./{description.GroupName}/swagger.json",
+                                $"AUTH API {description.ApiVersion}"); 
                 options.ConfigObject.PersistAuthorization = true; 
             }
+            options.RoutePrefix = "swagger";
         });
         app.UseSerilogRequestLogging(); 
         app.UseRouting(); 

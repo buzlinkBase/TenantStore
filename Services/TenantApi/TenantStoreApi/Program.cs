@@ -106,13 +106,16 @@ internal class Program
             options.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
             options.EnablePersistAuthorization();
             options.DefaultModelsExpandDepth(-1);
+
             foreach (var description in apiVersionProvider.ApiVersionDescriptions)
             {
-                options.SwaggerEndpoint($"/swagger/{description.GroupName}/swagger.json",
+                // Notice the dot '.' making this a relative path layout
+                options.SwaggerEndpoint($"./{description.GroupName}/swagger.json",
                                         $"TENANT API {description.ApiVersion}");
                 options.ConfigObject.PersistAuthorization = true;
             }
-        });
+            options.RoutePrefix = "swagger";
+        }); 
         // 4. FOURTH: Centralized Logging (safely handles forwarded context)
         app.UseSerilogRequestLogging();
         // NOTE: Removed app.UseHttpsRedirection() to prevent proxy redirect loops.

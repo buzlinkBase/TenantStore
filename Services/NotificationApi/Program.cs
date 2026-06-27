@@ -78,10 +78,11 @@ app.UseSwaggerUI(options =>
     options.DefaultModelsExpandDepth(-1);
     foreach (var description in apiVersionProvider.ApiVersionDescriptions)
     {
-        options.SwaggerEndpoint($"/swagger/{description.GroupName}/swagger.json",
-                                $"NOTIFICATION API {description.ApiVersion}");
+        options.SwaggerEndpoint($"./{description.GroupName}/swagger.json",
+                               $"NOTIFICATION API {description.ApiVersion}"); 
         options.ConfigObject.PersistAuthorization = true;
     }
+    options.RoutePrefix = "swagger";
 });
 // 3. THIRD: Central Logging 
 app.UseSerilogRequestLogging();
