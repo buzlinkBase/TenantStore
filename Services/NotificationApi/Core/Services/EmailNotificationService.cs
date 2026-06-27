@@ -45,7 +45,8 @@ public class EmailNotificationService
         if (!File.Exists(filePath))
         {
             throw new FileNotFoundException($"Template not found at: {filePath}");
-        }
+        } 
+
         string body = await File.ReadAllTextAsync(filePath, token);
         body = body
             .Replace("{{InviteLink}}", model.InviteLink)
@@ -71,7 +72,7 @@ public class EmailNotificationService
     }
     public async Task SendResetPassword(ResetPasswordEmail model, CancellationToken token)
     {
-        string relativePath = Path.Combine("Core", "Templates", "ResetPasssord.html");
+        string relativePath = Path.Combine("Core", "Templates", "ResetPassword.html");
         string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);
         if (!File.Exists(filePath))
         {

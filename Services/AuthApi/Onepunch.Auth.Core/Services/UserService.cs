@@ -158,9 +158,6 @@ public class UserService : BaseService<User>
 
     public async Task<IdentityResult> ResetPassword(ResetPassword payload, CancellationToken ctoken)
     {
-        if (payload.Password != payload.ConfirmPassword)
-            throw new GuardException("Passwords do not match.");
-
         var emailInfoDb = await FindToken(payload.Token);
         if (emailInfoDb == null) throw new GuardException("Invalid or expired token.");
 
@@ -175,7 +172,7 @@ public class UserService : BaseService<User>
         var userInfo = await _manager.FindByEmailAsync(emailInfoDb.Email);
         if (userInfo == null) throw new GuardException("Invalid request.");
 
-        var result = await _manager.ResetPasswordAsync(userInfo, payload.Token, payload.Password);
+        var result = await _manager.ResetPasswordAsync(userInfo, payload.Token, payload.NewPassword);
         emailInfoDb.IsUsed = true;
         Context.EmailTokens.Update(emailInfoDb);
         await CommitChangesAsync(ctoken);

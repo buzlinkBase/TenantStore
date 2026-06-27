@@ -67,11 +67,10 @@ public class EmailNotificationService
             Expiry = exp,
             Token = userToken,
         };
-        var tokenModel = await _emailTokenService.CreateModel("user.created", exp, account.Id, account.Email, userToken);
+        var tokenModel = await _emailTokenService.CreateModel("user.reset.password", exp, account.Id, account.Email, userToken);
         await _emailTokenService.StoreToken(tokenModel, token);
         await _publisher.Publish(message, token);
         await _emailTokenService.CommitChangesAsync(token);
-
     }
 }
 
