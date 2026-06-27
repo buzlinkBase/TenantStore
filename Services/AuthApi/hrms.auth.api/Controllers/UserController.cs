@@ -249,7 +249,9 @@ namespace OnePunch.Auth.Api.Controllers
                 AccessToken = response.AccessToken,
                 ErrorMessage = response.ErrorMessage,
                 Expiry = response.Expiry,
-                Tenants = response.Tenants
+                Tenants = response.Tenants,
+                Name = response.Name,
+                Role = response.Role,
             };
         }
 

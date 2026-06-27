@@ -262,7 +262,9 @@ public class UserService : BaseService<User>
             AccessToken = accessToken,
             RefreshToken = refreshToken,
             Expiry = DateTime.UtcNow.AddMinutes(_jwtService.TokenExpiry),
-            Tenants = tenants
+            Tenants = tenants,
+            Name = user.FullName,
+            Role = user.DefaultTenantRole
         };
     }
 

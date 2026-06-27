@@ -21,7 +21,7 @@ public class TokenInfo
 public record LoginPayload
 {
     [EmailAddress]
-    public required string Email { get; set; }
+    public required string Email { get; set; } 
     public required string Password { get; set; }
 }
 
@@ -32,12 +32,15 @@ public record LoginResponse : LoginResponseSimple
 
 public record LoginResponseSimple
 {
+    public  string? Name { get; set; }
+    public string? Role { get; set; }
     public string ErrorMessage { get; set; } = string.Empty;
     public string AccessToken { get; set; } = string.Empty;
     //public Guid? DefaultTenantId { get; set; }
     //public string? DefaultTenantName  { get; set; }
     public List<UsersTenant> Tenants { get; set; }
     public DateTime Expiry { get; set; }
+
 }
 
 
