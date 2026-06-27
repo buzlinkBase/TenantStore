@@ -264,7 +264,8 @@ public class UserService : BaseService<User>
             Expiry = DateTime.UtcNow.AddMinutes(_jwtService.TokenExpiry),
             Tenants = tenants,
             Name = user.FullName,
-            Role = user.DefaultTenantRole
+            Role = user.DefaultTenantRole,
+            Email = user.Email
         };
     }
 

@@ -33,6 +33,7 @@ public record LoginResponse : LoginResponseSimple
 public record LoginResponseSimple
 {
     public  string? Name { get; set; }
+    public  string? Email  { get; set; }
     public string? Role { get; set; }
     public string ErrorMessage { get; set; } = string.Empty;
     public string AccessToken { get; set; } = string.Empty;

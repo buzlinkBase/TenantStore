@@ -252,6 +252,7 @@ namespace OnePunch.Auth.Api.Controllers
                 Tenants = response.Tenants,
                 Name = response.Name,
                 Role = response.Role,
+                Email=response.Email,
             };
         }
 
