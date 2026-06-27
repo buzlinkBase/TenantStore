@@ -261,10 +261,10 @@ namespace OnePunch.Auth.Api.Controllers
             {
                 HttpOnly = true,
                 // 1. Change to Lax (or Strict). Lax allows cookies to work seamlessly on the same domain/localhost
-                SameSite = SameSiteMode.Lax,
+                SameSite = SameSiteMode.None,
                 // 2. Change to false IF your local backend environment or your proxy is running on HTTP.
                 // If you aren't using an SSL certificate locally or on your droplet IP yet, set this to false.
-                Secure = false,// !isDevelopment, when we have domain later
+                Secure = !isDevelopment,// when we have domain later
                 Expires = DateTimeOffset.UtcNow.AddDays(expiryDays)
             };
             Response.Cookies.Append("X-Refresh-Token", refreshToken, cookieOptions);

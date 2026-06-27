@@ -63,6 +63,19 @@ internal class Program
         .PersistKeysToFileSystem(new DirectoryInfo(@"/app/dp-keys"));
 
         var app = builder.Build();
+        // 1. Configure and enable Forwarded Headers
+        var forwardedOptions = new ForwardedHeadersOptions
+        {
+            ForwardedHeaders = ForwardedHeaders.XForwardedFor
+                             | ForwardedHeaders.XForwardedProto
+                             | ForwardedHeaders.XForwardedHost
+        };
+        // CRITICAL: Clear these collections so .NET trusts Nginx running on localhost
+        forwardedOptions.KnownNetworks.Clear();
+        forwardedOptions.KnownProxies.Clear();
+        app.UseForwardedHeaders(forwardedOptions);
+        app.UseExceptionHandler();
+        app.UseStatusCodePages();
         var apiVersionProvider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
         app.UseSwagger();
         app.UseSwaggerUI(options =>
@@ -77,19 +90,10 @@ internal class Program
                 options.ConfigObject.PersistAuthorization = true; 
             }
         });
-
-        app.UseSerilogRequestLogging();
-        app.UseStatusCodePages();
-        app.UseExceptionHandler();
+        app.UseSerilogRequestLogging(); 
         app.UseRouting(); 
         app.UseCors("AllowAll");
-        //app.UseMiddleware<ApiKeyMiddleware>(); 
-        app.UseForwardedHeaders(new ForwardedHeadersOptions
-        {
-            ForwardedHeaders = ForwardedHeaders.XForwardedFor
-                     | ForwardedHeaders.XForwardedProto
-                     | ForwardedHeaders.XForwardedHost
-        });
+        //app.UseMiddleware<ApiKeyMiddleware>();  
         app.UseAuthentication();  
         app.UseAuthorization();
         app.MapGrpcService<CheckEmailHandler>();

@@ -59,10 +59,18 @@ builder.Services.AddDataProtection()
         .PersistKeysToFileSystem(new DirectoryInfo(@"/app/dp-keys"));
 
 var app = builder.Build();
+// 1. FIRST: Parse headers from Nginx on localhost immediately
+var forwardedOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor
+                     | ForwardedHeaders.XForwardedProto
+                     | ForwardedHeaders.XForwardedHost
+};
+forwardedOptions.KnownNetworks.Clear();
+forwardedOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedOptions);
+// 2. SECOND: API Documentation
 var apiVersionProvider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
-//if (app.Environment.IsDevelopment())
-//{
-//} 
 app.UseSwagger();
 app.UseSwaggerUI(options =>
 {
@@ -72,19 +80,18 @@ app.UseSwaggerUI(options =>
     {
         options.SwaggerEndpoint($"/swagger/{description.GroupName}/swagger.json",
                                 $"NOTIFICATION API {description.ApiVersion}");
-
         options.ConfigObject.PersistAuthorization = true;
     }
 });
-
-app.UseHttpsRedirection();
-app.UseForwardedHeaders(new ForwardedHeadersOptions
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor
-                     | ForwardedHeaders.XForwardedProto
-                     | ForwardedHeaders.XForwardedHost
-});
-app.UseAuthorization();
-app.MapControllers();
+// 3. THIRD: Central Logging 
 app.UseSerilogRequestLogging();
+// NOTE: Removed app.UseHttpsRedirection() to prevent Nginx proxy redirect loops
+// 4. FOURTH: App Execution Setup 
+app.UseRouting();
+app.UseCors("AllowAll"); // Placed cleanly between Routing and Security Handshake
+// 5. FIFTH: Security Handshake
+app.UseAuthentication(); // Included in case your controllers require [Authorize] attributes
+app.UseAuthorization();
+// 6. LAST: Map execution endpoints
+app.MapControllers();
 app.Run();

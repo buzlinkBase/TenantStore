@@ -85,10 +85,20 @@ internal class Program
         .PersistKeysToFileSystem(new DirectoryInfo(@"/app/dp-keys"));
 
         var app = builder.Build();
-        // Configure the HTTP request pipeline.
-        //if (app.Environment.IsDevelopment())
-        //{
-        //app.UseDeveloperExceptionPage();
+        // 1. FIRST: Fix headers from Nginx so .NET knows the real IP/Protocol immediately
+        var forwardedOptions = new ForwardedHeadersOptions
+        {
+            ForwardedHeaders = ForwardedHeaders.XForwardedFor
+                             | ForwardedHeaders.XForwardedProto
+                             | ForwardedHeaders.XForwardedHost
+        };
+        forwardedOptions.KnownNetworks.Clear();
+        forwardedOptions.KnownProxies.Clear();
+        app.UseForwardedHeaders(forwardedOptions);
+        // 2. SECOND: Catch global exceptions early
+        app.UseExceptionHandler();
+        app.UseStatusCodePages();
+        // 3. THIRD: API Documentation
         var apiVersionProvider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
         app.UseSwagger();
         app.UseSwaggerUI(options =>
@@ -100,28 +110,23 @@ internal class Program
             {
                 options.SwaggerEndpoint($"/swagger/{description.GroupName}/swagger.json",
                                         $"TENANT API {description.ApiVersion}");
-
                 options.ConfigObject.PersistAuthorization = true;
             }
         });
-
-        app.UseHttpsRedirection();
-        app.UseStatusCodePages();
-        app.UseExceptionHandler();
+        // 4. FOURTH: Centralized Logging (safely handles forwarded context)
+        app.UseSerilogRequestLogging();
+        // NOTE: Removed app.UseHttpsRedirection() to prevent proxy redirect loops.
+        // 5. FIFTH: Core Routing & Outbound Header management
         app.UseRouting();
         app.UseCors("AllowAll");
-        //app.UseMiddleware<CorrelationIdMiddleware>(); 
-        //app.UseMiddleware<ApiKeyMiddleware>();
-        app.UseSerilogRequestLogging();
         app.UseHeaderPropagation();
-        app.UseForwardedHeaders(new ForwardedHeadersOptions
-        {
-            ForwardedHeaders = ForwardedHeaders.XForwardedFor
-                     | ForwardedHeaders.XForwardedProto
-                     | ForwardedHeaders.XForwardedHost
-        });
+        // // Keep custom middlewares stacked here if uncommented
+        // app.UseMiddleware<CorrelationIdMiddleware>(); 
+        // app.UseMiddleware<ApiKeyMiddleware>();
+        // 6. SIXTH: Security Handshake
         app.UseAuthentication();
         app.UseAuthorization();
+        // 7. LAST: Map your execution endpoints
         app.MapGrpcService<TenantInfoServiceProvider>();
         app.MapControllers();
         app.Run();

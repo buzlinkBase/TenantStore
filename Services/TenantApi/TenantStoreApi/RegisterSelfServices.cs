@@ -51,6 +51,7 @@ public static class ServiceRegistrations
             options.AddPolicy("AllowAll", policy =>
             {
                 policy.WithOrigins("http://localhost:5173", "http://localhost:4200")
+                      .AllowCredentials()
                       .AllowAnyMethod()
                       .AllowAnyHeader();
             });

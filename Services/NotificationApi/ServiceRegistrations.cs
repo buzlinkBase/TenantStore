@@ -7,6 +7,7 @@ using System.Net;
 using System.Text;
 
 namespace OnePunch.Notification;
+
 public static class ServiceRegistrations
 {
     public static void RegisterSelftServices(this WebApplicationBuilder builder)
@@ -16,8 +17,8 @@ public static class ServiceRegistrations
         builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));
         builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));
         builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("MailSettings"));
-        builder.Services.AddHttpContextAccessor(); 
-        builder.Services.AddDataProtection(); 
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.AddDataProtection();
         builder.Services.AddLogging();
         //var bootstrapServers = builder.Configuration["KafkaSettings:BootstrapServers"] ?? "";
         builder.Services.AddCors(options =>
@@ -25,6 +26,7 @@ public static class ServiceRegistrations
             options.AddPolicy("AllowAll", policy =>
             {
                 policy.WithOrigins("http://localhost:5173", "http://localhost:4200")
+                      .AllowCredentials()
                       .AllowAnyMethod()
                       .AllowAnyHeader();
             });
