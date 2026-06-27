@@ -84,6 +84,7 @@ public class EmailNotificationService
             AppName = _configuration["AppName"] ?? "",
         };
         await _publisher.Publish(message, token);
+        await _emailTokenService.CommitChangesAsync(token);
     }
 
 }
