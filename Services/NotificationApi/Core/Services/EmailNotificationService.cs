@@ -80,7 +80,7 @@ public class EmailNotificationService
         }
         string body = await File.ReadAllTextAsync(filePath, token);
         body = body
-            .Replace("{{InviteLink}}", model.ResetLink)
+            .Replace("{{ResetLink}}", model.ResetLink)
             .Replace("{{UserName}}", model.Name ?? model.Email)
             .Replace("{{ExpirationDateTime}}", model.Expiry.ToString())
             .Replace("{{CurrentYear}}", DateTime.UtcNow.Year.ToString())
