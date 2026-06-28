@@ -33,7 +33,7 @@ public static class ServiceRegistrations
             options.Headers.Add("X-Tenant-ID");
             options.Headers.Add("X-Api-Key");
         });
-        builder.Services.AddGrpc(); 
+        builder.Services.AddGrpc();
         builder.Services.AddLogging();
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
         builder.Services.AddScoped<ITenantProvider, TenantProviderAccessor>();
@@ -51,8 +51,12 @@ public static class ServiceRegistrations
             options.AddPolicy("AllowAll", policy =>
             {
                 policy.WithOrigins(
-                    "http://localhost:5173", 
+                     "http://localhost:5173",
                     "http://localhost:4200",
+                    "http://159.89.194.81:8001",
+                    "https://hris.onepunch.site",
+                    "https://hris-dev.onepunch.site",
+                    "https://hris-staging.onepunch.site",
                     "https://api.onepunch.site")
                       .AllowCredentials()
                       .AllowAnyMethod()

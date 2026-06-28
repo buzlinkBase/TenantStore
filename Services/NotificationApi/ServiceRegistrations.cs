@@ -28,6 +28,10 @@ public static class ServiceRegistrations
                 policy.WithOrigins(
                     "http://localhost:5173",
                     "http://localhost:4200",
+                    "http://159.89.194.81:8001",
+                    "https://hris.onepunch.site",
+                    "https://hris-dev.onepunch.site",
+                    "https://hris-staging.onepunch.site",
                     "https://api.onepunch.site")
                       .AllowCredentials()
                       .AllowAnyMethod()

@@ -24,7 +24,7 @@ public static class ServiceRegistrations
         builder.Services.Configure<Domains>(builder.Configuration.GetSection("Domains"));
         builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
         builder.Services.Configure<RabbitMqSettings>(builder.Configuration.GetSection("RabbitMqSettings"));
-        builder.Services.AddSingleton<IConnectionMultiplexer>(sp => 
+        builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
         ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));
         builder.Services.AddScoped<ICacheService, RedisCacheService>();
 
@@ -70,6 +70,10 @@ public static class ServiceRegistrations
                 policy.WithOrigins(
                     "http://localhost:5173",
                     "http://localhost:4200",
+                    "http://159.89.194.81:8001",
+                    "https://hris.onepunch.site",
+                    "https://hris-dev.onepunch.site",
+                    "https://hris-staging.onepunch.site",
                     "https://api.onepunch.site")
                       .AllowCredentials()
                       .AllowAnyMethod()
@@ -94,7 +98,7 @@ public static class ServiceRegistrations
          })
          .AddRoles<Domain.Entities.Role>()
          .AddEntityFrameworkStores<AuthContext>()
-         .AddApiEndpoints();  
+         .AddApiEndpoints();
 
         builder.Services.AddApiVersioning(
                 options =>
