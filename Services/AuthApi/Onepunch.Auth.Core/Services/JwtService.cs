@@ -69,10 +69,10 @@ public class JwtService
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email ?? ""),
-            new("TenantId", tenantId),
-            new("TenantName", tenantName),
-            new("TenantState", tenantState),
-            new("TenantMemberRole", user.DefaultTenantRole ?? ""),
+            new("tenantId", tenantId),
+            new("tenantName", tenantName),
+            new("tenantState", tenantState),
+            new("tenantMemberRole", user.DefaultTenantRole ?? ""),
         };
 
         var roles = await _userManager.GetRolesAsync(user);
