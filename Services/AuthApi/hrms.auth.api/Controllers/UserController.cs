@@ -21,16 +21,13 @@ namespace OnePunch.Auth.Api.Controllers
     public class UsersController : ControllerBase
     {
         private readonly UserService _service;
-        private readonly IWebHostEnvironment _hostEnvironment;
         private readonly JwtService _jwtService;
         private readonly Domains _options;
 
         public UsersController(UserService service,
-            IWebHostEnvironment hostEnvironment,
             JwtService jwtService, IOptions<Domains> options)
         {
             _service = service;
-            _hostEnvironment = hostEnvironment;
             _jwtService = jwtService;
             _options = options.Value;
         }
@@ -252,22 +249,22 @@ namespace OnePunch.Auth.Api.Controllers
                 Tenants = response.Tenants,
                 Name = response.Name,
                 Role = response.Role,
-                Email=response.Email,
+                Email = response.Email,
             };
         }
 
         [NonAction]
         private void SetRefreshTokenCookies(string refreshToken, int expiryDays)
         {
-            var isDevelopment = _hostEnvironment.IsDevelopment();
+            // Behind reverse proxies, Request.IsHttps is corrected by UseForwardedHeaders.
+            var isHttps = HttpContext.Request.IsHttps;
             var cookieOptions = new CookieOptions
             {
                 HttpOnly = true,
-                // 1. Change to Lax (or Strict). Lax allows cookies to work seamlessly on the same domain/localhost
-                SameSite = SameSiteMode.None,
-                // 2. Change to false IF your local backend environment or your proxy is running on HTTP.
-                // If you aren't using an SSL certificate locally or on your droplet IP yet, set this to false.
-                Secure = !isDevelopment,// when we have domain later
+                // None is required for cross-site cookies (frontend and API on different origins),
+                // and browsers require Secure=true when SameSite=None.
+                SameSite = isHttps ? SameSiteMode.None : SameSiteMode.Lax,
+                Secure = isHttps,
                 Expires = DateTimeOffset.UtcNow.AddDays(expiryDays)
             };
             Response.Cookies.Append("X-Refresh-Token", refreshToken, cookieOptions);
