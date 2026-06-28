@@ -61,7 +61,7 @@ namespace Onepunch.Auth.Core.Services
 
             // Tenant must not be pending provisioning
             var request = await _tenantCreationRequestStatusService.FindOne(tenantId);
-            if (request != null && request.Status == TenantCreationStatus.Pending)
+            if (request != null && request.Status == TenantCreationStatus.Provisioning)
                 throw new GuardException("Your organization is still being provisioned. Please try again shortly.");
 
             // Prevent duplicate pending invitations

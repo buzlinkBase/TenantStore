@@ -284,7 +284,7 @@ public class UserService : BaseService<User>
             Tenants = tenants,
             Name = user.FullName,
             Role = user.DefaultTenantRole,
-            Email = user.Email
+            Email = user.Email,
         };
     }
 

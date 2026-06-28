@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Onepunch.Auth.Domain.Entities;
 using Onepunch.Common.Lib.Cache;
 using OnePunch.Auth.Domain.Entities;
 using System.IdentityModel.Tokens.Jwt;
@@ -50,8 +51,7 @@ public class JwtService
     public async Task<string> CreateTokenAsync(User user, string tenantId, string tenantName)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SigningKey));
-        string tenantState = "Pending";
-
+        string tenantState = TenantCreationStatus.Initial.ToString();
         if (!string.IsNullOrWhiteSpace(tenantId))
         {
             if (Guid.TryParse(tenantId, out Guid parseTenantId))

@@ -13,7 +13,7 @@ internal class TenantCreationStateConfig : IEntityTypeConfiguration<TenantCreati
         .Property(x => x.Status)
         .HasConversion(
                 v => v.ToString(),
-                v => EnumParserConfig.SafeParseEnum(v, TenantCreationStatus.Pending)
+                v => EnumParserConfig.SafeParseEnum(v, TenantCreationStatus.Initial)
             );
     }
 }

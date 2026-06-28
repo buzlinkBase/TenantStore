@@ -47,7 +47,7 @@ public class WorkspaceService : BaseService<User>
         var request = new TenantCreationRequestStatus
         {
             TenantId = createTenant.TenantId,
-            Status = TenantCreationStatus.Pending,
+            Status = TenantCreationStatus.Provisioning,
             UserId = user.Id,
         };
         _tenantProvider.SetTenantId(createTenant.TenantId);
