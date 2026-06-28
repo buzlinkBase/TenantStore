@@ -33,6 +33,7 @@ public class TenantCreatedWorker : IConsumer<TenantCreatedPayload>
             request.Status = TenantCreationStatus.Created;
             _userService.Context.TenantCreationRequests.Update(request);
         }
+
         user.DefaultTenantId = context.Message.TenantId;
         user.DefaultTenantName = context.Message.TenantName;
         user.DefaultTenantRole = "Owner";

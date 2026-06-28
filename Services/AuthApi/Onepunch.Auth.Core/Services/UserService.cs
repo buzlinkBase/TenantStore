@@ -7,7 +7,6 @@ using Microsoft.Extensions.Configuration;
 using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Domain.DTOs;
 using OnePunch.Auth.Domain.Entities;
-using RTools_NTS.Util;
 using Serilog;
 using System.Security.Claims;
 using System.Text.Json;
@@ -266,6 +265,7 @@ public class UserService : BaseService<User>
 
     internal LoginResponse ComposeLoginRespose(User user, string accessToken, string refreshToken)
     {
+        //call from tenantService
         var tenants = new List<UsersTenant>();
         if (user.DefaultTenantId.HasValue && user.DefaultTenantId != Guid.Empty)
         {
@@ -276,6 +276,7 @@ public class UserService : BaseService<User>
                 Type = user.DefaultTenantRole ?? "",
             });
         }
+        
         return new LoginResponse
         {
             AccessToken = accessToken,
