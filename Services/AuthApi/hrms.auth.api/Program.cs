@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
 using Onepunch.Auth.Core.Protos;
+using Onepunch.Auth.Infrastructure.Seeder;
 using Onepunch.Common.Lib;
 using OnePunch.Auth.Api;
 using OnePunch.Auth.Api.Exceptions;
@@ -15,7 +16,7 @@ using System.Text.Json.Serialization;
 
 internal class Program
 {
-    private static void Main(string[] args)
+    private static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -63,6 +64,7 @@ internal class Program
         .PersistKeysToFileSystem(new DirectoryInfo(@"/app/dp-keys"));
 
         var app = builder.Build();
+        await app.SeedRolesAsync();
         // 1. Configure and enable Forwarded Headers
         var forwardedOptions = new ForwardedHeadersOptions
         {
@@ -86,16 +88,16 @@ internal class Program
             foreach (var description in apiVersionProvider.ApiVersionDescriptions)
             {
                 options.SwaggerEndpoint($"./{description.GroupName}/swagger.json",
-                                $"AUTH API {description.ApiVersion}"); 
-                options.ConfigObject.PersistAuthorization = true; 
+                                $"AUTH API {description.ApiVersion}");
+                options.ConfigObject.PersistAuthorization = true;
             }
             options.RoutePrefix = "swagger";
         });
-        app.UseSerilogRequestLogging(); 
-        app.UseRouting(); 
+        app.UseSerilogRequestLogging();
+        app.UseRouting();
         app.UseCors("AllowAll");
         //app.UseMiddleware<ApiKeyMiddleware>();  
-        app.UseAuthentication();  
+        app.UseAuthentication();
         app.UseAuthorization();
         app.MapGrpcService<CheckEmailHandler>();
         app.MapControllers();

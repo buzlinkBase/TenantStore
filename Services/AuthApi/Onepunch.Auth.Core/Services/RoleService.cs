@@ -2,11 +2,6 @@
 using OnePunch.Auth.Core;
 using OnePunch.Auth.Core.Services;
 using OnePunch.Auth.Domain.Entities;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Onepunch.Auth.Core.Services;
 
@@ -20,15 +15,17 @@ public class RoleService : BaseService<Role>
         _roleManager = roleManager;
     }
 
-    public async Task<Role> Create(string roleName)
+    public async Task<Role?> Create(string roleName)
     {
-        var role = new Role()
+        var role = await _roleManager.RoleExistsAsync(roleName);
+        if (!role)
         {
-            Name = roleName,
-        };
-        await _roleManager.CreateAsync(role);
-        await CommitChangesAsync();
-        return role;
+            var newrole = new Role() { Name = roleName };
+            await _roleManager.CreateAsync(newrole);
+            await CommitChangesAsync();
+            return newrole;
+        }
+        return await _roleManager.FindByNameAsync(roleName);
     }
 
     public async Task<List<Role>> GetAll()
