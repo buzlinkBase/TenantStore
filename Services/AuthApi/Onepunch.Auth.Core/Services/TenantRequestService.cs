@@ -14,7 +14,7 @@ namespace Onepunch.Auth.Core.Services
         { 
             _configuration = configuration;
         }
-        public async Task<TenantCreationRequestStatus?> FindOne(Guid tenantId)
+        public async Task<TenantCreationRequestStatus?> FindByTenant(Guid tenantId)
         {
             return await Context.TenantCreationRequests.FirstOrDefaultAsync(x => x.TenantId == tenantId);
         }

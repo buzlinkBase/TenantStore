@@ -27,7 +27,7 @@ namespace OnePunch.Auth.Api.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetStatus(Guid tenantId, CancellationToken token)
         {
-            var status = await _service.FindOne(tenantId);
+            var status = await _service.FindByTenant(tenantId);
             if (status == null) return NotFound();
             return Ok(new TenantStatusResponse
             {

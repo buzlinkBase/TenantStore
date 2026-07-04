@@ -221,9 +221,7 @@ public class UserService : BaseService<User>
     }
 
     public async Task<IdentityResult> UpdateAsync(User user) =>
-        user == null
-            ? IdentityResult.Failed(new IdentityError { Description = "User not found." })
-            : await _manager.UpdateAsync(user);
+        user == null ? IdentityResult.Failed(new IdentityError { Description = "User not found." }) : await _manager.UpdateAsync(user);
 
     public async Task<IdentityResult> DeleteAsync(string id)
     {

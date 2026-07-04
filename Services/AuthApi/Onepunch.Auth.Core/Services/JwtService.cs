@@ -56,7 +56,7 @@ public class JwtService
         {
             if (Guid.TryParse(tenantId, out Guid parseTenantId))
             {
-                var tenantRequest = await _tenantRequestService.FindOne(parseTenantId);
+                var tenantRequest = await _tenantRequestService.FindByTenant(parseTenantId);
                 if (tenantRequest != null)
                 {
                     tenantState = tenantRequest.Status.ToString();

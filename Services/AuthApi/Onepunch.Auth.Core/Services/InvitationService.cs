@@ -60,7 +60,7 @@ namespace Onepunch.Auth.Core.Services
                 throw new GuardException($"Invalid role '{role}'. Allowed values: {string.Join(", ", AllowedInviteRoles)}.");
 
             // Tenant must not be pending provisioning
-            var request = await _tenantCreationRequestStatusService.FindOne(tenantId);
+            var request = await _tenantCreationRequestStatusService.FindByTenant(tenantId);
             if (request != null && request.Status == TenantCreationStatus.Provisioning)
                 throw new GuardException("Your organization is still being provisioned. Please try again shortly.");
 
