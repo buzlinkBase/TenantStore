@@ -37,6 +37,7 @@ internal class Program
             options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
             //options.JsonSerializerOptions.PropertyNamingPolicy = new SnakeCaseNamingPolicy();
             options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+            options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
         });
         builder.Services.AddProblemDetails(c =>
         {
