@@ -22,33 +22,41 @@ public class TenantCreatedWorker : IConsumer<TenantCreatedPayload>
 
     public async Task Consume(ConsumeContext<TenantCreatedPayload> context)
     {
-        var message = context.Message;
-        Log.Logger.Information("Auth:TenantCreatedWorker message {0}",JsonConvert.SerializeObject(message));
-        Log.Logger.Information("Auth:TenantCreatedWorker received for activation");
-        var user = await _userService.GetByIdAsync(context.Message.UserId.ToString());
-        if (user == null)
+        try
         {
-            Log.Logger.Error("TenantCreatedWorker user not found:{0}", message.UserId);
-            return;
-        }
-        var request = await _tenantCreationRequest.FindByTenant(message.TenantId);
-        if (request != null)
-        {
-            request.Status = TenantCreationStatus.Created;
-            _unitOfWorkService.Context.TenantCreationRequests.Update(request);
+            var message = context.Message;
+            Log.Logger.Information("Auth:TenantCreatedWorker message {0}", JsonConvert.SerializeObject(message));
+            Log.Logger.Information("Auth:TenantCreatedWorker received for activation");
+            var user = await _userService.GetByIdAsync(context.Message.UserId.ToString());
+            if (user == null)
+            {
+                Log.Logger.Error("TenantCreatedWorker user not found:{0}", message.UserId);
+                return;
+            }
+            var request = await _tenantCreationRequest.FindByTenant(message.TenantId);
+            if (request != null)
+            {
+                request.Status = TenantCreationStatus.Created;
+                _unitOfWorkService.Context.TenantCreationRequests.Update(request);
+                await _unitOfWorkService.SaveChangesAsync();
+            }
+            else
+            {
+                Log.Logger.Error("unable to locate tenant in Auth::tenantCreationRequest", message.UserId);
+                return;
+            }
+            user.DefaultTenantId = context.Message.TenantId;
+            user.DefaultTenantName = context.Message.TenantName;
+            user.DefaultTenantRole = message.Role;
+            await _userService.UpdateAsync(user);
             await _unitOfWorkService.SaveChangesAsync();
+            await _unitOfWorkService.CommitChangesAsync("", context.CancellationToken);
+            Log.Logger.Information("TenantCreatedWorker commited");
         }
-        else
+        catch (Exception ex)
         {
-            Log.Logger.Error("unable to locate tenant in Auth::tenantCreationRequest", message.UserId);
-            return;
+            Log.Logger.Error("TenantCreatedWorker user not found:{0}", ex.Message);
+            throw;
         }
-        user.DefaultTenantId = context.Message.TenantId;
-        user.DefaultTenantName = context.Message.TenantName;
-        user.DefaultTenantRole = "Owner";
-        await _userService.UpdateAsync(user);
-        await _unitOfWorkService.SaveChangesAsync();
-        await _unitOfWorkService.CommitChangesAsync("",context.CancellationToken);
-        Log.Logger.Information("TenantCreatedWorker commited");
     }
 }

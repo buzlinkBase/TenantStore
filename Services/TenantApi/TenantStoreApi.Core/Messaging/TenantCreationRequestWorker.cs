@@ -1,5 +1,6 @@
 using BuzlinkRepository;
 using MassTransit;
+using Microsoft.AspNetCore.Routing;
 using Newtonsoft.Json;
 using Serilog;
 using TenantStoreApi.Core.Services;
@@ -26,7 +27,7 @@ public class TenantCreationRequestWorker : IConsumer<TenantCreationRequest>
         PlanService planService,
         SubscriptionService subscriptionService)
     {
-        _tenantService = tenantService; 
+        _tenantService = tenantService;
         _userMembershipService = userMembershipService;
         _uow = uow;
         _tenantProvider = tenantProvider;
@@ -39,29 +40,31 @@ public class TenantCreationRequestWorker : IConsumer<TenantCreationRequest>
     {
         Log.Logger.Information("TenantCreationRequest Consumed");
         var message = context.Message;
+        string role = "Owner";
         var tenant = await _tenantService.CreateTenant(message, context.CancellationToken);
         _tenantProvider.SetTenantId(tenant.Id);
-        await CreateMembershipAsync(tenant, context.CancellationToken);
+        await CreateMembershipAsync(tenant, role, context.CancellationToken);
         await CreateFreeTrialAsync(tenant, context.CancellationToken);
         await _publisher.Publish(new TenantCreatedPayload
         {
-            Event = "tenant.created", 
+            Event = "tenant.created",
             TenantId = tenant.Id,
             UserId = tenant.UserId,
             TenantName = tenant.TenantName,
+            Role = role
         });
         Log.Logger.Information("TenantCreationRequest published {0}", JsonConvert.SerializeObject(_publisher));
         await _uow.CommitChangesAsync();
         Log.Logger.Information("TenantCreationRequest Consumer committed");
     }
 
-    private async Task CreateMembershipAsync(TenantModel tenant, CancellationToken token)
+    private async Task CreateMembershipAsync(TenantModel tenant, string role, CancellationToken token)
     {
         await _userMembershipService.AddAsync(new UserMembership
         {
             TenantId = tenant.Id,
             UserId = tenant.UserId,
-            Role = "Owner"
+            Role = role
         }, token);
     }
 

@@ -7,6 +7,7 @@ public record TenantCreatedPayload
     public Guid TenantId { get; set; }
     public string? TenantName { get; set; } = "My Workspace";
     public Guid UserId { get; set; }
+    public string Role { get; set; }
 }
 
 public class TenantSetInitData
