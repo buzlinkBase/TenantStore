@@ -256,6 +256,9 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
+                    b.Property<DateTime?>("ArchieveSchedule")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<string>("ClusterId")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -283,6 +286,9 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.Property<string>("Module")
                         .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Remarks")
                         .HasColumnType("longtext");
 
                     b.Property<string>("SchemaVersion")
@@ -604,7 +610,6 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .HasColumnType("datetime(6)");
 
                     b.Property<string>("Role")
-                        .IsRequired()
                         .HasColumnType("varchar(255)");
 
                     b.Property<string>("Status")
@@ -613,6 +618,9 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("char(36)");
+
+                    b.Property<string>("TenantName")
+                        .HasColumnType("longtext");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime(6)");

@@ -13,7 +13,6 @@ public class MembersController : ControllerBase
 {
     private readonly UserMembershipService _service;
     private readonly ITenantProvider _tenantProvider;
-
     public MembersController(UserMembershipService service, ITenantProvider tenantProvider)
     {
         _service = service;
@@ -27,9 +26,20 @@ public class MembersController : ControllerBase
     {
         var tenantId = _tenantProvider.TenantId;
         if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
-
         var members = await _service.GetMembersAsync(tenantId, token);
         return Ok(members.Select(m => new MemberResponse { UserId = m.UserId, Role = m.Role }).ToList());
+    }
+
+    [HttpGet("account-tenants")]
+    [ProducesResponseType(typeof(List<AccountMemberShipQuery>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<List<AccountMemberShipQuery>>> FindTenants([FromQuery(Name = "user-id")] Guid? userId)
+    {
+        // 1. Check if the query parameter was passed (e.g., during login service-to-service calls)
+        // 2. If not passed, fallback to the authenticated user context (normal frontend calls)
+        var targetUserId = userId ?? User.GetRequiredUserId();
+        var data = await _service.GetUserMembersAsync(targetUserId);
+        return Ok(data);
     }
 
     [HttpPatch("{userId:guid}/role")]
@@ -41,7 +51,6 @@ public class MembersController : ControllerBase
     {
         var tenantId = _tenantProvider.TenantId;
         if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
-
         var callerId = User.GetRequiredUserId();
         try
         {

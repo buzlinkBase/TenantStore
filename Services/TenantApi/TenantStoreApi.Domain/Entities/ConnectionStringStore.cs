@@ -9,7 +9,9 @@ public class ConnectionStringStore : BaseEntity
     public string SchemaVersion { get; set; } = "0";
     public string ConnectionString { get; set; } = string.Empty;
     public string Environment { get; set; } = "Production";
-    public string Module { get; set; } = string.Empty; 
+    public string Module { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
-
+    public DateTime? ArchieveSchedule { get; set; }
+    public string? Remarks { get; set; }
 }
+

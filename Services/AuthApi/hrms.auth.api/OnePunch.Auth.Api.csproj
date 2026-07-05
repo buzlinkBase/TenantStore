@@ -28,6 +28,8 @@
 		<PackageReference Include="Serilog.Sinks.File" />
 		<PackageReference Include="Serilog.Sinks.Seq" />
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+		<PackageReference Include="Refit.HttpClientFactory" />
+		<PackageReference Include="MessagePack.AspNetCoreMvcFormatter" />
 	</ItemGroup>
 
 	<ItemGroup>

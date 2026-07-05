@@ -1,5 +1,4 @@
 ﻿using MassTransit;
-using Newtonsoft.Json;
 using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Core.Services;
 using Serilog;
@@ -25,7 +24,6 @@ public class TenantCreatedWorker : IConsumer<TenantCreatedPayload>
         try
         {
             var message = context.Message;
-            Log.Logger.Information("Auth:TenantCreatedWorker message {0}", JsonConvert.SerializeObject(message));
             Log.Logger.Information("Auth:TenantCreatedWorker received for activation");
             var user = await _userService.GetByIdAsync(context.Message.UserId.ToString());
             if (user == null)
@@ -37,6 +35,8 @@ public class TenantCreatedWorker : IConsumer<TenantCreatedPayload>
             if (request != null)
             {
                 request.Status = TenantCreationStatus.Created;
+                request.TenantName = message.TenantName;
+                request.RequestExpiry = null;
                 _unitOfWorkService.Context.TenantCreationRequests.Update(request);
                 await _unitOfWorkService.SaveChangesAsync();
             }

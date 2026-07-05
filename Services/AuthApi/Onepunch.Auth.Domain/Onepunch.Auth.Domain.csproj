@@ -3,10 +3,15 @@
   <PropertyGroup>
 	  <TargetFramework>net9.0</TargetFramework>
 	  <Nullable>enable</Nullable>
+	  <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 	  <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 	<ItemGroup>
 		<PackageReference Include="BuzlinkRepository" />
+		<PackageReference Include="MessagePack" />
 		<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+	</ItemGroup>
+	<ItemGroup>
+	  <ProjectReference Include="..\..\Shared\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
 	</ItemGroup>
 </Project>

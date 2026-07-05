@@ -33,6 +33,20 @@ public class UserMembershipService : BaseService<UserMembership>
         return await GetQueryable(x => x.TenantId == tenantId).ToListAsync(token);
     }
 
+    public async Task<List<AccountMemberShipQuery>> GetUserMembersAsync(Guid userId, CancellationToken token = default)
+    {
+        return await GetQueryable(x => x.UserId == userId)
+            .Select(x => new AccountMemberShipQuery
+            {
+                UserId = x.UserId,
+                Role = x.Role,
+                Status = x.Status,
+                TenantId = x.TenantId,
+                TenantName = x.TenantName,
+            })
+            .ToListAsync(token);
+    }
+
     public async Task<UserMembership?> GetMemberAsync(Guid userId, Guid tenantId, CancellationToken token = default)
     {
         return await GetQueryable(x => x.UserId == userId && x.TenantId == tenantId)

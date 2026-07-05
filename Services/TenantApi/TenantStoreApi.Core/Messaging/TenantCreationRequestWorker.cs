@@ -63,6 +63,7 @@ public class TenantCreationRequestWorker : IConsumer<TenantCreationRequest>
         await _userMembershipService.AddAsync(new UserMembership
         {
             TenantId = tenant.Id,
+            TenantName = tenant.TenantName,
             UserId = tenant.UserId,
             Role = role
         }, token);

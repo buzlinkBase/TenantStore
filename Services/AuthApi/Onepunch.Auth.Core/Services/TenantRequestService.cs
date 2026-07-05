@@ -11,7 +11,7 @@ namespace Onepunch.Auth.Core.Services
         private readonly IConfiguration _configuration;
         public TenantRequestService(IUnitOfWorkService uow,
             IConfiguration configuration) : base(uow)
-        { 
+        {
             _configuration = configuration;
         }
         public async Task<TenantCreationRequestStatus?> FindByTenant(Guid tenantId)
@@ -21,6 +21,15 @@ namespace Onepunch.Auth.Core.Services
         public async Task Store(TenantCreationRequestStatus model)
         {
             await CreateAsync(model);
+        }
+
+        public async Task<List<TenantCreationRequestStatus>> FindExpired()
+        {
+            return Uow.Context.TenantCreationRequests
+                .Where(x => x.RequestExpiry < DateTime.UtcNow &&
+                x.Status != TenantCreationStatus.Created)
+                .ToList();
+            ;
         }
 
     }

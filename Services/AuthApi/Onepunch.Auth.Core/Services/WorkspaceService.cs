@@ -1,4 +1,5 @@
 ﻿using MassTransit;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Core;
@@ -49,6 +50,8 @@ public class WorkspaceService : BaseService<User>
             TenantId = createTenant.TenantId,
             Status = TenantCreationStatus.Provisioning,
             UserId = user.Id,
+            TenantName = createTenant.TenantName,
+            RequestExpiry = DateTime.UtcNow.AddDays(1),
         };
         _tenantProvider.SetTenantId(createTenant.TenantId);
         await _requestService.Store(request);
@@ -60,6 +63,6 @@ public class WorkspaceService : BaseService<User>
         var refreshTokenString = await _jwtService.GenerateRefreshToken();
         await Context.RefreshTokens.AddAsync(_userService.CreateRefreshToken(user, refreshTokenString), token);
         await CommitChangesAsync(token);
-        return _userService.ComposeLoginRespose(user, accessToken, refreshTokenString);
+        return await _userService.ComposeLoginResponse(user, accessToken, refreshTokenString);
     }
 }

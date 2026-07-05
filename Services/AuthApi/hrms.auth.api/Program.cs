@@ -1,14 +1,19 @@
 using Asp.Versioning.ApiExplorer;
+using MessagePack;
+using MessagePack.AspNetCoreMvcFormatter;
+using MessagePack.Resolvers;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
+using Onepunch.Auth.Core.Interfaces;
 using Onepunch.Auth.Core.Protos;
-using Onepunch.Auth.Infrastructure.Seeder;
+using Onepunch.Auth.Domain; 
 using Onepunch.Common.Lib;
 using OnePunch.Auth.Api;
 using OnePunch.Auth.Api.Exceptions;
 using OnePunch.Auth.Api.Filters;
 using OnePunch.Auth.Api.Middlewares;
+using Refit;
 using Serilog;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Text.Json;
@@ -27,18 +32,27 @@ internal class Program
 
         Log.Information("Auth api");
         Serilog.Debugging.SelfLog.Enable(Console.Error);
+        var mpackOptions = MessagePackSerializerOptions.Standard
+        .WithResolver(CompositeResolver.Create(
+            OneMessagePackResolver.Instance, // Your generated resolver
+            MessagePack.Resolvers.NativeDateTimeResolver.Instance,
+            MessagePack.Resolvers.ContractlessStandardResolver.Instance
+        ))
+        .WithCompression(MessagePackCompression.Lz4BlockArray);
 
+        MessagePackSerializer.DefaultOptions = mpackOptions;
         builder.Services.AddControllers(options =>
         {
             options.Filters.Add<ResponseWrapperFilter>();
-        })
-        .AddJsonOptions(options =>
+            options.InputFormatters.Add(new MessagePackInputFormatter(mpackOptions));
+            options.OutputFormatters.Add(new MessagePackOutputFormatter(mpackOptions));
+        }).AddJsonOptions(options =>
         {
             options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-            //options.JsonSerializerOptions.PropertyNamingPolicy = new SnakeCaseNamingPolicy();
             options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
             options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
         });
+
         builder.Services.AddProblemDetails(c =>
         {
             //c.CustomizeProblemDetails = context =>
@@ -46,6 +60,19 @@ internal class Program
             //    context.ProblemDetails.Extensions.TryAdd("requestId", context.HttpContext.TraceIdentifier);
             //};
         });
+
+        builder.Services.AddRefitClient<IAccountMembershipClient>(new RefitSettings
+        {
+            ContentSerializer = new Onepunch.Common.Lib.MessagePackContentSerializer(mpackOptions)
+        })
+        .ConfigureHttpClient(c =>
+        {
+            var tenantUrl = builder.Configuration["Domains:TenantUrl"]!;
+            c.BaseAddress = new Uri(tenantUrl);
+
+        })
+        .AddHeaderPropagation();
+
         builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
@@ -100,6 +127,7 @@ internal class Program
         //app.UseMiddleware<ApiKeyMiddleware>();  
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseHeaderPropagation();
         app.MapGrpcService<CheckEmailHandler>();
         app.MapControllers();
         app.Run();

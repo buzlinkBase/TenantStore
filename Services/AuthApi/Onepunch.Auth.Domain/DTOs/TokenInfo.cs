@@ -1,4 +1,5 @@
-﻿using System.ComponentModel;
+﻿using Onepunch.Auth.Domain.Entities;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 
 namespace Onepunch.Auth.Domain.DTOs;
@@ -48,8 +49,9 @@ public record LoginResponseSimple
 public class UsersTenant
 {
     public Guid TenantId { get; set; }
-    public string Name { get; set; }
-    public string Type { get; set; }
+    public string? Name { get; set; }
+    public string? Role  { get; set; }
+    public TenantCreationStatus State  { get; set; }
 
 }
 

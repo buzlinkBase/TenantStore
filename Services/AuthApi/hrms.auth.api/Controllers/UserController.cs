@@ -150,7 +150,7 @@ namespace OnePunch.Auth.Api.Controllers
             var response = await _service.Login(payload, token);
             if (!string.IsNullOrWhiteSpace(response.ErrorMessage))
                 return Unauthorized(new UnauthorizedResponse { ErrorMessage = response.ErrorMessage });
-            return Ok(ConvertLoginResponse(response));
+            return Ok(LoginResponseComposer.ConvertLoginResponse(response, _jwtService.RefreshExpiry, HttpContext.Request.IsHttps, Response));
         }
 
         //[HttpGet("login-google")]
@@ -183,10 +183,10 @@ namespace OnePunch.Auth.Api.Controllers
         public async Task<IActionResult> LoginWithGoogle([FromBody] GoogleLoginRequest request, CancellationToken token)
         {
             // exchange request.Code with Google to get user info
-            var data = await _service.LoginWithGoogleAsync2(request.Code, token);
-            if (!string.IsNullOrWhiteSpace(data.ErrorMessage))
-                return Unauthorized(new UnauthorizedResponse { ErrorMessage = data.ErrorMessage });
-            return Ok(ConvertLoginResponse(data));
+            var response = await _service.LoginWithGoogleAsync2(request.Code, token);
+            if (!string.IsNullOrWhiteSpace(response.ErrorMessage))
+                return Unauthorized(new UnauthorizedResponse { ErrorMessage = response.ErrorMessage });
+            return Ok(LoginResponseComposer.ConvertLoginResponse(response, _jwtService.RefreshExpiry, HttpContext.Request.IsHttps, Response));
         }
 
         [HttpPost("set-default-tenant")]
@@ -203,7 +203,7 @@ namespace OnePunch.Auth.Api.Controllers
             var response = await _service.SetDefaultTenant(tenantId, token, ct);
             if (!string.IsNullOrWhiteSpace(response.ErrorMessage))
                 return Unauthorized(new UnauthorizedResponse { ErrorMessage = response.ErrorMessage });
-            return Ok(ConvertLoginResponse(response));
+            return Ok(LoginResponseComposer.ConvertLoginResponse(response, _jwtService.RefreshExpiry, HttpContext.Request.IsHttps, Response));
         }
 
         [AllowAnonymous]
@@ -211,7 +211,7 @@ namespace OnePunch.Auth.Api.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> Logout([FromBody] RefreshTokenPayload payload, CancellationToken ct)
         {
-            SetRefreshTokenCookies("", -1);
+            LoginResponseComposer.SetRefreshTokenCookies("", -1, true, Response);
             if (!string.IsNullOrWhiteSpace(payload.RefreshToken))
                 await _service.RevokeRefreshTokenAsync(payload.RefreshToken, ct);
             return Ok();
@@ -234,40 +234,7 @@ namespace OnePunch.Auth.Api.Controllers
             }
             // Optional: If your RefreshLogin method generates a *new* refresh token (rotation), 
             // remember to append the new cookie back to the response here before returning Ok.
-            return Ok(ConvertLoginResponse(response));
-        }
-
-        [NonAction]
-        private LoginResponseSimple ConvertLoginResponse(LoginResponse response)
-        {
-            SetRefreshTokenCookies(response.RefreshToken, _jwtService.RefreshExpiry);
-            return new LoginResponseSimple
-            {
-                AccessToken = response.AccessToken,
-                ErrorMessage = response.ErrorMessage,
-                Expiry = response.Expiry,
-                Tenants = response.Tenants,
-                Name = response.Name,
-                Role = response.Role,
-                Email = response.Email,
-            };
-        }
-
-        [NonAction]
-        private void SetRefreshTokenCookies(string refreshToken, int expiryDays)
-        {
-            // Behind reverse proxies, Request.IsHttps is corrected by UseForwardedHeaders.
-            var isHttps = HttpContext.Request.IsHttps;
-            var cookieOptions = new CookieOptions
-            {
-                HttpOnly = true,
-                // None is required for cross-site cookies (frontend and API on different origins),
-                // and browsers require Secure=true when SameSite=None.
-                SameSite = isHttps ? SameSiteMode.None : SameSiteMode.Lax,
-                Secure = isHttps,
-                Expires = DateTimeOffset.UtcNow.AddDays(expiryDays)
-            };
-            Response.Cookies.Append("X-Refresh-Token", refreshToken, cookieOptions);
+            return Ok(LoginResponseComposer.ConvertLoginResponse(response, _jwtService.RefreshExpiry, HttpContext.Request.IsHttps, Response));
         }
 
         [HttpPost("key-gen")]

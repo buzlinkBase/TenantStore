@@ -4,17 +4,20 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
+using Onepunch.Auth.Core.Interfaces;
 using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Domain.DTOs;
 using OnePunch.Auth.Domain.Entities;
 using Serilog;
 using System.Security.Claims;
 using System.Text.Json;
+using static MassTransit.Transports.ReceiveEndpoint;
 
 namespace OnePunch.Auth.Core.Services;
 
 public class UserService : BaseService<User>
 {
+    private readonly IAccountMembershipClient _membershipClient;
     private readonly IPublishEndpoint _publisher;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly UserManager<User> _manager;
@@ -28,6 +31,7 @@ public class UserService : BaseService<User>
 
     public UserService(
         IUnitOfWorkService uow,
+        IAccountMembershipClient membershipClient,
         IPublishEndpoint publisher,
         IHttpContextAccessor httpContextAccessor,
         UserManager<User> manager,
@@ -43,6 +47,7 @@ public class UserService : BaseService<User>
         EmailNotificationService notificationService,
         IMapper mapper) : base(uow)
     {
+        _membershipClient = membershipClient;
         _publisher = publisher;
         _httpContextAccessor = httpContextAccessor;
         _manager = manager ?? throw new ArgumentNullException(nameof(manager));
@@ -171,7 +176,7 @@ public class UserService : BaseService<User>
     }
     private async Task SendGoogleSignInAsync(User userInfo, CancellationToken token)
     {
-        await _notificationService.SendGoogleSiginInform(userInfo,  token);
+        await _notificationService.SendGoogleSiginInform(userInfo, token);
     }
 
     public async Task<IdentityResult> ResetPassword(ResetPassword payload, CancellationToken ctoken)
@@ -258,23 +263,47 @@ public class UserService : BaseService<User>
         var refreshToken = await _jwtService.GenerateRefreshToken();
         await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshToken), token);
         await CommitChangesAsync(token);
-        return ComposeLoginRespose(user, accessToken, refreshToken);
+        return await ComposeLoginResponse(user, accessToken, refreshToken);
     }
-
-    internal LoginResponse ComposeLoginRespose(User user, string accessToken, string refreshToken)
+    internal async Task<LoginResponse> ComposeLoginResponse(User user, string accessToken, string refreshToken)
     {
-        //call from tenantService
         var tenants = new List<UsersTenant>();
-        if (user.DefaultTenantId.HasValue && user.DefaultTenantId != Guid.Empty)
+
+        var authorizationHeader = $"Bearer {accessToken}";
+        var members = await _membershipClient.FindTenants(user.Id, authorizationHeader);
+
+        if (members?.Data != null && members.Data.Any())
         {
-            tenants.Add(new UsersTenant
+            var tenantIds = members.Data.Select(x => x.TenantId).ToList();
+            // Fetch the tenant creation requests from DB
+            var requestStates = await _uow.Context.TenantCreationRequests
+                .Where(x => tenantIds.Contains(x.TenantId))
+                .GroupBy(x => x.TenantId)
+                .ToDictionaryAsync(x => x.Key, x => x.First());
+
+            tenants = members.Data.Select(x =>
             {
-                TenantId = user.DefaultTenantId.Value,
-                Name = user.DefaultTenantName ?? "",
-                Type = user.DefaultTenantRole ?? "",
-            });
+                // 1. Safely evaluate dictionary lookups first to prevent precedence parsing bugs
+                var hasState = requestStates.TryGetValue(x.TenantId, out var stateData);
+                // 2. Resolve Tenant Name fallback safely
+                string resolvedName = !string.IsNullOrEmpty(x.TenantName)
+                    ? x.TenantName
+                    : (hasState && stateData != null ? stateData.TenantName ?? "" : "");
+                // 3. Resolve Status fallback safely
+                var resolvedStatus = hasState && stateData != null
+                    ? stateData.Status
+                    : TenantCreationStatus.Provisioning;
+
+                return new UsersTenant
+                {
+                    TenantId = x.TenantId,
+                    Name = resolvedName,
+                    State = resolvedStatus,
+                    Role = x.Role ?? ""
+                };
+            }).ToList();
         }
-        
+
         return new LoginResponse
         {
             AccessToken = accessToken,
@@ -353,7 +382,7 @@ public class UserService : BaseService<User>
             var accessToken = await _jwtService.CreateTokenAsync(user);
             await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshTokenString), ct);
             await CommitChangesAsync(ct);
-            return ComposeLoginRespose(user, accessToken, refreshTokenString);
+            return await ComposeLoginResponse(user, accessToken, refreshTokenString);
         }
         catch (InvalidJwtException)
         {
@@ -391,7 +420,7 @@ public class UserService : BaseService<User>
         var refreshTokenString = await _jwtService.GenerateRefreshToken();
         await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshTokenString), ct);
         await CommitChangesAsync(ct);
-        return ComposeLoginRespose(user, accessToken, refreshTokenString);
+        return await ComposeLoginResponse(user, accessToken, refreshTokenString);
     }
 
     public async Task<LoginResponse> GoogleCallback(CancellationToken token)
@@ -440,7 +469,7 @@ public class UserService : BaseService<User>
             var refreshTokenString = await _jwtService.GenerateRefreshToken();
             await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshTokenString), token);
             await CommitChangesAsync(token);
-            return ComposeLoginRespose(user, accessToken, refreshTokenString);
+            return await ComposeLoginResponse(user, accessToken, refreshTokenString);
         }
         catch (Exception ex)
         {
@@ -473,7 +502,7 @@ public class UserService : BaseService<User>
         var newRefreshToken = await _jwtService.GenerateRefreshToken();
         await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, newRefreshToken));
         await CommitChangesAsync(token);
-        return ComposeLoginRespose(user, accessToken, newRefreshToken);
+        return await ComposeLoginResponse(user, accessToken, newRefreshToken);
     }
 
     public async Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken ct)

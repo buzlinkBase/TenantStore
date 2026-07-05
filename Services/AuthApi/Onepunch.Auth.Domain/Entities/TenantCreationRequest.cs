@@ -6,6 +6,8 @@ public class TenantCreationRequestStatus : BaseEntity
 {
     public Guid TenantId { get; set; }
     public Guid UserId { get; set; }
+    public string? TenantName { get; set; }
+    public DateTime? RequestExpiry { get; set; }
     public TenantCreationStatus Status { get; set; } = TenantCreationStatus.Initial;
 }
 
@@ -18,5 +20,7 @@ public enum TenantCreationStatus
     Onboarding = 4,            // Infrastructure ready, but user hasn't completed onboarding wizard
     Active = 5,                // Fully active and operating normally
     Failed = 6,                // Something went wrong during automated infrastructure build
-    Rejected = 7               // Admin explicitly denied the registration request
+    Rejected = 7,               // Admin explicitly denied the registration request
+    Deactivated,
+    Expired, 
 }
