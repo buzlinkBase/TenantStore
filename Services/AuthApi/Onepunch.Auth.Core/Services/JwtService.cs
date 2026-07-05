@@ -90,6 +90,15 @@ public class JwtService
 
     public TokenInfo? ReadTokenToObject(string token)
     {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return new TokenInfo
+            {
+                IsValid = false,
+                ErrorMessage = "Token is null or empty"
+            };
+        }
+
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SigningKey));
         var tokenHandler = new JwtSecurityTokenHandler();
         var validationParameters = new TokenValidationParameters
@@ -106,16 +115,23 @@ public class JwtService
 
         try
         {
+            // Clear the inbound map so .NET stops changing standard JWT claim names into XML URIs
+            JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
+
             var principal = tokenHandler.ValidateToken(token, validationParameters, out SecurityToken validatedToken);
-            var tenantId = principal.FindFirst("TenantId")?.Value ?? Guid.Empty.ToString();
-            var tenantName = principal.FindFirst("TenantName")?.Value ?? "";
-            var tenantMemberRole = principal.FindFirst("TenantMemberRole")?.Value ?? "";
+            var jwtToken = validatedToken as JwtSecurityToken;
+
+            // Custom Tenant Claims
+            var tenantId = principal.FindFirst("tenantId")?.Value ?? Guid.Empty.ToString();
+            var tenantName = principal.FindFirst("tenantName")?.Value ?? "";
+            var tenantMemberRole = principal.FindFirst("tenantMemberRole")?.Value ?? "";
+
             return new TokenInfo
             {
-                JTI = Guid.Parse(principal.FindFirst(JwtRegisteredClaimNames.Jti)?.Value ?? Guid.Empty.ToString()),
-                UserId = Guid.Parse(principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value ?? Guid.Empty.ToString()),
-                Email = principal.FindFirst(JwtRegisteredClaimNames.Email)?.Value,
-                Roles = principal.FindAll(ClaimTypes.Role).Select(r => r.Value).ToList(),
+                JTI = Guid.Parse(principal.FindFirst("jti")?.Value ?? Guid.Empty.ToString()),
+                UserId = Guid.Parse(principal.FindFirst("sub")?.Value ?? Guid.Empty.ToString()),
+                Email = principal.FindFirst("email")?.Value,
+                Roles = string.IsNullOrEmpty(tenantMemberRole) ? new List<string>() : new List<string> { tenantMemberRole },
                 IsValid = true,
                 IsExpired = false,
                 ExpiresAt = (validatedToken as JwtSecurityToken)?.ValidTo,
