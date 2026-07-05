@@ -298,7 +298,7 @@ public class UserService : BaseService<User>
                 {
                     TenantId = x.TenantId,
                     Name = resolvedName,
-                    State = resolvedStatus,
+                    State = resolvedStatus.ToString(),
                     Role = x.Role ?? ""
                 };
             }).ToList();

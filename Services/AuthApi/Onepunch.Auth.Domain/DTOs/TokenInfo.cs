@@ -51,7 +51,7 @@ public class UsersTenant
     public Guid TenantId { get; set; }
     public string? Name { get; set; }
     public string? Role  { get; set; }
-    public TenantCreationStatus State  { get; set; }
+    public string State  { get; set; }
 
 }
 
