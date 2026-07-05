@@ -63,6 +63,14 @@ public class WorkspaceService : BaseService<User>
         var refreshTokenString = await _jwtService.GenerateRefreshToken();
         await Context.RefreshTokens.AddAsync(_userService.CreateRefreshToken(user, refreshTokenString), token);
         await CommitChangesAsync(token);
-        return await _userService.ComposeLoginResponse(user, accessToken, refreshTokenString);
+        var loginRequest = await _userService.ComposeLoginResponse(user, accessToken, refreshTokenString);
+        loginRequest.Tenants.Add(new UsersTenant
+        {
+            Name = request.TenantName,
+            Role = "Owner",
+            State = TenantCreationStatus.Provisioning.ToString(),
+            TenantId = createTenant.TenantId
+        });
+        return loginRequest;
     }
 }

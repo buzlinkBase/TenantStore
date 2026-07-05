@@ -21,6 +21,7 @@ public enum TenantCreationStatus
     Active = 5,                // Fully active and operating normally
     Failed = 6,                // Something went wrong during automated infrastructure build
     Rejected = 7,               // Admin explicitly denied the registration request
-    Deactivated,
-    Expired, 
+    Deactivated=8,
+    Suspended=9, 
+    Expired=10, 
 }
