@@ -30,7 +30,7 @@ public static class ServiceRegistrations
         ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));
         builder.Services.AddScoped<ICacheService, RedisCacheService>();
         builder.Services.AddScoped<AccountTenantsProvider>();
-
+        builder.Services.AddSignalR();
         builder.Services.AddHeaderPropagation(options =>
         {
             options.Headers.Add("User-Agent");
@@ -81,9 +81,6 @@ public static class ServiceRegistrations
                     "http://198.211.112.14:8084",
                     "http://198.211.112.14:8085",
                     "http://198.211.112.14:8086",
-                    "https://hris.onepunch.site",
-                    "https://hris-dev.onepunch.site",
-                    "https://hris-staging.onepunch.site",
                     "https://hris.onepunch.site",
                     "https://hris-dev.onepunch.site",
                     "https://hris-staging.onepunch.site",
