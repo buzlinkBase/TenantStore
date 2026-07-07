@@ -17,7 +17,7 @@ namespace OnePunch.Auth.Core.Services;
 
 public class UserService : BaseService<User>
 {
-    private readonly IAccountMembershipClient _membershipClient;
+    private readonly AccountTenantsProvider _accountTenantsProvider;
     private readonly IPublishEndpoint _publisher;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly UserManager<User> _manager;
@@ -31,7 +31,7 @@ public class UserService : BaseService<User>
 
     public UserService(
         IUnitOfWorkService uow,
-        IAccountMembershipClient membershipClient,
+        AccountTenantsProvider accountTenantsProvider,
         IPublishEndpoint publisher,
         IHttpContextAccessor httpContextAccessor,
         UserManager<User> manager,
@@ -47,7 +47,7 @@ public class UserService : BaseService<User>
         EmailNotificationService notificationService,
         IMapper mapper) : base(uow)
     {
-        _membershipClient = membershipClient;
+        _accountTenantsProvider = accountTenantsProvider;
         _publisher = publisher;
         _httpContextAccessor = httpContextAccessor;
         _manager = manager ?? throw new ArgumentNullException(nameof(manager));
@@ -267,43 +267,7 @@ public class UserService : BaseService<User>
     }
     internal async Task<LoginResponse> ComposeLoginResponse(User user, string accessToken, string refreshToken)
     {
-        var tenants = new List<UsersTenant>();
-
-        var authorizationHeader = $"Bearer {accessToken}";
-        var members = await _membershipClient.FindTenants(user.Id, authorizationHeader);
-
-        if (members?.Data != null && members.Data.Any())
-        {
-            var tenantIds = members.Data.Select(x => x.TenantId).ToList();
-            // Fetch the tenant creation requests from DB
-            var requestStates = await _uow.Context.TenantCreationRequests
-                .Where(x => tenantIds.Contains(x.TenantId))
-                .GroupBy(x => x.TenantId)
-                .ToDictionaryAsync(x => x.Key, x => x.First());
-
-            tenants = members.Data.Select(x =>
-            {
-                // 1. Safely evaluate dictionary lookups first to prevent precedence parsing bugs
-                var hasState = requestStates.TryGetValue(x.TenantId, out var stateData);
-                // 2. Resolve Tenant Name fallback safely
-                string resolvedName = !string.IsNullOrEmpty(x.TenantName)
-                    ? x.TenantName
-                    : (hasState && stateData != null ? stateData.TenantName ?? "" : "");
-                // 3. Resolve Status fallback safely
-                var resolvedStatus = hasState && stateData != null
-                    ? stateData.Status
-                    : TenantCreationStatus.Provisioning;
-
-                return new UsersTenant
-                {
-                    TenantId = x.TenantId,
-                    Name = resolvedName,
-                    State = resolvedStatus.ToString(),
-                    Role = x.Role ?? ""
-                };
-            }).ToList();
-        }
-
+        var tenants = await _accountTenantsProvider.FindTenants(user.Id, accessToken); 
         return new LoginResponse
         {
             AccessToken = accessToken,

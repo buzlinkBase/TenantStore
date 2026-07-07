@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using Onepunch.Auth.Core;
+using Onepunch.Auth.Core.Interfaces;
 using Onepunch.Auth.Infrastructure;
 using Onepunch.Common.Lib;
 using Onepunch.Common.Lib.Cache;
@@ -28,6 +29,7 @@ public static class ServiceRegistrations
         builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
         ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));
         builder.Services.AddScoped<ICacheService, RedisCacheService>();
+        builder.Services.AddScoped<AccountTenantsProvider>();
 
         builder.Services.AddHeaderPropagation(options =>
         {
