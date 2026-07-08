@@ -19,6 +19,7 @@ public class CreateAttendancePayload
     public Guid? BranchId { get; set; }
     public Guid? ClientId { get; set; }
     public Guid? DepartmentId { get; set; }
+    public Guid? OperationAreaId  { get; set; }
     public string DeviceName { get; set; } = string.Empty;
     public string IPAddress { get; set; } = string.Empty;
     public Polygon? Coordinates { get; set; }
