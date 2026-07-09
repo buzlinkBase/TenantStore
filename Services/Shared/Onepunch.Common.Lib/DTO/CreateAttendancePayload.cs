@@ -12,7 +12,7 @@ public class AttendancePayloadWrapper
 
 public class CreateAttendancePayload
 {
-    public Guid BatchId { get; set; }
+    public string BatchId { get; set; } = string.Empty;
     public int BioId { get; set; }
     public DateTime WorkDateTime { get; set; }
     public Guid TenantId { get; set; }
@@ -27,7 +27,7 @@ public class CreateAttendancePayload
 
 public record BatchAttConfirmation
 {
-    public Guid BatchId { get; set; }
+    public string BatchId { get; set; } = string.Empty;
 }
 
 public class DeviceCommandWrapper<T> where T : class, new()
