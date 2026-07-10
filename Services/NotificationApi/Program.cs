@@ -80,7 +80,7 @@ app.UseSwaggerUI(options =>
     foreach (var description in apiVersionProvider.ApiVersionDescriptions)
     {
         options.SwaggerEndpoint($"./{description.GroupName}/swagger.json",
-                               $"NOTIFICATION API {description.ApiVersion}"); 
+                               $"NOTIFICATION API {description.ApiVersion}");
         options.ConfigObject.PersistAuthorization = true;
     }
     options.RoutePrefix = "swagger";

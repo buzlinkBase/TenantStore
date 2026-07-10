@@ -40,15 +40,22 @@ internal class Program
         MessagePackSerializer.DefaultOptions = mpackOptions;
         builder.Services.AddControllers(options =>
         {
-            options.InputFormatters.Insert(0, new MessagePackInputFormatter(mpackOptions));
-            options.OutputFormatters.Insert(0, new MessagePackOutputFormatter(mpackOptions));
             options.Filters.Add<ResponseWrapperFilter>();
+            options.RespectBrowserAcceptHeader = true;
+            //options.InputFormatters.Insert(0, new MessagePackInputFormatter(mpackOptions));
+            //options.OutputFormatters.Insert(0, new MessagePackOutputFormatter(mpackOptions));
         })
         .AddJsonOptions(options =>
         {
             options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
             options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
             options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+        }).AddMvcOptions(options =>
+        {
+            // This executes after AddNewtonoftJson has fully set up the defaults,
+            // ensuring MessagePack is placed safely at the bottom (index 1 or higher)
+            options.InputFormatters.Add(new MessagePackInputFormatter(mpackOptions));
+            options.OutputFormatters.Add(new MessagePackOutputFormatter(mpackOptions));
         });
 
         builder.Services.Configure<ApiBehaviorOptions>(options =>
