@@ -53,5 +53,8 @@
 		<ProjectReference Include="..\TenantStoreApi.Domain\TenantStoreApi.Domain.csproj" />
 		<ProjectReference Include="..\TenantStoreApi.Infrastructure\TenantStoreApi.Infrastructure.csproj" />
 	</ItemGroup>
+	<ItemGroup>
+	  <Folder Include="Validations\" />
+	</ItemGroup>
 
 </Project>

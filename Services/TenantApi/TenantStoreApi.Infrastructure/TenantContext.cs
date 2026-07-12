@@ -10,7 +10,6 @@ public class TenantContext : DbContext
 {
     public TenantContext(DbContextOptions<TenantContext> options) : base(options) { }
     public DbSet<ConnectionStringStore> Connections { get; set; }
-    public DbSet<Branch> Branches { get; set; }
     public DbSet<Tenant> Tenants { get; set; }
     public DbSet<SchemaVersion> SchemaVersions { get; set; } 
     public DbSet<UserMembership> Memberships  { get; set; }
@@ -31,10 +30,7 @@ public class TenantContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(GetType().Assembly);
-        modelBuilder.UseDateFilter();
-
-        modelBuilder.Entity<Branch>().HasIndex(x => x.TenantId);
-        modelBuilder.Entity<Branch>().HasIndex(x => x.Status);
+        modelBuilder.UseDateFilter(); 
 
         modelBuilder.Entity<Tenant>().HasIndex(x => x.UserId);
         modelBuilder.Entity<Tenant>().HasIndex(x => x.Status);
