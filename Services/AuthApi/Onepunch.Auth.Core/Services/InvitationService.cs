@@ -1,7 +1,6 @@
 using MassTransit;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Core;
@@ -41,6 +40,7 @@ namespace Onepunch.Auth.Core.Services
             InvitationRequest payload,
             Guid tenantId,
             string tenantName,
+            string apiHost,
             ClaimsPrincipal userClaim,
             CancellationToken ct)
         {
@@ -93,12 +93,11 @@ namespace Onepunch.Auth.Core.Services
             await _publisher.Publish(new UserInvitionNotificationPayload
             {
                 Email = payload.Email,
-                InviteLink = $"{_domains.BaseUrl}/invitations-list?token={token}",
+                InviteLink = $"{apiHost}/invitations-list?token={token}",
                 Organization = tenantName ?? user.DefaultTenantName ?? "",
                 Name = user.FullName ?? user.Email ?? "User",
                 Expiry = exp,
             }, ct);
-
             await CommitChangesAsync(ct);
         }
 

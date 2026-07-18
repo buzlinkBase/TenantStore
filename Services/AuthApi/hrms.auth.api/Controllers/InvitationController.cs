@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using Onepunch.Auth.Core;
 using Onepunch.Auth.Domain.DTOs;
 using Onepunch.Auth.Domain.Entities;
 using Onepunch.Common.Lib;
@@ -17,11 +19,15 @@ namespace OnePunch.Auth.Api.Controllers;
 public class InvitationController : ControllerBase
 {
     private readonly InvitationService _service;
+    private readonly Domains _options;
     private readonly JwtService _jwtService;
 
-    public InvitationController(InvitationService service, JwtService jwtService)
+    public InvitationController(InvitationService service,
+        IOptions<Domains> options,
+        JwtService jwtService)
     {
         _service = service;
+        _options = options.Value;
         _jwtService = jwtService;
     }
 
@@ -31,11 +37,16 @@ public class InvitationController : ControllerBase
     {
         try
         {
+            var accountApiHost = _options.BaseUrl;
+            if (string.IsNullOrEmpty(accountApiHost))
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, "Api URL is not configured.");
+            }
             var token = HttpContext.Request.GetAuthorizationToken();
             if (token == null) return Unauthorized();
             var tokenInfo = _jwtService.ReadTokenToObject(token);
             if (tokenInfo == null) return Unauthorized();
-            await _service.SendUserInvitationAsync(payload, tokenInfo.TenantId, tokenInfo.TenantName, User, ct);
+            await _service.SendUserInvitationAsync(payload, tokenInfo.TenantId, accountApiHost, tokenInfo.TenantName, User, ct);
             return NoContent();
         }
         catch (UnauthorizedException)
@@ -45,7 +56,7 @@ public class InvitationController : ControllerBase
     }
 
     [HttpPost("accept")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)] 
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Accept([FromQuery] string invitationToken, CancellationToken token)
     {
         try

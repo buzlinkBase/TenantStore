@@ -4,7 +4,6 @@ using Microsoft.Extensions.Options;
 using Onepunch.Auth.Core;
 using Onepunch.Auth.Domain.DTOs;
 using Onepunch.Common.Lib;
-using OnePunch.Auth.Api.Extensions;
 using OnePunch.Auth.Core.Services;
 using System.Security.Claims;
 
@@ -37,7 +36,12 @@ namespace OnePunch.Auth.Api.Controllers
         [ProducesResponseType(typeof(CreateAccountResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> CreateAccount([FromBody] CreateAccount payload, CancellationToken token)
         {
-            var result = await _service.RegisterAccount(payload, token);
+            var accountApiHost = _options.BaseUrl;
+            if (string.IsNullOrEmpty(accountApiHost))
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, "Api URL is not configured.");
+            }
+            var result = await _service.RegisterAccount(payload, accountApiHost, token);
 
             if (!result.Success)
             {
@@ -57,15 +61,30 @@ namespace OnePunch.Auth.Api.Controllers
 
         [AllowAnonymous]
         [HttpGet("confirm-email")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status302Found)] // Redirect returns a 302 Found, not a 200 OK
         public async Task<IActionResult> Confirm([FromQuery(Name = "token")] string token, CancellationToken ct)
         {
             var result = await _service.ConfirmedRegistration(token, ct);
+            // 1. Get the configured frontend base URL
+            var frontEndHost = _options.FrontEnd;
+            if (string.IsNullOrEmpty(frontEndHost))
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, "Frontend URL is not configured.");
+            }
+            // 2. Normalize the URL by ensuring it doesn't end with a trailing slash 
+            // to avoid double slashes like "https://domain.com//account-confirmation"
+            var baseUri = frontEndHost.TrimEnd('/');
+            // 3. Handle failure with safe URL encoding
             if (!result.Success)
             {
-                return Redirect($"{_options.FrontEnd}/account-confirmation/error?code={result.ErrorCode}&reason={result.Message}");
+                var errorCode = Uri.EscapeDataString(result.ErrorCode ?? string.Empty);
+                var reason = Uri.EscapeDataString(result.Message ?? string.Empty);
+                return Redirect($"{baseUri}/account-confirmation/error?code={errorCode}&reason={reason}");
             }
-            return Redirect($"{_options.FrontEnd}/account-confirmation/success?email={result.Email}&name={result.Name}");
+            // 4. Handle success with safe URL encoding
+            var email = Uri.EscapeDataString(result.Email ?? string.Empty);
+            var name = Uri.EscapeDataString(result.Name ?? string.Empty);
+            return Redirect($"{baseUri}/account-confirmation/success?email={email}&name={name}");
         }
 
         [HttpPost("forgot-password")]
@@ -73,7 +92,12 @@ namespace OnePunch.Auth.Api.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> ResetPasswordRequestAsync([FromBody] EmailPayload payload, CancellationToken token)
         {
-            await _service.ResetPasswordRequestAsync(payload.Email, token);
+            var frontEndHost = _options.FrontEnd;
+            if (string.IsNullOrEmpty(frontEndHost))
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, "Frontend URL is not configured.");
+            }
+            await _service.ResetPasswordRequestAsync(payload.Email, frontEndHost, token);
             return Ok();
         }
 

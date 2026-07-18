@@ -11,11 +11,9 @@ namespace Onepunch.Auth.Core.Services;
 
 public class EmailNotificationService
 {
-
     private readonly EmailTokenService _emailTokenService;
     private readonly IConfiguration _configuration;
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly Domains _domainOptions;
     private readonly IPublishEndpoint _publisher;
 
     public EmailNotificationService(
@@ -28,15 +26,13 @@ public class EmailNotificationService
         _emailTokenService = emailTokenService;
         _configuration = configuration;
         _httpContextAccessor = httpContextAccessor;
-        _domainOptions = domainOptions.Value;
         _publisher = publisher;
     }
 
-    public async Task SendEmailVerification(User account, CancellationToken ct)
+    public async Task SendEmailVerification(User account, string accountApiHost, CancellationToken ct)
     {
         if (account?.Email == null) return;
-
-        var baseUrl = _domainOptions.BaseUrl;
+        var baseUrl = accountApiHost;
         var httpContext = _httpContextAccessor.HttpContext;
         if (httpContext != null)
             baseUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}";
@@ -54,7 +50,7 @@ public class EmailNotificationService
         await _emailTokenService.CommitChangesAsync(ct);
     }
 
-    public async Task SendResetPassword(User account, string userToken, CancellationToken token)
+    public async Task SendResetPassword(User account, string frontendDomain, string userToken, CancellationToken token)
     {
         if (account == null || account?.Email == null) return;
         var exp = DateTime.UtcNow.AddHours(4);
@@ -62,7 +58,7 @@ public class EmailNotificationService
         {
             Email = account.Email,
             Name = account.FullName ?? "User",
-            ResetLink = $"{_domainOptions.FrontEnd}/reset-password?token={userToken}",
+            ResetLink = $"{frontendDomain}/reset-password?token={userToken}",
             AppName = _configuration["AppName"] ?? "",
             Expiry = exp,
             Token = userToken,
@@ -73,14 +69,14 @@ public class EmailNotificationService
         await _emailTokenService.CommitChangesAsync(token);
     }
 
-    public async Task SendGoogleSiginInform(User account, CancellationToken token)
+    public async Task SendGoogleSiginInform(User account, string frontEndHost, CancellationToken token)
     {
         if (account == null || account?.Email == null) return;
         var message = new SignInGoogleEmail
         {
             Email = account.Email,
             Name = account.FullName ?? "User",
-            LoginLink = $"{_domainOptions.FrontEnd}/login?provider=google",
+            LoginLink = $"{frontEndHost}/login?provider=google",
             AppName = _configuration["AppName"] ?? "",
         };
         await _publisher.Publish(message, token);

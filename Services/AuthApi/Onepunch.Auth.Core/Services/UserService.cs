@@ -11,7 +11,6 @@ using OnePunch.Auth.Domain.Entities;
 using Serilog;
 using System.Security.Claims;
 using System.Text.Json;
-using static MassTransit.Transports.ReceiveEndpoint;
 
 namespace OnePunch.Auth.Core.Services;
 
@@ -72,13 +71,13 @@ public class UserService : BaseService<User>
     #endregion
 
     #region Registration
-    public async Task<RegistrationResult> RegisterAccount(CreateAccount payload, CancellationToken token)
+    public async Task<RegistrationResult> RegisterAccount(CreateAccount payload, string accountApiHost, CancellationToken token)
     {
         var existing = await _manager.FindByEmailAsync(payload.Email);
         if (existing != null)
         {
             if (!existing.EmailConfirmed)
-                await _notificationService.SendEmailVerification(existing, token);
+                await _notificationService.SendEmailVerification(existing, accountApiHost, token);
             return Success("Please check your email to verify your account.", existing.Email);
         }
 
@@ -98,7 +97,7 @@ public class UserService : BaseService<User>
             return Fail("CREATE_FAILED", error);
         }
 
-        await _notificationService.SendEmailVerification(user, token);
+        await _notificationService.SendEmailVerification(user, accountApiHost, token);
         return Success("Account created. Check your email to verify.", user.Email, user.FullName);
     }
 
@@ -148,7 +147,7 @@ public class UserService : BaseService<User>
         return result;
     }
 
-    public async Task ResetPasswordRequestAsync(string email, CancellationToken token)
+    public async Task ResetPasswordRequestAsync(string email, string frontEndHost, CancellationToken token)
     {
         if (string.IsNullOrEmpty(email)) return;
         var userInfo = await _manager.FindByEmailAsync(email);
@@ -160,23 +159,23 @@ public class UserService : BaseService<User>
         var hasPassword = await _manager.HasPasswordAsync(userInfo);
         if (hasPassword)
         {
-            await SendForgotPasswordAsync(userInfo, token);
+            await SendForgotPasswordAsync(userInfo, frontEndHost, token);
         }
         else
         {
-            await SendGoogleSignInAsync(userInfo, token);
+            await SendGoogleSignInAsync(userInfo, frontEndHost, token);
         }
     }
 
-    private async Task SendForgotPasswordAsync(User userInfo, CancellationToken token)
+    private async Task SendForgotPasswordAsync(User userInfo, string frontEndHost, CancellationToken token)
     {
         var userToken = await _manager.GeneratePasswordResetTokenAsync(userInfo);
         string routeSafeToken = Microsoft.AspNetCore.WebUtilities.WebEncoders.Base64UrlEncode(System.Text.Encoding.UTF8.GetBytes(userToken));
-        await _notificationService.SendResetPassword(userInfo, routeSafeToken, token);
+        await _notificationService.SendResetPassword(userInfo, frontEndHost, routeSafeToken, token);
     }
-    private async Task SendGoogleSignInAsync(User userInfo, CancellationToken token)
+    private async Task SendGoogleSignInAsync(User userInfo, string frontEndHost, CancellationToken token)
     {
-        await _notificationService.SendGoogleSiginInform(userInfo, token);
+        await _notificationService.SendGoogleSiginInform(userInfo, frontEndHost, token);
     }
 
     public async Task<IdentityResult> ResetPassword(ResetPassword payload, CancellationToken ctoken)
@@ -267,7 +266,7 @@ public class UserService : BaseService<User>
     }
     internal async Task<LoginResponse> ComposeLoginResponse(User user, string accessToken, string refreshToken)
     {
-        var tenants = await _accountTenantsProvider.FindTenants(user.Id, accessToken); 
+        var tenants = await _accountTenantsProvider.FindTenants(user.Id, accessToken);
         return new LoginResponse
         {
             AccessToken = accessToken,
