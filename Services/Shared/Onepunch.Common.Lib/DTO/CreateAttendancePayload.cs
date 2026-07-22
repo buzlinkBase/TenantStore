@@ -60,3 +60,16 @@ public class SyncBioPayload
     public string Template { get; set; }
     public bool Dures  { get; set; }
 }
+
+public class DeleteEmployeePayload
+{
+    public int BioId { get; set; }
+}
+
+public class DeleteFingerprintPayload
+{
+    public int BioId { get; set; }
+
+    // Specific ZKTeco finger index (0-9). Null deletes all fingerprints for the user.
+    public int? FingerIndex { get; set; }
+}
