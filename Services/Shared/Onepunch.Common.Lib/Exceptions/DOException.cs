@@ -3,7 +3,7 @@
 public class DOException : Exception
 {
     private readonly int _code;
-    public DOException(int code, string message, Exception? ex=null) : base(message, ex)
+    public DOException(int code, string message, Exception? ex = null) : base(message, ex)
     {
         _code = code;
     }

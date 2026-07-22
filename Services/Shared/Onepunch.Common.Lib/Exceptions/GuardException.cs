@@ -26,7 +26,7 @@ public record EvaluationResult(string Message = "", bool Success = false)
     }
     public static EvaluationResult Check(ValidationResult? result)
     {
-        if (result == null || result.IsValid) return  OK;
+        if (result == null || result.IsValid) return OK;
         return Fail(result.Errors);
     }
 }

@@ -14,4 +14,3 @@ public class ApiKeySetting
 {
     public string ApiKey { get; set; }
 }
- 

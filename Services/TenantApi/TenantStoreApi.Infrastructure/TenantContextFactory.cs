@@ -18,5 +18,5 @@ public class TenantContextFactory : IDesignTimeDbContextFactory<TenantContext>
         var optionsBuilder = new DbContextOptionsBuilder<TenantContext>();
         optionsBuilder.UseMySql(connectionString, new MySqlServerVersion(new Version(9, 2, 0)));
         return new TenantContext(optionsBuilder.Options);
-    } 
+    }
 }

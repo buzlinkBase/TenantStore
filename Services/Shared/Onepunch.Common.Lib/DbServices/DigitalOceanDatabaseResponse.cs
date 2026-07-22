@@ -17,7 +17,7 @@ public class DigitalOceanDbService : IDbService
         IConfiguration configuration)
     {
         _httpClient = httpClient;
-        _configuration = configuration; 
+        _configuration = configuration;
     }
 
     public async Task<ConnectionModel?> CreateTenantDatabaseAsync(string clusterId, string dbName)
@@ -68,7 +68,7 @@ public class DigitalOceanDbService : IDbService
 
         return new ConnectionModel
         {
-            ConnectionString = builder.ConnectionString, 
+            ConnectionString = builder.ConnectionString,
         };
     }
 
@@ -102,7 +102,7 @@ public class DigitalOceanDbService : IDbService
         }
     }
 }
- 
+
 
 public class DigitalOceanErrorResponse
 {
@@ -254,4 +254,4 @@ public class ConnectionModel
 {
     public required string ConnectionString { get; set; }
 
-} 
+}

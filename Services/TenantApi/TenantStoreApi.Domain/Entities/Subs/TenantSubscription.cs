@@ -1,4 +1,4 @@
-﻿namespace TenantStoreApi.Domain.Entities.Subs; 
+﻿namespace TenantStoreApi.Domain.Entities.Subs;
 
 public class TenantSubscription : BaseEntity
 {
@@ -10,7 +10,7 @@ public class TenantSubscription : BaseEntity
 
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
-    public SubscriptionStatus  SubStatus  { get; set; }
+    public SubscriptionStatus SubStatus { get; set; }
 
     // Useful for your workflow: Track if they bought extra "add-ons" 
     // outside of their standard Plan.

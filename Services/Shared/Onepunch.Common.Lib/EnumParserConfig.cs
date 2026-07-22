@@ -1,4 +1,4 @@
-﻿namespace  Onepunch.Common.Lib;
+﻿namespace Onepunch.Common.Lib;
 
 public class EnumParserConfig
 {

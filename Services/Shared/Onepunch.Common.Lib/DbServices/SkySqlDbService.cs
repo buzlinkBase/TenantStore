@@ -4,7 +4,7 @@ namespace Onepunch.Common.Lib.DbServices;
 
 public class SkySqlDbService : IDbService
 {
-    private  string _connectionString;
+    private string _connectionString;
     public SkySqlDbService(string connectionString)
     {
         _connectionString = connectionString;
@@ -58,4 +58,4 @@ public class SkySqlDbService : IDbService
 
         return databases;
     }
-} 
+}

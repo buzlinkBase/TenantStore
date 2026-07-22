@@ -1,6 +1,6 @@
 ﻿using BuzlinkRepository;
 using MassTransit;
-using Microsoft.EntityFrameworkCore; 
+using Microsoft.EntityFrameworkCore;
 using TenantStoreApi.Domain.Entities;
 using TenantStoreApi.Domain.Entities.Subs;
 
@@ -11,8 +11,8 @@ public class TenantContext : DbContext
     public TenantContext(DbContextOptions<TenantContext> options) : base(options) { }
     public DbSet<ConnectionStringStore> Connections { get; set; }
     public DbSet<Tenant> Tenants { get; set; }
-    public DbSet<SchemaVersion> SchemaVersions { get; set; } 
-    public DbSet<UserMembership> Memberships  { get; set; }
+    public DbSet<SchemaVersion> SchemaVersions { get; set; }
+    public DbSet<UserMembership> Memberships { get; set; }
     public DbSet<TenantDelegation> TenantDelegations { get; set; }
     public DbSet<TenantSubscription> TenantSubscriptions { get; set; }
     public DbSet<Plan> Plans { get; set; }
@@ -30,7 +30,7 @@ public class TenantContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(GetType().Assembly);
-        modelBuilder.UseDateFilter(); 
+        modelBuilder.UseDateFilter();
 
         modelBuilder.Entity<Tenant>().HasIndex(x => x.UserId);
         modelBuilder.Entity<Tenant>().HasIndex(x => x.Status);

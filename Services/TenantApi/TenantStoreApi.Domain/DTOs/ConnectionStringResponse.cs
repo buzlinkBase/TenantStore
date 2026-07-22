@@ -8,4 +8,3 @@ public class ConnectionStringResponse
     [Key(0)]
     public string? ConnectionString { get; set; }
 }
- 

@@ -1,10 +1,7 @@
-﻿
-using System.ComponentModel.DataAnnotations;
-
-namespace TenantStoreApi.Domain.DTOs;
+﻿namespace TenantStoreApi.Domain.DTOs;
 
 
- 
+
 public class UpdateTenant
 {
     public string Status { get; set; }

@@ -4,6 +4,7 @@ using Serilog;
 using System.Collections.Concurrent;
 
 namespace Onepunch.Common.Lib;
+
 public interface IPollyPolicyFactory
 {
     IAsyncPolicy GetHttpPolicy(string key);

@@ -13,7 +13,7 @@ public record TenantCreatedPayload
 public class TenantSetInitData
 {
     public Guid TenantId { get; set; }
-    public string ConnectionString  { get; set; }
+    public string ConnectionString { get; set; }
 }
 
 public record UserJoinToTenantPayload

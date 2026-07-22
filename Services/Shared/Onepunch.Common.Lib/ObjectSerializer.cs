@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 
 namespace Onepunch.Common.Lib;
+
 public static class ObjectSerializer
 {
     private static readonly JsonSerializerOptions Options = new()

@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 namespace Onepunch.Common.Lib;
+
 [AttributeUsage(AttributeTargets.Class)]
 public class ServiceRegistrationAttribute : Attribute
 {
