@@ -1,5 +1,6 @@
 ﻿
 namespace Onepunch.Auth.Core.Services;
+
 public class TenantService
 {
     private readonly GetTenantService.GetTenantServiceClient _client;
@@ -25,5 +26,5 @@ public class TenantService
     {
         var request = new TenantRequest { TenantId = tenantId.ToString() };
         return await _client.GetInfoAsync(request);
-    } 
+    }
 }

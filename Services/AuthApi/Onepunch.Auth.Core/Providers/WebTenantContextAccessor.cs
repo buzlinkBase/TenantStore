@@ -4,7 +4,7 @@ namespace OnePunch.Auth.Core.Providers;
 
 public class TenantProviderAccessor : ITenantProvider
 {
-    private Guid _tenantId=Guid.Empty;
+    private Guid _tenantId = Guid.Empty;
     private readonly IHttpContextAccessor _httpContextAccessor;
     public TenantProviderAccessor(IHttpContextAccessor httpContextAccessor)
     {

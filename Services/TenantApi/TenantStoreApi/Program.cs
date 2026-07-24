@@ -123,7 +123,7 @@ internal class Program
                 options.ConfigObject.PersistAuthorization = true;
             }
             options.RoutePrefix = "swagger";
-        }); 
+        });
         // 4. FOURTH: Centralized Logging (safely handles forwarded context)
         app.UseSerilogRequestLogging();
         // NOTE: Removed app.UseHttpsRedirection() to prevent proxy redirect loops.

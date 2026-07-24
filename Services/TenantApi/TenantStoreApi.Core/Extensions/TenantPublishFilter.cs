@@ -13,5 +13,5 @@ public class TenantPublishFilter<T> : IFilter<PublishContext<T>> where T : class
         context.Headers.Set("X-Tenant-ID", _tenantProvider.TenantId.ToString());
         await next.Send(context);
     }
-} 
+}
 

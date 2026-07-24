@@ -31,9 +31,9 @@ namespace OnePunch.Auth.Api.Controllers
         [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Create([FromBody] CreateWorkspaceRequest payload, CancellationToken token)
         {
-            var response = await _service.Create(payload,User, token);
+            var response = await _service.Create(payload, User, token);
             return Ok(LoginResponseComposer.ConvertLoginResponse(response, _jwtService.RefreshExpiry, HttpContext.Request.IsHttps, Response));
-        } 
+        }
     }
 }
 
@@ -42,7 +42,7 @@ public class LoginResponseComposer
 {
     public static LoginResponseSimple ConvertLoginResponse(LoginResponse response, int RefreshExpiry, bool isHttps, HttpResponse httpResponse)
     {
-        SetRefreshTokenCookies(response.RefreshToken, RefreshExpiry,isHttps,httpResponse);
+        SetRefreshTokenCookies(response.RefreshToken, RefreshExpiry, isHttps, httpResponse);
         return new LoginResponseSimple
         {
             AccessToken = response.AccessToken,
@@ -55,7 +55,7 @@ public class LoginResponseComposer
         };
     }
 
-    public static void SetRefreshTokenCookies(string refreshToken, int expiryDays , bool isHttps, HttpResponse httpResponse)
+    public static void SetRefreshTokenCookies(string refreshToken, int expiryDays, bool isHttps, HttpResponse httpResponse)
     {
         // Behind reverse proxies, Request.IsHttps is corrected by UseForwardedHeaders.
         var cookieOptions = new CookieOptions

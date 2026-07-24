@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.EntityFrameworkCore.Metadata;
+﻿using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -7,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace OnePunch.Notification.Migrations
 {
     /// <inheritdoc />
-    public partial class initialcreate : Migration
+    public partial class initial_create : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -36,23 +35,6 @@ namespace OnePunch.Notification.Migrations
                 {
                     table.PrimaryKey("PK_InboxState", x => x.Id);
                     table.UniqueConstraint("AK_InboxState_MessageId_ConsumerId", x => new { x.MessageId, x.ConsumerId });
-                })
-                .Annotation("MySql:CharSet", "utf8mb4");
-
-            migrationBuilder.CreateTable(
-                name: "OutboxState",
-                columns: table => new
-                {
-                    OutboxId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
-                    LockId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
-                    RowVersion = table.Column<DateTime>(type: "timestamp(6)", rowVersion: true, nullable: true),
-                    Created = table.Column<DateTime>(type: "datetime(6)", nullable: false),
-                    Delivered = table.Column<DateTime>(type: "datetime(6)", nullable: true),
-                    LastSequenceNumber = table.Column<long>(type: "bigint", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_OutboxState", x => x.OutboxId);
                 })
                 .Annotation("MySql:CharSet", "utf8mb4");
 
@@ -95,16 +77,23 @@ namespace OnePunch.Notification.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_OutboxMessage", x => x.SequenceNumber);
-                    table.ForeignKey(
-                        name: "FK_OutboxMessage_InboxState_InboxMessageId_InboxConsumerId",
-                        columns: x => new { x.InboxMessageId, x.InboxConsumerId },
-                        principalTable: "InboxState",
-                        principalColumns: new[] { "MessageId", "ConsumerId" });
-                    table.ForeignKey(
-                        name: "FK_OutboxMessage_OutboxState_OutboxId",
-                        column: x => x.OutboxId,
-                        principalTable: "OutboxState",
-                        principalColumn: "OutboxId");
+                })
+                .Annotation("MySql:CharSet", "utf8mb4");
+
+            migrationBuilder.CreateTable(
+                name: "OutboxState",
+                columns: table => new
+                {
+                    OutboxId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
+                    LockId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
+                    RowVersion = table.Column<DateTime>(type: "timestamp(6)", rowVersion: true, nullable: true),
+                    Created = table.Column<DateTime>(type: "datetime(6)", nullable: false),
+                    Delivered = table.Column<DateTime>(type: "datetime(6)", nullable: true),
+                    LastSequenceNumber = table.Column<long>(type: "bigint", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_OutboxState", x => x.OutboxId);
                 })
                 .Annotation("MySql:CharSet", "utf8mb4");
 
@@ -145,10 +134,10 @@ namespace OnePunch.Notification.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "OutboxMessage");
+                name: "InboxState");
 
             migrationBuilder.DropTable(
-                name: "InboxState");
+                name: "OutboxMessage");
 
             migrationBuilder.DropTable(
                 name: "OutboxState");

@@ -1,7 +1,7 @@
-﻿using Microsoft.AspNetCore.Diagnostics;
+﻿using MessagePack;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Onepunch.Common.Lib.Exceptions;
-using MessagePack;
 
 namespace TenantStoreApi.Exceptions;
 

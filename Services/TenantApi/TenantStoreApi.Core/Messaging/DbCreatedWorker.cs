@@ -16,7 +16,7 @@ public class DbCreatedWorker : IConsumer<ConnectionStringPayload>
     public async Task Consume(ConsumeContext<ConnectionStringPayload> context)
     {
         var model = _mapper.Map<ConnectionStringStore>(context.Message);
-        await _service.AddAsync(model,context.CancellationToken);
+        await _service.AddAsync(model, context.CancellationToken);
         await _service.CommitChangesAsync(context.CancellationToken);
     }
 }

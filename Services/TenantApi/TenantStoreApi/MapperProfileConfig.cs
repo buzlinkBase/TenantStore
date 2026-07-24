@@ -11,7 +11,7 @@ namespace TenantStoreApi
             config.NewConfig<TenantCreationRequest, Tenant>();
             config.NewConfig<UpdateTenant, Tenant>();
             config.NewConfig<Tenant, TenantModel>();
-            config.NewConfig<ConnectionStringPayload,ConnectionStringStore >().TwoWays();
+            config.NewConfig<ConnectionStringPayload, ConnectionStringStore>().TwoWays();
         }
     }
 }

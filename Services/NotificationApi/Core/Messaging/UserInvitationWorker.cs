@@ -1,5 +1,4 @@
 ﻿using MassTransit;
-using OnePunch.Notification.Domain.DTO;
 
 namespace OnePunch.Notification.Core.Messaging;
 

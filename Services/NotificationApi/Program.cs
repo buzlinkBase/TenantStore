@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
 using OnePunch.Notification.Infrastructure;
 using Swashbuckle.AspNetCore.SwaggerGen;
-using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 

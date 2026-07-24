@@ -2,7 +2,6 @@
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Onepunch.Auth.Domain.Entities;
-using Onepunch.Common.Lib.Cache;
 using OnePunch.Auth.Domain.Entities;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;

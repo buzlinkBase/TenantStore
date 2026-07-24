@@ -1,7 +1,6 @@
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using TenantStoreApi.Core.Services;
 using TenantStoreApi.Domain.Entities.Subs;
 
 namespace TenantStoreApi.Controllers;

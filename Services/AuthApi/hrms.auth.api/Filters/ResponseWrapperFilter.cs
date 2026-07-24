@@ -12,7 +12,7 @@ public class ResponseWrapperFilter : IResultFilter
         var path = context.HttpContext.Request.Path;
         if (path.StartsWithSegments("/swagger") ||
              path.StartsWithSegments("/favicon.ico") ||
-             path.StartsWithSegments("/index.html")) 
+             path.StartsWithSegments("/index.html"))
         {
             return;
         }

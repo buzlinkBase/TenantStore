@@ -12,7 +12,8 @@ public class NotifContextFactory : IDesignTimeDbContextFactory<NotifContext>
         Debug.WriteLine(basePath);
         IConfigurationRoot configuration = new ConfigurationBuilder()
             .SetBasePath(basePath)
-            .AddJsonFile("appsettings.Development.json")
+            .AddJsonFile("appsettings.json")
+            //.AddJsonFile("appsettings.Development.json")
             .Build();
         var connectionString = configuration.GetConnectionString("NotifConnection");
         var optionsBuilder = new DbContextOptionsBuilder<NotifContext>();

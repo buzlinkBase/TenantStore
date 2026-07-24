@@ -1,7 +1,6 @@
 ﻿using MassTransit;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
-using Onepunch.Auth.Core;
 using Onepunch.Auth.Infrastructure;
 using OnePunch.Auth.Core.Messaging;
 
@@ -55,15 +54,15 @@ public static class AuthRabbitConfiguration
 
 public class TenantCreatedConsumerDefinition : ConsumerDefinition<TenantCreatedWorker>
 {
-    public TenantCreatedConsumerDefinition() 
+    public TenantCreatedConsumerDefinition()
     {
         EndpointName = "auth-tenant-created-que";
     }
-     
+
 }
 public class UserJoinConsumerDefinition : ConsumerDefinition<UserJoinTenantCreatedWorker>
 {
-    public UserJoinConsumerDefinition()  
+    public UserJoinConsumerDefinition()
     {
         EndpointName = "auth-user-join-que";
     }

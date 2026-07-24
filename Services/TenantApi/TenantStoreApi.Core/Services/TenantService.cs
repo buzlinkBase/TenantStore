@@ -49,7 +49,7 @@ public class TenantService : BaseService<Tenant>
     {
         await CreateOrUpdateAsync(tenant, token);
     }
- 
+
     public async Task<Tenant?> FindTenantAsync(Guid Id, CancellationToken token)
     {
         var tenant = await Repository.FindOneAsync<Tenant>(Id, token);

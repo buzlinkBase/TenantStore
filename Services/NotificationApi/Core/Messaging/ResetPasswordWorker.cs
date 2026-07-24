@@ -13,7 +13,7 @@ public class ResetPasswordWorker : IConsumer<ResetPasswordEmail>
     }
     public async Task Consume(ConsumeContext<ResetPasswordEmail> context)
     {
-        var message  = context.Message;
+        var message = context.Message;
         await _service.SendResetPassword(message, context.CancellationToken);
     }
 }

@@ -1,7 +1,6 @@
 ﻿using MassTransit;
 
 using OnePunch.Notification.Core.Messaging;
-using OnePunch.Notification.Infrastructure;
 
 namespace OnePunch.Notification.Core.Extensions;
 

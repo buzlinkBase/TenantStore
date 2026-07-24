@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Onepunch.Auth.Domain;
+﻿namespace Onepunch.Auth.Domain;
 
 public enum TokenStatus
 {

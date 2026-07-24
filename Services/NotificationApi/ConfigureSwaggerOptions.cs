@@ -41,7 +41,7 @@ public class ConfigureSwaggerOptions : IConfigureOptions<SwaggerGenOptions>
             });
 
             // Apply both globally
-            options.AddSecurityRequirement(new OpenApiSecurityRequirement 
+            options.AddSecurityRequirement(new OpenApiSecurityRequirement
                 {
                         {
                             new OpenApiSecurityScheme

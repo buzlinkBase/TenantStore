@@ -1,5 +1,4 @@
-﻿using BuzlinkRepository;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 
 namespace TenantStoreApi.Middlewares;
 

@@ -1,5 +1,6 @@
 ﻿using MassTransit;
 namespace OnePunch.Notification.Core.Messaging;
+
 public class AccountConfirmationWorker : IConsumer<SendAccountVerification>
 {
     private readonly EmailNotificationService _notificationService;

@@ -1,7 +1,7 @@
 ﻿using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Core;
 using OnePunch.Auth.Core.Services;
-using Serilog; 
+using Serilog;
 
 namespace Onepunch.Auth.Core.Services;
 

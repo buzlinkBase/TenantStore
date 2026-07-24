@@ -8,7 +8,7 @@ public static class LibServicesRegistrations
 {
     public static void RegisterCoreServices(this WebApplicationBuilder builder)
     {
-        AddLibraryAssemblyDependencies(builder.Services, "TenantStoreApi.Core"); 
+        AddLibraryAssemblyDependencies(builder.Services, "TenantStoreApi.Core");
         builder.Services.AddScoped<PasswordCrypto>();
         builder.Services.AddScoped<IUnitOfWorkService, UnitOfWorkService>();
         builder.Services.AddScoped<IHMACService, HMACService>();

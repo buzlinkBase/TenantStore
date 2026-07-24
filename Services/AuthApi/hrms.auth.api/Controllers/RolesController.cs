@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Onepunch.Auth.Core;
 using Onepunch.Common.Lib;
-using OnePunch.Auth.Core.Services;
 
 namespace OnePunch.Auth.Api.Controllers
 {

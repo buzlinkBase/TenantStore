@@ -1,6 +1,4 @@
-﻿ 
-using Onepunch.Common.Lib.DTO;
-using Mapster;
+﻿using Mapster;
 namespace OnePunch.Auth.Api;
 
 //public class MappingProfile : Profile

@@ -29,7 +29,7 @@ public class TenantJoinWorker : IConsumer<TenantJoin>
         };
         _tenantService.Repository.Add(model);
 
-         //publish tenant join
+        //publish tenant join
         //await _publisher.Publish(createdTenant);
         await _tenantService.CommitChangesAsync(context.CancellationToken);
 

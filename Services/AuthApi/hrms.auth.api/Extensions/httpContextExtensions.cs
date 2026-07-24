@@ -1,4 +1,5 @@
 ﻿namespace OnePunch.Auth.Api.Extensions;
+
 public static class HttpContextExtensions
 {
     /// <summary>

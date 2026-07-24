@@ -1,5 +1,4 @@
 ﻿using Asp.Versioning;
-using BuzlinkRepository;
 using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -7,7 +6,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Net;
-using System.Net.Http.Headers;
 using System.Text;
 using TenantStoreApi.Core.Providers;
 using TenantStoreApi.Infrastructure;

@@ -37,14 +37,14 @@ public class EmailNotificationService
         };
         await client.SendMailAsync(mail, token);
     }
-    public async Task SendUserInvites( UserInvitionNotificationPayload model, CancellationToken token)
+    public async Task SendUserInvites(UserInvitionNotificationPayload model, CancellationToken token)
     {
         string relativePath = Path.Combine("Core", "Templates", "UserInvitation.html");
         string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);
         if (!File.Exists(filePath))
         {
             throw new FileNotFoundException($"Template not found at: {filePath}");
-        } 
+        }
 
         string body = await File.ReadAllTextAsync(filePath, token);
         body = body

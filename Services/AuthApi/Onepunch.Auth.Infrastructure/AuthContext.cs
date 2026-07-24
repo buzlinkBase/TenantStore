@@ -3,7 +3,6 @@ using MassTransit;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Onepunch.Auth.Domain.Entities;
-using Onepunch.Common.Lib;
 using OnePunch.Auth.Domain.Entities;
 
 namespace Onepunch.Auth.Infrastructure;
@@ -16,7 +15,7 @@ public class AuthContext : IdentityDbContext<User, Role, Guid>
     public DbSet<EmailToken> EmailTokens { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<Invitation> Invitations { get; set; }
-    public DbSet<TenantCreationRequestStatus>  TenantCreationRequests  { get; set; }
+    public DbSet<TenantCreationRequestStatus> TenantCreationRequests { get; set; }
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         base.OnConfiguring(optionsBuilder);

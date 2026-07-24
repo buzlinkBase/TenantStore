@@ -8,12 +8,12 @@ namespace Onepunch.Auth.Core.Services;
 public class SubscriptionService : BaseService<User>
 {
     private readonly IPublishEndpoint _publisher;
-    public SubscriptionService( IPublishEndpoint publisher, IUnitOfWorkService uow) : base(uow)
+    public SubscriptionService(IPublishEndpoint publisher, IUnitOfWorkService uow) : base(uow)
     {
         _publisher = publisher;
     }
     public async Task Create(PlanRequest payload, CancellationToken token)
     {
-       await  _publisher.Publish(payload);
+        await _publisher.Publish(payload);
     }
 }

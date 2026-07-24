@@ -1,5 +1,4 @@
 ﻿using MassTransit;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Core;

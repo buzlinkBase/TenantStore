@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Http;
 
 namespace TenantStoreApi.Core.Providers;
+
 public class TenantProviderAccessor : ITenantProvider
 {
     private Guid _tenantId;

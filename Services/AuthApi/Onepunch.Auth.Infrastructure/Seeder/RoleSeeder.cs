@@ -11,7 +11,7 @@ public class RoleSeeder
         foreach (var role in roles)
         {
             if (!await roleManager.RoleExistsAsync(role))
-                await roleManager.CreateAsync(new Role() { Name= role });
+                await roleManager.CreateAsync(new Role() { Name = role });
         }
     }
 }

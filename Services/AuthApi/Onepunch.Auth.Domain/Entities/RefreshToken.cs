@@ -1,6 +1,7 @@
 ﻿using OnePunch.Auth.Domain.Entities;
 namespace Onepunch.Auth.Domain.Entities;
-public class RefreshToken : BaseEntity 
+
+public class RefreshToken : BaseEntity
 {
     public Guid UserId { get; set; }
     public string RefreshTokenHash { get; set; }

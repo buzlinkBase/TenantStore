@@ -8,11 +8,11 @@ public class ConnectionService : BaseService<ConnectionStringStore>
     {
     }
 
-    public async Task<ConnectionQueryResponse?> GetConnection(Guid tenantId,string service)
+    public async Task<ConnectionQueryResponse?> GetConnection(Guid tenantId, string service)
     {
         var data = await GetQueryable(x =>
                         x.TenantId == tenantId &&
-                        x.ServiceOwner== service &&
+                        x.ServiceOwner == service &&
                         x.IsActive)
             .FirstOrDefaultAsync();
 

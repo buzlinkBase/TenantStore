@@ -1,4 +1,5 @@
 ﻿namespace Onepunch.Auth.Core;
+
 public class Domains
 {
     public string FrontEnd { get; set; }

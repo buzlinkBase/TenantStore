@@ -9,7 +9,7 @@ internal class ApiTokenConfig : IEntityTypeConfiguration<ApiToken>
 {
     public void Configure(EntityTypeBuilder<ApiToken> builder)
     {
-        builder 
+        builder
         .Property(x => x.Status)
         .HasConversion(
                 v => v.ToString(),

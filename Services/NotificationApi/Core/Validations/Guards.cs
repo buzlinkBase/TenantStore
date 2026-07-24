@@ -1,6 +1,4 @@
-﻿using Onepunch.Common.Lib.Exceptions;
-
-namespace OnePunch.Notification.Core.Validations;
+﻿namespace OnePunch.Notification.Core.Validations;
 
 public static class Guard
 {
@@ -10,7 +8,7 @@ public static class Guard
             throw new ArgumentNullException(paramName);
 
     }
- 
+
     public static async Task ModelGuardAsync<T>(Func<T, Task<ValidationResponse>> validator, T model)
             where T : class, IEntity
     {

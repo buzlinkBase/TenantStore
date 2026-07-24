@@ -7,7 +7,7 @@ namespace Onepunch.Auth.Domain;
 public partial class OneMessagePackResolver { }
 
 [MessagePackObject]
-public class Generator 
+public class Generator
 {
     [Key(0)]
     public Guid Id { get; set; }

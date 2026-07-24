@@ -12,15 +12,15 @@ using OnePunch.Notification.Infrastructure;
 namespace OnePunch.Notification.Migrations
 {
     [DbContext(typeof(NotifContext))]
-    [Migration("20260304125005_rmqoutbox")]
-    partial class rmqoutbox
+    [Migration("20260724010146_initial_create")]
+    partial class initial_create
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.24")
+                .HasAnnotation("ProductVersion", "9.0.2")
                 .HasAnnotation("Relational:MaxIdentifierLength", 64);
 
             MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);

@@ -1,12 +1,7 @@
-﻿using Azure.Core;
-using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
-using Onepunch.Auth.Domain.Entities;
+﻿using Onepunch.Auth.Domain.Entities;
 using Onepunch.Common.Lib.Cache;
 using OnePunch.Auth.Core;
-using OnePunch.Auth.Domain.Entities;
 using Refit;
-using System.ComponentModel;
 
 namespace Onepunch.Auth.Core.Interfaces;
 

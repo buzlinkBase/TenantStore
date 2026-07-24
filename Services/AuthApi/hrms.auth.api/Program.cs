@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
 using Onepunch.Auth.Core.Interfaces;
 using Onepunch.Auth.Core.Protos;
-using Onepunch.Auth.Domain; 
+using Onepunch.Auth.Domain;
 using Onepunch.Common.Lib;
 using OnePunch.Auth.Api;
 using OnePunch.Auth.Api.Exceptions;

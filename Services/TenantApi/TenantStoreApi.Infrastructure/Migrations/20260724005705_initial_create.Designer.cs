@@ -12,15 +12,18 @@ using TenantStoreApi.Infrastructure;
 namespace TenantStoreApi.Infrastructure.Migrations
 {
     [DbContext(typeof(TenantContext))]
-    [Migration("20260317145653_connectiontablerename")]
-    partial class connectiontablerename
+    [Migration("20260724005705_initial_create")]
+    partial class initial_create
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.24")
+                .HasAnnotation("ProductVersion", "9.0.2")
+                .HasAnnotation("Proxies:ChangeTracking", false)
+                .HasAnnotation("Proxies:CheckEquality", false)
+                .HasAnnotation("Proxies:LazyLoading", true)
                 .HasAnnotation("Relational:MaxIdentifierLength", 64);
 
             MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);
@@ -195,73 +198,29 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.ToTable("OutboxState");
                 });
 
-            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Branch", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
-
-                    b.Property<string>("Address")
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("Contact")
-                        .HasColumnType("longtext");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("ManagerName")
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("ShortName")
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Status");
-
-                    b.HasIndex("TenantId");
-
-                    b.ToTable("Branches");
-                });
-
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.ConnectionStringStore", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
-                    b.Property<string>("ConnetionString")
+                    b.Property<DateTime?>("ArchieveSchedule")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ClusterId")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("ConnectionString")
                         .IsRequired()
                         .HasColumnType("longtext");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<string>("DatabaseName")
+                        .IsRequired()
+                        .HasColumnType("longtext");
 
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime(6)");
@@ -270,12 +229,14 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
                     b.Property<string>("Module")
                         .IsRequired()
                         .HasColumnType("longtext");
 
-                    b.Property<string>("RawConnection")
-                        .IsRequired()
+                    b.Property<string>("Remarks")
                         .HasColumnType("longtext");
 
                     b.Property<string>("SchemaVersion")
@@ -284,7 +245,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.Property<string>("ServiceOwner")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("varchar(255)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -298,10 +259,58 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("ServiceOwner");
+
+                    b.HasIndex("TenantId");
+
                     b.ToTable("Connections");
                 });
 
-            modelBuilder.Entity("TenantStoreApi.Domain.Entities.ExtraService", b =>
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.SchemaVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CurrentVersion")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("System")
+                        .IsRequired()
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("TargetVersion")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "System")
+                        .IsUnique();
+
+                    b.ToTable("SchemaVersions");
+                });
+
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.ExtraService", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -334,7 +343,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.ToTable("ExtraServices");
                 });
 
-            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Plan", b =>
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.Plan", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -342,6 +351,9 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<int>("Days")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime(6)");
@@ -372,13 +384,14 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         {
                             Id = new Guid("d8cb5f8b-8e4e-4352-b41c-c311f73b5ed5"),
                             CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Days = 0,
                             Description = "Free Trial",
                             Name = "Free Trial",
                             Status = "Active"
                         });
                 });
 
-            modelBuilder.Entity("TenantStoreApi.Domain.Entities.PlanProduct", b =>
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.PlanProduct", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -409,6 +422,51 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.HasIndex("PlanId");
 
                     b.ToTable("PlanServices");
+                });
+
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.TenantSubscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("SubStatus")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlanId");
+
+                    b.HasIndex("SubStatus");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("TenantSubscriptions");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Tenant", b =>
@@ -487,51 +545,6 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.ToTable("TenantDelegations");
                 });
 
-            modelBuilder.Entity("TenantStoreApi.Domain.Entities.TenantSubscription", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime>("EndDate")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<Guid>("PlanId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime>("StartDate")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<int>("SubStatus")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PlanId");
-
-                    b.HasIndex("SubStatus");
-
-                    b.HasIndex("TenantId");
-
-                    b.ToTable("TenantSubscriptions");
-                });
-
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.UserMembership", b =>
                 {
                     b.Property<Guid>("Id")
@@ -545,7 +558,6 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .HasColumnType("datetime(6)");
 
                     b.Property<string>("Role")
-                        .IsRequired()
                         .HasColumnType("varchar(255)");
 
                     b.Property<string>("Status")
@@ -554,6 +566,9 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("char(36)");
+
+                    b.Property<string>("TenantName")
+                        .HasColumnType("longtext");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime(6)");
@@ -572,25 +587,36 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.ToTable("Memberships");
                 });
 
-            modelBuilder.Entity("TenantStoreApi.Domain.Entities.ExtraService", b =>
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.SchemaVersion", b =>
                 {
-                    b.HasOne("TenantStoreApi.Domain.Entities.TenantSubscription", null)
+                    b.HasOne("TenantStoreApi.Domain.Entities.Tenant", "Tenant")
+                        .WithMany("SchemaVersions")
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.ExtraService", b =>
+                {
+                    b.HasOne("TenantStoreApi.Domain.Entities.Subs.TenantSubscription", null)
                         .WithMany("AddOns")
                         .HasForeignKey("TenantSubscriptionId");
                 });
 
-            modelBuilder.Entity("TenantStoreApi.Domain.Entities.PlanProduct", b =>
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.PlanProduct", b =>
                 {
-                    b.HasOne("TenantStoreApi.Domain.Entities.Plan", null)
+                    b.HasOne("TenantStoreApi.Domain.Entities.Subs.Plan", null)
                         .WithMany("IncludedServices")
                         .HasForeignKey("PlanId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("TenantStoreApi.Domain.Entities.TenantSubscription", b =>
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.TenantSubscription", b =>
                 {
-                    b.HasOne("TenantStoreApi.Domain.Entities.Plan", "Plan")
+                    b.HasOne("TenantStoreApi.Domain.Entities.Subs.Plan", "Plan")
                         .WithMany()
                         .HasForeignKey("PlanId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -607,14 +633,19 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.Navigation("Tenant");
                 });
 
-            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Plan", b =>
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.Plan", b =>
                 {
                     b.Navigation("IncludedServices");
                 });
 
-            modelBuilder.Entity("TenantStoreApi.Domain.Entities.TenantSubscription", b =>
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.TenantSubscription", b =>
                 {
                     b.Navigation("AddOns");
+                });
+
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Tenant", b =>
+                {
+                    b.Navigation("SchemaVersions");
                 });
 #pragma warning restore 612, 618
         }

@@ -1,7 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
-using System;
-using System.Collections.Generic;
-namespace TenantStoreApi.Core.Services;
+﻿namespace TenantStoreApi.Core.Services;
+
 public class TenantMembers
 {
     public TenantMembers()

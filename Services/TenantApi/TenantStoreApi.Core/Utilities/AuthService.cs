@@ -1,4 +1,5 @@
 ﻿namespace TenantStoreApi.Core.Utilities;
+
 public class AuthService
 {
     private readonly CheckEmailService.CheckEmailServiceClient _serviceClient;
