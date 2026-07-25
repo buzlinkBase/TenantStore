@@ -16,6 +16,7 @@ namespace Onepunch.Auth.Core.Services
 
         private readonly EmailTokenService _emailTokenService;
         private readonly TenantRequestService _tenantCreationRequestStatusService;
+        private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly Domains _domains;
         private readonly UserManager<User> _manager;
         private readonly IPublishEndpoint _publisher;
@@ -26,11 +27,13 @@ namespace Onepunch.Auth.Core.Services
             TenantRequestService tenantCreationRequestStatusService,
             IOptions<Domains> domains,
             IHttpContextAccessor contextAccessor,
+            IHttpContextAccessor httpContextAccessor,
             UserManager<User> manager,
             IPublishEndpoint publisher) : base(uow)
         {
             _emailTokenService = emailTokenService;
             _tenantCreationRequestStatusService = tenantCreationRequestStatusService;
+            _httpContextAccessor = httpContextAccessor;
             _domains = domains.Value;
             _manager = manager;
             _publisher = publisher;
@@ -89,11 +92,16 @@ namespace Onepunch.Auth.Core.Services
                 Role = role,
             };
             Repository.Add(invitation);
+            var baseUrl = apiHost;
+            var httpContext = _httpContextAccessor.HttpContext;
+            if (httpContext != null)
+                baseUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/auth";
+
 
             await _publisher.Publish(new UserInvitionNotificationPayload
             {
                 Email = payload.Email,
-                InviteLink = $"{apiHost}/invitations-list?token={token}",
+                InviteLink = $"{baseUrl}/api/v1/my-invitations?token={token}",
                 Organization = tenantName ?? user.DefaultTenantName ?? "",
                 Name = user.FullName ?? user.Email ?? "User",
                 Expiry = exp,

@@ -35,7 +35,7 @@ public class EmailNotificationService
         var baseUrl = accountApiHost;
         var httpContext = _httpContextAccessor.HttpContext;
         if (httpContext != null)
-            baseUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}";
+            baseUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/auth";
 
         var exp = DateTime.UtcNow.AddDays(1);
         var tokenModel = await _emailTokenService.CreateModel(exp, account.Email);
