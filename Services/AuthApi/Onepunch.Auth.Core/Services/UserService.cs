@@ -77,7 +77,9 @@ public class UserService : BaseService<User>
         if (existing != null)
         {
             if (!existing.EmailConfirmed)
+            {
                 await _notificationService.SendEmailVerification(existing, accountApiHost, token);
+            }
             return Success("Please check your email to verify your account.", existing.Email);
         }
 
