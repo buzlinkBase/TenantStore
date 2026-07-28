@@ -19,6 +19,7 @@
 		<PackageReference Include="MassTransit.RabbitMQ" />
 		<PackageReference Include="Microsoft.IdentityModel.Tokens" />
 		<PackageReference Include="RabbitMQ.Client" />
+		<PackageReference Include="Resend" />
 		<PackageReference Include="Serilog.Exceptions" />
 		<PackageReference Include="Swashbuckle.AspNetCore" />
 		<PackageReference Include="Asp.Versioning.Http" />

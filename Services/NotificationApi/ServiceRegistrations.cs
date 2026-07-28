@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
+using Resend;
 using System.Net;
 using System.Text;
 
@@ -16,7 +17,14 @@ public static class ServiceRegistrations
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
         builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));
         builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));
-        builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("MailSettings"));
+        builder.Services.Configure<ResendSettings>(builder.Configuration.GetSection("ResendSettings"));
+        builder.Services.AddOptions();
+        builder.Services.AddHttpClient<ResendClient>();
+        builder.Services.Configure<ResendClientOptions>(options =>
+        {
+            options.ApiToken = builder.Configuration["ResendSettings:ApiToken"] ?? string.Empty;
+        });
+        builder.Services.AddTransient<IResend, ResendClient>();
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddDataProtection();
         builder.Services.AddLogging();

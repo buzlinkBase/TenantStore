@@ -58,6 +58,7 @@
     <PackageVersion Include="Asp.Versioning.Http" Version="8.1.0" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="7.2.0" />
     <PackageVersion Include="Refit.HttpClientFactory" Version="8.0.0" />
+    <PackageVersion Include="Resend" Version="0.8.0" />
     <PackageVersion Include="Polly" Version="8.5.2" />
     <PackageVersion Include="StackExchange.Redis" Version="2.8.24" />
     <PackageVersion Include="System.Diagnostics.DiagnosticSource" Version="10.0.0" />

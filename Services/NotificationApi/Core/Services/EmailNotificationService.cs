@@ -1,14 +1,15 @@
-﻿using Microsoft.Extensions.Options;
-using System.Net;
-using System.Net.Mail;
+using Microsoft.Extensions.Options;
+using Resend;
 
 namespace OnePunch.Notification.Core.Services;
 
 public class EmailNotificationService
 {
-    private readonly MailSettings _setting;
-    public EmailNotificationService(IOptions<MailSettings> setting)
+    private readonly IResend _resend;
+    private readonly ResendSettings _setting;
+    public EmailNotificationService(IResend resend, IOptions<ResendSettings> setting)
     {
+        _resend = resend;
         _setting = setting.Value;
     }
 
@@ -24,18 +25,12 @@ public class EmailNotificationService
         body = body
             .Replace("{{confirmationLink}}", payload.ConfirmationRoute)
             ;
-        MailMessage mail = new MailMessage();
-        mail.To.Add(payload.Email);
-        mail.From = new MailAddress(_setting.From);
-        mail.Subject = "Confirm your account";
-        mail.Body = body;
-        mail.IsBodyHtml = true;
-        using var client = new SmtpClient(_setting.SmtpServer, _setting.SmtpPort)
-        {
-            Credentials = new NetworkCredential(_setting.Username, _setting.Password),
-            EnableSsl = true
-        };
-        await client.SendMailAsync(mail, token);
+        var message = new EmailMessage();
+        message.From = _setting.From;
+        message.To.Add(payload.Email);
+        message.Subject = "Confirm your account";
+        message.HtmlBody = body;
+        await _resend.EmailSendAsync(message, token);
     }
     public async Task SendUserInvites(UserInvitionNotificationPayload model, CancellationToken token)
     {
@@ -55,19 +50,12 @@ public class EmailNotificationService
             .Replace("{{CurrentYear}}", DateTime.UtcNow.Year.ToString())
             ;
 
-        MailMessage mail = new MailMessage();
-        mail.To.Add(model.Email);
-        mail.From = new MailAddress(_setting.From);
-        mail.Subject = string.Concat(model.Organization, "'s", " ", "Invitation");
-        mail.Body = body;
-        mail.IsBodyHtml = true;
-
-        using var client = new SmtpClient(_setting.SmtpServer, _setting.SmtpPort)
-        {
-            Credentials = new NetworkCredential(_setting.Username, _setting.Password),
-            EnableSsl = true
-        };
-        await client.SendMailAsync(mail, token);
+        var message = new EmailMessage();
+        message.From = _setting.From;
+        message.To.Add(model.Email);
+        message.Subject = string.Concat(model.Organization, "'s", " ", "Invitation");
+        message.HtmlBody = body;
+        await _resend.EmailSendAsync(message, token);
     }
     public async Task SendSignInGoogleInformation(SignInGoogleEmail model, CancellationToken token)
     {
@@ -83,19 +71,13 @@ public class EmailNotificationService
             .Replace("{{UserName}}", model.Name ?? model.Email)
             .Replace("{{CurrentYear}}", DateTime.UtcNow.Year.ToString())
             ;
-        MailMessage mail = new MailMessage();
-        mail.To.Add(model.Email);
-        mail.From = new MailAddress(_setting.From);
+        var message = new EmailMessage();
+        message.From = _setting.From;
+        message.To.Add(model.Email);
         var displayName = model?.Name ?? "";
-        mail.Subject = $"Request password reset {(displayName.Length > 100 ? displayName[..100] : displayName)}";
-        mail.Body = body;
-        mail.IsBodyHtml = true;
-        using var client = new SmtpClient(_setting.SmtpServer, _setting.SmtpPort)
-        {
-            Credentials = new NetworkCredential(_setting.Username, _setting.Password),
-            EnableSsl = true
-        };
-        await client.SendMailAsync(mail, token);
+        message.Subject = $"Request password reset {(displayName.Length > 100 ? displayName[..100] : displayName)}";
+        message.HtmlBody = body;
+        await _resend.EmailSendAsync(message, token);
     }
     public async Task SendResetPassword(ResetPasswordEmail model, CancellationToken token)
     {
@@ -112,19 +94,13 @@ public class EmailNotificationService
             .Replace("{{ExpirationDateTime}}", model.Expiry.ToString())
             .Replace("{{CurrentYear}}", DateTime.UtcNow.Year.ToString())
             ;
-        MailMessage mail = new MailMessage();
-        mail.To.Add(model.Email);
-        mail.From = new MailAddress(_setting.From);
+        var message = new EmailMessage();
+        message.From = _setting.From;
+        message.To.Add(model.Email);
         var displayName = model?.Name ?? "";
-        mail.Subject = $"Request password reset {(displayName.Length > 100 ? displayName[..100] : displayName)}";
-        mail.Body = body;
-        mail.IsBodyHtml = true;
-        using var client = new SmtpClient(_setting.SmtpServer, _setting.SmtpPort)
-        {
-            Credentials = new NetworkCredential(_setting.Username, _setting.Password),
-            EnableSsl = true
-        };
-        await client.SendMailAsync(mail, token);
+        message.Subject = $"Request password reset {(displayName.Length > 100 ? displayName[..100] : displayName)}";
+        message.HtmlBody = body;
+        await _resend.EmailSendAsync(message, token);
     }
 
 }
