@@ -28,7 +28,7 @@ public class TenantService : BaseService<Tenant>
         return EvaluationResult.OK;
     }
 
-    public async Task<TenantModel> CreateTenant(TenantCreationRequest payload, CancellationToken token)
+    public async Task<TenantModel> CreateTenant(TenantCreationRequested payload, CancellationToken token)
     {
         var tenant = _mapper.Map<Tenant>(payload);
         tenant.Id = payload.TenantId;

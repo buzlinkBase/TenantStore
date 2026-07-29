@@ -30,25 +30,39 @@ public class UserJoinWorker : IConsumer<UserJoin>
                 TenantId = message.TenantId,
                 TenantName = message.TenantName,
                 UserId = message.UserId,
-                Role = existing.Role,
+                Roles = existing.RoleNames(),
             });
             return;
         }
 
-        var role = string.IsNullOrWhiteSpace(message.Role) ? "Member" : message.Role;
-        await _userMembershipService.AddAsync(new UserMembership
+        var roles = message.Roles.Count > 0 ? message.Roles : ["Member"];
+
+        // Flow B: if an invite placeholder (Status="Invited") is waiting for this email,
+        // activate it in place instead of creating a duplicate membership row.
+        var pendingInvite = !string.IsNullOrWhiteSpace(message.Email)
+            ? await _userMembershipService.FindPendingInviteAsync(message.TenantId, message.Email, context.CancellationToken)
+            : null;
+
+        if (pendingInvite != null)
         {
-            TenantId = message.TenantId,
-            UserId = message.UserId,
-            Role = role,
-        }, context.CancellationToken);
+            await _userMembershipService.ActivateInviteAsync(pendingInvite, message.UserId, context.CancellationToken);
+            roles = pendingInvite.RoleNames();
+        }
+        else
+        {
+            await _userMembershipService.AddAsync(new UserMembership
+            {
+                TenantId = message.TenantId,
+                UserId = message.UserId,
+            }, roles, context.CancellationToken);
+        }
 
         await _publisher.Publish(new UserJoinToTenantPayload
         {
             TenantId = message.TenantId,
             TenantName = message.TenantName,
             UserId = message.UserId,
-            Role = role,
+            Roles = roles,
         });
         await _tenantService.CommitChangesAsync(context.CancellationToken);
     }

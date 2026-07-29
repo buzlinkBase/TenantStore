@@ -12,7 +12,7 @@ namespace Onepunch.Common.Lib
         [Key(3)]
         public string? TenantName { get; set; }
         [Key(4)]
-        public string? Role { get; set; }
+        public List<string> Roles { get; set; } = new();
         [Key(5)]
         public string Status { get; set; }
     }

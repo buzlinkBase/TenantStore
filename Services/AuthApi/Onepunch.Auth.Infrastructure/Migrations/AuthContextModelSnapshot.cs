@@ -341,7 +341,8 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                     b.Property<string>("DefaultTenantName")
                         .HasColumnType("longtext");
 
-                    b.Property<string>("DefaultTenantRole")
+                    b.Property<string>("DefaultTenantRoles")
+                        .IsRequired()
                         .HasColumnType("longtext");
 
                     b.Property<string>("Email")
@@ -515,7 +516,7 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                     b.Property<DateTime>("Expiry")
                         .HasColumnType("datetime(6)");
 
-                    b.Property<string>("Role")
+                    b.Property<string>("Roles")
                         .IsRequired()
                         .HasColumnType("longtext");
 
@@ -593,6 +594,12 @@ namespace Onepunch.Auth.Infrastructure.Migrations
 
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<bool>("HrDbReady")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("HrDbStatus")
+                        .HasColumnType("longtext");
 
                     b.Property<DateTime?>("RequestExpiry")
                         .HasColumnType("datetime(6)");

@@ -8,5 +8,5 @@ public class InvitationRequest
     [EmailAddress(ErrorMessage = "Invalid email address")]
     public required string Email { get; set; }
 
-    public string Role { get; set; } = "Member";
+    public List<string> Roles { get; set; } = new() { "Member" };
 }

@@ -56,21 +56,17 @@ public class InvitationController : ControllerBase
     }
 
     [HttpPost("accept")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public async Task<IActionResult> Accept([FromQuery] string invitationToken, CancellationToken token)
+    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Accept([FromBody] AcceptInvitationRequest payload, CancellationToken ct)
     {
         try
         {
-            await _service.Accept(invitationToken, User, token);
-            return NoContent();
+            var response = await _service.Accept(payload.Token, User, ct);
+            return Ok(LoginResponseComposer.ConvertLoginResponse(response, _jwtService.RefreshExpiry, HttpContext.Request.IsHttps, Response));
         }
         catch (UnauthorizedException)
         {
             return Unauthorized();
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(ex.Message);
         }
     }
 
@@ -81,6 +77,26 @@ public class InvitationController : ControllerBase
     {
         var result = await _service.IsValidAsync(invitationToken, token);
         return Ok(result);
+    }
+
+    [HttpGet("preview")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(InvitationPreviewResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Preview([FromQuery] string token, CancellationToken ct)
+    {
+        var preview = await _service.GetPreviewAsync(token, ct);
+        if (preview == null) return NotFound();
+        return Ok(preview);
+    }
+
+    [HttpPost("accept-by-token")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+    public async Task<IActionResult> AcceptByToken([FromBody] AcceptInvitationByTokenRequest payload, CancellationToken ct)
+    {
+        var response = await _service.AcceptByTokenAsync(payload.Token, payload.Name, payload.Password, ct);
+        return Ok(LoginResponseComposer.ConvertLoginResponse(response, _jwtService.RefreshExpiry, HttpContext.Request.IsHttps, Response));
     }
 
     [HttpGet("my-invitations")]

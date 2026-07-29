@@ -37,7 +37,7 @@ public class WorkspaceService : BaseService<User>
     {
         var user = await _userManager.GetUserAsync(contextUser);
         if (user == null) throw new UnauthorizedException();
-        var createTenant = new TenantCreationRequest
+        var createTenant = new TenantCreationRequested
         {
             TenantId = Guid.NewGuid(),
             UserId = user.Id,
@@ -66,9 +66,10 @@ public class WorkspaceService : BaseService<User>
         loginRequest.Tenants.Add(new UsersTenant
         {
             Name = request.TenantName,
-            Role = "Owner",
+            Roles = ["Owner"],
             State = TenantCreationStatus.Provisioning.ToString(),
-            TenantId = createTenant.TenantId
+            TenantId = createTenant.TenantId,
+            HrDbReady = false,
         });
         return loginRequest;
     }

@@ -21,15 +21,33 @@ public class EmailNotificationService
         {
             throw new FileNotFoundException($"Template not found at: {filePath}");
         }
-        string body = await File.ReadAllTextAsync(filePath, token);
-        body = body
-            .Replace("{{confirmationLink}}", payload.ConfirmationRoute)
-            ;
-        var message = new EmailMessage();
-        message.From = _setting.From;
-        message.To.Add(payload.Email);
-        message.Subject = "Confirm your account";
-        message.HtmlBody = body;
+        //string body = await File.ReadAllTextAsync(filePath, token);
+        //body = body
+        //    .Replace("{{confirmationLink}}", payload.ConfirmationRoute)
+        //    ;
+        //var message = new EmailMessage();
+        //message.From = _setting.From;
+        //message.To.Add(payload.Email);
+        //message.Subject = "Confirm your account";
+        //message.HtmlBody = body;
+
+        var message = new EmailMessage
+        {
+            From = "Support <support@onepunch.site>",
+            To = payload.Email,
+            Subject = "Confirm your account",
+            Template = new EmailMessageTemplate
+            {
+                TemplateId = "account-confirmation",
+                Variables = new Dictionary<string, object>
+                {
+                    { "appName", "Onepunch" },
+                    { "name", payload.FullName ?? payload.Email },
+                    { "confirmationUrl", payload.ConfirmationRoute },
+                    { "expirationTime", "24 hours" }
+                }
+            }
+        };
         await _resend.EmailSendAsync(message, token);
     }
     public async Task SendUserInvites(UserInvitionNotificationPayload model, CancellationToken token)

@@ -20,6 +20,7 @@ public static class TenantRabbitMqConfiguration
             x.AddConsumer<TenantJoinWorker, TenantJoinDefinition>();
             x.AddConsumer<DbCreatedWorker, DbCreatedWorkerDefinition>();
             x.AddConsumer<SchemaMigrationUpdatedWorker, SchemaMigrationUpdatedWorkerDefinition>();
+            x.AddConsumer<UserInvitedWorker, UserInvitedWorkerDefinition>();
             x.SetEndpointNameFormatter(KebabCaseEndpointNameFormatter.Instance);
             x.AddEntityFrameworkOutbox<TenantContext>(o =>
             {
@@ -89,5 +90,12 @@ public class SchemaMigrationUpdatedWorkerDefinition : ConsumerDefinition<SchemaM
     public SchemaMigrationUpdatedWorkerDefinition()
     {
         EndpointName = "tenant-service-migration-success-que";
+    }
+}
+public class UserInvitedWorkerDefinition : ConsumerDefinition<UserInvitedWorker>
+{
+    public UserInvitedWorkerDefinition()
+    {
+        EndpointName = "tenant-service-user-invited-que";
     }
 }

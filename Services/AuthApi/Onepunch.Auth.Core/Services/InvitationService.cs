@@ -20,6 +20,8 @@ namespace Onepunch.Auth.Core.Services
         private readonly Domains _domains;
         private readonly UserManager<User> _manager;
         private readonly IPublishEndpoint _publisher;
+        private readonly JwtService _jwtService;
+        private readonly MembershipCacheService _membershipCacheService;
 
         public InvitationService(
             IUnitOfWorkService uow,
@@ -29,7 +31,9 @@ namespace Onepunch.Auth.Core.Services
             IHttpContextAccessor contextAccessor,
             IHttpContextAccessor httpContextAccessor,
             UserManager<User> manager,
-            IPublishEndpoint publisher) : base(uow)
+            IPublishEndpoint publisher,
+            JwtService jwtService,
+            MembershipCacheService membershipCacheService) : base(uow)
         {
             _emailTokenService = emailTokenService;
             _tenantCreationRequestStatusService = tenantCreationRequestStatusService;
@@ -37,6 +41,8 @@ namespace Onepunch.Auth.Core.Services
             _domains = domains.Value;
             _manager = manager;
             _publisher = publisher;
+            _jwtService = jwtService;
+            _membershipCacheService = membershipCacheService;
         }
 
         public async Task SendUserInvitationAsync(
@@ -54,13 +60,16 @@ namespace Onepunch.Auth.Core.Services
             Guard.ThrowIfEmpty(payload.Email, "email");
 
             // Caller must be Owner or Admin of this tenant
-            if (user.DefaultTenantRole != "Owner" && user.DefaultTenantRole != "Admin")
+            if (!user.DefaultTenantRoles.Contains("Owner") && !user.DefaultTenantRoles.Contains("Admin"))
                 throw new UnauthorizedException();
 
-            // Validate role value
-            var role = string.IsNullOrWhiteSpace(payload.Role) ? "Member" : payload.Role;
-            if (!AllowedInviteRoles.Contains(role))
-                throw new GuardException($"Invalid role '{role}'. Allowed values: {string.Join(", ", AllowedInviteRoles)}.");
+            // Validate role values
+            var roles = payload.Roles.Count > 0 ? payload.Roles.Distinct().ToList() : ["Member"];
+            foreach (var role in roles)
+            {
+                if (!AllowedInviteRoles.Contains(role))
+                    throw new GuardException($"Invalid role '{role}'. Allowed values: {string.Join(", ", AllowedInviteRoles)}.");
+            }
 
             // Tenant must not be pending provisioning
             var request = await _tenantCreationRequestStatusService.FindByTenant(tenantId);
@@ -89,27 +98,46 @@ namespace Onepunch.Auth.Core.Services
                 Expiry = exp,
                 Token = token,
                 Status = InvitationStatus.Pending,
-                Role = role,
+                Roles = roles,
             };
             Repository.Add(invitation);
-            var baseUrl = apiHost;
-            var httpContext = _httpContextAccessor.HttpContext;
-            if (httpContext != null)
-                baseUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/auth";
 
+            // Diagram Flow B step 6 "Clicks invite link": this must land the invitee on the
+            // frontend's accept-invite page (which previews the invite and creates/links their
+            // account), not a bare backend API route.
+            var frontEndHost = (_domains.FrontEnd ?? "").TrimEnd('/');
 
             await _publisher.Publish(new UserInvitionNotificationPayload
             {
                 Email = payload.Email,
-                InviteLink = $"{baseUrl}/api/v1/my-invitations?token={token}",
+                InviteLink = $"{frontEndHost}/accept-invite?token={token}",
                 Organization = tenantName ?? user.DefaultTenantName ?? "",
                 Name = user.FullName ?? user.Email ?? "User",
+                Expiry = exp,
+            }, ct);
+
+            // Fire-and-forget alongside the email publish above (not gated on it) so Tenant
+            // Service can create a pending membership row before the invitee ever accepts.
+            await _publisher.Publish(new UserInvited
+            {
+                Email = payload.Email,
+                TenantId = tenantId,
+                TenantName = tenantName,
+                Roles = roles,
+                InvitedByUserId = user.Id,
+                InvitationToken = token,
                 Expiry = exp,
             }, ct);
             await CommitChangesAsync(ct);
         }
 
-        public async Task Accept(string invitationToken, ClaimsPrincipal userClaim, CancellationToken token)
+        /// <summary>
+        /// Diagram steps 10-13: for an already-authenticated user who has a pending invitation
+        /// waiting for their email — marks it accepted, activates membership, and re-issues a
+        /// token scoped to the newly-joined tenant so they can enter it immediately (their
+        /// current token is still scoped to whatever tenant they were on before).
+        /// </summary>
+        public async Task<LoginResponse> Accept(string invitationToken, ClaimsPrincipal userClaim, CancellationToken ct)
         {
             var user = await _manager.GetUserAsync(userClaim);
             if (user == null) throw new UnauthorizedException();
@@ -118,11 +146,90 @@ namespace Onepunch.Auth.Core.Services
                 x.Token == invitationToken &&
                 x.Status == InvitationStatus.Pending &&
                 x.Expiry > DateTime.UtcNow)
-                .FirstOrDefaultAsync(token);
+                .FirstOrDefaultAsync(ct);
 
             if (invitation == null)
                 throw new GuardException("Invitation is invalid or has already been used.");
 
+            return await FinalizeAcceptanceAsync(user, invitation, ct);
+        }
+
+        /// <summary>
+        /// Flow B step 6 "Clicks invite link": lets the accept-invite landing page render who
+        /// invited them and to which workspace before asking for any credentials.
+        /// </summary>
+        public async Task<InvitationPreviewResponse?> GetPreviewAsync(string invitationToken, CancellationToken ct = default)
+        {
+            var invitation = await GetQueryable(x => x.Token == invitationToken)
+                .FirstOrDefaultAsync(ct);
+            if (invitation == null) return null;
+
+            var valid = invitation.Status == InvitationStatus.Pending && invitation.Expiry > DateTime.UtcNow;
+            var accountExists = await _manager.FindByEmailAsync(invitation.Email) != null;
+
+            return new InvitationPreviewResponse
+            {
+                Email = invitation.Email,
+                TenantName = invitation.TenantName ?? "",
+                Roles = invitation.Roles,
+                Expiry = invitation.Expiry,
+                Valid = valid,
+                AccountExists = accountExists,
+            };
+        }
+
+        /// <summary>
+        /// Flow B steps 7-9: creates the invited user's account and issues a tenant-scoped
+        /// token in one step, for an email with no existing account — "skips provisioning
+        /// entirely" since the tenant already exists. Existing accounts must sign in normally
+        /// instead (<see cref="Accept"/> already picks up pending invitations by email once
+        /// authenticated) — this endpoint deliberately never checks a password against an
+        /// arbitrary email, to avoid turning it into a guessing oracle.
+        /// </summary>
+        public async Task<LoginResponse> AcceptByTokenAsync(
+            string invitationToken,
+            string? name,
+            string password,
+            CancellationToken ct)
+        {
+            var invitation = await GetQueryable(x =>
+                x.Token == invitationToken &&
+                x.Status == InvitationStatus.Pending &&
+                x.Expiry > DateTime.UtcNow)
+                .FirstOrDefaultAsync(ct);
+
+            if (invitation == null)
+                throw new GuardException("Invitation is invalid or has already been used.");
+
+            var existingUser = await _manager.FindByEmailAsync(invitation.Email);
+            if (existingUser != null)
+                throw new GuardException("An account already exists for this email. Please sign in — you'll be prompted to accept this invitation automatically.");
+
+            var user = new User
+            {
+                UserName = invitation.Email,
+                Email = invitation.Email,
+                FullName = string.IsNullOrWhiteSpace(name) ? invitation.Email.Split('@')[0] : name,
+                Status = "Active",
+                EmailConfirmed = true,
+            };
+            var createResult = await _manager.CreateAsync(user, password);
+            if (!createResult.Succeeded)
+                throw new GuardException(string.Join(" ", createResult.Errors.Select(e => e.Description)));
+
+            return await FinalizeAcceptanceAsync(user, invitation, ct);
+        }
+
+        /// <summary>
+        /// Shared tail of both Accept paths: marks the invitation accepted, publishes UserJoin
+        /// (Tenant Service activates/creates the membership async off this), and mints a token
+        /// scoped to the newly-joined tenant. The membership activation hasn't necessarily landed
+        /// by the time we read it back here, so the tenant is appended to the list optimistically
+        /// (mirrors WorkspaceService.Create) — diagram step 13 "Enter workspace, no provisioning
+        /// wait" since the tenant itself already exists and is already fully provisioned.
+        /// </summary>
+        private async Task<LoginResponse> FinalizeAcceptanceAsync(User user, Invitation invitation, CancellationToken ct)
+        {
             invitation.Status = InvitationStatus.Accepted;
 
             await _publisher.Publish(new UserJoin
@@ -130,10 +237,45 @@ namespace Onepunch.Auth.Core.Services
                 UserId = user.Id,
                 TenantId = invitation.TenantId,
                 TenantName = invitation.TenantName ?? string.Empty,
-                Role = invitation.Role,
-            });
+                Roles = invitation.Roles,
+                Email = invitation.Email,
+            }, ct);
 
-            await CommitChangesAsync(token);
+            var accessToken = await _jwtService.CreateTokenAsync(user, invitation.TenantId.ToString(), invitation.TenantName ?? "");
+            var refreshTokenString = await _jwtService.GenerateRefreshToken();
+            await Context.RefreshTokens.AddAsync(new RefreshToken
+            {
+                UserId = user.Id,
+                RefreshTokenHash = _jwtService.Hash(refreshTokenString),
+                Expiry = DateTime.UtcNow.AddDays(_jwtService.RefreshExpiry),
+                CreatedAt = DateTime.UtcNow,
+                Revoked = false
+            }, ct);
+            await CommitChangesAsync(ct);
+
+            var tenants = await _membershipCacheService.GetMembershipsAsync(user.Id);
+            if (!tenants.Any(t => t.TenantId == invitation.TenantId))
+            {
+                tenants.Add(new UsersTenant
+                {
+                    TenantId = invitation.TenantId,
+                    Name = invitation.TenantName ?? "",
+                    Roles = invitation.Roles,
+                    State = "Active",
+                    HrDbReady = true,
+                });
+            }
+
+            return new LoginResponse
+            {
+                AccessToken = accessToken,
+                RefreshToken = refreshTokenString,
+                Expiry = DateTime.UtcNow.AddMinutes(_jwtService.TokenExpiry),
+                Tenants = tenants,
+                Name = user.FullName,
+                Roles = invitation.Roles,
+                Email = user.Email,
+            };
         }
 
         public async Task<bool> IsValidAsync(string invitationToken, CancellationToken token = default)

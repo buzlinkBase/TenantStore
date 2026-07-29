@@ -146,7 +146,7 @@ namespace OnePunch.Auth.Api.Controllers
                 Id = response.Id,
                 DefaultTenantName = response.DefaultTenantName,
                 DefaultTenantId = response.DefaultTenantId,
-                DefaultTenantRole = response.DefaultTenantRole,
+                DefaultTenantRoles = response.DefaultTenantRoles,
                 Email = response.Email,
                 FullName = response.FullName,
                 PhoneNumber = response.PhoneNumber,

@@ -9,7 +9,7 @@ public class TokenInfo
     public string? Email { get; set; }
     public Guid TenantId { get; set; }
     public string TenantName { get; set; } = string.Empty;
-    public string TenantMemberRole { get; set; } = string.Empty;
+    public List<string> TenantMemberRoles { get; set; } = new();
     public List<string> Roles { get; set; } = new();
     public bool IsValid { get; set; }
     public bool IsExpired { get; set; }
@@ -33,7 +33,7 @@ public record LoginResponseSimple
 {
     public string? Name { get; set; }
     public string? Email { get; set; }
-    public string? Role { get; set; }
+    public List<string> Roles { get; set; } = new();
     public string ErrorMessage { get; set; } = string.Empty;
     public string AccessToken { get; set; } = string.Empty;
     //public Guid? DefaultTenantId { get; set; }
@@ -41,6 +41,13 @@ public record LoginResponseSimple
     public List<UsersTenant> Tenants { get; set; }
     public DateTime Expiry { get; set; }
 
+    /// <summary>
+    /// Flow C(login) MFA extension point: true when an MFA challenge must be completed before
+    /// AccessToken/RefreshToken are usable. Always false today (see NoOpMfaChallengeService) —
+    /// reserved so a real MFA implementation can plug in without a breaking response shape change.
+    /// </summary>
+    public bool MfaRequired { get; set; }
+    public string? MfaChallengeToken { get; set; }
 }
 
 
@@ -48,9 +55,13 @@ public class UsersTenant
 {
     public Guid TenantId { get; set; }
     public string? Name { get; set; }
-    public string? Role { get; set; }
+    public List<string> Roles { get; set; } = new();
     public string State { get; set; }
 
+    /// <summary>Raw HR-resource-provisioning status text (null until it reports in).</summary>
+    public string? HrDbStatus { get; set; }
+    /// <summary>True once the tenant's HR resources have been provisioned and are safe to use.</summary>
+    public bool HrDbReady { get; set; }
 }
 
 public class CreateWorkspaceRequest

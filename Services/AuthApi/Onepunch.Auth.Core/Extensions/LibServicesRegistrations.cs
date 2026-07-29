@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Onepunch.Auth.Core.Interfaces;
 using System.Reflection;
 
 namespace OnePunch.Auth.Core;
@@ -11,6 +12,8 @@ public static class LibServicesRegistrations
         services.AddScoped<PasswordCrypto>();
         services.AddScoped<IUnitOfWorkService, UnitOfWorkService>();
         services.AddScoped<IHMACService, HMACService>();
+        services.AddScoped<MembershipGrpcClient>();
+        services.AddScoped<IMfaChallengeService, NoOpMfaChallengeService>();
     }
 
     public static void AddLibraryAssemblyDependencies(IServiceCollection services, string assemblyName)

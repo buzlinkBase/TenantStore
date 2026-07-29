@@ -43,4 +43,14 @@ public static class HttpRequestExtensions
 
         return user.FindFirstValue(claim);
     }
+
+    /// <summary>A user can hold multiple values for the same claim type (e.g. multiple tenant
+    /// roles) — this returns all of them, unlike GetUserClaim's single-value FindFirstValue.</summary>
+    public static List<string> GetUserClaims(this ClaimsPrincipal user, string claim)
+    {
+        if (user == null) throw new ArgumentNullException(nameof(user));
+        if (string.IsNullOrWhiteSpace(claim)) throw new ArgumentException("Claim type must be provided.", nameof(claim));
+
+        return user.FindAll(claim).Select(c => c.Value).ToList();
+    }
 }

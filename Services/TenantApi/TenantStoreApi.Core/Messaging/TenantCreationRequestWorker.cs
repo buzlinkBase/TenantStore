@@ -7,7 +7,7 @@ using TenantStoreApi.Domain.Entities.Subs;
 
 namespace TenantStoreApi.Core.Messaging;
 
-public class TenantCreationRequestWorker : IConsumer<TenantCreationRequest>
+public class TenantCreationRequestWorker : IConsumer<TenantCreationRequested>
 {
     private readonly TenantService _tenantService;
     private readonly UserMembershipService _userMembershipService;
@@ -35,26 +35,23 @@ public class TenantCreationRequestWorker : IConsumer<TenantCreationRequest>
         _subscriptionService = subscriptionService;
     }
 
-    public async Task Consume(ConsumeContext<TenantCreationRequest> context)
+    public async Task Consume(ConsumeContext<TenantCreationRequested> context)
     {
-        Log.Logger.Information("TenantCreationRequest Consumed");
         var message = context.Message;
         string role = "Owner";
         var tenant = await _tenantService.CreateTenant(message, context.CancellationToken);
         _tenantProvider.SetTenantId(tenant.Id);
         await CreateMembershipAsync(tenant, role, context.CancellationToken);
         await CreateFreeTrialAsync(tenant, context.CancellationToken);
-        await _publisher.Publish(new TenantCreatedPayload
+        await _publisher.Publish(new TenantCreationCompleted
         {
             Event = "tenant.created",
             TenantId = tenant.Id,
             UserId = tenant.UserId,
             TenantName = tenant.TenantName,
-            Role = role
+            Roles = [role]
         });
-        Log.Logger.Information("TenantCreationRequest published {0}", JsonConvert.SerializeObject(_publisher));
         await _uow.CommitChangesAsync();
-        Log.Logger.Information("TenantCreationRequest Consumer committed");
     }
 
     private async Task CreateMembershipAsync(TenantModel tenant, string role, CancellationToken token)
@@ -64,8 +61,7 @@ public class TenantCreationRequestWorker : IConsumer<TenantCreationRequest>
             TenantId = tenant.Id,
             TenantName = tenant.TenantName,
             UserId = tenant.UserId,
-            Role = role
-        }, token);
+        }, [role], token);
     }
 
     private async Task CreateFreeTrialAsync(TenantModel tenant, CancellationToken token)

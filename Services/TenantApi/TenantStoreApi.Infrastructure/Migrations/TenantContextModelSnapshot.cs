@@ -265,6 +265,40 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.ToTable("Connections");
                 });
 
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.MembershipRole", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("UserMembershipId")
+                        .HasColumnType("char(36)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserMembershipId", "Role")
+                        .IsUnique();
+
+                    b.ToTable("MembershipRoles");
+                });
+
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.SchemaVersion", b =>
                 {
                     b.Property<Guid>("Id")
@@ -554,8 +588,8 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime(6)");
 
-                    b.Property<string>("Role")
-                        .HasColumnType("varchar(255)");
+                    b.Property<string>("InvitedEmail")
+                        .HasColumnType("longtext");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -575,13 +609,22 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Role");
-
                     b.HasIndex("TenantId");
 
                     b.HasIndex("UserId");
 
                     b.ToTable("Memberships");
+                });
+
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.MembershipRole", b =>
+                {
+                    b.HasOne("TenantStoreApi.Domain.Entities.UserMembership", "UserMembership")
+                        .WithMany("Roles")
+                        .HasForeignKey("UserMembershipId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("UserMembership");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.SchemaVersion", b =>
@@ -643,6 +686,11 @@ namespace TenantStoreApi.Infrastructure.Migrations
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Tenant", b =>
                 {
                     b.Navigation("SchemaVersions");
+                });
+
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.UserMembership", b =>
+                {
+                    b.Navigation("Roles");
                 });
 #pragma warning restore 612, 618
         }
