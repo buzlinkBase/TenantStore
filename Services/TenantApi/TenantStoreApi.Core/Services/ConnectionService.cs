@@ -26,6 +26,7 @@ public class ConnectionService : BaseService<ConnectionStringStore>
         };
     }
 
-    public async Task AddAsync(ConnectionStringStore tenantConnection, CancellationToken token = default) => await Repository.AddAsync(tenantConnection, token);
+    public async Task AddAsync(ConnectionStringStore tenantConnection, CancellationToken token = default) => 
+        await Repository.AddAsync(tenantConnection, token);
 
 }

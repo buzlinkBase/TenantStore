@@ -24,27 +24,25 @@ public class HrDbCreatedWorker : IConsumer<HrisOrgProvisionedPayload>
     public async Task Consume(ConsumeContext<HrisOrgProvisionedPayload> context)
     {
         var message = context.Message;
-
         var request = await _tenantRequestService.FindByTenant(message.TenantId);
         if (request == null)
         {
             Log.Logger.Error("HrDbCreatedWorker unable to locate tenant request:{0}", message.TenantId);
             return;
         }
-
         var failed = message.Status.Contains("fail", StringComparison.OrdinalIgnoreCase)
             || message.Status.Contains("error", StringComparison.OrdinalIgnoreCase);
-
         request.HrDbStatus = message.Status;
         request.HrDbReady = !failed;
         _unitOfWorkService.Context.TenantCreationRequests.Update(request);
         await _unitOfWorkService.SaveChangesAsync();
-
         await _tenantNotificationService.NotifyHrDbCreated(request.UserId, new HrDbCreatedNotification
         {
             TenantId = message.TenantId,
             DatabaseName = message.DatabaseName,
             Status = message.Status
         });
+        await _unitOfWorkService.CommitChangesAsync("", context.CancellationToken);
+
     }
 }

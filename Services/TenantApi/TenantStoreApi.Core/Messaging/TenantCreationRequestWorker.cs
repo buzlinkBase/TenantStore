@@ -43,6 +43,8 @@ public class TenantCreationRequestWorker : IConsumer<TenantCreationRequested>
         _tenantProvider.SetTenantId(tenant.Id);
         await CreateMembershipAsync(tenant, role, context.CancellationToken);
         await CreateFreeTrialAsync(tenant, context.CancellationToken);
+
+
         await _publisher.Publish(new TenantCreationCompleted
         {
             Event = "tenant.created",
@@ -75,7 +77,7 @@ public class TenantCreationRequestWorker : IConsumer<TenantCreationRequested>
             PlanId = freeTrial.Id,
             SubStatus = SubscriptionStatus.Trialing,
             StartDate = DateTime.UtcNow,
-            EndDate = DateTime.UtcNow.AddDays(freeTrial.Days > 0 ? freeTrial.Days : 14),
+            EndDate = DateTime.UtcNow.AddDays(freeTrial.Days > 0 ? freeTrial.Days : 15),
         }, token);
     }
 }

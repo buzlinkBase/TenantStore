@@ -15,7 +15,7 @@ public static class AuthRabbitConfiguration
 
         builder.Services.AddMassTransit(x =>
         {
-            x.AddConsumer<TenantCreatedWorker, TenantCreatedConsumerDefinition>();
+            x.AddConsumer<TenantCreationCompletedWorker, TenantCreatedConsumerDefinition>();
             x.AddConsumer<UserJoinTenantCreatedWorker, UserJoinConsumerDefinition>();
             x.AddConsumer<HrDbCreatedWorker, HrDbCreatedConsumerDefinition>();
             x.AddConsumer<MembershipChangedWorker, MembershipChangedConsumerDefinition>();
@@ -54,7 +54,7 @@ public static class AuthRabbitConfiguration
     }
 }
 
-public class TenantCreatedConsumerDefinition : ConsumerDefinition<TenantCreatedWorker>
+public class TenantCreatedConsumerDefinition : ConsumerDefinition<TenantCreationCompletedWorker>
 {
     public TenantCreatedConsumerDefinition()
     {

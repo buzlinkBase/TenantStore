@@ -55,8 +55,9 @@ public class UserMembershipService : BaseService<UserMembership>
 
     public async Task<UserMembership?> GetMemberAsync(Guid userId, Guid tenantId, CancellationToken token = default)
     {
-        return await GetQueryable(x => x.UserId == userId && x.TenantId == tenantId)
+        return await Context.Memberships
             .Include(x => x.Roles)
+            .Where(x => x.UserId == userId && x.TenantId == tenantId)
             .FirstOrDefaultAsync(token);
     }
 

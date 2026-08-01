@@ -387,17 +387,15 @@ public class UserService : BaseService<User>
         await _publisher.Publish(newTenant, token);
     }
 
-    public async Task<LoginResponse> SetDefaultTenant(Guid tenantId, string token, CancellationToken ct)
+    public async Task<LoginResponse> SetDefaultTenant(Guid tenantId, Guid userId , CancellationToken ct)
     {
-        var tokenInfo = _jwtService.ReadTokenToObject(token);
-        if (tokenInfo == null || !string.IsNullOrWhiteSpace(tokenInfo.ErrorMessage))
-            throw new UnauthorizedException();
-        var user = await _manager.FindByIdAsync(tokenInfo.UserId.ToString());
+ 
+        var user = await _manager.FindByIdAsync(userId.ToString());
         if (user == null) throw new UnauthorizedException();
 
         // Flow F: verify the caller actually has a membership in the target tenant before
         // minting a token scoped to it, rather than trusting the client-supplied tenantId.
-        var membership = await _membershipGrpcClient.ResolveMembershipAsync(user.Id, tenantId);
+        var membership = await _membershipGrpcClient.ResolveMembershipAsync(user.Id, tenantId, deadlineMilliseconds: 2000);
         if (!membership.Success || !membership.Found || membership.Status != "Active")
             throw new ForbiddenException("You are not an active member of this tenant.");
 

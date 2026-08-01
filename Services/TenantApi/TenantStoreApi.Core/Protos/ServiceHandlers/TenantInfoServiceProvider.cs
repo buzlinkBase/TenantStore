@@ -1,9 +1,19 @@
 ﻿using Grpc.Core;
+using Microsoft.AspNetCore.Authorization;
 using Onepunch.Auth.Core;
 using TenantStoreApi.Core.Services;
 
 namespace TenantStoreApi.Core.Protos.ServiceHandlers;
 
+/// <summary>
+/// Internal service-to-service RPCs (Auth Service calling on its own authority, not forwarding
+/// an end-user token — MembershipGrpcClient sends no credentials at all). Tenant Service's
+/// global fallback policy requires an authenticated user on every endpoint by default, which
+/// silently blocks these gRPC calls before they ever reach the handler methods below unless
+/// exempted here. The gRPC port isn't exposed publicly, so network trust substitutes for a
+/// per-call JWT.
+/// </summary>
+[AllowAnonymous]
 public class TenantInfoServiceProvider : GetTenantService.GetTenantServiceBase
 {
     private readonly TenantService _service;

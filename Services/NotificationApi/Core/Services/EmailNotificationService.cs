@@ -21,16 +21,6 @@ public class EmailNotificationService
         {
             throw new FileNotFoundException($"Template not found at: {filePath}");
         }
-        //string body = await File.ReadAllTextAsync(filePath, token);
-        //body = body
-        //    .Replace("{{confirmationLink}}", payload.ConfirmationRoute)
-        //    ;
-        //var message = new EmailMessage();
-        //message.From = _setting.From;
-        //message.To.Add(payload.Email);
-        //message.Subject = "Confirm your account";
-        //message.HtmlBody = body;
-
         var message = new EmailMessage
         {
             From = "Support <support@onepunch.site>",
@@ -50,75 +40,74 @@ public class EmailNotificationService
         };
         await _resend.EmailSendAsync(message, token);
     }
-    public async Task SendUserInvites(UserInvitionNotificationPayload model, CancellationToken token)
+    public async Task SendUserInvites(UserInvitionNotificationPayload payload, CancellationToken token)
     {
-        string relativePath = Path.Combine("Core", "Templates", "UserInvitation.html");
-        string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);
-        if (!File.Exists(filePath))
+        var message = new EmailMessage
         {
-            throw new FileNotFoundException($"Template not found at: {filePath}");
-        }
+            From = "User Invitation <userinvitation@onepunch.site>",
+            To = payload.Email,
+            Subject = "{{OrganizationName}} Invitation",
+            Template = new EmailMessageTemplate
+            {
+                TemplateId = "user-invitation",
+                Variables = new Dictionary<string, object>
+                {
+                    { "appName", "Onepunch" },
+                    { "OrganizationName",  payload.Organization },
+                    { "InviteLink", payload.InviteLink},
+                    { "Name", payload.Name ?? payload.Email},
+                    { "ExpirationDateTime",  payload.Expiry.ToString()},
+                    { "CurrentYear", DateTime.UtcNow.Year.ToString()},
+                }
+            }
+        };
+        await _resend.EmailSendAsync(message, token);
 
-        string body = await File.ReadAllTextAsync(filePath, token);
-        body = body
-            .Replace("{{InviteLink}}", model.InviteLink)
-            .Replace("{{OrganizationName}}", model.Organization ?? "")
-            .Replace("{{Name}}", model.Name ?? model.Email)
-            .Replace("{{ExpirationDateTime}}", model.Expiry.ToString())
-            .Replace("{{CurrentYear}}", DateTime.UtcNow.Year.ToString())
-            ;
+    }
+    public async Task SendSignInGoogleInformation(SignInGoogleEmail payload, CancellationToken token)
+    {
+        var message = new EmailMessage
+        {
+            From = "Reset Password <resetpassword@onepunch.site>",
+            To = payload.Email,
+            Subject = "Reset Password Request",
+            Template = new EmailMessageTemplate
+            {
+                TemplateId = "google-resetpassword",
+                Variables = new Dictionary<string, object>
+                {
+                    { "appName", "Onepunch" },
+                    { "LoginLink", payload.LoginLink},
+                    { "UserName", payload.Name ?? payload.Email},
+                    { "CurrentYear", DateTime.UtcNow.Year.ToString()},
+                }
+            }
+        };
+        await _resend.EmailSendAsync(message, token);
 
-        var message = new EmailMessage();
-        message.From = _setting.From;
-        message.To.Add(model.Email);
-        message.Subject = string.Concat(model.Organization, "'s", " ", "Invitation");
-        message.HtmlBody = body;
-        await _resend.EmailSendAsync(message, token);
     }
-    public async Task SendSignInGoogleInformation(SignInGoogleEmail model, CancellationToken token)
+    public async Task SendResetPassword(ResetPasswordEmail payload, CancellationToken token)
     {
-        string relativePath = Path.Combine("Core", "Templates", "SignInGoogleEmail.html");
-        string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);
-        if (!File.Exists(filePath))
+        var message = new EmailMessage
         {
-            throw new FileNotFoundException($"Template not found at: {filePath}");
-        }
-        string body = await File.ReadAllTextAsync(filePath, token);
-        body = body
-            .Replace("{{LoginLink}}", model.LoginLink)
-            .Replace("{{UserName}}", model.Name ?? model.Email)
-            .Replace("{{CurrentYear}}", DateTime.UtcNow.Year.ToString())
-            ;
-        var message = new EmailMessage();
-        message.From = _setting.From;
-        message.To.Add(model.Email);
-        var displayName = model?.Name ?? "";
-        message.Subject = $"Request password reset {(displayName.Length > 100 ? displayName[..100] : displayName)}";
-        message.HtmlBody = body;
+            From = "Reset Password <resetpassword@onepunch.site>",
+            To = payload.Email,
+            Subject = "Reset Password Request",
+            Template = new EmailMessageTemplate
+            {
+                TemplateId = "password-reset",
+                Variables = new Dictionary<string, object>
+                {
+                    { "appName", "Onepunch" },
+                    { "ResetLink", payload.ResetLink},
+                    { "UserName", payload.Name ?? payload.Email },
+                    { "CurrentYear", DateTime.UtcNow.Year.ToString() },
+                    { "ExpirationDateTime", payload.Expiry.ToString()}
+                }
+            }
+        };
         await _resend.EmailSendAsync(message, token);
-    }
-    public async Task SendResetPassword(ResetPasswordEmail model, CancellationToken token)
-    {
-        string relativePath = Path.Combine("Core", "Templates", "ResetPassword.html");
-        string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);
-        if (!File.Exists(filePath))
-        {
-            throw new FileNotFoundException($"Template not found at: {filePath}");
-        }
-        string body = await File.ReadAllTextAsync(filePath, token);
-        body = body
-            .Replace("{{ResetLink}}", model.ResetLink)
-            .Replace("{{UserName}}", model.Name ?? model.Email)
-            .Replace("{{ExpirationDateTime}}", model.Expiry.ToString())
-            .Replace("{{CurrentYear}}", DateTime.UtcNow.Year.ToString())
-            ;
-        var message = new EmailMessage();
-        message.From = _setting.From;
-        message.To.Add(model.Email);
-        var displayName = model?.Name ?? "";
-        message.Subject = $"Request password reset {(displayName.Length > 100 ? displayName[..100] : displayName)}";
-        message.HtmlBody = body;
-        await _resend.EmailSendAsync(message, token);
+
     }
 
 }

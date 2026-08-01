@@ -8,7 +8,7 @@
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="BuzlinkRepository" Version="1.3.1" />
+    <PackageVersion Include="BuzlinkRepository" Version="1.3.2" />
     <PackageVersion Include="Evolve" Version="3.4.0-alpha1" />
     <PackageVersion Include="Google.Apis.Auth" Version="1.70.0" />
     <PackageVersion Include="Mapster" Version="7.4.0" />
