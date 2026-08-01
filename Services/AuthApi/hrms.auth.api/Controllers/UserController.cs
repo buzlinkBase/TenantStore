@@ -146,7 +146,7 @@ namespace OnePunch.Auth.Api.Controllers
                 Id = response.Id,
                 DefaultTenantName = response.DefaultTenantName,
                 DefaultTenantId = response.DefaultTenantId,
-                DefaultTenantRole = response.DefaultTenantRole,
+                DefaultTenantRoles = response.DefaultTenantRoles,
                 Email = response.Email,
                 FullName = response.FullName,
                 PhoneNumber = response.PhoneNumber,
@@ -220,11 +220,9 @@ namespace OnePunch.Auth.Api.Controllers
             var token = Request.GetAuthorizationToken();
             if (token == null) return Unauthorized();
             var tenantId = Guid.Parse(payload.TenantId);
-            if (tenantId == Guid.Empty)
-            {
-                throw new ArgumentException("Invalid tenant Id format");
-            }
-            var response = await _service.SetDefaultTenant(tenantId, token, ct);
+            if (tenantId == Guid.Empty) throw new ArgumentException("Invalid tenant Id format");
+            var userId = User.GetRequiredUserId();
+            var response = await _service.SetDefaultTenant(tenantId, userId, ct);
             if (!string.IsNullOrWhiteSpace(response.ErrorMessage))
                 return Unauthorized(new UnauthorizedResponse { ErrorMessage = response.ErrorMessage });
             return Ok(LoginResponseComposer.ConvertLoginResponse(response, _jwtService.RefreshExpiry, HttpContext.Request.IsHttps, Response));

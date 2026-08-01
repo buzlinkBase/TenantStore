@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using Onepunch.Auth.Core;
-using Onepunch.Auth.Core.Interfaces;
+using Onepunch.Auth.Core.Services;
 using Onepunch.Auth.Infrastructure;
 using Onepunch.Common.Lib;
 using Onepunch.Common.Lib.Cache;
@@ -29,8 +29,6 @@ public static class ServiceRegistrations
         builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
         ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));
         builder.Services.AddScoped<ICacheService, RedisCacheService>();
-        builder.Services.AddScoped<AccountTenantsProvider>();
-        builder.Services.AddSignalR();
         builder.Services.AddHeaderPropagation(options =>
         {
             options.Headers.Add("User-Agent");
@@ -137,9 +135,14 @@ public static class ServiceRegistrations
                 setup.SubstituteApiVersionInUrl = true;
             });
         builder.Services.AddAuthorizationBuilder()
-         .SetFallbackPolicy(new AuthorizationPolicyBuilder()
+        .SetFallbackPolicy(new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .Build());
+
+        // Auth signs its own tokens with RSA (see RsaKeyProvider/JwtService.CreateTokenAsync) —
+        // validate incoming requests to Auth's own API using that same key directly, no HTTP
+        // round-trip needed since Auth already holds it in-process. AllowLegacyHmacValidation
+        // keeps the old shared-secret path alive as a fallback during the migration window.
         builder.Services.AddAuthentication(options =>
         {
             // Default to JWT for API requests
@@ -157,11 +160,20 @@ public static class ServiceRegistrations
                 ValidateAudience = true,
                 ValidAudience = "Onepunch.AuthService",
                 ValidateLifetime = true,
-                ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SigningKey"]!))
+                ValidateIssuerSigningKey = true
             };
             options.Events = new JwtBearerEvents
             {
+                OnMessageReceived = context =>
+                {
+                    var accessToken = context.Request.Query["access_token"];
+                    var path = context.HttpContext.Request.Path;
+                    if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                    {
+                        context.Token = accessToken;
+                    }
+                    return Task.CompletedTask;
+                },
                 OnAuthenticationFailed = context =>
                 {
                     Console.WriteLine("Auth failed: " + context.Exception.Message);
@@ -224,5 +236,27 @@ public static class ServiceRegistrations
             options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]!;
         })
         ;
+
+        // Resolve RsaKeyProvider lazily from the real (post-Build) app container rather than a
+        // throwaway one built here: RsaKeyProvider is a stateful, disk-persisted singleton whose
+        // Data Protection key ring isn't fully configured yet at this point in the method (the
+        // PersistKeysToFileSystem call happens later, in Program.cs) — building a second
+        // container for it here would encrypt/decrypt against a different key ring than the
+        // real app uses, producing a *different* RSA keypair than the one JwtService actually
+        // signs with. Configure<T> defers resolution until options are first requested, by
+        // which point the real container (and its one true RsaKeyProvider singleton) exists.
+        builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+            .Configure<RsaKeyProvider>((options, rsaKeyProvider) =>
+            {
+                var legacySigningKey = builder.Configuration["JwtSettings:SigningKey"];
+                var allowLegacyHmac = builder.Configuration.GetValue<bool?>("JwtSettings:AllowLegacyHmacValidation") ?? true;
+
+                var signingKeys = new List<SecurityKey> { rsaKeyProvider.SigningKey };
+                if (allowLegacyHmac && !string.IsNullOrEmpty(legacySigningKey))
+                {
+                    signingKeys.Add(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(legacySigningKey)));
+                }
+                options.TokenValidationParameters.IssuerSigningKeys = signingKeys;
+            });
     }
 }

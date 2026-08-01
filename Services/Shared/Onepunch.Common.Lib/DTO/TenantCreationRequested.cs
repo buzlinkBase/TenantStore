@@ -1,7 +1,7 @@
 ﻿
 namespace Onepunch.Common.Lib.DTO;
 
-public record TenantCreationRequest
+public record TenantCreationRequested
 {
     public required string TenantName { get; set; }
     public Guid TenantId { get; set; }
@@ -21,7 +21,13 @@ public record UserJoin
     public Guid UserId { get; set; }
     public Guid TenantId { get; set; }
     public string TenantName { get; set; } = string.Empty;
-    public string Role { get; set; } = "Member";
+    public List<string> Roles { get; set; } = new() { "Member" };
+    /// <summary>
+    /// The invited email address, used to match this acceptance against a placeholder
+    /// UserMembership row (Status="Invited") created when the invite was sent (see
+    /// UserInvited/UserInvitedWorker), so Tenant Service can activate it in place.
+    /// </summary>
+    public string Email { get; set; } = string.Empty;
 }
 public record TenantJoin
 {

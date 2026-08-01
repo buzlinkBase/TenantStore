@@ -16,14 +16,17 @@ public class JwtService
     private readonly UserManager<User> _userManager;
     private readonly TenantRequestService _tenantRequestService;
     private readonly JwtSettings _jwtSettings;
+    private readonly RsaKeyProvider _rsaKeyProvider;
 
     public JwtService(UserManager<User> userManager,
         TenantRequestService tenantRequestService,
-        IOptions<JwtSettings> jwtSettings)
+        IOptions<JwtSettings> jwtSettings,
+        RsaKeyProvider rsaKeyProvider)
     {
         _userManager = userManager;
         _tenantRequestService = tenantRequestService;
         _jwtSettings = jwtSettings.Value;
+        _rsaKeyProvider = rsaKeyProvider;
     }
     public async Task<string> GenerateRefreshToken()
     {
@@ -49,7 +52,6 @@ public class JwtService
         await CreateTokenAsync(user, user?.DefaultTenantId?.ToString() ?? "", user?.DefaultTenantName ?? "");
     public async Task<string> CreateTokenAsync(User user, string tenantId, string tenantName)
     {
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SigningKey));
         string tenantState = TenantCreationStatus.Initial.ToString();
         if (!string.IsNullOrWhiteSpace(tenantId))
         {
@@ -71,12 +73,14 @@ public class JwtService
             new("tenantId", tenantId),
             new("tenantName", tenantName),
             new("tenantState", tenantState),
-            new("tenantMemberRole", user.DefaultTenantRole ?? ""),
         };
+        // A user can hold multiple roles within the same tenant — emit one claim per role
+        // (same pattern as the Identity roles below), rather than a single delimited value.
+        claims.AddRange((user.DefaultTenantRoles ?? []).Select(r => new Claim("tenantMemberRole", r)));
 
         var roles = await _userManager.GetRolesAsync(user);
         claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var creds = new SigningCredentials(_rsaKeyProvider.SigningKey, SecurityAlgorithms.RsaSha256);
         var token = new JwtSecurityToken(
             issuer: _jwtSettings.Issuer,
             audience: _jwtSettings.Audience.FirstOrDefault(),
@@ -98,7 +102,14 @@ public class JwtService
             };
         }
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SigningKey));
+        var signingKeys = new List<SecurityKey> { _rsaKeyProvider.SigningKey };
+        if (_jwtSettings.AllowLegacyHmacValidation && !string.IsNullOrEmpty(_jwtSettings.SigningKey))
+        {
+            // Transition window for the HMAC->RSA/JWKS migration (see JwtSettings.AllowLegacyHmacValidation):
+            // accept tokens signed under the old shared secret until they've all expired/refreshed.
+            signingKeys.Add(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SigningKey)));
+        }
+
         var tokenHandler = new JwtSecurityTokenHandler();
         var validationParameters = new TokenValidationParameters
         {
@@ -107,7 +118,7 @@ public class JwtService
             ValidateAudience = true,
             ValidAudience = _jwtSettings.Audience.FirstOrDefault(),
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = key,
+            IssuerSigningKeys = signingKeys,
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero
         };
@@ -123,20 +134,20 @@ public class JwtService
             // Custom Tenant Claims
             var tenantId = principal.FindFirst("tenantId")?.Value ?? Guid.Empty.ToString();
             var tenantName = principal.FindFirst("tenantName")?.Value ?? "";
-            var tenantMemberRole = principal.FindFirst("tenantMemberRole")?.Value ?? "";
+            var tenantMemberRoles = principal.FindAll("tenantMemberRole").Select(c => c.Value).ToList();
 
             return new TokenInfo
             {
                 JTI = Guid.Parse(principal.FindFirst("jti")?.Value ?? Guid.Empty.ToString()),
                 UserId = Guid.Parse(principal.FindFirst("sub")?.Value ?? Guid.Empty.ToString()),
                 Email = principal.FindFirst("email")?.Value,
-                Roles = string.IsNullOrEmpty(tenantMemberRole) ? new List<string>() : new List<string> { tenantMemberRole },
+                Roles = tenantMemberRoles,
                 IsValid = true,
                 IsExpired = false,
                 ExpiresAt = (validatedToken as JwtSecurityToken)?.ValidTo,
                 TenantId = Guid.Parse(tenantId),
                 TenantName = tenantName,
-                TenantMemberRole = tenantMemberRole,
+                TenantMemberRoles = tenantMemberRoles,
             };
         }
         catch (SecurityTokenExpiredException ex)

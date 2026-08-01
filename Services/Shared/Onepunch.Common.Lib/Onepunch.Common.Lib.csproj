@@ -25,6 +25,7 @@
 		<PackageReference Include="Microsoft.Extensions.Configuration.Json" />
 		<PackageReference Include="System.Management" />
 		<PackageReference Include="Microsoft.Extensions.Hosting " />
+		<PackageReference Include="Microsoft.IdentityModel.Tokens" />
 		<PackageReference Include="Serilog.Sinks.Console" />
 		<PackageReference Include="Serilog.Sinks.File" />
 		<PackageReference Include="Serilog.Sinks.Seq" />

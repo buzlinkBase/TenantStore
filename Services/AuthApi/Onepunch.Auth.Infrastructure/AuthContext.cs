@@ -27,6 +27,21 @@ public class AuthContext : IdentityDbContext<User, Role, Guid>
         modelBuilder.UseDateFilter();
         modelBuilder.Entity<RefreshToken>().HasIndex(x => x.RefreshTokenHash);
         modelBuilder.Entity<User>().HasIndex(x => x.Email).IsUnique();
+
+        var stringListConverter = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<List<string>, string>(
+            v => string.Join(',', v),
+            v => string.IsNullOrEmpty(v) ? new List<string>() : v.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList());
+        var stringListComparer = new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<List<string>>(
+            (a, b) => (a ?? new()).SequenceEqual(b ?? new()),
+            v => v.Aggregate(0, (hash, s) => HashCode.Combine(hash, s.GetHashCode())),
+            v => v.ToList());
+
+        modelBuilder.Entity<User>()
+            .Property(x => x.DefaultTenantRoles)
+            .HasConversion(stringListConverter, stringListComparer);
+        modelBuilder.Entity<Invitation>()
+            .Property(x => x.Roles)
+            .HasConversion(stringListConverter, stringListComparer);
         modelBuilder.AddInboxStateEntity();
         modelBuilder.AddOutboxMessageEntity();
         modelBuilder.AddOutboxStateEntity();

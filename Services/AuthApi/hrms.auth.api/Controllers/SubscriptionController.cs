@@ -30,7 +30,7 @@ namespace OnePunch.Auth.Api.Controllers
         {
             var userId = HttpContext.User.GetRequiredUserId();
             var tenantId = HttpContext.User.GetUserClaim("TenantId")?.ToString() ?? "";
-            var memberRole = HttpContext.User.GetUserClaim("TenantMemberRole") ?? "";
+            var memberRoles = HttpContext.User.GetUserClaims("TenantMemberRole");
 
             if (string.IsNullOrEmpty(tenantId) || Guid.Parse(tenantId) == Guid.Empty)
                 return BadRequest("Invalid tenant context.");
@@ -38,7 +38,7 @@ namespace OnePunch.Auth.Api.Controllers
             if (userId == Guid.Empty)
                 return Unauthorized();
 
-            if (memberRole != "Owner" && memberRole != "Admin")
+            if (!memberRoles.Contains("Owner") && !memberRoles.Contains("Admin"))
                 return Forbid();
 
             await _service.Create(new PlanRequest

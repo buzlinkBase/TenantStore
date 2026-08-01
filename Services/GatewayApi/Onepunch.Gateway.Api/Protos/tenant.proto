@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+option csharp_namespace = "Onepunch.Gateway.Api.Protos";
+
+package tenant.core;
+
+service GetTenantService {
+  rpc GetInfo  (TenantRequest) returns (TenantInfoResponse);
+  rpc ResolveMembership (MembershipRequest) returns (MembershipResponse);
+  rpc GetActiveMemberships (UserMembershipsRequest) returns (UserMembershipsResponse);
+}
+
+message TenantRequest  {
+  string tenant_id = 1;
+}
+
+message TenantInfoResponse {
+  string tenant_id = 1;
+  string name=2;
+}
+
+message MembershipRequest {
+  string user_id = 1;
+  string tenant_id = 2;
+}
+
+message MembershipResponse {
+  bool found = 1;
+  repeated string roles = 2;
+  string status = 3;
+  string tenant_name = 4;
+}
+
+message UserMembershipsRequest {
+  string user_id = 1;
+}
+
+message UserMembershipsResponse {
+  repeated MembershipEntry memberships = 1;
+}
+
+message MembershipEntry {
+  string tenant_id = 1;
+  string tenant_name = 2;
+  repeated string roles = 3;
+  string status = 4;
+}

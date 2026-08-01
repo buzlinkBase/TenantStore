@@ -15,8 +15,10 @@ public static class AuthRabbitConfiguration
 
         builder.Services.AddMassTransit(x =>
         {
-            x.AddConsumer<TenantCreatedWorker, TenantCreatedConsumerDefinition>();
+            x.AddConsumer<TenantCreationCompletedWorker, TenantCreatedConsumerDefinition>();
             x.AddConsumer<UserJoinTenantCreatedWorker, UserJoinConsumerDefinition>();
+            x.AddConsumer<HrDbCreatedWorker, HrDbCreatedConsumerDefinition>();
+            x.AddConsumer<MembershipChangedWorker, MembershipChangedConsumerDefinition>();
             x.AddEntityFrameworkOutbox<AuthContext>(o =>
             {
                 o.UseMySql();
@@ -52,7 +54,7 @@ public static class AuthRabbitConfiguration
     }
 }
 
-public class TenantCreatedConsumerDefinition : ConsumerDefinition<TenantCreatedWorker>
+public class TenantCreatedConsumerDefinition : ConsumerDefinition<TenantCreationCompletedWorker>
 {
     public TenantCreatedConsumerDefinition()
     {
@@ -65,5 +67,19 @@ public class UserJoinConsumerDefinition : ConsumerDefinition<UserJoinTenantCreat
     public UserJoinConsumerDefinition()
     {
         EndpointName = "auth-user-join-que";
+    }
+}
+public class HrDbCreatedConsumerDefinition : ConsumerDefinition<HrDbCreatedWorker>
+{
+    public HrDbCreatedConsumerDefinition()
+    {
+        EndpointName = "auth-hrdb-created-que";
+    }
+}
+public class MembershipChangedConsumerDefinition : ConsumerDefinition<MembershipChangedWorker>
+{
+    public MembershipChangedConsumerDefinition()
+    {
+        EndpointName = "auth-membership-changed-que";
     }
 }

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Onepunch.Common.Lib.Security;
 using System.Net;
 using System.Text;
 using TenantStoreApi.Core.Providers;
@@ -20,6 +21,11 @@ public static class ServiceRegistrations
             var authUrl = builder.Configuration["AuthUrl"]?.ToString() ?? "";
             options.Address = new Uri(authUrl);
         }).AddHeaderPropagation();
+        builder.Services.AddHttpClient<JwksClient>(client =>
+        {
+            var authUrl = builder.Configuration["AuthUrl"]?.ToString() ?? "";
+            client.BaseAddress = new Uri(authUrl);
+        });
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
         builder.Services.Configure<HMacSetting>(builder.Configuration.GetSection("HMacSettings"));
         builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));
@@ -99,8 +105,7 @@ public static class ServiceRegistrations
                  ValidateAudience = true,
                  ValidAudience = "Onepunch.AuthService",
                  ValidateLifetime = true,
-                 ValidateIssuerSigningKey = true,
-                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SigningKey"]!))
+                 ValidateIssuerSigningKey = true
              };
              options.Events = new JwtBearerEvents
              {
@@ -160,5 +165,27 @@ public static class ServiceRegistrations
                  }
              };
          });
+
+        // Resolve JwksClient lazily from the real (post-Build) app container instead of a
+        // throwaway one built eagerly here (see the equivalent Auth Api fix for why that
+        // pattern is unsafe for stateful/persisted singletons — JwksClient itself is a plain
+        // stateless HTTP fetcher, so this is a consistency/robustness change, not a correctness
+        // fix, but keeping the same idiom everywhere avoids the pattern looking safe-by-default).
+        builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+            .Configure<JwksClient>((options, jwksClient) =>
+            {
+                var allowLegacyHmac = builder.Configuration.GetValue<bool?>("JwtSettings:AllowLegacyHmacValidation") ?? true;
+                var legacySigningKey = builder.Configuration["JwtSettings:SigningKey"];
+
+                options.TokenValidationParameters.IssuerSigningKeyResolver = (token, securityToken, kid, validationParameters) =>
+                {
+                    var keys = jwksClient.ResolveSigningKey(token, securityToken, kid, validationParameters).ToList();
+                    if (allowLegacyHmac && !string.IsNullOrEmpty(legacySigningKey))
+                    {
+                        keys.Add(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(legacySigningKey)));
+                    }
+                    return keys;
+                };
+            });
     }
 }

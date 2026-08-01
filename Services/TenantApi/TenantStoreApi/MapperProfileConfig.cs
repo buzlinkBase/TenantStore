@@ -8,7 +8,7 @@ namespace TenantStoreApi
     {
         public void Register(TypeAdapterConfig config)
         {
-            config.NewConfig<TenantCreationRequest, Tenant>();
+            config.NewConfig<TenantCreationRequested, Tenant>();
             config.NewConfig<UpdateTenant, Tenant>();
             config.NewConfig<Tenant, TenantModel>();
             config.NewConfig<ConnectionStringPayload, ConnectionStringStore>().TwoWays();

@@ -18,6 +18,7 @@ public sealed class GlobalExceptionHandler(IHostEnvironment env) : IExceptionHan
             GuardException => StatusCodes.Status400BadRequest,
             UnauthorizedAccessException => StatusCodes.Status401Unauthorized,
             UnauthorizedException => StatusCodes.Status401Unauthorized,
+            ForbiddenException => StatusCodes.Status403Forbidden,
             _ => StatusCodes.Status500InternalServerError,
         };
 
@@ -72,6 +73,7 @@ public sealed class GlobalExceptionHandler(IHostEnvironment env) : IExceptionHan
     {
         400 => "Bad Request",
         401 => "Unauthorized",
+        403 => "Forbidden",
         _ => "An internal server error occurred"
     };
 }

@@ -13,6 +13,7 @@ public class TenantContext : DbContext
     public DbSet<Tenant> Tenants { get; set; }
     public DbSet<SchemaVersion> SchemaVersions { get; set; }
     public DbSet<UserMembership> Memberships { get; set; }
+    public DbSet<MembershipRole> MembershipRoles { get; set; }
     public DbSet<TenantDelegation> TenantDelegations { get; set; }
     public DbSet<TenantSubscription> TenantSubscriptions { get; set; }
     public DbSet<Plan> Plans { get; set; }
@@ -44,7 +45,13 @@ public class TenantContext : DbContext
 
         modelBuilder.Entity<UserMembership>().HasIndex(x => x.TenantId);
         modelBuilder.Entity<UserMembership>().HasIndex(x => x.UserId);
-        modelBuilder.Entity<UserMembership>().HasIndex(x => x.Role);
+
+        modelBuilder.Entity<MembershipRole>()
+            .HasOne(x => x.UserMembership)
+            .WithMany(x => x.Roles)
+            .HasForeignKey(x => x.UserMembershipId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<MembershipRole>().HasIndex(x => new { x.UserMembershipId, x.Role }).IsUnique();
 
         modelBuilder.Entity<TenantDelegation>().HasIndex(x => x.HostTenantId);
         modelBuilder.Entity<TenantDelegation>().HasIndex(x => x.GuestTenantId);

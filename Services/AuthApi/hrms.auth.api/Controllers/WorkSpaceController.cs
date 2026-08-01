@@ -50,7 +50,7 @@ public class LoginResponseComposer
             Expiry = response.Expiry,
             Tenants = response.Tenants,
             Name = response.Name,
-            Role = response.Role,
+            Roles = response.Roles,
             Email = response.Email,
         };
     }

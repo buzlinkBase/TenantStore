@@ -16,7 +16,8 @@ namespace OnePunch.Auth.Core.Services;
 
 public class UserService : BaseService<User>
 {
-    private readonly AccountTenantsProvider _accountTenantsProvider;
+    private readonly MembershipCacheService _membershipCacheService;
+    private readonly MembershipGrpcClient _membershipGrpcClient;
     private readonly IPublishEndpoint _publisher;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly UserManager<User> _manager;
@@ -27,10 +28,12 @@ public class UserService : BaseService<User>
     private readonly IConfiguration _configuration;
     private readonly EmailNotificationService _notificationService;
     private readonly IMapper _mapper;
+    private readonly IMfaChallengeService _mfaChallengeService;
 
     public UserService(
         IUnitOfWorkService uow,
-        AccountTenantsProvider accountTenantsProvider,
+        MembershipCacheService membershipCacheService,
+        MembershipGrpcClient membershipGrpcClient,
         IPublishEndpoint publisher,
         IHttpContextAccessor httpContextAccessor,
         UserManager<User> manager,
@@ -44,9 +47,11 @@ public class UserService : BaseService<User>
         EmailTokenService emailTokenService,
         InvitationService invitationService,
         EmailNotificationService notificationService,
+        IMfaChallengeService mfaChallengeService,
         IMapper mapper) : base(uow)
     {
-        _accountTenantsProvider = accountTenantsProvider;
+        _membershipCacheService = membershipCacheService;
+        _membershipGrpcClient = membershipGrpcClient;
         _publisher = publisher;
         _httpContextAccessor = httpContextAccessor;
         _manager = manager ?? throw new ArgumentNullException(nameof(manager));
@@ -56,6 +61,7 @@ public class UserService : BaseService<User>
         _jwtService = jwtService ?? throw new ArgumentNullException(nameof(jwtService));
         _configuration = configuration;
         _notificationService = notificationService;
+        _mfaChallengeService = mfaChallengeService;
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
     }
 
@@ -259,6 +265,18 @@ public class UserService : BaseService<User>
         if (user.Status != "Active" || !user.EmailConfirmed)
             return new LoginResponse { ErrorMessage = "Account is not active. Please verify your email." };
 
+        // Flow C(login) MFA extension point: no-op today (see NoOpMfaChallengeService), so this
+        // never actually short-circuits login yet, but the seam is in place for a real MFA
+        // implementation to plug into later.
+        if (await _mfaChallengeService.IsChallengeRequiredAsync(user))
+        {
+            return new LoginResponse
+            {
+                MfaRequired = true,
+                MfaChallengeToken = _jwtService.GenerateKey(16)
+            };
+        }
+
         await _manager.ResetAccessFailedCountAsync(user);
         var accessToken = await _jwtService.CreateTokenAsync(user);
         var refreshToken = await _jwtService.GenerateRefreshToken();
@@ -268,7 +286,7 @@ public class UserService : BaseService<User>
     }
     internal async Task<LoginResponse> ComposeLoginResponse(User user, string accessToken, string refreshToken)
     {
-        var tenants = await _accountTenantsProvider.FindTenants(user.Id, accessToken);
+        var tenants = await _membershipCacheService.GetMembershipsAsync(user.Id);
         return new LoginResponse
         {
             AccessToken = accessToken,
@@ -276,7 +294,7 @@ public class UserService : BaseService<User>
             Expiry = DateTime.UtcNow.AddMinutes(_jwtService.TokenExpiry),
             Tenants = tenants,
             Name = user.FullName,
-            Role = user.DefaultTenantRole,
+            Roles = user.DefaultTenantRoles,
             Email = user.Email,
         };
     }
@@ -361,7 +379,7 @@ public class UserService : BaseService<User>
 
     public async Task CreateTenant(User user, string CompanyName = "", CancellationToken token = default)
     {
-        var newTenant = new TenantCreationRequest
+        var newTenant = new TenantCreationRequested
         {
             UserId = user.Id,
             TenantName = CompanyName ?? "My Organization",
@@ -369,16 +387,21 @@ public class UserService : BaseService<User>
         await _publisher.Publish(newTenant, token);
     }
 
-    public async Task<LoginResponse> SetDefaultTenant(Guid tenantId, string token, CancellationToken ct)
+    public async Task<LoginResponse> SetDefaultTenant(Guid tenantId, Guid userId , CancellationToken ct)
     {
-        var tokenInfo = _jwtService.ReadTokenToObject(token);
-        if (tokenInfo == null || !string.IsNullOrWhiteSpace(tokenInfo.ErrorMessage))
-            throw new UnauthorizedException();
-        var user = await _manager.FindByIdAsync(tokenInfo.UserId.ToString());
+ 
+        var user = await _manager.FindByIdAsync(userId.ToString());
         if (user == null) throw new UnauthorizedException();
 
+        // Flow F: verify the caller actually has a membership in the target tenant before
+        // minting a token scoped to it, rather than trusting the client-supplied tenantId.
+        var membership = await _membershipGrpcClient.ResolveMembershipAsync(user.Id, tenantId, deadlineMilliseconds: 2000);
+        if (!membership.Success || !membership.Found || membership.Status != "Active")
+            throw new ForbiddenException("You are not an active member of this tenant.");
+
         user.DefaultTenantId = tenantId;
-        user.DefaultTenantRole = null; // cleared until TenantApi confirms membership role async
+        user.DefaultTenantName = membership.TenantName;
+        user.DefaultTenantRoles = membership.Roles;
         await _manager.UpdateAsync(user);
 
         var accessToken = await _jwtService.CreateTokenAsync(user);

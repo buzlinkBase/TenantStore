@@ -4,16 +4,17 @@ using MessagePack.AspNetCoreMvcFormatter;
 using MessagePack.Resolvers;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
-using Onepunch.Auth.Core.Interfaces;
+using OnePunch.Auth.Core.Hubs;
 using Onepunch.Auth.Core.Protos;
+using Onepunch.Auth.Core.Services;
 using Onepunch.Auth.Domain;
 using Onepunch.Common.Lib;
 using OnePunch.Auth.Api;
 using OnePunch.Auth.Api.Exceptions;
 using OnePunch.Auth.Api.Filters;
 using OnePunch.Auth.Api.Middlewares;
-using Refit;
 using Serilog;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Text.Json;
@@ -64,18 +65,6 @@ internal class Program
             //};
         });
 
-        builder.Services.AddRefitClient<IAccountMembershipClient>(new RefitSettings
-        {
-            ContentSerializer = new Onepunch.Common.Lib.MessagePackContentSerializer(mpackOptions)
-        })
-        .ConfigureHttpClient(c =>
-        {
-            var tenantUrl = builder.Configuration["Domains:TenantUrl"]!;
-            c.BaseAddress = new Uri(tenantUrl);
-
-        })
-        .AddHeaderPropagation();
-
         builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
@@ -87,6 +76,8 @@ internal class Program
         });
         builder.Services.AddPollyPolicies();
         builder.Services.AddSignalR();
+        builder.Services.AddSingleton<IUserIdProvider, TenantHubUserIdProvider>();
+        builder.Services.AddSingleton<RsaKeyProvider>();
         builder.RegisterSelftServices();
         builder.Services.RegisterCoreServices();
         builder.AuthConfigRabbitMq();
@@ -133,6 +124,10 @@ internal class Program
         app.UseHeaderPropagation();
         app.MapGrpcService<CheckEmailHandler>();
         app.MapControllers();
+        app.MapHub<TenantHub>("/hubs/tenant");
+        app.MapGet("/.well-known/jwks.json", (RsaKeyProvider rsaKeyProvider) =>
+            Results.Json(new { keys = new[] { rsaKeyProvider.GetPublicJsonWebKey() } }))
+            .AllowAnonymous();
         app.Run();
     }
 }

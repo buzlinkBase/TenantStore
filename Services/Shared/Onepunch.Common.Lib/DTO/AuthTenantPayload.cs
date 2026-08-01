@@ -1,13 +1,13 @@
 ﻿
 namespace Onepunch.Common.Lib.DTO;
 
-public record TenantCreatedPayload
+public record TenantCreationCompleted
 {
     public string Event { get; set; }
     public Guid TenantId { get; set; }
     public string? TenantName { get; set; } = "My Workspace";
     public Guid UserId { get; set; }
-    public string Role { get; set; }
+    public List<string> Roles { get; set; } = new();
 }
 
 public class TenantSetInitData
@@ -21,7 +21,7 @@ public record UserJoinToTenantPayload
     public Guid TenantId { get; set; }
     public string? TenantName { get; set; } = "My Workspace";
     public Guid UserId { get; set; }
-    public string Role { get; set; } = "Member";
+    public List<string> Roles { get; set; } = new() { "Member" };
 }
 
 public class EmailCheckPayload

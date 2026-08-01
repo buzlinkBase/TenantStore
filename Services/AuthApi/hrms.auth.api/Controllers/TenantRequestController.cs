@@ -34,6 +34,8 @@ namespace OnePunch.Auth.Api.Controllers
                 TenantId = status.TenantId,
                 Status = status.Status.ToString(),
                 IsReady = status.Status == TenantCreationStatus.Created,
+                HrDbStatus = status.HrDbStatus,
+                HrDbReady = status.HrDbReady,
             });
         }
     }
