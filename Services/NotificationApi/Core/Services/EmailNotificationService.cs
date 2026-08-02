@@ -15,15 +15,9 @@ public class EmailNotificationService
 
     public async Task SendAccountConfirmation(SendAccountVerification payload, CancellationToken token)
     {
-        string relativePath = Path.Combine("Core", "Templates", "AccountConfirmation.html");
-        string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);
-        if (!File.Exists(filePath))
-        {
-            throw new FileNotFoundException($"Template not found at: {filePath}");
-        }
         var message = new EmailMessage
         {
-            From = "Support <support@onepunch.site>",
+            From = "Onepunch <support@onepunch.site>",
             To = payload.Email,
             Subject = "Confirm your account",
             Template = new EmailMessageTemplate
@@ -44,9 +38,9 @@ public class EmailNotificationService
     {
         var message = new EmailMessage
         {
-            From = "User Invitation <userinvitation@onepunch.site>",
+            From = "Onepunch <userinvitation@onepunch.site>",
             To = payload.Email,
-            Subject = "{{OrganizationName}} Invitation",
+            Subject = "User Invitation",
             Template = new EmailMessageTemplate
             {
                 TemplateId = "user-invitation",
@@ -68,7 +62,7 @@ public class EmailNotificationService
     {
         var message = new EmailMessage
         {
-            From = "Reset Password <resetpassword@onepunch.site>",
+            From = "Onepunch <resetpassword@onepunch.site>",
             To = payload.Email,
             Subject = "Reset Password Request",
             Template = new EmailMessageTemplate
@@ -90,7 +84,7 @@ public class EmailNotificationService
     {
         var message = new EmailMessage
         {
-            From = "Reset Password <resetpassword@onepunch.site>",
+            From = "Onepunch <resetpassword@onepunch.site>",
             To = payload.Email,
             Subject = "Reset Password Request",
             Template = new EmailMessageTemplate

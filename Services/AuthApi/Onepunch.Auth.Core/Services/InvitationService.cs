@@ -77,14 +77,14 @@ namespace Onepunch.Auth.Core.Services
                 throw new GuardException("Your organization is still being provisioned. Please try again shortly.");
 
             // Prevent duplicate pending invitations
-            var existing = await GetQueryable(x =>
-                x.Email == payload.Email &&
-                x.TenantId == tenantId &&
-                x.Status == InvitationStatus.Pending &&
-                x.Expiry > DateTime.UtcNow)
-                .FirstOrDefaultAsync(ct);
-            if (existing != null)
-                throw new GuardException("An active invitation already exists for this email.");
+            //var existing = await GetQueryable(x =>
+            //    x.Email == payload.Email &&
+            //    x.TenantId == tenantId &&
+            //    x.Status == InvitationStatus.Pending &&
+            //    x.Expiry > DateTime.UtcNow)
+            //    .FirstOrDefaultAsync(ct);
+            //if (existing != null)
+            //    throw new GuardException("An active invitation already exists for this email.");
 
             var token = _emailTokenService.GetRandomToken;
             var exp = DateTime.UtcNow.AddDays(1);

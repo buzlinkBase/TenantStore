@@ -13,6 +13,9 @@ services:
       - hrmsnet
     env_file:
       - .env
+    volumes:
+      - ./signing-keys:/app/signing-keys
+      - ./data-protection-keys:/app/dp-keys
 
   tenant-api:
     build:
