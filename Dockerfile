@@ -16,13 +16,11 @@ COPY ["Services/TenantApi/TenantStoreApi/TenantStoreApi.csproj", "Services/Tenan
 COPY ["Services/TenantApi/TenantStoreApi.Core/TenantStoreApi.Core.csproj", "Services/TenantApi/TenantStoreApi.Core/"]
 COPY ["Services/TenantApi/TenantStoreApi.Domain/TenantStoreApi.Domain.csproj", "Services/TenantApi/TenantStoreApi.Domain/"]
 COPY ["Services/TenantApi/TenantStoreApi.Infrastructure/TenantStoreApi.Infrastructure.csproj", "Services/TenantApi/TenantStoreApi.Infrastructure/"]
-COPY ["Services/GatewayApi/Onepunch.Gateway.Api/Onepunch.Gateway.Api.csproj", "Services/GatewayApi/Onepunch.Gateway.Api/"]
 
 # 3. Restore all dependencies once
 RUN dotnet restore "Services/AuthApi/hrms.auth.api/OnePunch.Auth.Api.csproj"
 RUN dotnet restore "Services/TenantApi/TenantStoreApi/TenantStoreApi.csproj"
 RUN dotnet restore "Services/NotificationApi/NotificationService.csproj"
-RUN dotnet restore "Services/GatewayApi/Onepunch.Gateway.Api/Onepunch.Gateway.Api.csproj"
 
 # 4. Copy the rest of the source code
 COPY . .
@@ -36,9 +34,6 @@ RUN dotnet publish "Services/TenantApi/TenantStoreApi/TenantStoreApi.csproj" -c 
 
 FROM build AS publish-notification
 RUN dotnet publish "Services/NotificationApi/NotificationService.csproj" -c Release -o /app/publish/notification
-
-FROM build AS publish-gateway
-RUN dotnet publish "Services/GatewayApi/Onepunch.Gateway.Api/Onepunch.Gateway.Api.csproj" -c Release -o /app/publish/gateway
 
 # --- Stage 3: Final Runtime Images ---
 
@@ -59,9 +54,3 @@ FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS notification-service
 WORKDIR /app
 COPY --from=publish-notification /app/publish/notification .
 ENTRYPOINT ["dotnet", "NotificationService.dll"]
-
-# Gateway Image
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS gateway-service
-WORKDIR /app
-COPY --from=publish-gateway /app/publish/gateway .
-ENTRYPOINT ["dotnet", "Onepunch.Gateway.Api.dll"]

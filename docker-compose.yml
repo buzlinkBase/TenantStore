@@ -44,24 +44,6 @@ services:
     env_file:
       - .env
 
-  api-gateway:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: gateway-service
-    image: jhoncee2018/hrms-gateway:latest
-    container_name: hrms-gateway
-    restart: always
-    ports:
-      - "8086:8080"
-    networks:
-      - hrmsnet
-    env_file:
-      - .env
-    depends_on:
-      - auth-api
-      - tenant-api
-
 networks:
   hrmsnet:
     external: true

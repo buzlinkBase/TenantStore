@@ -221,11 +221,13 @@ namespace OnePunch.Auth.Api.Controllers
             if (token == null) return Unauthorized();
             var tenantId = Guid.Parse(payload.TenantId);
             if (tenantId == Guid.Empty) throw new ArgumentException("Invalid tenant Id format");
+
             var userId = User.GetRequiredUserId();
             var response = await _service.SetDefaultTenant(tenantId, userId, ct);
             if (!string.IsNullOrWhiteSpace(response.ErrorMessage))
                 return Unauthorized(new UnauthorizedResponse { ErrorMessage = response.ErrorMessage });
             return Ok(LoginResponseComposer.ConvertLoginResponse(response, _jwtService.RefreshExpiry, HttpContext.Request.IsHttps, Response));
+
         }
 
         [AllowAnonymous]

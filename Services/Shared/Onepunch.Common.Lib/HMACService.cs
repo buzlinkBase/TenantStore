@@ -41,7 +41,7 @@ public class HMacInfo
         {
             Appid = appId,
             ExpiryDays = 365,
-            Issuer = "easyfs"
+            Issuer = "onepunch"
         };
         return JsonConvert.SerializeObject(payloadObj);
     }

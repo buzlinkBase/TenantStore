@@ -65,7 +65,6 @@
     <PackageVersion Include="System.Management" Version="9.0.2" />
     <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.5.0" />
     <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.5.0" />
-    <PackageVersion Include="Yarp.ReverseProxy" Version="2.2.0" />
     <PackageVersion Include="Grpc.Net.Client" Version="2.67.0" />
     <PackageVersion Include="Grpc.AspNetCore" Version="2.67.0" />
     <PackageVersion Include="Grpc.Tools" Version="2.69.0" />

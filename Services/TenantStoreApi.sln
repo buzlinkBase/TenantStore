@@ -31,8 +31,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Onepunch.Common.Lib", "Shar
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotificationService", "NotificationApi\NotificationService.csproj", "{D8CBE552-6A33-7B71-0258-287298895784}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Onepunch.Gateway.Api", "GatewayApi\Onepunch.Gateway.Api\Onepunch.Gateway.Api.csproj", "{0965A374-7894-DDB2-F286-ADED67F70A3A}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -163,18 +161,6 @@ Global
 		{D8CBE552-6A33-7B71-0258-287298895784}.Release|x64.Build.0 = Release|x64
 		{D8CBE552-6A33-7B71-0258-287298895784}.Release|x86.ActiveCfg = Release|x86
 		{D8CBE552-6A33-7B71-0258-287298895784}.Release|x86.Build.0 = Release|x86
-		{0965A374-7894-DDB2-F286-ADED67F70A3A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{0965A374-7894-DDB2-F286-ADED67F70A3A}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{0965A374-7894-DDB2-F286-ADED67F70A3A}.Debug|x64.ActiveCfg = Debug|x64
-		{0965A374-7894-DDB2-F286-ADED67F70A3A}.Debug|x64.Build.0 = Debug|x64
-		{0965A374-7894-DDB2-F286-ADED67F70A3A}.Debug|x86.ActiveCfg = Debug|x86
-		{0965A374-7894-DDB2-F286-ADED67F70A3A}.Debug|x86.Build.0 = Debug|x86
-		{0965A374-7894-DDB2-F286-ADED67F70A3A}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{0965A374-7894-DDB2-F286-ADED67F70A3A}.Release|Any CPU.Build.0 = Release|Any CPU
-		{0965A374-7894-DDB2-F286-ADED67F70A3A}.Release|x64.ActiveCfg = Release|x64
-		{0965A374-7894-DDB2-F286-ADED67F70A3A}.Release|x64.Build.0 = Release|x64
-		{0965A374-7894-DDB2-F286-ADED67F70A3A}.Release|x86.ActiveCfg = Release|x86
-		{0965A374-7894-DDB2-F286-ADED67F70A3A}.Release|x86.Build.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -387,9 +387,8 @@ public class UserService : BaseService<User>
         await _publisher.Publish(newTenant, token);
     }
 
-    public async Task<LoginResponse> SetDefaultTenant(Guid tenantId, Guid userId , CancellationToken ct)
+    public async Task<LoginResponse> SetDefaultTenant(Guid tenantId, Guid userId, CancellationToken ct)
     {
- 
         var user = await _manager.FindByIdAsync(userId.ToString());
         if (user == null) throw new UnauthorizedException();
 
