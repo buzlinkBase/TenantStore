@@ -172,18 +172,43 @@ public static class ServiceRegistrations
         // stateless HTTP fetcher, so this is a consistency/robustness change, not a correctness
         // fix, but keeping the same idiom everywhere avoids the pattern looking safe-by-default).
         builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
-            .Configure<JwksClient>((options, jwksClient) =>
+            .Configure<IHttpClientFactory>((options, httpClientFactory) =>
             {
+                var authUrl = (builder.Configuration["AuthUrl"] ?? "").TrimEnd('/') + "/";
                 var allowLegacyHmac = builder.Configuration.GetValue<bool?>("JwtSettings:AllowLegacyHmacValidation") ?? true;
                 var legacySigningKey = builder.Configuration["JwtSettings:SigningKey"];
 
+                List<SecurityKey> cachedKeys = new();
+                DateTime cacheExpiry = DateTime.MinValue;
+                object cacheLock = new();
+
                 options.TokenValidationParameters.IssuerSigningKeyResolver = (token, securityToken, kid, validationParameters) =>
                 {
-                    var keys = jwksClient.ResolveSigningKey(token, securityToken, kid, validationParameters).ToList();
-                    if (allowLegacyHmac && !string.IsNullOrEmpty(legacySigningKey))
+                    bool stale;
+                    lock (cacheLock) stale = DateTime.UtcNow > cacheExpiry;
+
+                    if (stale)
                     {
-                        keys.Add(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(legacySigningKey)));
+                        try
+                        {
+                            var client = httpClientFactory.CreateClient();
+                            var json = client.GetStringAsync($"{authUrl}.well-known/jwks.json").GetAwaiter().GetResult();
+                            var jwks = new JsonWebKeySet(json);
+                            lock (cacheLock)
+                            {
+                                cachedKeys = jwks.GetSigningKeys().ToList();
+                                cacheExpiry = DateTime.UtcNow.AddMinutes(10);
+                            }
+                        }
+                        catch { }
                     }
+
+                    List<SecurityKey> keys;
+                    lock (cacheLock) keys = cachedKeys.ToList();
+
+                    if (allowLegacyHmac && !string.IsNullOrEmpty(legacySigningKey))
+                        keys.Add(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(legacySigningKey)));
+
                     return keys;
                 };
             });

@@ -71,6 +71,7 @@ public static class ServiceRegistrations
          .SetFallbackPolicy(new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .Build());
+        builder.Services.AddHttpClient();
         builder.Services.AddAuthentication(options =>
         {
             options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -85,8 +86,7 @@ public static class ServiceRegistrations
                  ValidateAudience = true,
                  ValidAudience = "Onepunch.AuthService",
                  ValidateLifetime = true,
-                 ValidateIssuerSigningKey = true,
-                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SigningKey"]!))
+                 ValidateIssuerSigningKey = true
              };
              options.Events = new JwtBearerEvents
              {
@@ -146,5 +146,47 @@ public static class ServiceRegistrations
                  }
              };
          });
+
+        builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+            .Configure<IHttpClientFactory>((options, httpClientFactory) =>
+            {
+                var authUrl = (builder.Configuration["AuthUrl"] ?? "").TrimEnd('/') + "/";
+                var legacySigningKey = builder.Configuration["JwtSettings:SigningKey"];
+                var allowLegacyHmac = builder.Configuration.GetValue<bool?>("JwtSettings:AllowLegacyHmacValidation") ?? true;
+
+                List<SecurityKey> cachedKeys = new();
+                DateTime cacheExpiry = DateTime.MinValue;
+                object cacheLock = new();
+
+                options.TokenValidationParameters.IssuerSigningKeyResolver = (token, securityToken, kid, validationParameters) =>
+                {
+                    bool stale;
+                    lock (cacheLock) stale = DateTime.UtcNow > cacheExpiry;
+
+                    if (stale)
+                    {
+                        try
+                        {
+                            var client = httpClientFactory.CreateClient();
+                            var json = client.GetStringAsync($"{authUrl}.well-known/jwks.json").GetAwaiter().GetResult();
+                            var jwks = new JsonWebKeySet(json);
+                            lock (cacheLock)
+                            {
+                                cachedKeys = jwks.GetSigningKeys().ToList();
+                                cacheExpiry = DateTime.UtcNow.AddMinutes(10);
+                            }
+                        }
+                        catch { }
+                    }
+
+                    List<SecurityKey> keys;
+                    lock (cacheLock) keys = cachedKeys.ToList();
+
+                    if (allowLegacyHmac && !string.IsNullOrEmpty(legacySigningKey))
+                        keys.Add(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(legacySigningKey)));
+
+                    return keys;
+                };
+            });
     }
 }
