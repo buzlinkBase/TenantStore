@@ -60,7 +60,7 @@ public class JwksClient
         {
             // Synchronous-over-async is safe here: ASP.NET Core has no SynchronizationContext,
             // and IssuerSigningKeyResolver is a synchronous delegate with no async overload.
-            var json = _httpClient.GetStringAsync("/.well-known/jwks.json").GetAwaiter().GetResult();
+            var json = _httpClient.GetStringAsync(".well-known/jwks.json").GetAwaiter().GetResult();
             var jwks = new JsonWebKeySet(json);
             lock (_lock)
             {
