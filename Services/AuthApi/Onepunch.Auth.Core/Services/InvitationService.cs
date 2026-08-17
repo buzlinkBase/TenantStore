@@ -244,6 +244,14 @@ namespace Onepunch.Auth.Core.Services
                 Email = invitation.Email,
             }, ct);
 
+            await _publisher.Publish(new InvitationAccepted
+            {
+                UserId = user.Id,
+                TenantId = invitation.TenantId,
+                Email = invitation.Email,
+                Roles = invitation.Roles,
+            }, ct);
+
             if (invitation.EmployeeId.HasValue)
             {
                 await _publisher.Publish(new UserOnboarded
@@ -265,6 +273,7 @@ namespace Onepunch.Auth.Core.Services
                 CreatedAt = DateTime.UtcNow,
                 Revoked = false
             }, ct);
+
             await CommitChangesAsync(ct);
 
             var tenants = await _membershipCacheService.GetMembershipsAsync(user.Id);
