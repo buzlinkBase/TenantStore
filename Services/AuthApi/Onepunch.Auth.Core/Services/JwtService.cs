@@ -74,12 +74,6 @@ public class JwtService
             new("tenantName", tenantName),
             new("tenantState", tenantState),
         };
-        // A user can hold multiple roles within the same tenant — emit one claim per role
-        // (same pattern as the Identity roles below), rather than a single delimited value.
-        claims.AddRange((user.DefaultTenantRoles ?? []).Select(r => new Claim("tenantMemberRole", r)));
-
-        var roles = await _userManager.GetRolesAsync(user);
-        claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
         var creds = new SigningCredentials(_rsaKeyProvider.SigningKey, SecurityAlgorithms.RsaSha256);
         var token = new JwtSecurityToken(
             issuer: _jwtSettings.Issuer,

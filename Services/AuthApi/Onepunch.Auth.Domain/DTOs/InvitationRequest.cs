@@ -9,4 +9,5 @@ public class InvitationRequest
     public required string Email { get; set; }
 
     public List<string> Roles { get; set; } = new() { "Member" };
+    public Guid? EmployeeId { get; set; }
 }

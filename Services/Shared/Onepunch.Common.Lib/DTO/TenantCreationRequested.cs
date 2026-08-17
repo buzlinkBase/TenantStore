@@ -49,3 +49,11 @@ public record TenantPaymentReceived
     public Guid UserId { get; set; }
 
 }
+
+public record UserOnboarded
+{
+    public Guid UserId { get; set; }
+    public Guid TenantId { get; set; }
+    public Guid? EmployeeId { get; set; }
+    public string Email { get; set; } = string.Empty;
+}

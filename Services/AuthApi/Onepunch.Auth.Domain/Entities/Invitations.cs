@@ -12,6 +12,7 @@ public class Invitation : BaseEntity
     public DateTime Expiry { get; set; }
     public InvitationStatus Status { get; set; }
     public List<string> Roles { get; set; } = new() { "Member" };
+    public Guid? EmployeeId { get; set; }
 }
 
 public enum InvitationStatus

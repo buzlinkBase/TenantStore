@@ -32,10 +32,9 @@ namespace OnePunch.Auth.Api.Controllers
 
         [HttpGet()]
         [ProducesResponseType(typeof(ResponseModel<List<string>>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetAll(CancellationToken token)
+        public IActionResult GetAll()
         {
-            var roles = await _service.GetAll();
-            return Ok(roles.Select(x => x.Name).ToArray());
+            return Ok(new[] { "Admin", "Member" });
         }
     }
 }

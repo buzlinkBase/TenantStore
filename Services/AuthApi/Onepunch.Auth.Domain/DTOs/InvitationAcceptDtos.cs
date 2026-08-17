@@ -15,6 +15,7 @@ public class InvitationPreviewResponse
     public DateTime Expiry { get; set; }
     public bool Valid { get; set; }
     public bool AccountExists { get; set; }
+    public Guid? EmployeeId { get; set; }
 }
 
 /// <summary>

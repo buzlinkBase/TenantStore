@@ -6,6 +6,7 @@ using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Core;
 using OnePunch.Auth.Core.Services;
 using OnePunch.Auth.Domain.Entities;
+using Onepunch.Common.Lib.DTO;
 using System.Security.Claims;
 
 namespace Onepunch.Auth.Core.Services
@@ -99,6 +100,7 @@ namespace Onepunch.Auth.Core.Services
                 Token = token,
                 Status = InvitationStatus.Pending,
                 Roles = roles,
+                EmployeeId = payload.EmployeeId,
             };
             Repository.Add(invitation);
 
@@ -175,6 +177,7 @@ namespace Onepunch.Auth.Core.Services
                 Expiry = invitation.Expiry,
                 Valid = valid,
                 AccountExists = accountExists,
+                EmployeeId = invitation.EmployeeId,
             };
         }
 
@@ -240,6 +243,17 @@ namespace Onepunch.Auth.Core.Services
                 Roles = invitation.Roles,
                 Email = invitation.Email,
             }, ct);
+
+            if (invitation.EmployeeId.HasValue)
+            {
+                await _publisher.Publish(new UserOnboarded
+                {
+                    UserId = user.Id,
+                    TenantId = invitation.TenantId,
+                    EmployeeId = invitation.EmployeeId,
+                    Email = invitation.Email,
+                }, ct);
+            }
 
             var accessToken = await _jwtService.CreateTokenAsync(user, invitation.TenantId.ToString(), invitation.TenantName ?? "");
             var refreshTokenString = await _jwtService.GenerateRefreshToken();
