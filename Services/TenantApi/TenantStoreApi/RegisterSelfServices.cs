@@ -9,6 +9,7 @@ using Onepunch.Common.Lib.Security;
 using System.Net;
 using System.Text;
 using TenantStoreApi.Core.Providers;
+using TenantStoreApi.Core.Utilities;
 using TenantStoreApi.Infrastructure;
 
 public static class ServiceRegistrations
@@ -21,6 +22,12 @@ public static class ServiceRegistrations
             var authUrl = builder.Configuration["AuthUrl"]?.ToString() ?? "";
             options.Address = new Uri(authUrl);
         }).AddHeaderPropagation();
+        builder.Services.AddGrpcClient<GetUserInfoService.GetUserInfoServiceClient>(options =>
+        {
+            var authUrl = builder.Configuration["AuthUrl"]?.ToString() ?? "";
+            options.Address = new Uri(authUrl);
+        }).AddHeaderPropagation();
+        builder.Services.AddScoped<UserInfoService>();
         builder.Services.AddHttpClient<JwksClient>(client =>
         {
             var authUrl = builder.Configuration["AuthUrl"]?.ToString() ?? "";

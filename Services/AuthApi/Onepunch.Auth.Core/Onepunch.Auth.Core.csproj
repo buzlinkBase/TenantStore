@@ -28,6 +28,7 @@
 	<ItemGroup>
 		<Protobuf Include="Protos\tenant.proto" GrpcServices="Client" />
 		<Protobuf Include="Protos\checkemail.proto" GrpcServices="Server" />
+		<Protobuf Include="Protos\userinfo.proto" GrpcServices="Server" />
 		<PackageReference Include="Google.Apis.Auth" /> 
 		<PackageReference Include="Google.Protobuf" /> 
 		<PackageReference Include="Grpc.AspNetCore" /> 

@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+option csharp_namespace = "TenantStoreApi.Core"; 
+
+package tenant.core;
+
+service GetUserInfoService {
+  rpc GetUsersByIds (UserIdsRequest) returns (UserInfosResponse);
+}
+
+message UserIdsRequest {
+  repeated string userIds = 1;
+}
+
+message UserInfo {
+  string id = 1;
+  string email = 2;
+  string fullName = 3;
+  string status = 4;
+}
+
+message UserInfosResponse {
+  repeated UserInfo users = 1;
+}

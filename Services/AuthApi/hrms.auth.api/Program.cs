@@ -123,6 +123,7 @@ internal class Program
         app.UseAuthorization();
         app.UseHeaderPropagation();
         app.MapGrpcService<CheckEmailHandler>();
+        app.MapGrpcService<UserInfoHandler>();
         app.MapControllers();
         app.MapHub<TenantHub>("/hubs/tenant");
         app.MapGet("/.well-known/jwks.json", (RsaKeyProvider rsaKeyProvider) =>

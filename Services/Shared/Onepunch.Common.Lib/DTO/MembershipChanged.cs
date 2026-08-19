@@ -9,8 +9,10 @@ public record MembershipChanged
 {
     public Guid UserId { get; set; }
     public Guid TenantId { get; set; }
-    public string ChangeType { get; set; } = string.Empty; // RoleChanged, MemberAdded, MemberRemoved, OwnerTransferred, TenantDeleted, TenantSuspended
+    public string ChangeType { get; set; } = string.Empty; // RoleChanged, MemberAdded, MemberRemoved, OwnerTransferred, TenantDeleted, TenantSuspended, StatusChanged
     /// <summary>The member's complete role set after the change (for ChangeType="RoleChanged").</summary>
     public List<string> NewRoles { get; set; } = new();
+    /// <summary>The member's new status after the change (for ChangeType="StatusChanged").</summary>
+    public string? NewStatus { get; set; }
     public DateTime OccurredAtUtc { get; set; } = DateTime.UtcNow;
 }
