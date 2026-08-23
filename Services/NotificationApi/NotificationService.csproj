@@ -4,6 +4,7 @@
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<RootNamespace>OnePunch.Notification</RootNamespace>
+		<UserSecretsId>7e9c8cba-a7bc-4625-93f1-fd775ead6905</UserSecretsId>
 	</PropertyGroup>
 	<ItemGroup>
 		<Compile Remove="Core\Utilities\**" />
