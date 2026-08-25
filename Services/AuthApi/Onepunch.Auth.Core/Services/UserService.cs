@@ -480,7 +480,7 @@ public class UserService : BaseService<User>
             return new LoginResponse { ErrorMessage = "Invalid or expired refresh token." };
 
         var user = await Context.Users.FindAsync(tokenEntity.UserId);
-        if (user == null)
+        if (user == null || user.Status != "Active")
             return new LoginResponse { ErrorMessage = "User not found." };
 
         tokenEntity.Revoked = true;
