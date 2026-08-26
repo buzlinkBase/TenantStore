@@ -309,58 +309,61 @@ public class UserService : BaseService<User>
         return _signInManager.ConfigureExternalAuthenticationProperties("Google", redirectUrl);
     }
 
+    /// <summary>
+    /// Exchanges a Google auth-code (popup/auth-code flow) for the validated id_token payload.
+    /// Returns null if Google didn't return a token; throws InvalidJwtException if the token is invalid.
+    /// </summary>
+    private async Task<GoogleJsonWebSignature.Payload?> ExchangeGoogleCodeAsync(string code)
+    {
+        var tokenResponse = await new HttpClient().PostAsync("https://oauth2.googleapis.com/token",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["code"] = code,
+                ["client_id"] = _configuration["Authentication:Google:ClientId"]!,
+                ["client_secret"] = _configuration["Authentication:Google:ClientSecret"]!,
+                ["redirect_uri"] = "postmessage", // required for popup/auth-code flow
+                ["grant_type"] = "authorization_code",
+            })
+        );
+
+        var tokenJson = await tokenResponse.Content.ReadAsStringAsync();
+        var tokenData = JsonSerializer.Deserialize<JsonElement>(tokenJson);
+
+        if (!tokenData.TryGetProperty("id_token", out var idTokenElement))
+            return null;
+
+        return await GoogleJsonWebSignature.ValidateAsync(
+            idTokenElement.GetString(),
+            new GoogleJsonWebSignature.ValidationSettings
+            {
+                Audience = new[] { _configuration["Authentication:Google:ClientId"] }
+            }
+        );
+    }
+
+    /// <summary>
+    /// Sign in with Google — existing accounts only. Does not create a new account.
+    /// </summary>
     public async Task<LoginResponse> LoginWithGoogleAsync2(string code, CancellationToken ct)
     {
         try
         {
-            // Exchange auth code for Google tokens
-            var tokenResponse = await new HttpClient().PostAsync("https://oauth2.googleapis.com/token",
-                new FormUrlEncodedContent(new Dictionary<string, string>
-                {
-                    ["code"] = code,
-                    ["client_id"] = _configuration["Authentication:Google:ClientId"]!,
-                    ["client_secret"] = _configuration["Authentication:Google:ClientSecret"]!,
-                    ["redirect_uri"] = "postmessage", // required for popup/auth-code flow
-                    ["grant_type"] = "authorization_code",
-                })
-            );
-
-            var tokenJson = await tokenResponse.Content.ReadAsStringAsync();
-            var tokenData = JsonSerializer.Deserialize<JsonElement>(tokenJson);
-
-            if (!tokenData.TryGetProperty("id_token", out var idTokenElement))
+            var payload = await ExchangeGoogleCodeAsync(code);
+            if (payload == null)
                 return new LoginResponse { ErrorMessage = "Failed to retrieve token from Google." };
 
-            // Validate the id_token and extract user info
-            var payload = await GoogleJsonWebSignature.ValidateAsync(
-                idTokenElement.GetString(),
-                new GoogleJsonWebSignature.ValidationSettings
-                {
-                    Audience = new[] { _configuration["Authentication:Google:ClientId"] }
-                }
-            );
-
-            // Find or create user
             var user = await _manager.FindByEmailAsync(payload.Email);
             if (user == null)
-            {
-                user = new User
-                {
-                    Email = payload.Email,
-                    UserName = payload.Email,
-                    FullName = payload.Name,
-                    EmailConfirmed = true, // Google already verified the email,
-                    Status = "Active",
-                };
+                return new LoginResponse { ErrorMessage = "No account found for this Google email. Please sign up first." };
 
-                var createResult = await _manager.CreateAsync(user);
-                if (!createResult.Succeeded)
-                    return new LoginResponse
-                    {
-                        ErrorMessage = string.Join(", ", createResult.Errors.Select(e => e.Description))
-                    };
-            }
-            // Generate your JWT same as normal login
+            // Same account-validity gate as password Login/RefreshLogin — Google is an
+            // authentication method, not a bypass for lockout/deactivation.
+            if (await _manager.IsLockedOutAsync(user))
+                return new LoginResponse { ErrorMessage = "Account is temporarily locked. Please try again later." };
+
+            if (user.Status != "Active" || !user.EmailConfirmed)
+                return new LoginResponse { ErrorMessage = "Account is not active." };
+
             var refreshTokenString = await _jwtService.GenerateRefreshToken();
             var accessToken = await _jwtService.CreateTokenAsync(user);
             await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshTokenString), ct);
@@ -374,6 +377,53 @@ public class UserService : BaseService<User>
         catch (Exception ex)
         {
             return new LoginResponse { ErrorMessage = $"Google login failed: {ex.Message}" };
+        }
+    }
+
+    /// <summary>
+    /// Sign up with Google — creates a new account. Fails if an account already exists for the email.
+    /// </summary>
+    public async Task<LoginResponse> SignUpWithGoogleAsync(string code, CancellationToken ct)
+    {
+        try
+        {
+            var payload = await ExchangeGoogleCodeAsync(code);
+            if (payload == null)
+                return new LoginResponse { ErrorMessage = "Failed to retrieve token from Google." };
+
+            var existing = await _manager.FindByEmailAsync(payload.Email);
+            if (existing != null)
+                return new LoginResponse { ErrorMessage = "An account with this Google email already exists. Please sign in instead." };
+
+            var user = new User
+            {
+                Email = payload.Email,
+                UserName = payload.Email,
+                FullName = payload.Name,
+                EmailConfirmed = true, // Google already verified the email
+                Status = "Active",
+            };
+
+            var createResult = await _manager.CreateAsync(user);
+            if (!createResult.Succeeded)
+                return new LoginResponse
+                {
+                    ErrorMessage = string.Join(", ", createResult.Errors.Select(e => e.Description))
+                };
+
+            var refreshTokenString = await _jwtService.GenerateRefreshToken();
+            var accessToken = await _jwtService.CreateTokenAsync(user);
+            await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshTokenString), ct);
+            await CommitChangesAsync(ct);
+            return await ComposeLoginResponse(user, accessToken, refreshTokenString);
+        }
+        catch (InvalidJwtException)
+        {
+            return new LoginResponse { ErrorMessage = "Invalid Google token." };
+        }
+        catch (Exception ex)
+        {
+            return new LoginResponse { ErrorMessage = $"Google sign-up failed: {ex.Message}" };
         }
     }
 
@@ -480,8 +530,25 @@ public class UserService : BaseService<User>
             return new LoginResponse { ErrorMessage = "Invalid or expired refresh token." };
 
         var user = await Context.Users.FindAsync(tokenEntity.UserId);
-        if (user == null || user.Status != "Active")
+        if (user == null)
             return new LoginResponse { ErrorMessage = "User not found." };
+
+        // Mirror Login's account-validity checks — a revoked/locked/deactivated account
+        // must not be able to mint fresh tokens just because it's still holding a live
+        // refresh token from before the lockout/deactivation happened.
+        if (await _manager.IsLockedOutAsync(user))
+        {
+            tokenEntity.Revoked = true;
+            await CommitChangesAsync(token);
+            return new LoginResponse { ErrorMessage = "Account is temporarily locked. Please try again later." };
+        }
+
+        if (user.Status != "Active" || !user.EmailConfirmed)
+        {
+            tokenEntity.Revoked = true;
+            await CommitChangesAsync(token);
+            return new LoginResponse { ErrorMessage = "Account is not active." };
+        }
 
         tokenEntity.Revoked = true;
 
@@ -490,6 +557,7 @@ public class UserService : BaseService<User>
         await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, newRefreshToken));
         await CommitChangesAsync(token);
         return await ComposeLoginResponse(user, accessToken, newRefreshToken);
+
     }
 
     public async Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken ct)

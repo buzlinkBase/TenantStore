@@ -206,8 +206,20 @@ namespace OnePunch.Auth.Api.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> LoginWithGoogle([FromBody] GoogleLoginRequest request, CancellationToken token)
         {
-            // exchange request.Code with Google to get user info
+            // exchange request.Code with Google to get user info — existing accounts only
             var response = await _service.LoginWithGoogleAsync2(request.Code, token);
+            if (!string.IsNullOrWhiteSpace(response.ErrorMessage))
+                return Unauthorized(new UnauthorizedResponse { ErrorMessage = response.ErrorMessage });
+            return Ok(LoginResponseComposer.ConvertLoginResponse(response, _jwtService.RefreshExpiry, HttpContext.Request.IsHttps, Response));
+        }
+
+        [HttpPost("signup-google-callback")]
+        [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+        [AllowAnonymous]
+        public async Task<IActionResult> SignUpWithGoogle([FromBody] GoogleLoginRequest request, CancellationToken token)
+        {
+            // exchange request.Code with Google to get user info — creates a new account
+            var response = await _service.SignUpWithGoogleAsync(request.Code, token);
             if (!string.IsNullOrWhiteSpace(response.ErrorMessage))
                 return Unauthorized(new UnauthorizedResponse { ErrorMessage = response.ErrorMessage });
             return Ok(LoginResponseComposer.ConvertLoginResponse(response, _jwtService.RefreshExpiry, HttpContext.Request.IsHttps, Response));
