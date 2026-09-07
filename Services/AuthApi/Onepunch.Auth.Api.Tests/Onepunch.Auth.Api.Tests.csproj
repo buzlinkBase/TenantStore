@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<IsPackable>false</IsPackable>
+		<IsTestProject>true</IsTestProject>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.NET.Test.Sdk" />
+		<PackageReference Include="xunit" />
+		<PackageReference Include="xunit.runner.visualstudio">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="FluentAssertions" />
+		<PackageReference Include="Moq" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Onepunch.Auth.Core\Onepunch.Auth.Core.csproj" />
+		<ProjectReference Include="..\Onepunch.Auth.Domain\Onepunch.Auth.Domain.csproj" />
+		<ProjectReference Include="..\hrms.auth.api\OnePunch.Auth.Api.csproj" />
+	</ItemGroup>
+
+</Project>
