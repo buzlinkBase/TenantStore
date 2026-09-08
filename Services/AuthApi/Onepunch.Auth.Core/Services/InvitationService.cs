@@ -77,15 +77,22 @@ namespace Onepunch.Auth.Core.Services
             if (request != null && request.Status == TenantCreationStatus.Provisioning)
                 throw new GuardException("Your organization is still being provisioned. Please try again shortly.");
 
-            // Prevent duplicate pending invitations
-            //var existing = await GetQueryable(x =>
-            //    x.Email == payload.Email &&
-            //    x.TenantId == tenantId &&
-            //    x.Status == InvitationStatus.Pending &&
-            //    x.Expiry > DateTime.UtcNow)
-            //    .FirstOrDefaultAsync(ct);
-            //if (existing != null)
-            //    throw new GuardException("An active invitation already exists for this email.");
+            // Supersede any still-pending invitations for this email/tenant instead of blocking
+            // a resend — there's no separate "resend" action, so a hard duplicate guard would be
+            // a dead end for the inviting admin. Expiring the old ones (rather than leaving them
+            // valid alongside the new one) closes the "stale token still works" hygiene gap.
+            // noTracking: false — Expiry is mutated directly below, so the entities must be
+            // tracked for that mutation to actually persist on commit.
+            var priorPending = await GetQueryable(x =>
+                x.Email == payload.Email &&
+                x.TenantId == tenantId &&
+                x.Status == InvitationStatus.Pending &&
+                x.Expiry > DateTime.UtcNow, false)
+                .ToListAsync(ct);
+            foreach (var prior in priorPending)
+            {
+                prior.Expiry = DateTime.UtcNow;
+            }
 
             var token = _emailTokenService.GetRandomToken;
             var exp = DateTime.UtcNow.AddDays(1);
@@ -144,14 +151,31 @@ namespace Onepunch.Auth.Core.Services
             var user = await _manager.GetUserAsync(userClaim);
             if (user == null) throw new UnauthorizedException();
 
-            var invitation = await GetQueryable(x =>
-                x.Token == invitationToken &&
-                x.Status == InvitationStatus.Pending &&
-                x.Expiry > DateTime.UtcNow)
-                .FirstOrDefaultAsync(ct);
-
+            // noTracking: false — Status gets mutated directly below (FinalizeAcceptanceAsync /
+            // the idempotent-replay branch) rather than going through Repository.AddOrUpdate, so
+            // the entity must be tracked for that mutation to actually persist on commit.
+            var invitation = await GetQueryable(x => x.Token == invitationToken, false).FirstOrDefaultAsync(ct);
             if (invitation == null)
-                throw new GuardException("Invitation is invalid or has already been used.");
+                throw new GuardException("This invitation link is invalid.");
+
+            // Must be verified before anything else — otherwise any authenticated user holding
+            // a valid token for someone else's invite (forwarded email, shared link, etc.) could
+            // join that tenant under their own account.
+            if (!string.Equals(invitation.Email, user.Email, StringComparison.OrdinalIgnoreCase))
+                throw new GuardException("This invitation was sent to a different email address.");
+
+            if (invitation.Status == InvitationStatus.Accepted)
+            {
+                // Idempotent replay: the same invited user already accepted this token (e.g. the
+                // frontend's auto-accept effect double-firing, a reload, or back/forward
+                // navigation back onto the accept-invite page). Re-mint a tenant-scoped token
+                // without re-publishing UserJoin/InvitationAccepted/UserOnboarded, which already
+                // fired once and could be double-processed downstream.
+                return await MintTenantScopedResponseAsync(user, invitation, ct);
+            }
+
+            if (invitation.Expiry <= DateTime.UtcNow)
+                throw new GuardException("This invitation has expired. Ask whoever invited you to send a new one.");
 
             return await FinalizeAcceptanceAsync(user, invitation, ct);
         }
@@ -195,18 +219,23 @@ namespace Onepunch.Auth.Core.Services
             string password,
             CancellationToken ct)
         {
-            var invitation = await GetQueryable(x =>
-                x.Token == invitationToken &&
-                x.Status == InvitationStatus.Pending &&
-                x.Expiry > DateTime.UtcNow)
-                .FirstOrDefaultAsync(ct);
-
+            // noTracking: false — see the matching comment in Accept().
+            var invitation = await GetQueryable(x => x.Token == invitationToken, false).FirstOrDefaultAsync(ct);
             if (invitation == null)
-                throw new GuardException("Invitation is invalid or has already been used.");
+                throw new GuardException("This invitation link is invalid.");
 
+            // Checked before the invitation's own status — it's the most actionable message
+            // regardless of whether the invitation itself is still pending, already accepted, or
+            // expired: if an account exists, the answer is always "sign in instead".
             var existingUser = await _manager.FindByEmailAsync(invitation.Email);
             if (existingUser != null)
                 throw new GuardException("An account already exists for this email. Please sign in — you'll be prompted to accept this invitation automatically.");
+
+            if (invitation.Status == InvitationStatus.Accepted)
+                throw new GuardException("This invitation has already been used.");
+
+            if (invitation.Expiry <= DateTime.UtcNow)
+                throw new GuardException("This invitation has expired. Ask whoever invited you to send a new one.");
 
             var user = new User
             {
@@ -263,6 +292,16 @@ namespace Onepunch.Auth.Core.Services
                 }, ct);
             }
 
+            return await MintTenantScopedResponseAsync(user, invitation, ct);
+        }
+
+        // Shared tail of both a fresh acceptance (FinalizeAcceptanceAsync, after flipping
+        // Status and publishing events) and an idempotent replay of an already-accepted
+        // invitation (Accept) — mints a tenant-scoped access/refresh token and builds the
+        // LoginResponse. The replay path deliberately calls this directly, skipping the
+        // Status flip/event publishing above since those already happened once.
+        private async Task<LoginResponse> MintTenantScopedResponseAsync(User user, Invitation invitation, CancellationToken ct)
+        {
             var accessToken = await _jwtService.CreateTokenAsync(user, invitation.TenantId.ToString(), invitation.TenantName ?? "");
             var refreshTokenString = await _jwtService.GenerateRefreshToken();
             await Context.RefreshTokens.AddAsync(new RefreshToken
