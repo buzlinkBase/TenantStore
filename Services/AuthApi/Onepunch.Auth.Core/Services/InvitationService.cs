@@ -121,7 +121,7 @@ namespace Onepunch.Auth.Core.Services
                 Email = payload.Email,
                 InviteLink = $"{frontEndHost}/accept-invite?token={token}",
                 Organization = tenantName ?? user.DefaultTenantName ?? "",
-                Name = user.FullName ?? user.Email ?? "User",
+                Name = user.Email ?? "User",
                 Expiry = exp,
             }, ct);
 
