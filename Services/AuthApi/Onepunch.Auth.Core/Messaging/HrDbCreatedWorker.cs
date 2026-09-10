@@ -1,5 +1,4 @@
 using MassTransit;
-using Onepunch.Common.Lib.DTO;
 using OnePunch.Auth.Core.Hubs;
 using OnePunch.Auth.Core.Services;
 using Serilog;

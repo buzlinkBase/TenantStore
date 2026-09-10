@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using OnePunch.Auth.Core;
 using Onepunch.Auth.Infrastructure;
+using OnePunch.Auth.Core;
 
 namespace Onepunch.Auth.Api.Tests.TestSupport;
 

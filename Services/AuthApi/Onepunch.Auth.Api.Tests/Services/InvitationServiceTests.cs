@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using FluentAssertions;
 using MassTransit;
 using Microsoft.AspNetCore.Http;
@@ -12,8 +11,8 @@ using Onepunch.Auth.Domain.DTOs;
 using Onepunch.Auth.Domain.Entities;
 using Onepunch.Auth.Infrastructure;
 using Onepunch.Common.Lib.Exceptions;
-using OnePunch.Auth.Core;
 using OnePunch.Auth.Domain.Entities;
+using System.Security.Claims;
 using Xunit;
 
 namespace Onepunch.Auth.Api.Tests.Services;

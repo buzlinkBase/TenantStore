@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Moq;
-using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Domain.Entities;
 
 namespace Onepunch.Auth.Api.Tests.TestSupport;

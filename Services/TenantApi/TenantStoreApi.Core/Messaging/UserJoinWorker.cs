@@ -21,7 +21,6 @@ public class UserJoinWorker : IConsumer<UserJoin>
     public async Task Consume(ConsumeContext<UserJoin> context)
     {
         var message = context.Message;
-
         var existing = await _userMembershipService.GetMemberAsync(message.UserId, message.TenantId, context.CancellationToken);
         if (existing != null)
         {
@@ -53,6 +52,8 @@ public class UserJoinWorker : IConsumer<UserJoin>
             await _userMembershipService.AddAsync(new UserMembership
             {
                 TenantId = message.TenantId,
+                InvitedEmail = message.Email,
+                FullName = message.FullName,
                 UserId = message.UserId,
             }, roles, context.CancellationToken);
         }

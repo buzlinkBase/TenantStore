@@ -46,7 +46,7 @@ public class InvitationController : ControllerBase
             if (token == null) return Unauthorized();
             var tokenInfo = _jwtService.ReadTokenToObject(token);
             if (tokenInfo == null) return Unauthorized();
-            await _service.SendUserInvitationAsync(payload, tokenInfo.TenantId,  tokenInfo.TenantName, accountApiHost, User, ct);
+            await _service.SendUserInvitationAsync(payload, tokenInfo.TenantId, tokenInfo.TenantName, accountApiHost, User, ct);
             return NoContent();
         }
         catch (UnauthorizedException)

@@ -6,7 +6,6 @@ using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Core;
 using OnePunch.Auth.Core.Services;
 using OnePunch.Auth.Domain.Entities;
-using Onepunch.Common.Lib.DTO;
 using System.Security.Claims;
 
 namespace Onepunch.Auth.Core.Services
@@ -282,6 +281,7 @@ namespace Onepunch.Auth.Core.Services
             await _publisher.Publish(new UserJoin
             {
                 UserId = user.Id,
+                FullName = user.FullName ?? user.Email ?? "",
                 TenantId = invitation.TenantId,
                 TenantName = invitation.TenantName ?? string.Empty,
                 Roles = invitation.Roles,

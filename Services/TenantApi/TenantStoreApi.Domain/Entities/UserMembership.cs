@@ -6,8 +6,9 @@ public class UserMembership : BaseEntity, IEntityTenant
 {
     public Guid TenantId { get; set; }
     public string? TenantName { get; set; }
+    public string? FullName { get; set; }
     public Guid UserId { get; set; }
-
+    public bool IsHidden { get; set; } = false;//account owner must be hidden from display 
     /// <summary>
     /// Set only for placeholder rows created from an invite (Status="Invited") before the
     /// invitee has an account/UserId yet. Cleared once UserJoinWorker activates the row.

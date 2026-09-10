@@ -131,6 +131,18 @@ public class UserService : BaseService<User>
         await CommitChangesAsync(ctoken);
         return Success("Account verified successfully.", user.Email, user.FullName);
     }
+
+    public async Task ChangedStatus(Guid userId, string status, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(status)) return;
+        var user = await _manager.FindByIdAsync(userId.ToString());
+        if (user == null) return;
+        user.Status = status;
+        await _manager.UpdateAsync(user);
+        await CommitChangesAsync(token);
+
+    }
+
     #endregion
 
     #region User Management

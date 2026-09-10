@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using TenantStoreApi.Domain.Entities;
 using TenantStoreApi.Infrastructure;
 
 namespace TenantStoreApi.Core.Services;

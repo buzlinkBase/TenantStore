@@ -1,6 +1,6 @@
-using System.Security.Claims;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
 using TenantStoreApi.Core.Extensions;
 using Xunit;
 

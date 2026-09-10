@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Onepunch.Auth.Core.Services;
 using Onepunch.Common.Lib;
 
 namespace OnePunch.Auth.Api.Controllers

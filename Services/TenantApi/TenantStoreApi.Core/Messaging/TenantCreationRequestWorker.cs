@@ -1,7 +1,5 @@
 using BuzlinkRepository;
 using MassTransit;
-using Newtonsoft.Json;
-using Serilog;
 using TenantStoreApi.Core.Services;
 using TenantStoreApi.Domain.Entities.Subs;
 
@@ -41,7 +39,7 @@ public class TenantCreationRequestWorker : IConsumer<TenantCreationRequested>
         string role = "Owner";
         var tenant = await _tenantService.CreateTenant(message, context.CancellationToken);
         _tenantProvider.SetTenantId(tenant.Id);
-        await CreateMembershipAsync(tenant, role, context.CancellationToken);
+        await CreateMembershipAsync(tenant, message, role, context.CancellationToken);
         await CreateFreeTrialAsync(tenant, context.CancellationToken);
 
 
@@ -56,12 +54,14 @@ public class TenantCreationRequestWorker : IConsumer<TenantCreationRequested>
         await _uow.CommitChangesAsync();
     }
 
-    private async Task CreateMembershipAsync(TenantModel tenant, string role, CancellationToken token)
+    private async Task CreateMembershipAsync(TenantModel tenant, TenantCreationRequested msg, string role, CancellationToken token)
     {
         await _userMembershipService.AddAsync(new UserMembership
         {
             TenantId = tenant.Id,
             TenantName = tenant.TenantName,
+            FullName = msg.FullName,
+            IsHidden = true,
             UserId = tenant.UserId,
         }, [role], token);
     }
@@ -80,4 +80,5 @@ public class TenantCreationRequestWorker : IConsumer<TenantCreationRequested>
             EndDate = DateTime.UtcNow.AddDays(freeTrial.Days > 0 ? freeTrial.Days : 15),
         }, token);
     }
+
 }

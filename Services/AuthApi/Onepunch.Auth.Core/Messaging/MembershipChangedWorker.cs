@@ -1,6 +1,5 @@
 using MassTransit;
-using Onepunch.Auth.Core.Services;
-using Onepunch.Common.Lib.DTO;
+using OnePunch.Auth.Core.Services;
 
 namespace OnePunch.Auth.Core.Messaging;
 
@@ -13,14 +12,22 @@ namespace OnePunch.Auth.Core.Messaging;
 public class MembershipChangedWorker : IConsumer<MembershipChanged>
 {
     private readonly MembershipCacheService _membershipCacheService;
+    private readonly UserService _userService;
 
-    public MembershipChangedWorker(MembershipCacheService membershipCacheService)
+    public MembershipChangedWorker(MembershipCacheService membershipCacheService,
+        UserService userService)
     {
         _membershipCacheService = membershipCacheService;
+        _userService = userService;
     }
 
     public async Task Consume(ConsumeContext<MembershipChanged> context)
     {
+
+        if (context.Message == null) return;
+        if (string.IsNullOrEmpty(context.Message.NewStatus)) return;
         await _membershipCacheService.InvalidateAsync(context.Message.UserId);
+        await _userService.ChangedStatus(context.Message.UserId, context.Message.NewStatus ?? "", context.CancellationToken);
+
     }
 }

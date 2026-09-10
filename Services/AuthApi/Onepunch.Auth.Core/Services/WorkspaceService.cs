@@ -40,6 +40,8 @@ public class WorkspaceService : BaseService<User>
         var createTenant = new TenantCreationRequested
         {
             TenantId = Guid.NewGuid(),
+            Email = user.Email ?? "",
+            FullName = user.FullName ?? "Account Owner",
             UserId = user.Id,
             TenantName = payload.TenantName ?? user.FullName ?? string.Concat(user.Email?.Split('@')[0] ?? "My", " Workspace"),
         };

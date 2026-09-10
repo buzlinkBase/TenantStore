@@ -1,7 +1,7 @@
-using System.Security.Claims;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using OnePunch.Auth.Api.Extensions;
+using System.Security.Claims;
 using Xunit;
 
 namespace Onepunch.Auth.Api.Tests;

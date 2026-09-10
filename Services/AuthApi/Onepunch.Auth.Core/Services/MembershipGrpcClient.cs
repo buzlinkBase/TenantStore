@@ -1,5 +1,4 @@
 using Grpc.Core;
-using Onepunch.Auth.Core.Protos;
 using Serilog;
 
 namespace Onepunch.Auth.Core.Services;

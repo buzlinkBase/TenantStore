@@ -1,6 +1,5 @@
 using Onepunch.Auth.Core.Interfaces;
 using OnePunch.Auth.Domain.Entities;
-using Onepunch.Common.Lib;
 
 namespace Onepunch.Auth.Core.Services;
 

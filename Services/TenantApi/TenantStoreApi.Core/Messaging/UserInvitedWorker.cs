@@ -1,5 +1,4 @@
 using MassTransit;
-using Onepunch.Common.Lib.DTO;
 using TenantStoreApi.Core.Services;
 
 namespace TenantStoreApi.Core.Messaging;

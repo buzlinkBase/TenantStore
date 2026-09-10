@@ -61,7 +61,7 @@ public class MembersController : ControllerBase
             {
                 response.Email = m.InvitedEmail;
                 response.FullName = m.InvitedEmail;
-                response.Status = "Invited";
+                response.Status = m.Status ?? "Invited";
             }
 
             return response;

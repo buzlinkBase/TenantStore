@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using Onepunch.Auth.Core;
-using Onepunch.Auth.Core.Services;
 using Onepunch.Auth.Infrastructure;
 using Onepunch.Common.Lib;
 using Onepunch.Common.Lib.Cache;

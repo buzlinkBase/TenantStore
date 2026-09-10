@@ -1,4 +1,3 @@
-using Onepunch.Auth.Domain.DTOs;
 using Onepunch.Auth.Domain.Entities;
 using Onepunch.Common.Lib.Cache;
 using OnePunch.Auth.Core;
@@ -63,7 +62,10 @@ public class MembershipCacheService
         return withState;
     }
 
-    public Task InvalidateAsync(Guid userId) => _cacheService.RemoveAsync(CacheKey(userId));
+    public async Task InvalidateAsync(Guid userId)
+    {
+        await _cacheService.RemoveAsync(CacheKey(userId));
+    }
 
     private async Task<List<UsersTenant>> FallbackToDefaultTenantAsync(Guid userId)
     {

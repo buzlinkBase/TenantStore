@@ -6,6 +6,8 @@ public record TenantCreationRequested
     public required string TenantName { get; set; }
     public Guid TenantId { get; set; }
     public Guid UserId { get; set; }
+    public string Email { get; set; }
+    public string FullName { get; set; }
 }
 
 public class PlanRequest
@@ -21,6 +23,7 @@ public record UserJoin
     public Guid UserId { get; set; }
     public Guid TenantId { get; set; }
     public string TenantName { get; set; } = string.Empty;
+    public string FullName { get; set; }
     public List<string> Roles { get; set; } = new() { "Member" };
     /// <summary>
     /// The invited email address, used to match this acceptance against a placeholder

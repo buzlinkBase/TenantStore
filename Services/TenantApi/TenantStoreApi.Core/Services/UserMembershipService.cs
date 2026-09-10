@@ -1,6 +1,5 @@
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
-using Onepunch.Common.Lib.DTO;
 
 namespace TenantStoreApi.Core.Services;
 
@@ -47,7 +46,9 @@ public class UserMembershipService : BaseService<UserMembership>
 
     public async Task<List<UserMembership>> GetMembersAsync(Guid tenantId, CancellationToken token = default)
     {
-        return await GetQueryable(x => x.TenantId == tenantId).Include(x => x.Roles).ToListAsync(token);
+        return await GetQueryable(x => x.TenantId == tenantId && !x.IsHidden)
+            .Include(x => x.Roles)
+            .ToListAsync(token);
     }
 
     public async Task<List<AccountMemberShipQuery>> GetUserMembersAsync(Guid userId, CancellationToken token = default)
@@ -228,15 +229,22 @@ public class UserMembershipService : BaseService<UserMembership>
 
         await _publisher.Publish(new MembershipChanged
         {
-            UserId = targetUserId, TenantId = tenantId, ChangeType = "StatusChanged", NewStatus = newStatus
+            UserId = targetUserId,
+            TenantId = tenantId,
+            ChangeType = "StatusChanged",
+            NewStatus = newStatus
         }, token);
+
     }
 
     private async Task PublishRoleChangedAsync(Guid userId, Guid tenantId, IEnumerable<string> roles, CancellationToken token)
     {
         await _publisher.Publish(new MembershipChanged
         {
-            UserId = userId, TenantId = tenantId, ChangeType = "RoleChanged", NewRoles = roles.ToList()
+            UserId = userId,
+            TenantId = tenantId,
+            ChangeType = "RoleChanged",
+            NewRoles = roles.ToList()
         }, token);
     }
 
@@ -255,7 +263,9 @@ public class UserMembershipService : BaseService<UserMembership>
         await RemoveAsync(target);
         await _publisher.Publish(new MembershipChanged
         {
-            UserId = targetUserId, TenantId = tenantId, ChangeType = "MemberRemoved"
+            UserId = targetUserId,
+            TenantId = tenantId,
+            ChangeType = "MemberRemoved"
         }, token);
     }
 
@@ -268,7 +278,9 @@ public class UserMembershipService : BaseService<UserMembership>
         await RemoveAsync(membership);
         await _publisher.Publish(new MembershipChanged
         {
-            UserId = userId, TenantId = tenantId, ChangeType = "MemberRemoved"
+            UserId = userId,
+            TenantId = tenantId,
+            ChangeType = "MemberRemoved"
         }, token);
     }
 }

@@ -62,7 +62,7 @@ public class TenantCreationCompletedWorker : IConsumer<TenantCreationCompleted>
                 TenantId = message.TenantId,
                 TenantName = message.TenantName ?? "",
                 Roles = message.Roles
-            }); 
+            });
         }
         catch (Exception ex)
         {

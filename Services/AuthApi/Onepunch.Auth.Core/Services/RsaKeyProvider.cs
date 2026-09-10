@@ -1,8 +1,8 @@
-using System.Security.Cryptography;
-using System.Text;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Onepunch.Auth.Core.Services;
 
