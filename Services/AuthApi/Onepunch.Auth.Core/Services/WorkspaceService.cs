@@ -73,6 +73,18 @@ public class WorkspaceService : BaseService<User>
             TenantId = createTenant.TenantId,
             HrDbReady = false,
         });
+
+        // ComposeLoginResponse's top-level Roles/Permissions reflect user.DefaultTenantRoles --
+        // the caller's *home* tenant, not the brand-new one this response just switched them
+        // into (its real Owner membership doesn't exist in TenantApi yet; it's only just been
+        // published as a TenantCreationRequested event). Left as-is, a caller whose default
+        // tenant role is "Employee" would get a response claiming they're still Employee-only
+        // right after creating a workspace they in fact own -- e.g. tripping the frontend's
+        // Employee-only route guard and bouncing them back to the portal instead of /dashboard.
+        // Override to match the Owner entry just appended above.
+        loginRequest.Roles = ["Owner"];
+        loginRequest.Permissions = [];
+
         return loginRequest;
     }
 }
