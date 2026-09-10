@@ -15,5 +15,8 @@ namespace Onepunch.Common.Lib
         public List<string> Roles { get; set; } = new();
         [Key(5)]
         public string Status { get; set; }
+        // 6, not 2 -- Key(2) is a retired gap from a removed field, don't reuse it.
+        [Key(6)]
+        public List<string> Permissions { get; set; } = new();
     }
 }

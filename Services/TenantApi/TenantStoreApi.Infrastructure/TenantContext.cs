@@ -19,6 +19,9 @@ public class TenantContext : DbContext
     public DbSet<Plan> Plans { get; set; }
     public DbSet<PlanProduct> PlanServices { get; set; }
     public DbSet<ExtraService> ExtraServices { get; set; }
+    public DbSet<Permission> Permissions { get; set; }
+    public DbSet<Role> Roles { get; set; }
+    public DbSet<RolePermission> RolePermissions { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -52,6 +55,31 @@ public class TenantContext : DbContext
             .HasForeignKey(x => x.UserMembershipId)
             .OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<MembershipRole>().HasIndex(x => new { x.UserMembershipId, x.Role }).IsUnique();
+
+        // Migration A: RoleId is nullable and unconstrained until the backfill (see
+        // PermissionCatalogSeederService) is confirmed and a later migration makes it required.
+        modelBuilder.Entity<MembershipRole>()
+            .HasOne(x => x.RoleRef)
+            .WithMany()
+            .HasForeignKey(x => x.RoleId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .IsRequired(false);
+
+        modelBuilder.Entity<Role>().HasIndex(x => x.TenantId);
+        modelBuilder.Entity<Role>().HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
+        modelBuilder.Entity<Permission>().HasIndex(x => x.Code).IsUnique();
+
+        modelBuilder.Entity<RolePermission>()
+            .HasOne(x => x.Role)
+            .WithMany(x => x.RolePermissions)
+            .HasForeignKey(x => x.RoleId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<RolePermission>()
+            .HasOne(x => x.Permission)
+            .WithMany()
+            .HasForeignKey(x => x.PermissionId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<RolePermission>().HasIndex(x => new { x.RoleId, x.PermissionId }).IsUnique();
 
         modelBuilder.Entity<TenantDelegation>().HasIndex(x => x.HostTenantId);
         modelBuilder.Entity<TenantDelegation>().HasIndex(x => x.GuestTenantId);

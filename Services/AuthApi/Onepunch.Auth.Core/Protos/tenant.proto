@@ -29,6 +29,7 @@ message MembershipResponse {
   repeated string roles = 2;
   string status = 3;
   string tenant_name = 4;
+  repeated string permissions = 5;
 }
 
 message UserMembershipsRequest {
@@ -44,4 +45,5 @@ message MembershipEntry {
   string tenant_name = 2;
   repeated string roles = 3;
   string status = 4;
+  repeated string permissions = 5;
 }

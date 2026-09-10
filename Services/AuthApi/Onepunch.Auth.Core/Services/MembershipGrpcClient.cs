@@ -15,6 +15,7 @@ public class MembershipResolveResult
     public bool Success { get; set; }
     public bool Found { get; set; }
     public List<string> Roles { get; set; } = new();
+    public List<string> Permissions { get; set; } = new();
     public string Status { get; set; } = string.Empty;
     public string TenantName { get; set; } = string.Empty;
 }
@@ -51,6 +52,7 @@ public class MembershipGrpcClient
                     UserId = userId,
                     TenantName = m.TenantName,
                     Roles = m.Roles.ToList(),
+                    Permissions = m.Permissions.ToList(),
                     Status = m.Status
                 }).ToList()
             };
@@ -76,6 +78,7 @@ public class MembershipGrpcClient
                 Success = true,
                 Found = response.Found,
                 Roles = response.Roles.ToList(),
+                Permissions = response.Permissions.ToList(),
                 Status = response.Status,
                 TenantName = response.TenantName
             };

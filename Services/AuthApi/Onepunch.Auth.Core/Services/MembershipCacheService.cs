@@ -54,6 +54,7 @@ public class MembershipCacheService
             TenantId = m.TenantId,
             Name = m.TenantName ?? "",
             Roles = m.Roles,
+            Permissions = m.Permissions,
             State = m.Status
         }).ToList();
 

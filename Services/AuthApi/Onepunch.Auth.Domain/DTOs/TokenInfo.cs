@@ -32,6 +32,10 @@ public record LoginResponseSimple
     public string? Name { get; set; }
     public string? Email { get; set; }
     public List<string> Roles { get; set; } = new();
+    // Deduped effective permission codes ("Feature:Action") for the user's default tenant --
+    // derived fresh from Tenants below (see UserService.ComposeLoginResponse), not cached, so it
+    // can't go stale the way Roles/DefaultTenantRoles can.
+    public List<string> Permissions { get; set; } = new();
     public string ErrorMessage { get; set; } = string.Empty;
     public string AccessToken { get; set; } = string.Empty;
     //public Guid? DefaultTenantId { get; set; }
@@ -54,6 +58,7 @@ public class UsersTenant
     public Guid TenantId { get; set; }
     public string? Name { get; set; }
     public List<string> Roles { get; set; } = new();
+    public List<string> Permissions { get; set; } = new();
     public string State { get; set; }
 
     /// <summary>Raw HR-resource-provisioning status text (null until it reports in).</summary>

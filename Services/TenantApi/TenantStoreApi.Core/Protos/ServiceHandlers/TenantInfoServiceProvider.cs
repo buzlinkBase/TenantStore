@@ -65,6 +65,7 @@ public class TenantInfoServiceProvider : GetTenantService.GetTenantServiceBase
             TenantName = membership.TenantName ?? string.Empty
         };
         response.Roles.AddRange(membership.RoleNames());
+        response.Permissions.AddRange(membership.EffectivePermissionCodes());
         return response;
     }
 
@@ -88,6 +89,7 @@ public class TenantInfoServiceProvider : GetTenantService.GetTenantServiceBase
                     Status = m.Status
                 };
                 entry.Roles.AddRange(m.Roles);
+                entry.Permissions.AddRange(m.Permissions);
                 return entry;
             }));
         return response;

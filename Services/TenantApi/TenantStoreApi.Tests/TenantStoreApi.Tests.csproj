@@ -21,6 +21,7 @@
 		</PackageReference>
 		<PackageReference Include="FluentAssertions" />
 		<PackageReference Include="Moq" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
 	</ItemGroup>
 
 	<ItemGroup>

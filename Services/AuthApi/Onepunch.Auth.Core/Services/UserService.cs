@@ -287,6 +287,11 @@ public class UserService : BaseService<User>
     internal async Task<LoginResponse> ComposeLoginResponse(User user, string accessToken, string refreshToken)
     {
         var tenants = await _membershipCacheService.GetMembershipsAsync(user.Id);
+        // Unlike Roles (below, sourced from the denormalized DefaultTenantRoles cache -- can go
+        // stale, a pre-existing behavior not changed here), Permissions is derived fresh from the
+        // just-fetched tenants list every time so it never goes stale the same way.
+        var defaultTenantPermissions = tenants
+            .FirstOrDefault(t => t.TenantId == user.DefaultTenantId)?.Permissions ?? [];
         return new LoginResponse
         {
             AccessToken = accessToken,
@@ -295,6 +300,7 @@ public class UserService : BaseService<User>
             Tenants = tenants,
             Name = user.FullName,
             Roles = user.DefaultTenantRoles,
+            Permissions = defaultTenantPermissions,
             Email = user.Email,
         };
     }

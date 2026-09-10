@@ -93,6 +93,15 @@ internal class Program
         .PersistKeysToFileSystem(new DirectoryInfo(@"/app/dp-keys"));
 
         var app = builder.Build();
+
+        // One-time (idempotent) global RBAC catalog seed + MembershipRole backfill -- see
+        // PermissionCatalogSeederService. Runs before the app starts accepting traffic.
+        using (var scope = app.Services.CreateScope())
+        {
+            scope.ServiceProvider.GetRequiredService<PermissionCatalogSeederService>()
+                .EnsureSeededAsync(CancellationToken.None).GetAwaiter().GetResult();
+        }
+
         // 1. FIRST: Fix headers from Nginx so .NET knows the real IP/Protocol immediately
         var forwardedOptions = new ForwardedHeadersOptions
         {
