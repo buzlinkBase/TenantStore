@@ -4,6 +4,7 @@ using MessagePack.AspNetCoreMvcFormatter;
 using MessagePack.Resolvers;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 using OnePunch.Auth.Core.Hubs;
@@ -24,7 +25,26 @@ internal class Program
 {
     private static async Task Main(string[] args)
     {
+        // AuthUrl/Domains:TenantUrl point at plain http:// addresses in production (bypassing
+        // the TLS-terminating Nginx gateway for internal service-to-service gRPC calls) --
+        // .NET's SocketsHttpHandler refuses to negotiate HTTP/2 over an unencrypted connection
+        // (gRPC requires HTTP/2) unless this switch is set before any HttpClient/gRPC channel is
+        // built, so it has to run first thing in Main.
+        AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
+
         var builder = WebApplication.CreateBuilder(args);
+
+        // Kestrel's default on a plain (non-TLS) endpoint is HTTP/1.1-only -- gRPC requires
+        // HTTP/2, so without this the server rejects/mishandles the very h2c calls the switch
+        // above just enabled the client to attempt (this service is both a gRPC client, for
+        // Domains:TenantUrl, and a gRPC server, for GetUserInfoService/CheckEmailService).
+        builder.WebHost.ConfigureKestrel(options =>
+        {
+            options.ConfigureEndpointDefaults(listenOptions =>
+            {
+                listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
+            });
+        });
 
         Log.Logger = new LoggerConfiguration()
         .ReadFrom.Configuration(builder.Configuration)
