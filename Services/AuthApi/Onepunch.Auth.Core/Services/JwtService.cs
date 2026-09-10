@@ -128,20 +128,17 @@ public class JwtService
             // Custom Tenant Claims
             var tenantId = principal.FindFirst("tenantId")?.Value ?? Guid.Empty.ToString();
             var tenantName = principal.FindFirst("tenantName")?.Value ?? "";
-            var tenantMemberRoles = principal.FindAll("tenantMemberRole").Select(c => c.Value).ToList();
 
             return new TokenInfo
             {
                 JTI = Guid.Parse(principal.FindFirst("jti")?.Value ?? Guid.Empty.ToString()),
                 UserId = Guid.Parse(principal.FindFirst("sub")?.Value ?? Guid.Empty.ToString()),
                 Email = principal.FindFirst("email")?.Value,
-                Roles = tenantMemberRoles,
                 IsValid = true,
                 IsExpired = false,
                 ExpiresAt = (validatedToken as JwtSecurityToken)?.ValidTo,
                 TenantId = Guid.Parse(tenantId),
                 TenantName = tenantName,
-                TenantMemberRoles = tenantMemberRoles,
             };
         }
         catch (SecurityTokenExpiredException ex)

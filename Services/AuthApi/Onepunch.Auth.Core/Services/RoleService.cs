@@ -27,9 +27,4 @@ public class RoleService : BaseService<Role>
         }
         return await _roleManager.FindByNameAsync(roleName);
     }
-
-    public async Task<List<Role>> GetAll()
-    {
-        return await _roleManager.Roles.ToListAsync();
-    }
 }

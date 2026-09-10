@@ -9,8 +9,6 @@ public class TokenInfo
     public string? Email { get; set; }
     public Guid TenantId { get; set; }
     public string TenantName { get; set; } = string.Empty;
-    public List<string> TenantMemberRoles { get; set; } = new();
-    public List<string> Roles { get; set; } = new();
     public bool IsValid { get; set; }
     public bool IsExpired { get; set; }
     public DateTime? ExpiresAt { get; set; }

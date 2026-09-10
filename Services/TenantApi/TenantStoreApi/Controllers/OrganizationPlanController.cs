@@ -12,7 +12,7 @@ public class OrganizationPlanController : ControllerBase
 {
 
     [HttpPost]
-    [Authorize(Roles = "Provider")]
+    [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

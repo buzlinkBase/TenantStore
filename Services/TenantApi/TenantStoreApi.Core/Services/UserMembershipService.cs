@@ -31,11 +31,6 @@ public class UserMembershipService : BaseService<UserMembership>
         await CreateAsync(model, token);
     }
 
-    public bool CanAccess(Guid userId, Guid targetTenantId)
-    {
-        return Context.Memberships.Any(m => m.UserId == userId && m.TenantId == targetTenantId);
-    }
-
     public async Task<List<UserMembership>> GetMembersAsync(Guid tenantId, CancellationToken token = default)
     {
         return await GetQueryable(x => x.TenantId == tenantId).Include(x => x.Roles).ToListAsync(token);

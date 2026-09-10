@@ -19,9 +19,11 @@ namespace OnePunch.Auth.Api.Controllers
     public class SubscriptionController : ControllerBase
     {
         private readonly SubscriptionService _service;
-        public SubscriptionController(SubscriptionService service, IOptions<Domains> options)
+        private readonly MembershipGrpcClient _membershipGrpcClient;
+        public SubscriptionController(SubscriptionService service, MembershipGrpcClient membershipGrpcClient, IOptions<Domains> options)
         {
             _service = service;
+            _membershipGrpcClient = membershipGrpcClient;
         }
 
         [HttpPost()]
@@ -30,7 +32,6 @@ namespace OnePunch.Auth.Api.Controllers
         {
             var userId = HttpContext.User.GetRequiredUserId();
             var tenantId = HttpContext.User.GetUserClaim("TenantId")?.ToString() ?? "";
-            var memberRoles = HttpContext.User.GetUserClaims("TenantMemberRole");
 
             if (string.IsNullOrEmpty(tenantId) || Guid.Parse(tenantId) == Guid.Empty)
                 return BadRequest("Invalid tenant context.");
@@ -38,7 +39,12 @@ namespace OnePunch.Auth.Api.Controllers
             if (userId == Guid.Empty)
                 return Unauthorized();
 
-            if (!memberRoles.Contains("Owner") && !memberRoles.Contains("Admin"))
+            // The JWT carries no role claim (see JwtService.CreateTokenAsync) -- roles live in
+            // TenantApi's UserMembership, resolved here the same way UserService.SetDefaultTenant
+            // does for the same kind of cross-service check.
+            var membership = await _membershipGrpcClient.ResolveMembershipAsync(userId, Guid.Parse(tenantId));
+            if (!membership.Success || !membership.Found ||
+                !(membership.Roles.Contains("Owner") || membership.Roles.Contains("Admin")))
                 return Forbid();
 
             await _service.Create(new PlanRequest

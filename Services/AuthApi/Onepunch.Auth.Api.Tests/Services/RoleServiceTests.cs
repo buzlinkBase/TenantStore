@@ -43,20 +43,4 @@ public class RoleServiceTests
         result.Should().BeSameAs(existingRole);
         roleManager.Verify(m => m.CreateAsync(It.IsAny<Role>()), Times.Never);
     }
-
-    [Fact]
-    public async Task GetAll_ReturnsRolesFromRoleManager()
-    {
-        var uow = AuthTestContextFactory.CreateUnitOfWork();
-        var roleManager = IdentityMocks.MockRoleManager();
-        var roles = new List<Role> { new() { Name = "Admin" }, new() { Name = "Member" } }.AsAsyncQueryable();
-        roleManager.Setup(m => m.Roles).Returns(roles);
-
-        var sut = new RoleService(uow, roleManager.Object);
-
-        var result = await sut.GetAll();
-
-        result.Should().HaveCount(2);
-        result.Select(r => r.Name).Should().BeEquivalentTo(["Admin", "Member"]);
-    }
 }
