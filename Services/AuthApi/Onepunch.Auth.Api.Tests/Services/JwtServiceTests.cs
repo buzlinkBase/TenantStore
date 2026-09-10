@@ -13,7 +13,7 @@ public class JwtServiceTests
         {
             Issuer = "onepunch-auth",
             Audience = ["onepunch-clients"],
-        }), null!);
+        }), null!, null!);
 
     [Fact]
     public void Hash_ReturnsSameValue_ForSameInput()
@@ -111,7 +111,7 @@ public class JwtServiceTests
             Audience = ["onepunch-clients"],
             TokenExpiry = 10,
             RefreshExpiry = 60,
-        }), null!);
+        }), null!, null!);
 
         sut.TokenExpiry.Should().Be(10);
         sut.RefreshExpiry.Should().Be(60);

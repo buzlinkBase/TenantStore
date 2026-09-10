@@ -17,16 +17,19 @@ public class JwtService
     private readonly TenantRequestService _tenantRequestService;
     private readonly JwtSettings _jwtSettings;
     private readonly RsaKeyProvider _rsaKeyProvider;
+    private readonly MembershipCacheService _membershipCacheService;
 
     public JwtService(UserManager<User> userManager,
         TenantRequestService tenantRequestService,
         IOptions<JwtSettings> jwtSettings,
-        RsaKeyProvider rsaKeyProvider)
+        RsaKeyProvider rsaKeyProvider,
+        MembershipCacheService membershipCacheService)
     {
         _userManager = userManager;
         _tenantRequestService = tenantRequestService;
         _jwtSettings = jwtSettings.Value;
         _rsaKeyProvider = rsaKeyProvider;
+        _membershipCacheService = membershipCacheService;
     }
     public async Task<string> GenerateRefreshToken()
     {
@@ -74,6 +77,21 @@ public class JwtService
             new("tenantName", tenantName),
             new("tenantState", tenantState),
         };
+
+        // Lets downstream services (e.g. hrms-api) check the caller's role for this tenant
+        // without a separate lookup -- MembershipCacheService already has its own fallback (to
+        // user.DefaultTenantRoles) if tenant-api/gRPC is unreachable, so this never blocks token
+        // issuance; worst case the claim reflects stale/fallback roles, same as today's
+        // LoginResponse.Roles behavior.
+        if (Guid.TryParse(tenantId, out var parsedTenantId))
+        {
+            var memberships = await _membershipCacheService.GetMembershipsAsync(user.Id);
+            var currentTenant = memberships.FirstOrDefault(t => t.TenantId == parsedTenantId);
+            if (currentTenant != null)
+            {
+                claims.AddRange(currentTenant.Roles.Select(role => new Claim(ClaimTypes.Role, role)));
+            }
+        }
         var creds = new SigningCredentials(_rsaKeyProvider.SigningKey, SecurityAlgorithms.RsaSha256);
         var token = new JwtSecurityToken(
             issuer: _jwtSettings.Issuer,
