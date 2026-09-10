@@ -271,6 +271,14 @@ namespace Onepunch.Auth.Core.Services
         {
             invitation.Status = InvitationStatus.Accepted;
 
+            // The caller's own ambient tenant (whatever TenantPublishFilter would otherwise stamp
+            // from their current JWT) is irrelevant here -- they're joining invitation.TenantId,
+            // which may differ from (or not exist on) their current session. Every message below
+            // is about that target tenant, so the X-Tenant-ID header must say so explicitly, or a
+            // tenant-scoped consumer downstream (e.g. hrms-api's UserOnboardedWorker, gated by
+            // HrmsContext's automatic tenant filter) silently resolves against the wrong tenant.
+            var targetTenantId = invitation.TenantId.ToString();
+
             await _publisher.Publish(new UserJoin
             {
                 UserId = user.Id,
@@ -278,7 +286,7 @@ namespace Onepunch.Auth.Core.Services
                 TenantName = invitation.TenantName ?? string.Empty,
                 Roles = invitation.Roles,
                 Email = invitation.Email,
-            }, ct);
+            }, (PublishContext<UserJoin> ctx) => ctx.Headers.Set("X-Tenant-ID", targetTenantId), ct);
 
             await _publisher.Publish(new InvitationAccepted
             {
@@ -286,7 +294,7 @@ namespace Onepunch.Auth.Core.Services
                 TenantId = invitation.TenantId,
                 Email = invitation.Email,
                 Roles = invitation.Roles,
-            }, ct);
+            }, (PublishContext<InvitationAccepted> ctx) => ctx.Headers.Set("X-Tenant-ID", targetTenantId), ct);
 
             if (invitation.EmployeeId.HasValue)
             {
@@ -296,7 +304,7 @@ namespace Onepunch.Auth.Core.Services
                     TenantId = invitation.TenantId,
                     EmployeeId = invitation.EmployeeId,
                     Email = invitation.Email,
-                }, ct);
+                }, (PublishContext<UserOnboarded> ctx) => ctx.Headers.Set("X-Tenant-ID", targetTenantId), ct);
             }
 
             return await MintTenantScopedResponseAsync(user, invitation, ct);
