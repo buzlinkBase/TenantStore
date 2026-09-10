@@ -107,6 +107,38 @@ public class RoleServiceTests
         reloaded!.RolePermissions.Should().ContainSingle(rp => rp.PermissionId == permission.Id);
     }
 
+    // Regression test for a production DbUpdateException: revoking then re-granting the same
+    // permission (e.g. an admin unchecks then re-checks a box, or two saves toggle it back and
+    // forth) used to insert a brand-new RolePermission row for a permission that still had a
+    // soft-deleted one from the earlier revoke, colliding on
+    // IX_RolePermissions_RoleId_PermissionId. SetPermissionsAsync must reactivate the existing
+    // row instead of inserting a duplicate.
+    [Fact]
+    public async Task SetPermissionsAsync_ReactivatesARevokedPermissionInsteadOfDuplicating()
+    {
+        var sut = CreateSut(out var uow);
+        var tenantId = Guid.NewGuid();
+        var role = await sut.AddCustomRoleAsync(tenantId, "Custom", "", CancellationToken.None);
+        var permission = new Permission { Module = "Payroll", Feature = "Payroll Run", Action = "Approve", Code = "Payroll Run:Approve" };
+        await uow.Repository.AddAsync(permission, CancellationToken.None);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+        var context = uow.Context;
+
+        // Grant, then revoke (soft-deletes the row via SetPermissionsAsync's own removal path),
+        // then grant again -- this third call is what used to throw.
+        await new RoleService(TenantTestContextFactory.CreateUnitOfWork(context))
+            .SetPermissionsAsync(role.Id, [permission.Id], CancellationToken.None);
+        await new RoleService(TenantTestContextFactory.CreateUnitOfWork(context))
+            .SetPermissionsAsync(role.Id, [], CancellationToken.None);
+
+        var act = () => new RoleService(TenantTestContextFactory.CreateUnitOfWork(context))
+            .SetPermissionsAsync(role.Id, [permission.Id], CancellationToken.None);
+
+        await act.Should().NotThrowAsync();
+        var reloaded = await sut.FindOneWithPermissionsAsync(role.Id, CancellationToken.None);
+        reloaded!.RolePermissions.Should().ContainSingle(rp => rp.PermissionId == permission.Id);
+    }
+
     [Fact]
     public async Task IsAssignableAsync_RejectsOwner()
     {

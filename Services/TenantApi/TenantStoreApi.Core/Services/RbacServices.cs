@@ -86,10 +86,38 @@ public class RoleService : BaseService<Role>
         var role = await GetOneAsync(roleId, token) ?? throw new KeyNotFoundException("Role not found.");
         if (role.IsSystemRole) throw new InvalidOperationException("System role permissions are fixed and cannot be changed.");
 
-        var existing = await Context.RolePermissions.Where(x => x.RoleId == roleId).ToListAsync(token);
-        Context.RolePermissions.RemoveRange(existing);
+        var distinctIds = permissionIds.Distinct().ToHashSet();
 
-        var toAdd = permissionIds.Distinct()
+        // Reconcile against every row for this role -- soft-deleted ones included. Plain
+        // RemoveRange()+re-Add would route the removal through the shared SoftDeleteInterceptor,
+        // which turns a Deleted entity into an UPDATE (sets DeletedAt) rather than physically
+        // removing the row. Inserting a brand-new row for a permission that already has a
+        // soft-deleted row on this role then collides on IX_RolePermissions_RoleId_PermissionId
+        // the moment it's re-granted, so a previously-revoked permission being re-checked must
+        // reactivate its existing row instead of getting a new one.
+        var existing = await Context.RolePermissions.IgnoreQueryFilters()
+            .Where(x => x.RoleId == roleId)
+            .ToListAsync(token);
+
+        foreach (var row in existing)
+        {
+            if (distinctIds.Contains(row.PermissionId))
+            {
+                if (row.DeletedAt != null)
+                {
+                    row.DeletedAt = null;
+                    row.Status = "Active";
+                }
+            }
+            else if (row.DeletedAt == null)
+            {
+                Context.RolePermissions.Remove(row);
+            }
+        }
+
+        var alreadyPresentIds = existing.Select(x => x.PermissionId).ToHashSet();
+        var toAdd = distinctIds
+            .Where(id => !alreadyPresentIds.Contains(id))
             .Select(permissionId => new RolePermission { Id = Guid.CreateVersion7(), RoleId = roleId, PermissionId = permissionId })
             .ToList();
         if (toAdd.Count > 0)
