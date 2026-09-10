@@ -12,8 +12,8 @@ using Onepunch.Auth.Infrastructure;
 namespace Onepunch.Auth.Infrastructure.Migrations
 {
     [DbContext(typeof(AuthContext))]
-    [Migration("20260729141702_updatemodel")]
-    partial class updatemodel
+    [Migration("20260910012902_auth_init")]
+    partial class auth_init
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -515,6 +515,9 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasColumnType("longtext");
+
+                    b.Property<Guid?>("EmployeeId")
+                        .HasColumnType("char(36)");
 
                     b.Property<DateTime>("Expiry")
                         .HasColumnType("datetime(6)");

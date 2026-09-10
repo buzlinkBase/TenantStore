@@ -147,7 +147,6 @@ public static class ServiceRegistrations
                      await context.Response.WriteAsJsonAsync(response);
                  },
 
-                 // ✅ Add this — fires when token is valid but user lacks permission
                  OnForbidden = async context =>
                  {
                      context.Response.StatusCode = 403;

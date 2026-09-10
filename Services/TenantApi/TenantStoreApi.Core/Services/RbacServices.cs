@@ -40,15 +40,18 @@ public class RoleService : BaseService<Role>
     }
 
     // Only Custom Roles are admin-creatable; System Roles are seeded once and fixed.
-    // Commits via Context.SaveChangesAsync directly rather than the BaseService/UnitOfWork
-    // CommitChangesAsync wrapper -- that wrapper only performs a real commit on the first call per
-    // UnitOfWork instance (an internal one-shot guard), so a second write on the same scoped uow
-    // would silently no-op.
+    // Commits via the UnitOfWork's CommitChangesAsync (not a raw Context.SaveChangesAsync) -- the
+    // UnitOfWork opens a real transaction the moment it's constructed (see
+    // BuzlinkRepository.UnitOfWork), so a plain SaveChangesAsync writes inside that transaction
+    // without ever committing it; the write gets silently rolled back once the scoped DbContext is
+    // disposed at the end of the request. CommitChangesAsync only no-ops on a *second* call against
+    // the same UnitOfWork instance, which never happens here since each HTTP request gets its own
+    // freshly-scoped instance.
     public async Task<Role> AddCustomRoleAsync(Guid tenantId, string name, string description, CancellationToken token)
     {
         var role = new Role { Id = Guid.CreateVersion7(), TenantId = tenantId, Name = name, Description = description, IsSystemRole = false };
         await CreateAsync(role, token);
-        await Context.SaveChangesAsync(token);
+        await CommitChangesAsync(token);
         return role;
     }
 
@@ -60,7 +63,7 @@ public class RoleService : BaseService<Role>
         role.Name = name;
         role.Description = description;
         await ModifyAsync(role, token);
-        await Context.SaveChangesAsync(token);
+        await CommitChangesAsync(token);
         return role;
     }
 
@@ -76,7 +79,7 @@ public class RoleService : BaseService<Role>
         Context.RolePermissions.RemoveRange(rolePermissions);
         var roleEntity = await Context.Roles.FindAsync([id], token) ?? role;
         Context.Roles.Remove(roleEntity);
-        await Context.SaveChangesAsync(token);
+        await CommitChangesAsync(token);
     }
 
     public async Task SetPermissionsAsync(Guid roleId, List<Guid> permissionIds, CancellationToken token)
@@ -95,7 +98,7 @@ public class RoleService : BaseService<Role>
             await Context.RolePermissions.AddRangeAsync(toAdd, token);
         }
 
-        await Context.SaveChangesAsync(token);
+        await CommitChangesAsync(token);
     }
 
     // Generalizes the old hardcoded TenantRoles.IsValid([Admin, Member]) check: any System Role
@@ -195,9 +198,13 @@ public class PermissionCatalogSeederService
 
     public async Task EnsureSeededAsync(CancellationToken token)
     {
-        // Committed separately (not batched with the role seed below) because
-        // SeedSystemRolesAsync queries Permissions back out -- an uncommitted Add isn't visible
-        // to that query yet.
+        // IUnitOfWorkService opens a real transaction the moment it's constructed (see
+        // BuzlinkRepository.UnitOfWork) -- Context.SaveChangesAsync below writes inside that
+        // transaction but does NOT commit it. The intermediate SaveChangesAsync calls are still
+        // needed (SeedSystemRolesAsync queries Permissions back out, which requires the earlier
+        // insert to be flushed -- reads-your-own-writes works fine within the same open
+        // transaction), but without a final _uow.CommitChangesAsync, everything above gets rolled
+        // back the moment the DbContext/scope is disposed, silently, with no exception.
         if (await SeedPermissionsAsync(token))
         {
             await Context.SaveChangesAsync(token);
@@ -209,6 +216,8 @@ public class PermissionCatalogSeederService
         }
 
         await BackfillMembershipRolesAsync(token);
+
+        await _uow.CommitChangesAsync("", token);
     }
 
     private async Task<bool> SeedPermissionsAsync(CancellationToken token)

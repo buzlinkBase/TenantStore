@@ -63,7 +63,10 @@ public class RoleServiceTests
         var membership = new UserMembership { TenantId = tenantId, UserId = Guid.NewGuid() };
         await uow.Repository.AddAsync(membership, CancellationToken.None);
         await uow.Repository.AddAsync(new MembershipRole { UserMembershipId = membership.Id, Role = "Custom", RoleId = customRole.Id }, CancellationToken.None);
-        await uow.CommitChangesAsync("", CancellationToken.None);
+        // Raw SaveChangesAsync, not uow.CommitChangesAsync -- AddCustomRoleAsync above already
+        // consumed this uow's one-shot commit; a second CommitChangesAsync call on the same
+        // instance would silently no-op and leave this setup data unpersisted.
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
 
         var act = () => sut.DeleteCustomRoleAsync(customRole.Id, CancellationToken.None);
 
@@ -91,9 +94,14 @@ public class RoleServiceTests
         var role = await sut.AddCustomRoleAsync(tenantId, "Custom", "", CancellationToken.None);
         var permission = new Permission { Module = "Payroll", Feature = "Payroll Run", Action = "Approve", Code = "Payroll Run:Approve" };
         await uow.Repository.AddAsync(permission, CancellationToken.None);
-        await uow.CommitChangesAsync("", CancellationToken.None);
+        // Raw SaveChangesAsync -- AddCustomRoleAsync above already consumed this uow's one-shot
+        // commit. Then a genuinely fresh IUnitOfWorkService (same underlying Context/database, the
+        // way a real second HTTP request would get its own scoped instance) for SetPermissionsAsync,
+        // so its own CommitChangesAsync call is a real first commit rather than a silent no-op.
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+        var sutWithFreshUow = new RoleService(TenantTestContextFactory.CreateUnitOfWork(uow.Context));
 
-        await sut.SetPermissionsAsync(role.Id, [permission.Id], CancellationToken.None);
+        await sutWithFreshUow.SetPermissionsAsync(role.Id, [permission.Id], CancellationToken.None);
 
         var reloaded = await sut.FindOneWithPermissionsAsync(role.Id, CancellationToken.None);
         reloaded!.RolePermissions.Should().ContainSingle(rp => rp.PermissionId == permission.Id);

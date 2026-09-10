@@ -101,7 +101,10 @@ public class PermissionCatalogSeederServiceTests
         // (RoleId already set) is left alone rather than being re-derived from the string.
         var membershipRole = new MembershipRole { UserMembershipId = membership.Id, Role = "Owner", RoleId = admin.Id };
         await uow.Repository.AddAsync(membershipRole, CancellationToken.None);
-        await uow.CommitChangesAsync("", CancellationToken.None);
+        // Raw SaveChangesAsync, not uow.CommitChangesAsync -- the seeder call above already
+        // consumed this uow's one-shot commit (see EnsureSeededAsync's own final commit); a second
+        // CommitChangesAsync on the same instance would silently no-op.
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
 
         await sut.EnsureSeededAsync(CancellationToken.None);
 

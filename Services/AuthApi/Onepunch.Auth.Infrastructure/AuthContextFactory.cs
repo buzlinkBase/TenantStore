@@ -11,8 +11,8 @@ public class AuthContextFactory : IDesignTimeDbContextFactory<AuthContext>
         string basePath = Path.Combine(Directory.GetCurrentDirectory(), "..", "hrms.auth.api");
         IConfigurationRoot configuration = new ConfigurationBuilder()
             .SetBasePath(basePath)
-            .AddJsonFile("appsettings.json")
-            //.AddJsonFile("appsettings.Development.json")
+            //.AddJsonFile("appsettings.json")
+            .AddJsonFile("appsettings.Development.json")
             .Build();
         var connectionString = configuration.GetConnectionString("AuthConnection");
         var optionsBuilder = new DbContextOptionsBuilder<AuthContext>();

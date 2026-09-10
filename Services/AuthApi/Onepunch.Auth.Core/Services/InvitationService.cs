@@ -13,7 +13,14 @@ namespace Onepunch.Auth.Core.Services
 {
     public class InvitationService : BaseService<Invitation>
     {
-        private static readonly string[] AllowedInviteRoles = ["Admin", "Member"];
+        // Mirrors tenant-api's current System Roles minus Owner (Owner is never invitable). This
+        // is a hardcoded snapshot, not the live source of truth -- tenant-api's RoleService owns
+        // the real catalog (System Roles + this tenant's Custom Roles, see
+        // RoleService.IsAssignableAsync in TenantStoreApi.Core). A tenant-defined Custom Role will
+        // still be rejected here even though tenant-api would accept it. Ideally this list should
+        // be replaced with a live cross-service check instead of a hardcoded array kept in sync by
+        // hand.
+        private static readonly string[] AllowedInviteRoles = ["Admin", "Member", "Employee"];
 
         private readonly EmailTokenService _emailTokenService;
         private readonly TenantRequestService _tenantCreationRequestStatusService;

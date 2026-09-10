@@ -58,7 +58,7 @@ public class TenantContext : DbContext
 
         // Migration A: RoleId is nullable and unconstrained until the backfill (see
         // PermissionCatalogSeederService) is confirmed and a later migration makes it required.
-        modelBuilder.Entity<MembershipRole>()
+        modelBuilder.Entity<MembershipRole>() 
             .HasOne(x => x.RoleRef)
             .WithMany()
             .HasForeignKey(x => x.RoleId)
