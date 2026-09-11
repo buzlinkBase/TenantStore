@@ -63,7 +63,7 @@ public class MembersController : ControllerBase
             else if (!string.IsNullOrEmpty(m.InvitedEmail))
             {
                 response.Email = m.InvitedEmail;
-                response.FullName = m.InvitedEmail;
+                response.FullName = m.FullName;
                 response.Status = m.Status ?? "Inactive";
             }
             return response;
