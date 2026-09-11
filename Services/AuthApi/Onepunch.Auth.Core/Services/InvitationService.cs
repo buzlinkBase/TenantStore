@@ -122,12 +122,16 @@ namespace Onepunch.Auth.Core.Services
             // account), not a bare backend API route.
             var frontEndHost = (_domains.FrontEnd ?? "").TrimEnd('/');
 
+            // Prefer the invited employee's actual name (sent by the inviter, who already has
+            // it from picking them off the Employee list) -- falls back to their email the same
+            // way EmailNotificationService itself falls back when Name comes through blank
+            // (e.g. inviting a bare email address with no linked Employee record).
             await _publisher.Publish(new UserInvitionNotificationPayload
             {
                 Email = payload.Email,
                 InviteLink = $"{frontEndHost}/accept-invite?token={token}",
                 Organization = tenantName ?? user.DefaultTenantName ?? "",
-                Name = user.Email ?? "User",
+                Name = string.IsNullOrWhiteSpace(payload.Name) ? payload.Email : payload.Name,
                 Expiry = exp,
             }, ct);
 
@@ -137,7 +141,7 @@ namespace Onepunch.Auth.Core.Services
             {
                 Email = payload.Email,
                 TenantId = tenantId,
-                TenantName = tenantName,
+                TenantName = tenantName ?? "",
                 Roles = roles,
                 InvitedByUserId = user.Id,
                 InvitationToken = token,
