@@ -13,6 +13,11 @@ public class Invitation : BaseEntity
     public InvitationStatus Status { get; set; }
     public List<string> Roles { get; set; } = new() { "Member" };
     public Guid? EmployeeId { get; set; }
+
+    /// <summary>The invitee's full name, when the inviter supplied one (typically from a linked
+    /// Employee record) -- lets the accept-invite page pre-fill the Full Name field instead of
+    /// the invitee retyping their own name. See InvitationService.SendUserInvitationAsync.</summary>
+    public string? Name { get; set; }
 }
 
 public enum InvitationStatus

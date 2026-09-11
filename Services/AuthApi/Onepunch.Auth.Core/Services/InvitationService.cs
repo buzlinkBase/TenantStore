@@ -114,6 +114,7 @@ namespace Onepunch.Auth.Core.Services
                 Status = InvitationStatus.Pending,
                 Roles = roles,
                 EmployeeId = payload.EmployeeId,
+                Name = payload.Name,
             };
             Repository.Add(invitation);
 
@@ -212,6 +213,7 @@ namespace Onepunch.Auth.Core.Services
                 Valid = valid,
                 AccountExists = accountExists,
                 EmployeeId = invitation.EmployeeId,
+                Name = invitation.Name,
             };
         }
 
