@@ -18,6 +18,22 @@ namespace Onepunch.Auth.Core.Services
         {
             return await Context.TenantCreationRequests.FirstOrDefaultAsync(x => x.TenantId == tenantId);
         }
+
+        /// <summary>
+        /// The user's most recent still-in-flight tenant creation request (not yet Created, not
+        /// expired) -- lets WorkspaceService.Create resume an existing request instead of firing
+        /// another TenantCreationRequested for the same user, which is what turns a page refresh
+        /// during "Setting up workspace..." into an extra dormant/stuck-Provisioning tenant.
+        /// </summary>
+        public async Task<TenantCreationRequestStatus?> FindPendingByUser(Guid userId)
+        {
+            return await Context.TenantCreationRequests
+                .Where(x => x.UserId == userId
+                    && x.Status != TenantCreationStatus.Created
+                    && x.RequestExpiry > DateTime.UtcNow)
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefaultAsync();
+        }
         public async Task Store(TenantCreationRequestStatus model)
         {
             await CreateAsync(model);
