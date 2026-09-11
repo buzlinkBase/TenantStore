@@ -1,40 +1,47 @@
 using Grpc.Core;
-using Microsoft.AspNetCore.Identity;
-using OnePunch.Auth.Domain.Entities;
+using OnePunch.Auth.Core.Services;
 
 namespace Onepunch.Auth.Core.Protos;
 
 public class UserInfoHandler : GetUserInfoService.GetUserInfoServiceBase
 {
-    private readonly UserManager<User> _userManager;
-
-    public UserInfoHandler(UserManager<User> userManager)
+    private readonly UserService _userService;
+    public UserInfoHandler(UserService userService)
     {
-        _userManager = userManager;
+        _userService = userService;
     }
 
     public override async Task<UserInfosResponse> GetUsersByIds(UserIdsRequest request, ServerCallContext context)
     {
         var response = new UserInfosResponse();
+        // 1. Parse string IDs into valid Guids
+        var validIds = request.UserIds
+            .Select(id => Guid.TryParse(id, out var parsedGuid) ? parsedGuid : (Guid?)null)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .ToList();
 
-        foreach (var userId in request.UserIds)
+        if (validIds.Count == 0)
         {
-            if (Guid.TryParse(userId, out var id))
-            {
-                var user = await _userManager.FindByIdAsync(userId);
-                if (user != null)
-                {
-                    response.Users.Add(new UserInfo
-                    {
-                        Id = user.Id.ToString(),
-                        Email = user.Email ?? string.Empty,
-                        FullName = user.FullName ?? string.Empty,
-                        Status = user.Status ?? "Active"
-                    });
-                }
-            }
+            return response;
         }
 
+        // 2. Fetch all matching users in a single database query
+        var users = await _userService.Context.Users
+            .Where(x => validIds.Contains(x.Id))
+            .ToListAsync(context.CancellationToken);
+
+        // 3. Populate response
+        foreach (var user in users)
+        {
+            response.Users.Add(new UserInfo
+            {
+                Id = user.Id.ToString(),
+                Email = user.Email ?? string.Empty,
+                FullName = user.FullName ?? string.Empty,
+                Status = user.Status ?? "Inactive"
+            });
+        }
         return response;
     }
 }

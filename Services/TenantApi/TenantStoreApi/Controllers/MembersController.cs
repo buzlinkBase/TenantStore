@@ -49,24 +49,25 @@ public class MembersController : ControllerBase
             {
                 UserId = m.UserId,
                 Roles = m.RoleNames(),
-                Status = m.Status ?? "Active"
+                FullName=m.FullName,
+                Email=m.InvitedEmail,
+                Status = m.Status ?? "Inactive"
             };
 
             if (m.UserId != Guid.Empty && userLookup.TryGetValue(m.UserId.ToString(), out var userInfo))
             {
                 response.Email = userInfo.Email;
                 response.FullName = userInfo.FullName;
+                response.Status = userInfo.Status;
             }
             else if (!string.IsNullOrEmpty(m.InvitedEmail))
             {
                 response.Email = m.InvitedEmail;
                 response.FullName = m.InvitedEmail;
-                response.Status = m.Status ?? "Invited";
+                response.Status = m.Status ?? "Inactive";
             }
-
             return response;
         }).ToList();
-
         return Ok(result);
     }
 
