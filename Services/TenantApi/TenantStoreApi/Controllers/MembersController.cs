@@ -40,7 +40,7 @@ public class MembersController : ControllerBase
         if (activeUserIds.Count > 0)
         {
             var users = await _userInfoService.GetUsersByIdsAsync(activeUserIds, token);
-            userLookup = users.ToDictionary(u => u.Id, u => u);
+            userLookup = users.ToDictionary(u => u.Id.ToString(), u => u);
         }
 
         var result = members.Select(m =>
@@ -49,9 +49,9 @@ public class MembersController : ControllerBase
             {
                 UserId = m.UserId,
                 Roles = m.RoleNames(),
-                FullName=m.FullName,
-                Email=m.InvitedEmail,
-                Status = m.Status ?? "Inactive"
+                FullName = m.FullName,
+                Email = m.InvitedEmail,
+                Status = m.Status ?? "Inactive" 
             };
 
             if (m.UserId != Guid.Empty && userLookup.TryGetValue(m.UserId.ToString(), out var userInfo))
