@@ -336,6 +336,16 @@ namespace Onepunch.Auth.Core.Services
 
             await CommitChangesAsync(ct);
 
+            // UserJoin (published above by the caller) is what actually activates the
+            // membership on Tenant Service's side, asynchronously -- but this user may already
+            // have a cached membership snapshot from before that (from an earlier login, or
+            // from before this invite was even sent), and MembershipCacheService's 5-minute TTL
+            // has no trigger tied to this event. Without invalidating first, GetMembershipsAsync
+            // below can keep serving that pre-existing stale list, and — since nothing else in
+            // this app's silent-refresh path ever re-invalidates on its own — a user who never
+            // fully logs out again could see that stale list indefinitely. Same reasoning as
+            // UserService.RefreshLogin's identical invalidate-before-read.
+            await _membershipCacheService.InvalidateAsync(user.Id);
             var tenants = await _membershipCacheService.GetMembershipsAsync(user.Id);
             if (!tenants.Any(t => t.TenantId == invitation.TenantId))
             {

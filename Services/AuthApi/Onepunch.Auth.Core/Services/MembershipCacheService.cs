@@ -39,7 +39,7 @@ public class MembershipCacheService
         var cached = await _cacheService.GetAsync<List<UsersTenant>>(CacheKey(userId));
         if (cached != null && cached.Count > 0)
         {
-            return await ApplyRequestStateAsync(cached);
+            return await ApplyRequestStateAsync(cached, userId);
         }
 
         var lookup = await _membershipGrpcClient.GetActiveMembershipsAsync(userId, deadlineMilliseconds);
@@ -57,7 +57,7 @@ public class MembershipCacheService
             State = m.Status
         }).ToList();
 
-        var withState = await ApplyRequestStateAsync(tenants);
+        var withState = await ApplyRequestStateAsync(tenants, userId);
         await _cacheService.SetAsync(CacheKey(userId), withState, CacheDuration);
         return withState;
     }
@@ -86,14 +86,23 @@ public class MembershipCacheService
     }
 
     /// <summary>
-    /// Merges in Auth-local TenantCreationRequestStatus so tenants Tenant Service doesn't know
-    /// about yet (still "Provisioning") still show up correctly in the tenant list.
+    /// Merges in Auth-local TenantCreationRequestStatus so a tenant THIS user themselves just
+    /// requested, which Tenant Service doesn't know about yet, still shows up correctly (still
+    /// "Provisioning") in their own tenant list.
+    ///
+    /// Scoped to requests this same userId made (TenantCreationRequestStatus.UserId == userId)
+    /// -- a TenantCreationRequestStatus row exists once per TENANT (whoever originally created
+    /// it), not once per member. Before this filter, an invited member's own correct, already-
+    /// "Active" membership State (from the gRPC lookup above) got silently overwritten with the
+    /// tenant CREATOR's unrelated TenantCreationStatus (e.g. "Created") for every tenant that
+    /// had ever gone through the create-workspace flow -- effectively every tenant. State no
+    /// longer reflected this user's own membership standing once that happened.
     /// </summary>
-    private async Task<List<UsersTenant>> ApplyRequestStateAsync(List<UsersTenant> tenants)
+    private async Task<List<UsersTenant>> ApplyRequestStateAsync(List<UsersTenant> tenants, Guid userId)
     {
         var ids = tenants.Select(t => t.TenantId).ToList();
         var requestStates = await _uow.Context.TenantCreationRequests
-            .Where(x => ids.Contains(x.TenantId))
+            .Where(x => ids.Contains(x.TenantId) && x.UserId == userId)
             .GroupBy(x => x.TenantId)
             .ToDictionaryAsync(x => x.Key, x => x.First());
 

@@ -276,7 +276,6 @@ public class UserService : BaseService<User>
 
         if (user.Status != "Active" || !user.EmailConfirmed)
             return new LoginResponse { ErrorMessage = "Account is not active. Please verify your email." };
-
         // Flow C(login) MFA extension point: no-op today (see NoOpMfaChallengeService), so this
         // never actually short-circuits login yet, but the seam is in place for a real MFA
         // implementation to plug into later.

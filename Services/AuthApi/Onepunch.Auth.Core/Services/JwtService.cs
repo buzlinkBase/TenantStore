@@ -77,7 +77,6 @@ public class JwtService
             new("tenantName", tenantName),
             new("tenantState", tenantState),
         };
-
         // Lets downstream services (e.g. hrms-api) check the caller's role for this tenant
         // without a separate lookup -- MembershipCacheService already has its own fallback (to
         // user.DefaultTenantRoles) if tenant-api/gRPC is unreachable, so this never blocks token
