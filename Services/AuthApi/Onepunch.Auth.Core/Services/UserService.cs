@@ -568,13 +568,11 @@ public class UserService : BaseService<User>
         }
 
         tokenEntity.Revoked = true;
-
         // A refresh is the client's own periodic sync point -- invalidate the membership cache
         // first so both the new access token's role claims and this response's Roles/Permissions
         // reflect the caller's absolute latest membership, not whatever was cached (up to 5 min
         // old) the last time it was resolved.
-        await _membershipCacheService.InvalidateAsync(user.Id);
-
+        //await _membershipCacheService.InvalidateAsync(user.Id);
         var accessToken = await _jwtService.CreateTokenAsync(user);
         var newRefreshToken = await _jwtService.GenerateRefreshToken();
         await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, newRefreshToken));
