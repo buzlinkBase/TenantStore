@@ -79,6 +79,59 @@ public class PermissionCatalogSeederServiceTests
     }
 
     [Fact]
+    public async Task EnsureSeededAsync_AdminGetsFullSetupAccess()
+    {
+        var sut = CreateSut(out var uow);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        var admin = await uow.Context.Roles.FirstAsync(x => x.Name == "Admin");
+        var grantedCodes = await uow.Context.RolePermissions
+            .Where(x => x.RoleId == admin.Id)
+            .Select(x => x.Permission.Code)
+            .ToListAsync();
+
+        foreach (var feature in new[]
+        {
+            "Organization Setup", "Workforce Setup", "Time Shift Setup",
+            "Deductions & Income Setup", "Leave Setup", "Statutory Tables", "Biometric Setup",
+        })
+        {
+            foreach (var action in new[] { "View", "Create", "Edit", "Delete" })
+            {
+                grantedCodes.Should().Contain($"{feature}:{action}");
+            }
+        }
+    }
+
+    [Fact]
+    public async Task EnsureSeededAsync_BackfillsSetupAccess_ForAnAlreadySeededTenantsAdminRole()
+    {
+        // Simulates a tenant seeded before AdminGrantedCodes covered Setup -- its Admin role has
+        // only the original Tenant Administration grants, same as every tenant seeded under the
+        // old code.
+        var sut = CreateSut(out var uow);
+        await sut.EnsureSeededAsync(CancellationToken.None);
+        var admin = await uow.Context.Roles.FirstAsync(x => x.Name == "Admin");
+        var setupPermissionIds = await uow.Context.Permissions
+            .Where(x => x.Module == "Setup")
+            .Select(x => x.Id)
+            .ToListAsync();
+        var setupGrants = await uow.Context.RolePermissions
+            .Where(x => x.RoleId == admin.Id && setupPermissionIds.Contains(x.PermissionId))
+            .ToListAsync();
+        uow.Context.RolePermissions.RemoveRange(setupGrants);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        var organizationSetupView = await uow.Context.Permissions.FirstAsync(x => x.Code == "Organization Setup:View");
+        (await uow.Context.RolePermissions
+            .AnyAsync(x => x.RoleId == admin.Id && x.PermissionId == organizationSetupView.Id))
+            .Should().BeTrue();
+    }
+
+    [Fact]
     public async Task EnsureSeededAsync_MemberGetsNoPermissions()
     {
         var sut = CreateSut(out var uow);

@@ -223,7 +223,19 @@ public class PermissionCatalogSeederService
     private const string AdminRole = "Admin";
     private const string MemberRole = "Member";
     private const string EmployeeRole = "Employee";
-    private static readonly string[] AdminGrantedCodes = ["Tenant Members:Manage", "Tenant Roles:Manage"];
+    // "Tenant Administration" (member/role management) plus every Setup row (Organization/
+    // Workforce/Time Shift/Deductions & Income/Leave/Statutory/Biometric), View/Create/Edit/
+    // Delete each -- Admin has always had de facto full access to Setup (nothing checked
+    // permissions there before this), so this keeps that true now that something does.
+    private static readonly string[] AdminGrantedCodes =
+    [
+        "Tenant Members:Manage", "Tenant Roles:Manage",
+        .. new[]
+        {
+            "Organization Setup", "Workforce Setup", "Time Shift Setup",
+            "Deductions & Income Setup", "Leave Setup", "Statutory Tables", "Biometric Setup",
+        }.SelectMany(feature => new[] { "View", "Create", "Edit", "Delete" }.Select(action => $"{feature}:{action}")),
+    ];
     // The frontend's "My Portal" menu is gated on this permission (see hrms-ui-onepunch's
     // navigation.const.ts) -- Employee is the role whose entire purpose is the self-service
     // portal, so it's granted by default rather than left for a tenant to assign manually.
@@ -256,6 +268,11 @@ public class PermissionCatalogSeederService
         }
 
         if (await GrantMissingCodesToRoleAsync(EmployeeRole, EmployeeGrantedCodes, token))
+        {
+            await Context.SaveChangesAsync(token);
+        }
+
+        if (await GrantMissingCodesToRoleAsync(AdminRole, AdminGrantedCodes, token))
         {
             await Context.SaveChangesAsync(token);
         }
