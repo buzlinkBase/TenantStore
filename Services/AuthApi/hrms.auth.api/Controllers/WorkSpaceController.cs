@@ -52,6 +52,7 @@ public class LoginResponseComposer
             Name = response.Name,
             Roles = response.Roles,
             Email = response.Email,
+            Permissions = response.Permissions,
         };
     }
 
