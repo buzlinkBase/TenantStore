@@ -213,6 +213,11 @@ public class PermissionCatalogSeederService
         ("Applications", "Loan/Deduction", ["View", "Create", "Edit", "Approve", "Delete"]),
         ("Applications", "Other Income", ["View", "Create", "Edit", "Approve", "Delete"]),
         ("Applications", "Salary Adjustment", ["View", "Create", "Edit", "Approve", "Delete"]),
+        // Setup screen for the configurable multi-level approval engine (Leave/Overtime/Official
+        // Business/Pass Slip/Loan-Deduction route through whatever's configured here; unconfigured
+        // types keep today's single-step behavior). View/Edit only -- no Create/Delete/Approve,
+        // matching the other Setup-shaped config screens (e.g. Company Policy).
+        ("Applications", "Approval Workflows", ["View", "Edit"]),
 
         ("Reports", "Government Statutory Reports", ["View", "Export"]),
         // Edit: RetirementController.Adjust and UniformAllowanceController.Adjust/Release are
@@ -283,6 +288,7 @@ public class PermissionCatalogSeederService
             "Leave", "Overtime", "Official Business", "Undertime", "Pass Slip",
             "Loan/Deduction", "Other Income", "Salary Adjustment",
         }.SelectMany(feature => new[] { "View", "Create", "Edit", "Approve", "Delete" }.Select(action => $"{feature}:{action}")),
+        .. new[] { "View", "Edit" }.Select(action => $"Approval Workflows:{action}"),
         .. new[]
         {
             "Government Statutory Reports", "BIR Reports",
