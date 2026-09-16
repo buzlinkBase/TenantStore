@@ -169,7 +169,9 @@ public class PermissionCatalogSeederService
         ("Setup", "Biometric Setup", ["View", "Create", "Edit", "Delete"]),
 
         ("Timekeeping", "Upload Attendance", ["View", "Edit", "Export"]),
-        ("Timekeeping", "Attendance Manual Entry", ["View", "Edit", "Export"]),
+        // Delete: AttendanceController.Delete(id)/Delete(batch) remove manually-entered
+        // attendance records/batches -- had no catalog action to gate with before this.
+        ("Timekeeping", "Attendance Manual Entry", ["View", "Edit", "Export", "Delete"]),
         ("Timekeeping", "Raw Logs", ["View", "Edit", "Export"]),
         ("Timekeeping", "Unregistered Employees", ["View", "Edit", "Export"]),
         ("Timekeeping", "Incomplete Punches", ["View", "Edit", "Export"]),
@@ -177,10 +179,15 @@ public class PermissionCatalogSeederService
         // ManageOwnTeam: granted instead of (not alongside) Create to a Supervisor-style
         // Custom Role -- lets them schedule Work Rotation only for their own direct reports
         // (Employee.ManagerId in hrms-api), not the whole company. Create remains "assign for
-        // anyone," unscoped, same as before.
-        ("Change Schedule", "Work Rotation", ["View", "Create", "Approve", "ManageOwnTeam"]),
-        ("Change Schedule", "Change Rest Day", ["View", "Create", "Approve"]),
-        ("Change Schedule", "Change Holiday", ["View", "Create", "Approve"]),
+        // anyone," unscoped, same as before. Approve: WorkSchedulePlansController has no
+        // approve endpoint today (only Get/PostBatch/Delete/DeleteBatch are live) -- this stays
+        // a dormant/reserved action until that feature actually exists, same as Change
+        // Holiday's Approve below.
+        ("Change Schedule", "Work Rotation", ["View", "Create", "Approve", "ManageOwnTeam", "Delete"]),
+        ("Change Schedule", "Change Rest Day", ["View", "Create", "Approve", "Delete"]),
+        // Approve: ChangeHolidaysController has no approve/decline action at all -- dormant,
+        // same reasoning as Work Rotation's Approve above.
+        ("Change Schedule", "Change Holiday", ["View", "Create", "Approve", "Delete"]),
 
         ("DTR Generation", "DTR Master", ["View", "Manage"]),
         ("DTR Generation", "DTR Summary", ["View", "Manage"]),
@@ -191,17 +198,32 @@ public class PermissionCatalogSeederService
         ("Payroll Generation", "Last Pay Run", ["View", "Create", "Approve", "Export"]),
         ("Payroll Generation", "Year-End Adjustment Run", ["View", "Create", "Approve", "Export"]),
 
-        ("Applications", "Leave", ["View", "Approve", "Delete"]),
-        ("Applications", "Overtime", ["View", "Approve", "Delete"]),
-        ("Applications", "Official Business", ["View", "Approve", "Delete"]),
-        ("Applications", "Pass Slip", ["View", "Approve", "Delete"]),
-        ("Applications", "Loan/Deduction", ["View", "Approve", "Delete"]),
-        ("Applications", "Other Income", ["View", "Approve", "Delete"]),
-        ("Applications", "Salary Adjustment", ["View", "Approve", "Delete"]),
+        // Create/Edit added: each row's admin controller (e.g. LeaveApplicationsController) has
+        // its own admin-side Post/Put actions, entirely separate from employee self-service
+        // (which lives on MeController under me/...) -- these had nothing to gate with before.
+        // Approve stays dormant for Other Income and Salary Adjustment specifically -- neither
+        // entity has an approval workflow in the backend at all.
+        ("Applications", "Leave", ["View", "Create", "Edit", "Approve", "Delete"]),
+        ("Applications", "Overtime", ["View", "Create", "Edit", "Approve", "Delete"]),
+        ("Applications", "Official Business", ["View", "Create", "Edit", "Approve", "Delete"]),
+        // New row -- UnderTimeApplicationsController is a full sibling of Overtime (identical
+        // shape) that was simply never added to the catalog.
+        ("Applications", "Undertime", ["View", "Create", "Edit", "Approve", "Delete"]),
+        ("Applications", "Pass Slip", ["View", "Create", "Edit", "Approve", "Delete"]),
+        ("Applications", "Loan/Deduction", ["View", "Create", "Edit", "Approve", "Delete"]),
+        ("Applications", "Other Income", ["View", "Create", "Edit", "Approve", "Delete"]),
+        ("Applications", "Salary Adjustment", ["View", "Create", "Edit", "Approve", "Delete"]),
 
         ("Reports", "Government Statutory Reports", ["View", "Export"]),
-        ("Reports", "Payroll Reports", ["View", "Export"]),
+        // Edit: RetirementController.Adjust and UniformAllowanceController.Adjust/Release are
+        // real mutations embedded in the Retirement/Uniform Allowance Ledger report screens --
+        // had no Create/Edit action anywhere in Reports to gate them with before.
+        ("Reports", "Payroll Reports", ["View", "Export", "Edit"]),
         ("Reports", "BIR Reports", ["View", "Export"]),
+        // New row -- Tardiness/Rostering (DailyRecordsController.TardinessReport/RosterReport)
+        // don't fit any of the 3 rows above by subject matter (not statutory, not payroll-cycle,
+        // not BIR); no Export variant exists for either today.
+        ("Reports", "Attendance Reports", ["View"]),
 
         ("Security", "Users", ["View", "Create", "Edit", "Delete", "Manage"]),
         ("Security", "Roles", ["View", "Create", "Edit", "Delete", "Manage"]),
@@ -223,10 +245,13 @@ public class PermissionCatalogSeederService
     private const string AdminRole = "Admin";
     private const string MemberRole = "Member";
     private const string EmployeeRole = "Employee";
-    // "Tenant Administration" (member/role management) plus every Setup row (Organization/
-    // Workforce/Time Shift/Deductions & Income/Leave/Statutory/Biometric), View/Create/Edit/
-    // Delete each -- Admin has always had de facto full access to Setup (nothing checked
-    // permissions there before this), so this keeps that true now that something does.
+    // "Tenant Administration" (member/role management) plus every module below -- Admin has
+    // always had de facto full access everywhere (nothing checked permissions before each
+    // module's own enforcement pass), so each addition here keeps that true now that something
+    // does. Every module groups features by identical action set into one SelectMany -- rows
+    // whose action set differs from their siblings (e.g. Attendance Manual Entry's extra
+    // Delete, Work Rotation's extra ManageOwnTeam, Payroll Reports' extra Edit) are granted
+    // individually instead of forced into a group they don't quite match.
     private static readonly string[] AdminGrantedCodes =
     [
         "Tenant Members:Manage", "Tenant Roles:Manage",
@@ -235,6 +260,35 @@ public class PermissionCatalogSeederService
             "Organization Setup", "Workforce Setup", "Time Shift Setup",
             "Deductions & Income Setup", "Leave Setup", "Statutory Tables", "Biometric Setup",
         }.SelectMany(feature => new[] { "View", "Create", "Edit", "Delete" }.Select(action => $"{feature}:{action}")),
+        .. new[]
+        {
+            "Payroll Run", "Payroll Summary", "13th Month Run", "Last Pay Run", "Year-End Adjustment Run",
+        }.SelectMany(feature => new[] { "View", "Create", "Approve", "Export" }.Select(action => $"{feature}:{action}")),
+        .. new[]
+        {
+            "Upload Attendance", "Raw Logs", "Unregistered Employees", "Incomplete Punches",
+        }.SelectMany(feature => new[] { "View", "Edit", "Export" }.Select(action => $"{feature}:{action}")),
+        .. new[] { "View", "Edit", "Export", "Delete" }.Select(action => $"Attendance Manual Entry:{action}"),
+        .. new[] { "View", "Create", "Approve", "ManageOwnTeam", "Delete" }.Select(action => $"Work Rotation:{action}"),
+        .. new[]
+        {
+            "Change Rest Day", "Change Holiday",
+        }.SelectMany(feature => new[] { "View", "Create", "Approve", "Delete" }.Select(action => $"{feature}:{action}")),
+        .. new[]
+        {
+            "DTR Master", "DTR Summary",
+        }.SelectMany(feature => new[] { "View", "Manage" }.Select(action => $"{feature}:{action}")),
+        .. new[]
+        {
+            "Leave", "Overtime", "Official Business", "Undertime", "Pass Slip",
+            "Loan/Deduction", "Other Income", "Salary Adjustment",
+        }.SelectMany(feature => new[] { "View", "Create", "Edit", "Approve", "Delete" }.Select(action => $"{feature}:{action}")),
+        .. new[]
+        {
+            "Government Statutory Reports", "BIR Reports",
+        }.SelectMany(feature => new[] { "View", "Export" }.Select(action => $"{feature}:{action}")),
+        .. new[] { "View", "Export", "Edit" }.Select(action => $"Payroll Reports:{action}"),
+        "Attendance Reports:View",
     ];
     // The frontend's "My Portal" menu is gated on this permission (see hrms-ui-onepunch's
     // navigation.const.ts) -- Employee is the role whose entire purpose is the self-service

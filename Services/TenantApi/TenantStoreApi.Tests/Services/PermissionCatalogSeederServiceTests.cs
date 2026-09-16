@@ -132,6 +132,311 @@ public class PermissionCatalogSeederServiceTests
     }
 
     [Fact]
+    public async Task EnsureSeededAsync_AdminGetsFullPayrollGenerationAccess()
+    {
+        var sut = CreateSut(out var uow);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        var admin = await uow.Context.Roles.FirstAsync(x => x.Name == "Admin");
+        var grantedCodes = await uow.Context.RolePermissions
+            .Where(x => x.RoleId == admin.Id)
+            .Select(x => x.Permission.Code)
+            .ToListAsync();
+
+        foreach (var feature in new[]
+        {
+            "Payroll Run", "Payroll Summary", "13th Month Run", "Last Pay Run", "Year-End Adjustment Run",
+        })
+        {
+            foreach (var action in new[] { "View", "Create", "Approve", "Export" })
+            {
+                grantedCodes.Should().Contain($"{feature}:{action}");
+            }
+        }
+    }
+
+    [Fact]
+    public async Task EnsureSeededAsync_BackfillsPayrollGenerationAccess_ForAnAlreadySeededTenantsAdminRole()
+    {
+        // Simulates a tenant seeded before AdminGrantedCodes covered Payroll Generation -- its
+        // Admin role predates that grant, same as every tenant seeded under the old code.
+        var sut = CreateSut(out var uow);
+        await sut.EnsureSeededAsync(CancellationToken.None);
+        var admin = await uow.Context.Roles.FirstAsync(x => x.Name == "Admin");
+        var payrollPermissionIds = await uow.Context.Permissions
+            .Where(x => x.Module == "Payroll Generation")
+            .Select(x => x.Id)
+            .ToListAsync();
+        var payrollGrants = await uow.Context.RolePermissions
+            .Where(x => x.RoleId == admin.Id && payrollPermissionIds.Contains(x.PermissionId))
+            .ToListAsync();
+        uow.Context.RolePermissions.RemoveRange(payrollGrants);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        var payrollRunApprove = await uow.Context.Permissions.FirstAsync(x => x.Code == "Payroll Run:Approve");
+        (await uow.Context.RolePermissions
+            .AnyAsync(x => x.RoleId == admin.Id && x.PermissionId == payrollRunApprove.Id))
+            .Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task EnsureSeededAsync_AdminGetsFullTimekeepingAccess()
+    {
+        var sut = CreateSut(out var uow);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        var admin = await uow.Context.Roles.FirstAsync(x => x.Name == "Admin");
+        var grantedCodes = await uow.Context.RolePermissions
+            .Where(x => x.RoleId == admin.Id)
+            .Select(x => x.Permission.Code)
+            .ToListAsync();
+
+        foreach (var feature in new[]
+        {
+            "Upload Attendance", "Raw Logs", "Unregistered Employees", "Incomplete Punches",
+        })
+        {
+            foreach (var action in new[] { "View", "Edit", "Export" })
+            {
+                grantedCodes.Should().Contain($"{feature}:{action}");
+            }
+        }
+
+        foreach (var action in new[] { "View", "Edit", "Export", "Delete" })
+        {
+            grantedCodes.Should().Contain($"Attendance Manual Entry:{action}");
+        }
+    }
+
+    [Fact]
+    public async Task EnsureSeededAsync_BackfillsTimekeepingAccess_ForAnAlreadySeededTenantsAdminRole()
+    {
+        var sut = CreateSut(out var uow);
+        await sut.EnsureSeededAsync(CancellationToken.None);
+        var admin = await uow.Context.Roles.FirstAsync(x => x.Name == "Admin");
+        var timekeepingPermissionIds = await uow.Context.Permissions
+            .Where(x => x.Module == "Timekeeping")
+            .Select(x => x.Id)
+            .ToListAsync();
+        var timekeepingGrants = await uow.Context.RolePermissions
+            .Where(x => x.RoleId == admin.Id && timekeepingPermissionIds.Contains(x.PermissionId))
+            .ToListAsync();
+        uow.Context.RolePermissions.RemoveRange(timekeepingGrants);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        var attendanceManualEntryDelete = await uow.Context.Permissions.FirstAsync(x => x.Code == "Attendance Manual Entry:Delete");
+        (await uow.Context.RolePermissions
+            .AnyAsync(x => x.RoleId == admin.Id && x.PermissionId == attendanceManualEntryDelete.Id))
+            .Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task EnsureSeededAsync_AdminGetsFullChangeScheduleAccess()
+    {
+        var sut = CreateSut(out var uow);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        var admin = await uow.Context.Roles.FirstAsync(x => x.Name == "Admin");
+        var grantedCodes = await uow.Context.RolePermissions
+            .Where(x => x.RoleId == admin.Id)
+            .Select(x => x.Permission.Code)
+            .ToListAsync();
+
+        foreach (var action in new[] { "View", "Create", "Approve", "ManageOwnTeam", "Delete" })
+        {
+            grantedCodes.Should().Contain($"Work Rotation:{action}");
+        }
+
+        foreach (var feature in new[] { "Change Rest Day", "Change Holiday" })
+        {
+            foreach (var action in new[] { "View", "Create", "Approve", "Delete" })
+            {
+                grantedCodes.Should().Contain($"{feature}:{action}");
+            }
+        }
+    }
+
+    [Fact]
+    public async Task EnsureSeededAsync_BackfillsChangeScheduleAccess_ForAnAlreadySeededTenantsAdminRole()
+    {
+        var sut = CreateSut(out var uow);
+        await sut.EnsureSeededAsync(CancellationToken.None);
+        var admin = await uow.Context.Roles.FirstAsync(x => x.Name == "Admin");
+        var changeSchedulePermissionIds = await uow.Context.Permissions
+            .Where(x => x.Module == "Change Schedule")
+            .Select(x => x.Id)
+            .ToListAsync();
+        var changeScheduleGrants = await uow.Context.RolePermissions
+            .Where(x => x.RoleId == admin.Id && changeSchedulePermissionIds.Contains(x.PermissionId))
+            .ToListAsync();
+        uow.Context.RolePermissions.RemoveRange(changeScheduleGrants);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        var workRotationDelete = await uow.Context.Permissions.FirstAsync(x => x.Code == "Work Rotation:Delete");
+        (await uow.Context.RolePermissions
+            .AnyAsync(x => x.RoleId == admin.Id && x.PermissionId == workRotationDelete.Id))
+            .Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task EnsureSeededAsync_AdminGetsFullDtrGenerationAccess()
+    {
+        var sut = CreateSut(out var uow);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        var admin = await uow.Context.Roles.FirstAsync(x => x.Name == "Admin");
+        var grantedCodes = await uow.Context.RolePermissions
+            .Where(x => x.RoleId == admin.Id)
+            .Select(x => x.Permission.Code)
+            .ToListAsync();
+
+        foreach (var feature in new[] { "DTR Master", "DTR Summary" })
+        {
+            foreach (var action in new[] { "View", "Manage" })
+            {
+                grantedCodes.Should().Contain($"{feature}:{action}");
+            }
+        }
+    }
+
+    [Fact]
+    public async Task EnsureSeededAsync_BackfillsDtrGenerationAccess_ForAnAlreadySeededTenantsAdminRole()
+    {
+        var sut = CreateSut(out var uow);
+        await sut.EnsureSeededAsync(CancellationToken.None);
+        var admin = await uow.Context.Roles.FirstAsync(x => x.Name == "Admin");
+        var dtrPermissionIds = await uow.Context.Permissions
+            .Where(x => x.Module == "DTR Generation")
+            .Select(x => x.Id)
+            .ToListAsync();
+        var dtrGrants = await uow.Context.RolePermissions
+            .Where(x => x.RoleId == admin.Id && dtrPermissionIds.Contains(x.PermissionId))
+            .ToListAsync();
+        uow.Context.RolePermissions.RemoveRange(dtrGrants);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        var dtrMasterManage = await uow.Context.Permissions.FirstAsync(x => x.Code == "DTR Master:Manage");
+        (await uow.Context.RolePermissions
+            .AnyAsync(x => x.RoleId == admin.Id && x.PermissionId == dtrMasterManage.Id))
+            .Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task EnsureSeededAsync_AdminGetsFullApplicationsAccess()
+    {
+        var sut = CreateSut(out var uow);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        var admin = await uow.Context.Roles.FirstAsync(x => x.Name == "Admin");
+        var grantedCodes = await uow.Context.RolePermissions
+            .Where(x => x.RoleId == admin.Id)
+            .Select(x => x.Permission.Code)
+            .ToListAsync();
+
+        foreach (var feature in new[]
+        {
+            "Leave", "Overtime", "Official Business", "Undertime", "Pass Slip",
+            "Loan/Deduction", "Other Income", "Salary Adjustment",
+        })
+        {
+            foreach (var action in new[] { "View", "Create", "Edit", "Approve", "Delete" })
+            {
+                grantedCodes.Should().Contain($"{feature}:{action}");
+            }
+        }
+    }
+
+    [Fact]
+    public async Task EnsureSeededAsync_BackfillsApplicationsAccess_ForAnAlreadySeededTenantsAdminRole()
+    {
+        var sut = CreateSut(out var uow);
+        await sut.EnsureSeededAsync(CancellationToken.None);
+        var admin = await uow.Context.Roles.FirstAsync(x => x.Name == "Admin");
+        var applicationsPermissionIds = await uow.Context.Permissions
+            .Where(x => x.Module == "Applications")
+            .Select(x => x.Id)
+            .ToListAsync();
+        var applicationsGrants = await uow.Context.RolePermissions
+            .Where(x => x.RoleId == admin.Id && applicationsPermissionIds.Contains(x.PermissionId))
+            .ToListAsync();
+        uow.Context.RolePermissions.RemoveRange(applicationsGrants);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        var undertimeCreate = await uow.Context.Permissions.FirstAsync(x => x.Code == "Undertime:Create");
+        (await uow.Context.RolePermissions
+            .AnyAsync(x => x.RoleId == admin.Id && x.PermissionId == undertimeCreate.Id))
+            .Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task EnsureSeededAsync_AdminGetsFullReportsAccess()
+    {
+        var sut = CreateSut(out var uow);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        var admin = await uow.Context.Roles.FirstAsync(x => x.Name == "Admin");
+        var grantedCodes = await uow.Context.RolePermissions
+            .Where(x => x.RoleId == admin.Id)
+            .Select(x => x.Permission.Code)
+            .ToListAsync();
+
+        foreach (var feature in new[] { "Government Statutory Reports", "BIR Reports" })
+        {
+            foreach (var action in new[] { "View", "Export" })
+            {
+                grantedCodes.Should().Contain($"{feature}:{action}");
+            }
+        }
+
+        foreach (var action in new[] { "View", "Export", "Edit" })
+        {
+            grantedCodes.Should().Contain($"Payroll Reports:{action}");
+        }
+
+        grantedCodes.Should().Contain("Attendance Reports:View");
+    }
+
+    [Fact]
+    public async Task EnsureSeededAsync_BackfillsReportsAccess_ForAnAlreadySeededTenantsAdminRole()
+    {
+        var sut = CreateSut(out var uow);
+        await sut.EnsureSeededAsync(CancellationToken.None);
+        var admin = await uow.Context.Roles.FirstAsync(x => x.Name == "Admin");
+        var reportsPermissionIds = await uow.Context.Permissions
+            .Where(x => x.Module == "Reports")
+            .Select(x => x.Id)
+            .ToListAsync();
+        var reportsGrants = await uow.Context.RolePermissions
+            .Where(x => x.RoleId == admin.Id && reportsPermissionIds.Contains(x.PermissionId))
+            .ToListAsync();
+        uow.Context.RolePermissions.RemoveRange(reportsGrants);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        var attendanceReportsView = await uow.Context.Permissions.FirstAsync(x => x.Code == "Attendance Reports:View");
+        (await uow.Context.RolePermissions
+            .AnyAsync(x => x.RoleId == admin.Id && x.PermissionId == attendanceReportsView.Id))
+            .Should().BeTrue();
+    }
+
+    [Fact]
     public async Task EnsureSeededAsync_MemberGetsNoPermissions()
     {
         var sut = CreateSut(out var uow);
