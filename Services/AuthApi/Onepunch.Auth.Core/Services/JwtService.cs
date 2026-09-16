@@ -141,8 +141,16 @@ public class JwtService
 
         try
         {
-            // Clear the inbound map so .NET stops changing standard JWT claim names into XML URIs
-            JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
+            // Instance-scoped, not the static JwtSecurityTokenHandler.DefaultInboundClaimTypeMap
+            // -- InboundClaimTypeMap is a per-instance copy of the default map made when
+            // tokenHandler was constructed above, so clearing it here only affects this one
+            // ValidateToken call. Clearing the *static* default (as this used to do) mutated
+            // process-wide, permanent state the first time this method ever ran, silently
+            // changing how every other request's JWT Bearer authentication on this same process
+            // mapped claims from then on -- see AddJwtBearer's MapInboundClaims = false
+            // (ServiceRegistrations.cs), which now achieves the same "read raw claim names"
+            // result deliberately and consistently instead.
+            tokenHandler.InboundClaimTypeMap.Clear();
 
             var principal = tokenHandler.ValidateToken(token, validationParameters, out SecurityToken validatedToken);
             var jwtToken = validatedToken as JwtSecurityToken;

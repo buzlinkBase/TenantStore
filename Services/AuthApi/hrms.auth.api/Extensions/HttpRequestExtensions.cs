@@ -26,7 +26,10 @@ public static class HttpRequestExtensions
     public static Guid? GetUserId(this ClaimsPrincipal user)
     {
         if (user == null) return null;
-        var value = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        // "sub" is the raw claim type JwtService.CreateTokenAsync mints -- AddJwtBearer's
+        // MapInboundClaims = false (ServiceRegistrations.cs) keeps it from being rewritten to
+        // ClaimTypes.NameIdentifier, so this reads the same short name end to end.
+        var value = user.FindFirstValue("sub");
         return Guid.TryParse(value, out Guid guid) ? guid : null;
     }
 

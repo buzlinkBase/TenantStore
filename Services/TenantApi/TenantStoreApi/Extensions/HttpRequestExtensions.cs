@@ -24,7 +24,10 @@ public static class HttpRequestExtensions
     }
     private static Guid? GetUserId(this ClaimsPrincipal user)
     {
-        var value = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        // "sub" is the raw claim type AuthApi's JwtService.CreateTokenAsync mints -- AddJwtBearer's
+        // MapInboundClaims = false (RegisterSelfServices.cs) keeps it from being rewritten to
+        // ClaimTypes.NameIdentifier.
+        var value = user.FindFirstValue("sub");
         return Guid.TryParse(value, out Guid guid) ? guid : null;
     }
     public static Guid GetRequiredUserId(this ClaimsPrincipal user)

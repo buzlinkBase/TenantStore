@@ -57,7 +57,7 @@ public class InvitationServiceTests
     }
 
     private static ClaimsPrincipal SomeClaimsPrincipal() =>
-        new(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString())], "test"));
+        new(new ClaimsIdentity([new Claim("sub", Guid.NewGuid().ToString())], "test"));
 
     // ── Accept ────────────────────────────────────────────────────────────────────────────
 

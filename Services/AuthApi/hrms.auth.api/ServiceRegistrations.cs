@@ -153,6 +153,14 @@ public static class ServiceRegistrations
         })
         .AddJwtBearer(options =>
         {
+            // Every JWT this platform issues (JwtService.CreateTokenAsync) uses the short
+            // registered claim names ("sub", "email") -- without this, ASP.NET Core's default
+            // inbound map silently rewrites them to long ClaimTypes.* URIs when building the
+            // ClaimsPrincipal, which is why "sub" reads worked (helpers expected the rewritten
+            // form) while "email" reads silently returned null (helpers expected the raw form).
+            // Disabling the rewrite makes every claim read the same short name it was minted
+            // with, everywhere. See HttpRequestExtensions.GetUserId/GetRequiredUserId below.
+            options.MapInboundClaims = false;
             options.TokenValidationParameters = new TokenValidationParameters
             {
                 ValidateIssuer = true,

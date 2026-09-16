@@ -1,7 +1,11 @@
 using FluentAssertions;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using Onepunch.Auth.Core.Services;
 using Onepunch.Common.Lib;
+using System.IdentityModel.Tokens.Jwt;
 using Xunit;
 
 namespace Onepunch.Auth.Api.Tests.Services;
@@ -115,5 +119,73 @@ public class JwtServiceTests
 
         sut.TokenExpiry.Should().Be(10);
         sut.RefreshExpiry.Should().Be(60);
+    }
+
+    // Regression guard for the JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear() bug --
+    // ReadTokenToObject used to mutate that STATIC, process-wide map instead of the local
+    // tokenHandler instance's own copy, silently and permanently disabling claim-type remapping
+    // for every other request this process ever handled, the first time this method ran. It now
+    // clears tokenHandler.InboundClaimTypeMap (a per-instance copy) instead, so the static
+    // default must come out of this call completely untouched.
+    [Fact]
+    public async Task ReadTokenToObject_DoesNotMutateTheStaticDefaultInboundClaimTypeMap()
+    {
+        var originalDefaultMapCount = JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Count;
+        var tempKeyPath = Path.Combine(Path.GetTempPath(), $"jwt-test-signing-{Guid.NewGuid()}.key");
+        var tempDpDirectory = Path.Combine(Path.GetTempPath(), $"jwt-test-dp-{Guid.NewGuid()}");
+
+        try
+        {
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["JwtSettings:SigningKeyPath"] = tempKeyPath,
+                })
+                .Build();
+            var dataProtectionProvider = DataProtectionProvider.Create(new DirectoryInfo(tempDpDirectory));
+            var rsaKeyProvider = new RsaKeyProvider(configuration, dataProtectionProvider);
+
+            var sut = new JwtService(null!, null!, Options.Create(new JwtSettings
+            {
+                Issuer = "onepunch-auth",
+                Audience = ["onepunch-clients"],
+                TokenExpiry = 10,
+            }), rsaKeyProvider, null!);
+
+            // Minted directly (not via CreateTokenAsync/JwtService) so this test only needs a
+            // real signing key -- CreateTokenAsync's tenant-lookup branches need a real
+            // TenantRequestService/MembershipCacheService, which is unrelated to what this test
+            // is actually verifying (the InboundClaimTypeMap fix). Same claim shape either way:
+            // JwtRegisteredClaimNames.Sub/.Email plus the custom tenantId/tenantName claims.
+            var userId = Guid.NewGuid();
+            var email = "jane@example.com";
+            var unsignedToken = new JwtSecurityToken(
+                issuer: "onepunch-auth",
+                audience: "onepunch-clients",
+                claims:
+                [
+                    new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                    new(JwtRegisteredClaimNames.Sub, userId.ToString()),
+                    new(JwtRegisteredClaimNames.Email, email),
+                    new("tenantId", Guid.Empty.ToString()),
+                    new("tenantName", ""),
+                ],
+                expires: DateTime.UtcNow.AddMinutes(10),
+                signingCredentials: new SigningCredentials(rsaKeyProvider.SigningKey, SecurityAlgorithms.RsaSha256));
+            var accessToken = new JwtSecurityTokenHandler().WriteToken(unsignedToken);
+
+            var result = sut.ReadTokenToObject(accessToken);
+
+            result.Should().NotBeNull();
+            result!.IsValid.Should().BeTrue(result.ErrorMessage);
+            result.UserId.Should().Be(userId);
+            result.Email.Should().Be(email);
+            JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Should().HaveCount(originalDefaultMapCount);
+        }
+        finally
+        {
+            if (File.Exists(tempKeyPath)) File.Delete(tempKeyPath);
+            if (Directory.Exists(tempDpDirectory)) Directory.Delete(tempDpDirectory, recursive: true);
+        }
     }
 }

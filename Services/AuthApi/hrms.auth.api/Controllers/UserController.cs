@@ -128,7 +128,7 @@ namespace OnePunch.Auth.Api.Controllers
         {
             if (payload.Password != payload.ConfirmPassword)
                 return BadRequest(new ErrorResponse { Errors = ["Passwords do not match."] });
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = User.FindFirstValue("sub");
             var result = await _service.PromoteToPasswordAccount(userId, payload.Password, token);
             if (!result.Succeeded)
                 return BadRequest(new ErrorResponse { Errors = result.Errors.Select(e => e.Description) });

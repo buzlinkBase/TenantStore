@@ -60,7 +60,7 @@ public class HttpRequestExtensionsTests
     {
         var userId = Guid.NewGuid();
         var principal = new ClaimsPrincipal(new ClaimsIdentity(
-            [new Claim(ClaimTypes.NameIdentifier, userId.ToString())]));
+            [new Claim("sub", userId.ToString())]));
 
         principal.GetUserId().Should().Be(userId);
     }
@@ -88,7 +88,7 @@ public class HttpRequestExtensionsTests
     {
         var userId = Guid.NewGuid();
         var principal = new ClaimsPrincipal(new ClaimsIdentity(
-            [new Claim(ClaimTypes.NameIdentifier, userId.ToString())]));
+            [new Claim("sub", userId.ToString())]));
 
         principal.GetRequiredUserId().Should().Be(userId);
     }

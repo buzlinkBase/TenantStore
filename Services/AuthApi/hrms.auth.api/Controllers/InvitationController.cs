@@ -103,7 +103,7 @@ public class InvitationController : ControllerBase
     [ProducesResponseType(typeof(List<Invitation>), StatusCodes.Status200OK)]
     public async Task<IActionResult> MyInvitations(CancellationToken token)
     {
-        var email = User.FindFirstValue(ClaimTypes.Email);
+        var email = User.FindFirstValue("email");
         if (string.IsNullOrEmpty(email)) return Unauthorized();
         var invitations = await _service.GetPendingByEmailAsync(email, token);
         return Ok(invitations);
