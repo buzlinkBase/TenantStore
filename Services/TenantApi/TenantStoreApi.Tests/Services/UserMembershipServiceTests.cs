@@ -1,5 +1,6 @@
 using FluentAssertions;
 using MassTransit;
+using Microsoft.EntityFrameworkCore;
 using Moq;
 using TenantStoreApi.Core;
 using TenantStoreApi.Core.Services;
@@ -139,5 +140,60 @@ public class UserMembershipServiceTests
         var membership = await sut.GetMemberAsync(userId, tenantId, CancellationToken.None);
 
         membership!.HasPermission("Tenant Members:Manage").Should().BeFalse();
+    }
+
+    // Confirms the actual new capability this pass adds: a Custom Role holding only the new
+    // "Security" module's Users:* codes (catalog codes are "{Feature}:{Action}" -- the module
+    // name isn't part of the code) -- not "Tenant Members:Manage", not Owner/Admin -- can now
+    // perform these actions too, without touching anyone's existing access via the old code.
+    [Fact]
+    public async Task ReplaceRolesAsync_Succeeds_WhenCallerHasOnlySecurityUsersEditPermission()
+    {
+        var (sut, uow) = await CreateSutAsync();
+        var tenantId = Guid.NewGuid();
+        var roleService = new RoleService(uow);
+        var customRole = await roleService.AddCustomRoleAsync(tenantId, "User Manager", "", CancellationToken.None);
+        var permission = await uow.Context.Permissions.SingleAsync(p => p.Code == "Users:Edit");
+        await roleService.SetPermissionsAsync(customRole.Id, [permission.Id], CancellationToken.None);
+        // CommitChangesAsync only performs a real commit on its first call per uow instance (see
+        // AddMemberAsync's own comment above) -- CreateSutAsync's own seeding already consumed
+        // it, so SetPermissionsAsync's commit above is a no-op; force the flush explicitly.
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        var callerId = Guid.NewGuid();
+        var targetId = Guid.NewGuid();
+        await AddMemberAsync(sut, tenantId, callerId, "Member", "User Manager");
+        await AddMemberAsync(sut, tenantId, targetId, "Member");
+
+        await sut.ReplaceRolesAsync(callerId, targetId, tenantId, ["Admin"], CancellationToken.None);
+
+        var target = await sut.GetMemberAsync(targetId, tenantId, CancellationToken.None);
+        target!.HasRole("Admin").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_Succeeds_WhenCallerHasOnlySecurityUsersDeletePermission()
+    {
+        var (sut, uow) = await CreateSutAsync();
+        var tenantId = Guid.NewGuid();
+        var roleService = new RoleService(uow);
+        var customRole = await roleService.AddCustomRoleAsync(tenantId, "User Remover", "", CancellationToken.None);
+        var permission = await uow.Context.Permissions.SingleAsync(p => p.Code == "Users:Delete");
+        await roleService.SetPermissionsAsync(customRole.Id, [permission.Id], CancellationToken.None);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        var callerId = Guid.NewGuid();
+        var targetId = Guid.NewGuid();
+        await AddMemberAsync(sut, tenantId, callerId, "Member", "User Remover");
+        await AddMemberAsync(sut, tenantId, targetId, "Member");
+
+        await sut.RemoveMemberAsync(callerId, targetId, tenantId, CancellationToken.None);
+        // RemoveMemberAsync itself only marks the entity removed (soft-delete interceptor) --
+        // flushing is the caller's job in production (end of the HTTP request's unit of work);
+        // do it explicitly here to observe the effect.
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        var target = await sut.GetMemberAsync(targetId, tenantId, CancellationToken.None);
+        target.Should().BeNull();
     }
 }

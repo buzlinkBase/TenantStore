@@ -53,6 +53,9 @@ public static class UserMembershipExtensions
     public static bool HasPermission(this UserMembership membership, string code) =>
         membership.Roles.Any(r => r.RoleRef?.RolePermissions.Any(rp => rp.Permission.Code == code) == true);
 
+    public static bool HasAnyPermission(this UserMembership membership, params string[] codes) =>
+        codes.Any(membership.HasPermission);
+
     public static List<string> EffectivePermissionCodes(this UserMembership membership) =>
         membership.Roles
             .Where(r => r.RoleRef != null)

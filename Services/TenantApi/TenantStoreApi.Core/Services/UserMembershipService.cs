@@ -121,7 +121,7 @@ public class UserMembershipService : BaseService<UserMembership>
             throw new ArgumentException($"Invalid role '{newRole}'.");
 
         var caller = await GetMemberAsync(callerUserId, tenantId, token);
-        if (caller == null || !caller.HasPermission("Tenant Members:Manage"))
+        if (caller == null || !caller.HasAnyPermission("Tenant Members:Manage", "Users:Edit"))
             throw new UnauthorizedAccessException("Only Owner or Admin can change roles.");
 
         var target = await GetMemberAsync(targetUserId, tenantId, token);
@@ -141,7 +141,7 @@ public class UserMembershipService : BaseService<UserMembership>
     public async Task RemoveRoleAsync(Guid callerUserId, Guid targetUserId, Guid tenantId, string role, CancellationToken token = default)
     {
         var caller = await GetMemberAsync(callerUserId, tenantId, token);
-        if (caller == null || !caller.HasPermission("Tenant Members:Manage"))
+        if (caller == null || !caller.HasAnyPermission("Tenant Members:Manage", "Users:Edit"))
             throw new UnauthorizedAccessException("Only Owner or Admin can change roles.");
         if (callerUserId == targetUserId)
             throw new InvalidOperationException("Cannot change your own role.");
@@ -176,7 +176,7 @@ public class UserMembershipService : BaseService<UserMembership>
         }
 
         var caller = await GetMemberAsync(callerUserId, tenantId, token);
-        if (caller == null || !caller.HasPermission("Tenant Members:Manage"))
+        if (caller == null || !caller.HasAnyPermission("Tenant Members:Manage", "Users:Edit"))
             throw new UnauthorizedAccessException("Only Owner or Admin can change roles.");
 
         if (callerUserId == targetUserId)
@@ -214,7 +214,7 @@ public class UserMembershipService : BaseService<UserMembership>
     public async Task UpdateStatusAsync(Guid callerUserId, Guid targetUserId, Guid tenantId, string newStatus, CancellationToken token = default)
     {
         var caller = await GetMemberAsync(callerUserId, tenantId, token);
-        if (caller == null || !caller.HasPermission("Tenant Members:Manage"))
+        if (caller == null || !caller.HasAnyPermission("Tenant Members:Manage", "Users:Edit"))
             throw new UnauthorizedAccessException("Only Owner or Admin can change member status.");
         if (callerUserId == targetUserId)
             throw new InvalidOperationException("Cannot change your own status.");
@@ -251,7 +251,7 @@ public class UserMembershipService : BaseService<UserMembership>
     public async Task RemoveMemberAsync(Guid callerUserId, Guid targetUserId, Guid tenantId, CancellationToken token = default)
     {
         var caller = await GetMemberAsync(callerUserId, tenantId, token);
-        if (caller == null || !caller.HasPermission("Tenant Members:Manage"))
+        if (caller == null || !caller.HasAnyPermission("Tenant Members:Manage", "Users:Delete"))
             throw new UnauthorizedAccessException("Only Owner or Admin can remove members.");
         if (callerUserId == targetUserId)
             throw new InvalidOperationException("Cannot remove yourself. Use leave-tenant instead.");

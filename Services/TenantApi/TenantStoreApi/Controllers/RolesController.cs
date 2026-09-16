@@ -21,13 +21,18 @@ public class RolesController : ControllerBase
         _tenantProvider = tenantProvider;
     }
 
-    // Managing Custom Roles requires Tenant Roles:Manage in the current tenant -- checked here
-    // rather than inside RoleService to avoid a circular dependency (UserMembershipService
-    // already depends on RoleService to resolve role names).
-    private async Task<bool> CallerCanManageRolesAsync(Guid tenantId, CancellationToken token)
+    // Managing Custom Roles requires Tenant Roles:Manage in the current tenant (the existing,
+    // coarse check every Admin already holds) -- checked here rather than inside RoleService to
+    // avoid a circular dependency (UserMembershipService already depends on RoleService to
+    // resolve role names). additionalCode is the finer-grained Roles:{Action} code (from the
+    // catalog's "Security" module -- codes are just "{Feature}:{Action}", the module name isn't
+    // part of the code itself) for this specific action, any-of with the existing check -- lets
+    // a tenant grant just this one action to a Custom Role without needing the old blanket
+    // Manage permission.
+    private async Task<bool> CallerCanManageRolesAsync(Guid tenantId, string additionalCode, CancellationToken token)
     {
         var caller = await _membershipService.GetMemberAsync(User.GetRequiredUserId(), tenantId, token);
-        return caller != null && caller.HasPermission("Tenant Roles:Manage");
+        return caller != null && caller.HasAnyPermission("Tenant Roles:Manage", additionalCode);
     }
 
     [HttpGet]
@@ -52,7 +57,7 @@ public class RolesController : ControllerBase
     {
         var tenantId = _tenantProvider.TenantId;
         if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
-        if (!await CallerCanManageRolesAsync(tenantId, token)) return Forbid();
+        if (!await CallerCanManageRolesAsync(tenantId, "Roles:Create", token)) return Forbid();
 
         var role = await _service.AddCustomRoleAsync(tenantId, payload.Name, payload.Description, token);
         return Ok(role);
@@ -63,7 +68,7 @@ public class RolesController : ControllerBase
     {
         var tenantId = _tenantProvider.TenantId;
         if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
-        if (!await CallerCanManageRolesAsync(tenantId, token)) return Forbid();
+        if (!await CallerCanManageRolesAsync(tenantId, "Roles:Edit", token)) return Forbid();
 
         try
         {
@@ -79,7 +84,7 @@ public class RolesController : ControllerBase
     {
         var tenantId = _tenantProvider.TenantId;
         if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
-        if (!await CallerCanManageRolesAsync(tenantId, token)) return Forbid();
+        if (!await CallerCanManageRolesAsync(tenantId, "Roles:Delete", token)) return Forbid();
 
         try
         {
@@ -95,7 +100,7 @@ public class RolesController : ControllerBase
     {
         var tenantId = _tenantProvider.TenantId;
         if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
-        if (!await CallerCanManageRolesAsync(tenantId, token)) return Forbid();
+        if (!await CallerCanManageRolesAsync(tenantId, "Roles:Manage", token)) return Forbid();
 
         try
         {
