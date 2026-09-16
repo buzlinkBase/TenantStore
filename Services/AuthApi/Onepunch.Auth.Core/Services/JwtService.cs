@@ -89,6 +89,11 @@ public class JwtService
             if (currentTenant != null)
             {
                 claims.AddRange(currentTenant.Roles.Select(role => new Claim(ClaimTypes.Role, role)));
+                // Same reasoning as Roles above -- lets hrms-api (and other downstream services)
+                // check granular permission codes (e.g. "Work Rotation:ManageOwnTeam") without a
+                // separate lookup. currentTenant.Permissions was already being resolved here for
+                // Roles' sake and simply never embedded until now.
+                claims.AddRange(currentTenant.Permissions.Select(code => new Claim("permission", code)));
             }
         }
         var creds = new SigningCredentials(_rsaKeyProvider.SigningKey, SecurityAlgorithms.RsaSha256);

@@ -174,7 +174,11 @@ public class PermissionCatalogSeederService
         ("Timekeeping", "Unregistered Employees", ["View", "Edit", "Export"]),
         ("Timekeeping", "Incomplete Punches", ["View", "Edit", "Export"]),
 
-        ("Change Schedule", "Work Rotation", ["View", "Create", "Approve"]),
+        // ManageOwnTeam: granted instead of (not alongside) Create to a Supervisor-style
+        // Custom Role -- lets them schedule Work Rotation only for their own direct reports
+        // (Employee.ManagerId in hrms-api), not the whole company. Create remains "assign for
+        // anyone," unscoped, same as before.
+        ("Change Schedule", "Work Rotation", ["View", "Create", "Approve", "ManageOwnTeam"]),
         ("Change Schedule", "Change Rest Day", ["View", "Create", "Approve"]),
         ("Change Schedule", "Change Holiday", ["View", "Create", "Approve"]),
 
@@ -220,6 +224,10 @@ public class PermissionCatalogSeederService
     private const string MemberRole = "Member";
     private const string EmployeeRole = "Employee";
     private static readonly string[] AdminGrantedCodes = ["Tenant Members:Manage", "Tenant Roles:Manage"];
+    // The frontend's "My Portal" menu is gated on this permission (see hrms-ui-onepunch's
+    // navigation.const.ts) -- Employee is the role whose entire purpose is the self-service
+    // portal, so it's granted by default rather than left for a tenant to assign manually.
+    private static readonly string[] EmployeeGrantedCodes = ["Employee Self-Service Portal:View"];
 
     private TenantContext Context => _uow.Context;
 
@@ -242,14 +250,27 @@ public class PermissionCatalogSeederService
             await Context.SaveChangesAsync(token);
         }
 
+        if (await GrantNewPermissionsToOwnerAsync(token))
+        {
+            await Context.SaveChangesAsync(token);
+        }
+
+        if (await GrantMissingCodesToRoleAsync(EmployeeRole, EmployeeGrantedCodes, token))
+        {
+            await Context.SaveChangesAsync(token);
+        }
+
         await BackfillMembershipRolesAsync(token);
 
         await _uow.CommitChangesAsync("", token);
     }
 
+    // Incremental, not "only if the table is empty" -- Catalog gets new entries over time (e.g.
+    // Work Rotation's ManageOwnTeam action), and every existing tenant's Permissions table needs
+    // to pick those up on the next startup, not just a brand-new tenant's first-ever seed.
     private async Task<bool> SeedPermissionsAsync(CancellationToken token)
     {
-        if (await Context.Permissions.AnyAsync(token)) return false;
+        var existingCodes = await Context.Permissions.Select(x => x.Code).ToHashSetAsync(token);
 
         var permissions = Catalog
             .SelectMany(row => row.Actions.Select(action => new Permission
@@ -261,9 +282,70 @@ public class PermissionCatalogSeederService
                 Code = $"{row.Feature}:{action}",
                 Description = $"{action} access to {row.Feature}",
             }))
+            .Where(p => !existingCodes.Contains(p.Code))
             .ToList();
 
+        if (permissions.Count == 0) return false;
+
         await Context.Permissions.AddRangeAsync(permissions, token);
+        return true;
+    }
+
+    // Mirrors SeedPermissionsAsync's incrementality: SeedSystemRolesAsync only ever runs once
+    // (gated on "no system role exists yet"), so a permission added to the catalog after a
+    // tenant's roles already exist would otherwise never reach Owner -- silently breaking its
+    // "Full access to everything" description. Runs every startup; a no-op once Owner is
+    // caught up (including right after SeedSystemRolesAsync itself just granted everything).
+    private async Task<bool> GrantNewPermissionsToOwnerAsync(CancellationToken token)
+    {
+        var owner = await Context.Roles.FirstOrDefaultAsync(x => x.IsSystemRole && x.Name == OwnerRole, token);
+        if (owner == null) return false;
+
+        var grantedIds = await Context.RolePermissions
+            .Where(x => x.RoleId == owner.Id)
+            .Select(x => x.PermissionId)
+            .ToHashSetAsync(token);
+
+        var missingIds = await Context.Permissions
+            .Where(p => !grantedIds.Contains(p.Id))
+            .Select(p => p.Id)
+            .ToListAsync(token);
+
+        if (missingIds.Count == 0) return false;
+
+        var newGrants = missingIds.Select(id => new RolePermission { Id = Guid.CreateVersion7(), RoleId = owner.Id, PermissionId = id });
+        await Context.RolePermissions.AddRangeAsync(newGrants, token);
+        return true;
+    }
+
+    // Same reasoning as GrantNewPermissionsToOwnerAsync, for Employee's own fixed grant list
+    // (EmployeeGrantedCodes) instead of "everything" -- an existing tenant's Employee role must
+    // pick up Employee Self-Service Portal:View even though SeedSystemRolesAsync (which grants it
+    // to brand-new tenants) never runs again for them.
+    private async Task<bool> GrantMissingCodesToRoleAsync(string roleName, string[] codes, CancellationToken token)
+    {
+        var role = await Context.Roles.FirstOrDefaultAsync(x => x.IsSystemRole && x.Name == roleName, token);
+        if (role == null) return false;
+
+        var byCode = await Context.Permissions
+            .Where(p => codes.Contains(p.Code))
+            .ToDictionaryAsync(p => p.Code, token);
+
+        var grantedIds = await Context.RolePermissions
+            .Where(x => x.RoleId == role.Id)
+            .Select(x => x.PermissionId)
+            .ToHashSetAsync(token);
+
+        var toGrant = codes
+            .Where(byCode.ContainsKey)
+            .Select(code => byCode[code].Id)
+            .Where(id => !grantedIds.Contains(id))
+            .ToList();
+
+        if (toGrant.Count == 0) return false;
+
+        var newGrants = toGrant.Select(id => new RolePermission { Id = Guid.CreateVersion7(), RoleId = role.Id, PermissionId = id });
+        await Context.RolePermissions.AddRangeAsync(newGrants, token);
         return true;
     }
 
@@ -285,6 +367,9 @@ public class PermissionCatalogSeederService
         rolePermissions.AddRange(AdminGrantedCodes
             .Where(byCode.ContainsKey)
             .Select(code => new RolePermission { Id = Guid.CreateVersion7(), RoleId = admin.Id, PermissionId = byCode[code].Id }));
+        rolePermissions.AddRange(EmployeeGrantedCodes
+            .Where(byCode.ContainsKey)
+            .Select(code => new RolePermission { Id = Guid.CreateVersion7(), RoleId = employee.Id, PermissionId = byCode[code].Id }));
         await Context.RolePermissions.AddRangeAsync(rolePermissions, token);
 
         return true;

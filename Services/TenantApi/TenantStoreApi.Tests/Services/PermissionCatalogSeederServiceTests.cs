@@ -45,6 +45,40 @@ public class PermissionCatalogSeederServiceTests
     }
 
     [Fact]
+    public async Task EnsureSeededAsync_EmployeeGetsThePortalViewPermission()
+    {
+        var sut = CreateSut(out var uow);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        var employee = await uow.Context.Roles.FirstAsync(x => x.Name == "Employee");
+        var portalPermission = await uow.Context.Permissions.FirstAsync(x => x.Code == "Employee Self-Service Portal:View");
+        (await uow.Context.RolePermissions
+            .AnyAsync(x => x.RoleId == employee.Id && x.PermissionId == portalPermission.Id))
+            .Should().BeTrue("the frontend gates My Portal on this permission, and Employee is the role the portal exists for");
+    }
+
+    [Fact]
+    public async Task EnsureSeededAsync_BackfillsThePortalPermission_ForAnAlreadySeededTenantsEmployeeRole()
+    {
+        // Simulates a tenant seeded before EmployeeGrantedCodes existed -- its Employee role has
+        // no permissions at all yet, same as every tenant seeded under the old code.
+        var sut = CreateSut(out var uow);
+        await sut.EnsureSeededAsync(CancellationToken.None);
+        var employee = await uow.Context.Roles.FirstAsync(x => x.Name == "Employee");
+        var existingGrant = await uow.Context.RolePermissions.FirstAsync(x => x.RoleId == employee.Id);
+        uow.Context.RolePermissions.Remove(existingGrant);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        var portalPermission = await uow.Context.Permissions.FirstAsync(x => x.Code == "Employee Self-Service Portal:View");
+        (await uow.Context.RolePermissions
+            .AnyAsync(x => x.RoleId == employee.Id && x.PermissionId == portalPermission.Id))
+            .Should().BeTrue();
+    }
+
+    [Fact]
     public async Task EnsureSeededAsync_MemberGetsNoPermissions()
     {
         var sut = CreateSut(out var uow);
@@ -86,6 +120,36 @@ public class PermissionCatalogSeederServiceTests
         var owner = await uow.Context.Roles.FirstAsync(x => x.Name == "Owner");
         var reloaded = await uow.Context.MembershipRoles.FirstAsync(x => x.Id == membershipRole.Id);
         reloaded.RoleId.Should().Be(owner.Id);
+    }
+
+    [Fact]
+    public async Task EnsureSeededAsync_BackfillsAPermissionMissingFromAnAlreadySeededTenant()
+    {
+        // Simulates a permission added to the catalog after this tenant's Permissions table was
+        // already seeded (e.g. Work Rotation's ManageOwnTeam) -- removing one existing permission
+        // (and its Owner grant) after the initial seed stands in for "the catalog gained an entry
+        // this tenant doesn't have yet."
+        var sut = CreateSut(out var uow);
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        var totalPermissions = await uow.Context.Permissions.CountAsync();
+        var removed = await uow.Context.Permissions.FirstAsync();
+        var owner = await uow.Context.Roles.FirstAsync(x => x.Name == "Owner");
+        var ownerGrantForRemoved = await uow.Context.RolePermissions
+            .FirstAsync(x => x.RoleId == owner.Id && x.PermissionId == removed.Id);
+        uow.Context.RolePermissions.Remove(ownerGrantForRemoved);
+        uow.Context.Permissions.Remove(removed);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        (await uow.Context.Permissions.CountAsync()).Should().Be(totalPermissions);
+        var restored = await uow.Context.Permissions.FirstAsync(x => x.Code == removed.Code);
+        var ownerGrantCount = await uow.Context.RolePermissions.CountAsync(x => x.RoleId == owner.Id);
+        ownerGrantCount.Should().Be(totalPermissions, "the restored permission must be re-granted to Owner too");
+        (await uow.Context.RolePermissions
+            .AnyAsync(x => x.RoleId == owner.Id && x.PermissionId == restored.Id))
+            .Should().BeTrue();
     }
 
     [Fact]
