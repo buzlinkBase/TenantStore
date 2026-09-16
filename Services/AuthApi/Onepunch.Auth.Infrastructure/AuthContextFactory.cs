@@ -13,10 +13,11 @@ public class AuthContextFactory : IDesignTimeDbContextFactory<AuthContext>
             .SetBasePath(basePath)
             .AddJsonFile("appsettings.json")
             //.AddJsonFile("appsettings.Development.json")
-            .Build();
+            .Build(); 
         var connectionString = configuration.GetConnectionString("AuthConnection");
         var optionsBuilder = new DbContextOptionsBuilder<AuthContext>();
-        optionsBuilder.UseMySql(connectionString, new MySqlServerVersion(new Version(9, 2, 0)));
+        var serverVersion = ServerVersion.AutoDetect(connectionString);//new MySqlServerVersion(new Version(9, 2, 0)
+        optionsBuilder.UseMySql(connectionString, serverVersion);
         return new AuthContext(optionsBuilder.Options, null);
     }
 }

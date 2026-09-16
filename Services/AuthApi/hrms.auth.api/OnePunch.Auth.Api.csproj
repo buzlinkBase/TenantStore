@@ -15,6 +15,7 @@
 		<PackageReference Include="Google.Protobuf" />
 		<PackageReference Include="Grpc.Net.Client" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" />
 		<PackageReference Include="StackExchange.Redis" />
 		<PackageReference Include="Grpc.Tools" />
 		<PackageReference Include="FluentValidation" />

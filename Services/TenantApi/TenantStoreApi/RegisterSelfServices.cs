@@ -51,8 +51,9 @@ public static class ServiceRegistrations
 
         builder.Services.AddDbContext<TenantContext>(options =>
         {
-            var defaultConn = builder.Configuration.GetConnectionString("TenantConnection");
-            options.UseMySql(defaultConn, new MySqlServerVersion(new Version(9, 2, 0)));
+            var connectionString = builder.Configuration.GetConnectionString("TenantConnection");
+            var sqlVersion = ServerVersion.AutoDetect(connectionString);//new MySqlServerVersion(new Version(9, 2, 0))
+            options.UseMySql(connectionString, sqlVersion);
             options.AddInterceptors(new SoftDeleteInterceptor());
             options.UseLazyLoadingProxies(true);
         });
@@ -67,11 +68,11 @@ public static class ServiceRegistrations
                     "http://159.89.194.81:8001",
                     "http://159.89.194.81:8002",
                     "http://159.89.194.81:8003",
-                    "http://198.211.112.14:8082",
-                    "http://198.211.112.14:8083",
-                    "http://198.211.112.14:8084",
-                    "http://198.211.112.14:8085",
-                    "http://198.211.112.14:8086",
+                    "http://165.232.166.164:8082",
+                    "http://165.232.166.164:8083",
+                    "http://165.232.166.164:8084",
+                    "http://165.232.166.164:8085",
+                    "http://165.232.166.164:8086",
                     "https://hris.onepunch.site",
                     "https://hris-dev.onepunch.site",
                     "https://hris-staging.onepunch.site",

@@ -18,6 +18,7 @@
 		<PackageReference Include="MassTransit" />
 		<PackageReference Include="MassTransit.EntityFrameworkCore" />
 		<PackageReference Include="MassTransit.RabbitMQ" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" />
 		<PackageReference Include="Microsoft.IdentityModel.Tokens" />
 		<PackageReference Include="RabbitMQ.Client" />
 		<PackageReference Include="Resend" />
