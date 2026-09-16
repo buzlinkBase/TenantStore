@@ -92,6 +92,39 @@ public class EmailNotificationService
         await _resend.EmailSendAsync(message, token);
     }
 
+    public async Task SendApprovalNotification(ApprovalNotificationRequested payload, CancellationToken token)
+    {
+        var recipientName = string.IsNullOrWhiteSpace(payload.RecipientName) ? payload.RecipientEmail : payload.RecipientName;
+        var subject = payload.StatusLabel == "Pending Your Approval"
+            ? $"{payload.ApplicationTypeLabel} application awaiting your approval"
+            : $"Your {payload.ApplicationTypeLabel} application was {payload.StatusLabel.ToLowerInvariant()}";
+
+        var message = new EmailMessage
+        {
+            From = "Onepunch <approvals@onepunch.site>",
+            To = payload.RecipientEmail,
+            Subject = subject,
+            Template = new EmailMessageTemplate
+            {
+                TemplateId = "approval-notification",
+                Variables = new Dictionary<string, object>
+                {
+                    { "appName", "Onepunch" },
+                    { "recipientName", recipientName },
+                    { "applicationType", payload.ApplicationTypeLabel },
+                    { "applicantName", payload.ApplicantName },
+                    { "statusLabel", payload.StatusLabel },
+                    { "stepNumber", payload.StepNumber?.ToString() ?? "" },
+                    { "totalSteps", payload.TotalSteps?.ToString() ?? "" },
+                    { "note", payload.Note ?? "" },
+                    { "CurrentYear", DateTime.UtcNow.Year.ToString() }
+                }
+            }
+        };
+
+        await _resend.EmailSendAsync(message, token);
+    }
+
     public async Task SendResetPassword(ResetPasswordEmail payload, CancellationToken token)
     {
         var formattedExpiry = payload.Expiry.ToString("yyyy-MM-dd HH:mm 'UTC'");

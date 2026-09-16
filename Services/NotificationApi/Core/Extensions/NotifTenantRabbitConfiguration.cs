@@ -25,6 +25,7 @@ public static class NotifTenantRabbitConfiguration
             x.AddConsumer<ResetPasswordWorker, ResetPasswordConsumerDefinition>();
             x.AddConsumer<UserInvitationWorker, UserInvitationConsumerDefinition>();
             x.AddConsumer<SignInGoogleWorker, SignInGoogleConsumerDefinition>();
+            x.AddConsumer<ApprovalNotificationWorker, ApprovalNotificationConsumerDefinition>();
 
             x.UsingRabbitMq((context, cfg) =>
             {
@@ -79,6 +80,14 @@ public class SignInGoogleConsumerDefinition : ConsumerDefinition<SignInGoogleWor
     public SignInGoogleConsumerDefinition()
     {
         EndpointName = "notification-user-signingoogle-que";
+    }
+}
+
+public class ApprovalNotificationConsumerDefinition : ConsumerDefinition<ApprovalNotificationWorker>
+{
+    public ApprovalNotificationConsumerDefinition()
+    {
+        EndpointName = "notification-approval-que";
     }
 }
 
