@@ -1,6 +1,7 @@
 using Onepunch.Auth.Domain.Entities;
 using Onepunch.Common.Lib.Cache;
 using OnePunch.Auth.Core;
+using Serilog;
 
 namespace Onepunch.Auth.Core.Services;
 
@@ -45,6 +46,7 @@ public class MembershipCacheService
         var lookup = await _membershipGrpcClient.GetActiveMembershipsAsync(userId, deadlineMilliseconds);
         if (!lookup.Success)
         {
+            Log.Logger.Warning("MembershipCacheService: gRPC lookup failed for user {UserId} -- falling back to DefaultTenant* fields", userId);
             return await FallbackToDefaultTenantAsync(userId);
         }
 
@@ -56,6 +58,8 @@ public class MembershipCacheService
             Permissions = m.Permissions,
             State = m.Status
         }).ToList();
+
+        Log.Logger.Information("MembershipCacheService: resolved {Count} membership(s) for user {UserId} via gRPC", tenants.Count, userId);
 
         var withState = await ApplyRequestStateAsync(tenants, userId);
         await _cacheService.SetAsync(CacheKey(userId), withState, CacheDuration);
@@ -71,7 +75,14 @@ public class MembershipCacheService
     {
         var user = await _uow.Context.Users.FindAsync(userId);
         if (user?.DefaultTenantId == null || user.DefaultTenantId == Guid.Empty)
+        {
+            Log.Logger.Warning("MembershipCacheService fallback: user {UserId} has no DefaultTenantId either -- returning zero memberships", userId);
             return new List<UsersTenant>();
+        }
+
+        Log.Logger.Warning(
+            "MembershipCacheService fallback: user {UserId} tenant {TenantId} roles=[{Roles}] -- permissions are EMPTY in this fallback path",
+            userId, user.DefaultTenantId, string.Join(",", user.DefaultTenantRoles ?? []));
 
         return new List<UsersTenant>
         {

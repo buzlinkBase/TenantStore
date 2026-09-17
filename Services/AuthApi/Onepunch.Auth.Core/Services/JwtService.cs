@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Domain.Entities;
+using Serilog;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -107,6 +108,14 @@ public class JwtService
                 claims.AddRange(currentTenant.Permissions.Select(code => new Claim("permission", code)));
             }
         }
+
+        // The single most direct signal for "why does this user's token look incomplete" --
+        // shows exactly what ended up embedded, searchable by UserId in Seq, regardless of which
+        // branch above produced it (overrideRoles, a successful membership lookup, or nothing).
+        Log.Logger.Information(
+            "JwtService.CreateTokenAsync: user {UserId} tenant {TenantId} embedded {RoleCount} role claim(s), {PermissionCount} permission claim(s)",
+            user.Id, tenantId, claims.Count(c => c.Type == ClaimTypes.Role), claims.Count(c => c.Type == "permission"));
+
         var creds = new SigningCredentials(_rsaKeyProvider.SigningKey, SecurityAlgorithms.RsaSha256);
         var token = new JwtSecurityToken(
             issuer: _jwtSettings.Issuer,

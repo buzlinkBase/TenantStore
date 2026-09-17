@@ -1,5 +1,6 @@
 using Grpc.Core;
 using Serilog;
+using System.Diagnostics;
 
 namespace Onepunch.Auth.Core.Services;
 
@@ -35,12 +36,17 @@ public class MembershipGrpcClient
 
     public async Task<MembershipLookupResult> GetActiveMembershipsAsync(Guid userId, int deadlineMilliseconds = 200)
     {
+        var sw = Stopwatch.StartNew();
         try
         {
             var request = new UserMembershipsRequest { UserId = userId.ToString() };
             var response = await _client.GetActiveMembershipsAsync(
                 request,
                 deadline: DateTime.UtcNow.AddMilliseconds(deadlineMilliseconds));
+
+            Log.Logger.Information(
+                "MembershipGrpcClient.GetActiveMembershipsAsync succeeded for user {UserId} in {ElapsedMs}ms -- {Count} membership(s)",
+                userId, sw.ElapsedMilliseconds, response.Memberships.Count);
 
             return new MembershipLookupResult
             {
@@ -58,19 +64,34 @@ public class MembershipGrpcClient
         }
         catch (RpcException ex)
         {
-            Log.Logger.Warning(ex, "MembershipGrpcClient.GetActiveMembershipsAsync failed for user {UserId}: {Status}", userId, ex.StatusCode);
+            Log.Logger.Warning(ex, "MembershipGrpcClient.GetActiveMembershipsAsync failed for user {UserId} after {ElapsedMs}ms: {Status}", userId, sw.ElapsedMilliseconds, ex.StatusCode);
+            return new MembershipLookupResult { Success = false };
+        }
+        // RpcException only covers gRPC-status-level failures -- a connection refused, DNS
+        // failure, or TLS handshake error surfaces as a plain Exception instead, and without
+        // this would go completely unlogged while also risking propagating uncaught out of the
+        // whole login/token-mint call chain instead of degrading gracefully like the RpcException
+        // case above.
+        catch (Exception ex)
+        {
+            Log.Logger.Warning(ex, "MembershipGrpcClient.GetActiveMembershipsAsync failed for user {UserId} after {ElapsedMs}ms with a non-RPC exception", userId, sw.ElapsedMilliseconds);
             return new MembershipLookupResult { Success = false };
         }
     }
 
     public async Task<MembershipResolveResult> ResolveMembershipAsync(Guid userId, Guid tenantId, int deadlineMilliseconds = 200)
     {
+        var sw = Stopwatch.StartNew();
         try
         {
             var request = new MembershipRequest { UserId = userId.ToString(), TenantId = tenantId.ToString() };
             var response = await _client.ResolveMembershipAsync(
                 request,
                 deadline: DateTime.UtcNow.AddMilliseconds(deadlineMilliseconds));
+
+            Log.Logger.Information(
+                "MembershipGrpcClient.ResolveMembershipAsync succeeded for user {UserId}/tenant {TenantId} in {ElapsedMs}ms -- found={Found}",
+                userId, tenantId, sw.ElapsedMilliseconds, response.Found);
 
             return new MembershipResolveResult
             {
@@ -84,7 +105,12 @@ public class MembershipGrpcClient
         }
         catch (RpcException ex)
         {
-            Log.Logger.Warning(ex, "MembershipGrpcClient.ResolveMembershipAsync failed for user {UserId}/tenant {TenantId}: {Status}", userId, tenantId, ex.StatusCode);
+            Log.Logger.Warning(ex, "MembershipGrpcClient.ResolveMembershipAsync failed for user {UserId}/tenant {TenantId} after {ElapsedMs}ms: {Status}", userId, tenantId, sw.ElapsedMilliseconds, ex.StatusCode);
+            return new MembershipResolveResult { Success = false };
+        }
+        catch (Exception ex)
+        {
+            Log.Logger.Warning(ex, "MembershipGrpcClient.ResolveMembershipAsync failed for user {UserId}/tenant {TenantId} after {ElapsedMs}ms with a non-RPC exception", userId, tenantId, sw.ElapsedMilliseconds);
             return new MembershipResolveResult { Success = false };
         }
     }
