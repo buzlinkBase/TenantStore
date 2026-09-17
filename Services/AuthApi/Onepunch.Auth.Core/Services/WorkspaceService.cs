@@ -73,7 +73,7 @@ public class WorkspaceService : BaseService<User>
         //generate token
         await _publisher.Publish(createTenant, token);
 
-        var accessToken = await _jwtService.CreateTokenAsync(user, createTenant.TenantId.ToString(), createTenant.TenantName);
+        var accessToken = await _jwtService.CreateTokenAsync(user, createTenant.TenantId.ToString(), createTenant.TenantName, overrideRoles: ["Owner"]);
         var refreshTokenString = await _jwtService.GenerateRefreshToken();
         await Context.RefreshTokens.AddAsync(_userService.CreateRefreshToken(user, refreshTokenString), token);
         await CommitChangesAsync(token);
@@ -95,6 +95,12 @@ public class WorkspaceService : BaseService<User>
         // right after creating a workspace they in fact own -- e.g. tripping the frontend's
         // Employee-only route guard and bouncing them back to the portal instead of /dashboard.
         // Override to match the Owner entry just appended above.
+        //
+        // Permissions can't be resolved the same way -- there's no membership row yet to compute
+        // it from -- so it's left empty rather than guessed. This is safe because the frontend's
+        // authStorage.hasPermission/hasAnyPermission short-circuit to true for the Owner role
+        // regardless of what's in this array (see auth-storage.ts); the real permission list
+        // fills in normally on the next login/refresh once the async worker finishes.
         loginRequest.Roles = ["Owner"];
         loginRequest.Permissions = [];
 
@@ -111,7 +117,7 @@ public class WorkspaceService : BaseService<User>
     {
         _tenantProvider.SetTenantId(pending.TenantId);
 
-        var accessToken = await _jwtService.CreateTokenAsync(user, pending.TenantId.ToString(), pending.TenantName ?? "");
+        var accessToken = await _jwtService.CreateTokenAsync(user, pending.TenantId.ToString(), pending.TenantName ?? "", overrideRoles: ["Owner"]);
         var refreshTokenString = await _jwtService.GenerateRefreshToken();
         await Context.RefreshTokens.AddAsync(_userService.CreateRefreshToken(user, refreshTokenString), token);
         await CommitChangesAsync(token);

@@ -5,7 +5,9 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Onepunch.Auth.Core.Services;
 using Onepunch.Common.Lib;
+using OnePunch.Auth.Domain.Entities;
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using Xunit;
 
 namespace Onepunch.Auth.Api.Tests.Services;
@@ -181,6 +183,53 @@ public class JwtServiceTests
             result.UserId.Should().Be(userId);
             result.Email.Should().Be(email);
             JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Should().HaveCount(originalDefaultMapCount);
+        }
+        finally
+        {
+            if (File.Exists(tempKeyPath)) File.Delete(tempKeyPath);
+            if (Directory.Exists(tempDpDirectory)) Directory.Delete(tempDpDirectory, recursive: true);
+        }
+    }
+
+    // Regression guard for the brand-new-workspace bug: WorkspaceService.Create mints a token for
+    // a tenant whose UserMembership row doesn't exist yet (TenantCreationRequested is handled
+    // asynchronously), so the membership-cache lookup CreateTokenAsync normally does to embed a
+    // role claim finds nothing and the token ends up with no role claim at all -- silently
+    // failing every IsOwnerOrAdmin()-style backend check for that caller's first actions.
+    // overrideRoles lets a caller who already knows the role with certainty skip that lookup.
+    [Fact]
+    public async Task CreateTokenAsync_WithOverrideRoles_EmbedsRoleClaimWithoutMembershipLookup()
+    {
+        var tempKeyPath = Path.Combine(Path.GetTempPath(), $"jwt-test-signing-{Guid.NewGuid()}.key");
+        var tempDpDirectory = Path.Combine(Path.GetTempPath(), $"jwt-test-dp-{Guid.NewGuid()}");
+
+        try
+        {
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["JwtSettings:SigningKeyPath"] = tempKeyPath,
+                })
+                .Build();
+            var dataProtectionProvider = DataProtectionProvider.Create(new DirectoryInfo(tempDpDirectory));
+            var rsaKeyProvider = new RsaKeyProvider(configuration, dataProtectionProvider);
+
+            // tenantRequestService/membershipCacheService are never touched on this path: an
+            // empty tenantId skips the tenantState lookup, and a non-null overrideRoles skips
+            // the membership-cache lookup entirely -- exactly the scenario this fixes.
+            var sut = new JwtService(null!, null!, Options.Create(new JwtSettings
+            {
+                Issuer = "onepunch-auth",
+                Audience = ["onepunch-clients"],
+                TokenExpiry = 10,
+            }), rsaKeyProvider, null!);
+
+            var user = new User { Id = Guid.NewGuid(), Email = "owner@example.com" };
+
+            var accessToken = await sut.CreateTokenAsync(user, "", "", overrideRoles: ["Owner"]);
+
+            var jwt = new JwtSecurityTokenHandler().ReadJwtToken(accessToken);
+            jwt.Claims.Should().ContainSingle(c => c.Type == ClaimTypes.Role && c.Value == "Owner");
         }
         finally
         {

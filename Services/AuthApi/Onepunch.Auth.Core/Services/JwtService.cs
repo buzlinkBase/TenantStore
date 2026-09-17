@@ -53,7 +53,14 @@ public class JwtService
     }
     public async Task<string> CreateTokenAsync(User user) =>
         await CreateTokenAsync(user, user?.DefaultTenantId?.ToString() ?? "", user?.DefaultTenantName ?? "");
-    public async Task<string> CreateTokenAsync(User user, string tenantId, string tenantName)
+
+    // overrideRoles: for callers who already know the caller's role for this tenant with
+    // certainty -- e.g. WorkspaceService.Create, minting a token for the tenant it just
+    // requested creation of, whose UserMembership row doesn't exist yet (TenantCreationRequested
+    // is handled asynchronously). Without this, the membership-cache lookup below finds nothing
+    // and the token carries no role claim at all, so IsOwnerOrAdmin()-style backend checks
+    // reject the caller's very first actions until their next token refresh.
+    public async Task<string> CreateTokenAsync(User user, string tenantId, string tenantName, IEnumerable<string>? overrideRoles = null)
     {
         string tenantState = TenantCreationStatus.Initial.ToString();
         if (!string.IsNullOrWhiteSpace(tenantId))
@@ -82,7 +89,11 @@ public class JwtService
         // user.DefaultTenantRoles) if tenant-api/gRPC is unreachable, so this never blocks token
         // issuance; worst case the claim reflects stale/fallback roles, same as today's
         // LoginResponse.Roles behavior.
-        if (Guid.TryParse(tenantId, out var parsedTenantId))
+        if (overrideRoles != null)
+        {
+            claims.AddRange(overrideRoles.Select(role => new Claim(ClaimTypes.Role, role)));
+        }
+        else if (Guid.TryParse(tenantId, out var parsedTenantId))
         {
             var memberships = await _membershipCacheService.GetMembershipsAsync(user.Id);
             var currentTenant = memberships.FirstOrDefault(t => t.TenantId == parsedTenantId);
