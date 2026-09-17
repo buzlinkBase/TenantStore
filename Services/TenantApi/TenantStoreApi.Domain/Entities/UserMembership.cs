@@ -46,11 +46,22 @@ public static class UserMembershipExtensions
     public static List<string> RoleNames(this UserMembership membership) =>
         membership.Roles.Select(r => r.Role).ToList();
 
-    // The real, permission-based gate -- replaces string-based HasAnyRole(Owner, Admin) checks.
-    // Requires .Include(x => x.Roles).ThenInclude(x => x.RoleRef).ThenInclude(x => x.RolePermissions)
-    // .ThenInclude(x => x.Permission) to have been loaded; returns false (deny) if RoleRef wasn't
-    // loaded/backfilled yet rather than throwing, so a not-yet-backfilled row fails closed.
+    // The real, permission-based gate -- replaces string-based HasAnyRole(Owner, Admin) checks
+    // for every OTHER role. Requires .Include(x => x.Roles).ThenInclude(x => x.RoleRef)
+    // .ThenInclude(x => x.RolePermissions).ThenInclude(x => x.Permission) to have been loaded;
+    // returns false (deny) if RoleRef wasn't loaded/backfilled yet rather than throwing, so a
+    // not-yet-backfilled row fails closed.
+    //
+    // Owner/Admin keep an explicit HasAnyRole fallback here, not because the permission-based
+    // gate is wrong for them, but because it can't have an answer yet for a membership whose
+    // RolePermissions haven't been resolved -- e.g. the brief window right after workspace
+    // creation, before TenantCreationRequestWorker has finished. Both roles are guaranteed every
+    // permission in the catalog anyway (PermissionCatalogSeederService), so this is the same
+    // answer the permission lookup would eventually give, sooner -- and it's what every caller
+    // (UserMembershipService's "Only Owner or Admin can..." error messages, RolesController) was
+    // already assuming happened.
     public static bool HasPermission(this UserMembership membership, string code) =>
+        membership.HasAnyRole("Owner", "Admin") ||
         membership.Roles.Any(r => r.RoleRef?.RolePermissions.Any(rp => rp.Permission.Code == code) == true);
 
     public static bool HasAnyPermission(this UserMembership membership, params string[] codes) =>
