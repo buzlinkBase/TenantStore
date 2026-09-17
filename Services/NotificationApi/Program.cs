@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
 using OnePunch.Notification.Infrastructure;
+using Serilog.Events;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -14,6 +15,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 Log.Logger = new LoggerConfiguration()
    .ReadFrom.Configuration(builder.Configuration)
+   // MassTransit's routine bus/transport lifecycle chatter (endpoint configuration, bus start,
+   // message consumed) is Information-level and drowns out everything else in Seq -- baked in
+   // here rather than left to a per-environment Serilog:MinimumLevel:Override:MassTransit env
+   // var, so it's never accidentally missing in a new environment.
+   .MinimumLevel.Override("MassTransit", LogEventLevel.Warning)
    .CreateLogger();
 builder.Host.UseSerilog();
 

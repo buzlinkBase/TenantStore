@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Options;
 using Serilog;
+using Serilog.Events;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using TenantStoreApi;
 using TenantStoreApi.Core.Extensions;
@@ -44,6 +45,11 @@ internal class Program
 
         Log.Logger = new LoggerConfiguration()
         .ReadFrom.Configuration(builder.Configuration)
+        // MassTransit's routine bus/transport lifecycle chatter (endpoint configuration, bus
+        // start, message consumed) is Information-level and drowns out everything else in Seq --
+        // baked in here rather than left to a per-environment Serilog:MinimumLevel:Override:
+        // MassTransit env var, so it's never accidentally missing in a new environment.
+        .MinimumLevel.Override("MassTransit", LogEventLevel.Warning)
         .CreateLogger();
         builder.Host.UseSerilog();
 
