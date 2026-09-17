@@ -39,7 +39,7 @@ public static class ServiceRegistrations
         builder.Services.AddGrpc();
         builder.Services.AddGrpcClient<GetTenantService.GetTenantServiceClient>(options =>
         {
-            var tenantUrl = builder.Configuration["Domains:TenantUrl"]?.ToString() ?? "";
+            var tenantUrl = builder.Configuration["Domains:GrpcTenantUrl"]?.ToString() ?? "";
             options.Address = new Uri(tenantUrl);
         });
         builder.Services.AddDataProtection();

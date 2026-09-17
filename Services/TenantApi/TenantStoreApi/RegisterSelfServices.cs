@@ -19,12 +19,12 @@ public static class ServiceRegistrations
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddGrpcClient<CheckEmailService.CheckEmailServiceClient>(options =>
         {
-            var authUrl = builder.Configuration["AuthUrl"]?.ToString() ?? "";
+            var authUrl = builder.Configuration["Grpc_AuthUrl"]?.ToString() ?? "";
             options.Address = new Uri(authUrl);
         }).AddHeaderPropagation();
         builder.Services.AddGrpcClient<GetUserInfoService.GetUserInfoServiceClient>(options =>
         {
-            var authUrl = builder.Configuration["AuthUrl"]?.ToString() ?? "";
+            var authUrl = builder.Configuration["Grpc_AuthUrl"]?.ToString() ?? "";
             options.Address = new Uri(authUrl);
         }).AddHeaderPropagation();
         builder.Services.AddScoped<UserInfoService>();

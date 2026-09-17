@@ -9,6 +9,8 @@ services:
     restart: always
     ports:
       - "8083:8080" # Map to 8082 as requested
+    expose:
+      - "8089" # Dedicated h2c-only gRPC endpoint (Program.cs) -- internal network only, not published to host
     networks:
       - hrmsnet
     env_file:
@@ -27,6 +29,8 @@ services:
     restart: always
     ports:
       - "8084:8080"
+    expose:
+      - "8089" # Dedicated h2c-only gRPC endpoint (Program.cs) -- internal network only, not published to host
     networks:
       - hrmsnet
     env_file:
