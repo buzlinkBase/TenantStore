@@ -49,6 +49,13 @@ public static class ServiceRegistrations
         builder.Services.AddIdentity<User, Domain.Entities.Role>(options =>
         {
             options.User.RequireUniqueEmail = true;
+            // ASP.NET Core Identity's own ClaimsPrincipal reads (UserManager.GetUserAsync(User),
+            // SignInManager, etc.) default to ClaimTypes.NameIdentifier here -- a second, separate
+            // claim-type expectation from our own GetRequiredUserId() extension. MapInboundClaims =
+            // false below (AddJwtBearer) means the principal built from a JWT now carries "sub"
+            // directly instead of the remapped NameIdentifier URI, so Identity's own lookups need
+            // to be told to match, or UserManager.GetUserAsync(User) silently returns null.
+            options.ClaimsIdentity.UserIdClaimType = "sub";
         })
         .AddEntityFrameworkStores<AuthContext>()
         .AddDefaultTokenProviders();

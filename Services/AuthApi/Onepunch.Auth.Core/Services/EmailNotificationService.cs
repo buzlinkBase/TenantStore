@@ -37,20 +37,14 @@ public class EmailNotificationService
         var httpContext = _httpContextAccessor.HttpContext;
         if (httpContext != null)
         {
-            // The "/auth" path prefix is only meaningful behind the shared reverse proxy that
-            // routes /auth/* to this service; locally the API is hit directly with no prefix.
             var isLocal = httpContext.Request.Host.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase);
             baseUrl = isLocal
                 ? $"{httpContext.Request.Scheme}://{httpContext.Request.Host}"
                 : $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/auth";
         }
-
-        Log.Logger.Information("base: {0}", baseUrl);
-
-        var exp = DateTime.UtcNow.AddDays(1);
+        var exp = DateTime.UtcNow.AddDays(2);
         var tokenModel = await _emailTokenService.CreateModel(exp, account.Email);
         await _emailTokenService.StoreToken(tokenModel, ct);
-
         await _publisher.Publish(new SendAccountVerification
         {
             Email = account.Email,

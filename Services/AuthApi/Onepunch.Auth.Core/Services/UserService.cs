@@ -101,7 +101,6 @@ public class UserService : BaseService<User>
         if (!createResult.Succeeded)
         {
             var error = createResult.Errors.FirstOrDefault()?.Description ?? "Unable to create account.";
-            Log.Logger.Error("User creation failed: {Error}", error);
             return Fail("CREATE_FAILED", error);
         }
 

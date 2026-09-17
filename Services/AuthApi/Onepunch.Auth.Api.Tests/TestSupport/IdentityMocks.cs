@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
 using Moq;
 using OnePunch.Auth.Domain.Entities;
 
@@ -11,6 +12,18 @@ public static class IdentityMocks
     {
         var store = new Mock<IUserStore<User>>();
         return new Mock<UserManager<User>>(store.Object, null, null, null, null, null, null, null, null);
+    }
+
+    /// <summary>
+    /// Overload that wires a real IOptions&lt;IdentityOptions&gt; instead of null, so
+    /// UserManager's own (virtual, non-mocked-through) methods -- GetUserId/GetUserAsync --
+    /// exercise the actual ClaimsIdentityOptions.UserIdClaimType lookup instead of Identity's
+    /// built-in default.
+    /// </summary>
+    public static Mock<UserManager<User>> MockUserManager(IOptions<IdentityOptions> options)
+    {
+        var store = new Mock<IUserStore<User>>();
+        return new Mock<UserManager<User>>(store.Object, options, null, null, null, null, null, null, null);
     }
 
     public static Mock<RoleManager<Role>> MockRoleManager()

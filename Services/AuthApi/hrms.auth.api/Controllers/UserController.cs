@@ -37,16 +37,12 @@ namespace OnePunch.Auth.Api.Controllers
         [ProducesResponseType(typeof(CreateAccountResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> CreateAccount([FromBody] CreateAccount payload, CancellationToken token)
         {
-            Log.Logger.Information("options {0}", _options.ToString());
             var accountApiHost = _options.BaseUrl;
-            Log.Logger.Information(accountApiHost);
-
             if (string.IsNullOrEmpty(accountApiHost))
             {
                 return StatusCode(StatusCodes.Status500InternalServerError, "Api URL is not configured.");
             }
             var result = await _service.RegisterAccount(payload, accountApiHost, token);
-
             if (!result.Success)
             {
                 return BadRequest(new CreateAccountErrorResponse
@@ -55,7 +51,6 @@ namespace OnePunch.Auth.Api.Controllers
                     Message = result.Message
                 });
             }
-
             return Ok(new CreateAccountResponse
             {
                 Email = result.Email,
