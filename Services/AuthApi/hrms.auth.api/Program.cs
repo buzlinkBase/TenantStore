@@ -87,7 +87,6 @@ internal class Program
         builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
-        //builder.Services.AddSwaggerGen();
         builder.Services.AddSwaggerGen(options =>
         {
             options.SchemaFilter<EnumSchemaFilter>();
@@ -106,19 +105,33 @@ internal class Program
 
         var app = builder.Build();
         await app.SeedRolesAsync();
-        // 1. Configure and enable Forwarded Headers
+
+        // 1. Configure and enable Forwarded Headers with XForwardedPrefix included
         var forwardedOptions = new ForwardedHeadersOptions
         {
             ForwardedHeaders = ForwardedHeaders.XForwardedFor
                              | ForwardedHeaders.XForwardedProto
                              | ForwardedHeaders.XForwardedHost
+                             | ForwardedHeaders.XForwardedPrefix
         };
-        // CRITICAL: Clear these collections so .NET trusts Nginx running on localhost
+        // CRITICAL: Clear these collections so .NET trusts Nginx running on localhost/docker
         forwardedOptions.KnownNetworks.Clear();
         forwardedOptions.KnownProxies.Clear();
         app.UseForwardedHeaders(forwardedOptions);
+
+        // Ensure PathBase is explicitly assigned from header if provided by Nginx
+        app.Use(async (context, next) =>
+        {
+            if (context.Request.Headers.TryGetValue("X-Forwarded-Prefix", out var prefix))
+            {
+                context.Request.PathBase = prefix.ToString();
+            }
+            await next();
+        });
+
         app.UseExceptionHandler();
         app.UseStatusCodePages();
+
         var apiVersionProvider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
         app.UseSwagger();
         app.UseSwaggerUI(options =>
@@ -128,12 +141,13 @@ internal class Program
             options.EnablePersistAuthorization();
             foreach (var description in apiVersionProvider.ApiVersionDescriptions)
             {
-                options.SwaggerEndpoint($"./{description.GroupName}/swagger.json",
+                options.SwaggerEndpoint($"{description.GroupName}/swagger.json",
                                 $"AUTH API {description.ApiVersion}");
                 options.ConfigObject.PersistAuthorization = true;
             }
             options.RoutePrefix = "swagger";
         });
+
         app.UseSerilogRequestLogging();
         app.UseRouting();
         app.UseCors("AllowAll");
@@ -148,6 +162,7 @@ internal class Program
         app.MapGet("/.well-known/jwks.json", (RsaKeyProvider rsaKeyProvider) =>
             Results.Json(new { keys = new[] { rsaKeyProvider.GetPublicJsonWebKey() } }))
             .AllowAnonymous();
+
         app.Run();
     }
 }
