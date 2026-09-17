@@ -5,6 +5,7 @@ using Onepunch.Auth.Core;
 using Onepunch.Auth.Domain.DTOs;
 using Onepunch.Common.Lib;
 using OnePunch.Auth.Core.Services;
+using Serilog;
 using System.Security.Claims;
 
 namespace OnePunch.Auth.Api.Controllers
@@ -37,6 +38,7 @@ namespace OnePunch.Auth.Api.Controllers
         public async Task<IActionResult> CreateAccount([FromBody] CreateAccount payload, CancellationToken token)
         {
             var accountApiHost = _options.BaseUrl;
+            Log.Logger.Information(accountApiHost);
             if (string.IsNullOrEmpty(accountApiHost))
             {
                 return StatusCode(StatusCodes.Status500InternalServerError, "Api URL is not configured.");

@@ -6,6 +6,7 @@ using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Core;
 using OnePunch.Auth.Core.Services;
 using OnePunch.Auth.Domain.Entities;
+using Serilog;
 
 namespace Onepunch.Auth.Core.Services;
 
@@ -43,6 +44,8 @@ public class EmailNotificationService
                 ? $"{httpContext.Request.Scheme}://{httpContext.Request.Host}"
                 : $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/auth";
         }
+
+        Log.Logger.Information("base: {0}", baseUrl);
 
         var exp = DateTime.UtcNow.AddDays(1);
         var tokenModel = await _emailTokenService.CreateModel(exp, account.Email);
