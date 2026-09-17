@@ -37,12 +37,6 @@ public class MembershipRole : BaseEntity
 
 public static class UserMembershipExtensions
 {
-    // TEMP-ALLOW-ALL (2026-09-17): flip to false to restore normal permission checks in
-    // HasPermission below. Search "TEMP-ALLOW-ALL" for every place this flag gates a check.
-    // static (not const) deliberately -- a const bool would let the compiler fold the branch and
-    // flag the real check below as unreachable (CS0162).
-    private static readonly bool TempAllowAll = true;
-
     public static bool HasRole(this UserMembership membership, string role) =>
         membership.Roles.Any(r => r.Role == role);
 
@@ -66,12 +60,9 @@ public static class UserMembershipExtensions
     // answer the permission lookup would eventually give, sooner -- and it's what every caller
     // (UserMembershipService's "Only Owner or Admin can..." error messages, RolesController) was
     // already assuming happened.
-    public static bool HasPermission(this UserMembership membership, string code)
-    {
-        if (TempAllowAll) return true;
-        return membership.HasAnyRole("Owner", "Admin") ||
-            membership.Roles.Any(r => r.RoleRef?.RolePermissions.Any(rp => rp.Permission.Code == code) == true);
-    }
+    public static bool HasPermission(this UserMembership membership, string code) =>
+        membership.HasAnyRole("Owner", "Admin") ||
+        membership.Roles.Any(r => r.RoleRef?.RolePermissions.Any(rp => rp.Permission.Code == code) == true);
 
     public static bool HasAnyPermission(this UserMembership membership, params string[] codes) =>
         codes.Any(membership.HasPermission);
