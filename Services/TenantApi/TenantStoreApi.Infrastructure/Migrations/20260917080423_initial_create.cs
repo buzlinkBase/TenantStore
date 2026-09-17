@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore.Metadata;
+﻿using System;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -6,7 +7,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace TenantStoreApi.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class tenant_init : Migration
+    public partial class initial_create : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -82,7 +83,10 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     TenantId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
                     TenantName = table.Column<string>(type: "longtext", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
+                    FullName = table.Column<string>(type: "longtext", nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
                     UserId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
+                    IsHidden = table.Column<bool>(type: "tinyint(1)", nullable: false),
                     InvitedEmail = table.Column<string>(type: "longtext", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     CreatedAt = table.Column<DateTime>(type: "datetime(6)", nullable: false),
@@ -453,7 +457,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
             migrationBuilder.InsertData(
                 table: "Plans",
                 columns: new[] { "Id", "CreatedAt", "Days", "DeletedAt", "Description", "Name", "Status", "UpdatedAt" },
-                values: new object[] { new Guid("d8cb5f8b-8e4e-4352-b41c-c311f73b5ed5"), new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), 0, null, "Free Trial", "Free Trial", "Active", null });
+                values: new object[] { new Guid("d8cb5f8b-8e4e-4352-b41c-c311f73b5ed5"), new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), 15, null, "Free Trial", "Free Trial", "Active", null });
 
             migrationBuilder.CreateIndex(
                 name: "IX_Connections_IsActive",

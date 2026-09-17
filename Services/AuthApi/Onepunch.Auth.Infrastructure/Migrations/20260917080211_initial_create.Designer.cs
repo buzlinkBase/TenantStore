@@ -12,8 +12,8 @@ using Onepunch.Auth.Infrastructure;
 namespace Onepunch.Auth.Infrastructure.Migrations
 {
     [DbContext(typeof(AuthContext))]
-    [Migration("20260910012902_auth_init")]
-    partial class auth_init
+    [Migration("20260917080211_initial_create")]
+    partial class initial_create
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -521,6 +521,9 @@ namespace Onepunch.Auth.Infrastructure.Migrations
 
                     b.Property<DateTime>("Expiry")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("longtext");
 
                     b.Property<string>("Roles")
                         .IsRequired()

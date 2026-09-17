@@ -12,8 +12,8 @@ using TenantStoreApi.Infrastructure;
 namespace TenantStoreApi.Infrastructure.Migrations
 {
     [DbContext(typeof(TenantContext))]
-    [Migration("20260910144431_usermemberInfo_full_email")]
-    partial class usermemberInfo_full_email
+    [Migration("20260917080423_initial_create")]
+    partial class initial_create
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

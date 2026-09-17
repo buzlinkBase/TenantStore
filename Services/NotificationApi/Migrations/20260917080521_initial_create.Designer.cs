@@ -12,7 +12,7 @@ using OnePunch.Notification.Infrastructure;
 namespace OnePunch.Notification.Migrations
 {
     [DbContext(typeof(NotifContext))]
-    [Migration("20260724010146_initial_create")]
+    [Migration("20260917080521_initial_create")]
     partial class initial_create
     {
         /// <inheritdoc />

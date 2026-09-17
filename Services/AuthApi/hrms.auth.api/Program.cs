@@ -104,7 +104,7 @@ internal class Program
         .PersistKeysToFileSystem(new DirectoryInfo(@"/app/dp-keys"));
 
         var app = builder.Build();
-        await app.SeedRolesAsync();
+        //await app.SeedRolesAsync();
 
         // 1. Configure and enable Forwarded Headers with XForwardedPrefix included
         var forwardedOptions = new ForwardedHeadersOptions
