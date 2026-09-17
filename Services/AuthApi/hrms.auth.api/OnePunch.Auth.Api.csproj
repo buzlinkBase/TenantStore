@@ -5,6 +5,7 @@
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<RootNamespace>OnePunch.Auth.Api</RootNamespace>
+		<UserSecretsId>6ab3ffce-21b1-49ae-b1ea-b5cc937f2e9b</UserSecretsId>
 	</PropertyGroup>
 
 	<ItemGroup>
