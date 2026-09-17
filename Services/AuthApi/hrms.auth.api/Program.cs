@@ -45,6 +45,17 @@ internal class Program
                 listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
             });
 
+            // Calling ListenAnyIP below makes Kestrel stop honoring the ASPNETCORE_HTTP_PORTS
+            // default endpoint entirely (logged as "Overriding address(es) 'http://*:8080'...
+            // Binding to endpoints defined via IConfiguration and/or UseKestrel() instead") --
+            // once ANY endpoint is declared explicitly in code, Kestrel expects ALL of them
+            // declared that way, so the REST port has to be re-declared here or the container
+            // stops listening on it altogether (this took the whole service down in production).
+            options.ListenAnyIP(8080, listenOptions =>
+            {
+                listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
+            });
+
             // A single cleartext endpoint can't actually serve both protocols: without TLS/ALPN
             // there's no per-connection negotiation, so Kestrel commits every connection on the
             // Http1AndHttp2 endpoint above to HTTP/1.1 -- a prior-knowledge h2c request (what the
