@@ -213,6 +213,9 @@ public class PermissionCatalogSeederService
         ("Applications", "Loan/Deduction", ["View", "Create", "Edit", "Approve", "Delete"]),
         ("Applications", "Other Income", ["View", "Create", "Edit", "Approve", "Delete"]),
         ("Applications", "Salary Adjustment", ["View", "Create", "Edit", "Approve", "Delete"]),
+        // No Create/Edit/Delete: employees submit their own via the Employee Portal
+        // (MeController's me/profile-update-requests), HR/admin only reviews and decides.
+        ("Applications", "Profile Update", ["View", "Approve"]),
         // Setup screen for the configurable multi-level approval engine (Leave/Overtime/Official
         // Business/Pass Slip/Loan-Deduction route through whatever's configured here; unconfigured
         // types keep today's single-step behavior). View/Edit only -- no Create/Delete/Approve,
@@ -288,6 +291,7 @@ public class PermissionCatalogSeederService
             "Leave", "Overtime", "Official Business", "Undertime", "Pass Slip",
             "Loan/Deduction", "Other Income", "Salary Adjustment",
         }.SelectMany(feature => new[] { "View", "Create", "Edit", "Approve", "Delete" }.Select(action => $"{feature}:{action}")),
+        .. new[] { "View", "Approve" }.Select(action => $"Profile Update:{action}"),
         .. new[] { "View", "Edit" }.Select(action => $"Approval Workflows:{action}"),
         .. new[]
         {
