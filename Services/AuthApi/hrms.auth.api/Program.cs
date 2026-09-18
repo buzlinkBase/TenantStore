@@ -34,39 +34,50 @@ internal class Program
 
         var builder = WebApplication.CreateBuilder(args);
 
-        // Kestrel's default on a plain (non-TLS) endpoint is HTTP/1.1-only -- gRPC requires
-        // HTTP/2, so without this the server rejects/mishandles the very h2c calls the switch
-        // above just enabled the client to attempt (this service is both a gRPC client, for
-        // Domains:TenantUrl, and a gRPC server, for GetUserInfoService/CheckEmailService).
-        builder.WebHost.ConfigureKestrel(options =>
+        // This whole block only applies outside Development: locally, launchSettings already
+        // serves this API over HTTPS (e.g. https://localhost:7173), where TLS/ALPN negotiates
+        // HTTP/1.1 vs HTTP/2 automatically -- the h2c (cleartext HTTP/2) problem below is purely
+        // a plain-HTTP-in-Docker production concern. It also has to stay Development-only for a
+        // second reason: ListenAnyIP(8080) is hardcoded across both this service and TenantApi
+        // (safe in production, where each runs in its own container), but running both locally
+        // at once has them fight over the literal same port on one machine -- "Failed to bind to
+        // address http://[::]:8080: address already in use".
+        if (!builder.Environment.IsDevelopment())
         {
-            options.ConfigureEndpointDefaults(listenOptions =>
+            // Kestrel's default on a plain (non-TLS) endpoint is HTTP/1.1-only -- gRPC requires
+            // HTTP/2, so without this the server rejects/mishandles the very h2c calls the switch
+            // above just enabled the client to attempt (this service is both a gRPC client, for
+            // Domains:TenantUrl, and a gRPC server, for GetUserInfoService/CheckEmailService).
+            builder.WebHost.ConfigureKestrel(options =>
             {
-                listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
-            });
+                options.ConfigureEndpointDefaults(listenOptions =>
+                {
+                    listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
+                });
 
-            // Calling ListenAnyIP below makes Kestrel stop honoring the ASPNETCORE_HTTP_PORTS
-            // default endpoint entirely (logged as "Overriding address(es) 'http://*:8080'...
-            // Binding to endpoints defined via IConfiguration and/or UseKestrel() instead") --
-            // once ANY endpoint is declared explicitly in code, Kestrel expects ALL of them
-            // declared that way, so the REST port has to be re-declared here or the container
-            // stops listening on it altogether (this took the whole service down in production).
-            options.ListenAnyIP(8080, listenOptions =>
-            {
-                listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
-            });
+                // Calling ListenAnyIP below makes Kestrel stop honoring the ASPNETCORE_HTTP_PORTS
+                // default endpoint entirely (logged as "Overriding address(es) 'http://*:8080'...
+                // Binding to endpoints defined via IConfiguration and/or UseKestrel() instead") --
+                // once ANY endpoint is declared explicitly in code, Kestrel expects ALL of them
+                // declared that way, so the REST port has to be re-declared here or the container
+                // stops listening on it altogether (this took the whole service down in production).
+                options.ListenAnyIP(8080, listenOptions =>
+                {
+                    listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
+                });
 
-            // A single cleartext endpoint can't actually serve both protocols: without TLS/ALPN
-            // there's no per-connection negotiation, so Kestrel commits every connection on the
-            // Http1AndHttp2 endpoint above to HTTP/1.1 -- a prior-knowledge h2c request (what the
-            // gRPC client above sends) gets rejected outright with HTTP_1_1_REQUIRED. This is
-            // Microsoft's documented fix: a second endpoint set to Http2 only, dedicated to h2c
-            // gRPC traffic. Domains:GrpcTenantUrl must point here (port 8089), not the main REST port.
-            options.ListenAnyIP(8089, listenOptions =>
-            {
-                listenOptions.Protocols = HttpProtocols.Http2;
+                // A single cleartext endpoint can't actually serve both protocols: without TLS/ALPN
+                // there's no per-connection negotiation, so Kestrel commits every connection on the
+                // Http1AndHttp2 endpoint above to HTTP/1.1 -- a prior-knowledge h2c request (what the
+                // gRPC client above sends) gets rejected outright with HTTP_1_1_REQUIRED. This is
+                // Microsoft's documented fix: a second endpoint set to Http2 only, dedicated to h2c
+                // gRPC traffic. Domains:GrpcTenantUrl must point here (port 8089), not the main REST port.
+                options.ListenAnyIP(8089, listenOptions =>
+                {
+                    listenOptions.Protocols = HttpProtocols.Http2;
+                });
             });
-        });
+        }
 
         Log.Logger = new LoggerConfiguration()
         .ReadFrom.Configuration(builder.Configuration)
