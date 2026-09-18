@@ -142,6 +142,35 @@ public class UserService : BaseService<User>
 
     }
 
+    /// <summary>
+    /// Keeps User.DefaultTenantRoles (the denormalized fallback cache -- see its own doc comment
+    /// on User, and MembershipCacheService.FallbackToDefaultTenantAsync, which serves this list
+    /// whenever Tenant Service is unreachable) in sync whenever a role edit lands on the user's
+    /// own default tenant. Only relevant for DefaultTenantId -- a role edit in some other tenant
+    /// the user also belongs to doesn't touch this cache. Keeps whichever of the current fallback
+    /// roles still exist in the edited role set; if none survived the edit, falls back to the
+    /// first of the new roles so the fallback path never points at a role the user no longer
+    /// holds.
+    /// </summary>
+    public async Task ChangedRoles(Guid userId, Guid tenantId, List<string> newRoles, CancellationToken token)
+    {
+        if (newRoles == null || newRoles.Count == 0) return;
+        var user = await _manager.FindByIdAsync(userId.ToString());
+        if (user == null || user.DefaultTenantId != tenantId) return;
+
+        user.DefaultTenantRoles = ResolveDefaultRoles(user.DefaultTenantRoles, newRoles);
+        await _manager.UpdateAsync(user);
+        await CommitChangesAsync(token);
+    }
+
+    /// <summary>Pure rule behind <see cref="ChangedRoles"/>, split out so it's testable without
+    /// standing up UserManager/Identity plumbing.</summary>
+    public static List<string> ResolveDefaultRoles(List<string> currentDefaults, List<string> newRoles)
+    {
+        var stillValid = currentDefaults.Where(newRoles.Contains).ToList();
+        return stillValid.Count > 0 ? stillValid : new List<string> { newRoles[0] };
+    }
+
     #endregion
 
     #region User Management

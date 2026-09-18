@@ -62,6 +62,24 @@ public class UserMembershipServiceTests
     }
 
     [Fact]
+    public async Task ReplaceRolesAsync_RemovesRolesNotInTheNewSelection()
+    {
+        var (sut, _) = await CreateSutAsync();
+        var tenantId = Guid.NewGuid();
+        var ownerId = Guid.NewGuid();
+        var targetId = Guid.NewGuid();
+        await AddMemberAsync(sut, tenantId, ownerId, "Owner");
+        await AddMemberAsync(sut, tenantId, targetId, "Member", "Admin");
+
+        await sut.ReplaceRolesAsync(ownerId, targetId, tenantId, ["Admin"], CancellationToken.None);
+
+        var target = await sut.GetMemberAsync(targetId, tenantId, CancellationToken.None);
+        target!.HasRole("Admin").Should().BeTrue();
+        target!.HasRole("Member").Should().BeFalse();
+        target!.Roles.Should().ContainSingle();
+    }
+
+    [Fact]
     public async Task ReplaceRolesAsync_ThrowsUnauthorized_WhenCallerIsPlainMember()
     {
         var (sut, _) = await CreateSutAsync();
