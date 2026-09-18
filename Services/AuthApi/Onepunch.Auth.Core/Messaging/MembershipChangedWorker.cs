@@ -30,14 +30,16 @@ public class MembershipChangedWorker : IConsumer<MembershipChanged>
         // the AuthApi side, not even this.
         await _membershipCacheService.InvalidateAsync(context.Message.UserId);
 
-        if (!string.IsNullOrEmpty(context.Message.NewStatus))
-        {
-            await _userService.ChangedStatus(context.Message.UserId, context.Message.NewStatus, context.CancellationToken);
-        }
-
-        if (context.Message.ChangeType == "RoleChanged")
-        {
-            await _userService.ChangedRoles(context.Message.UserId, context.Message.TenantId, context.Message.NewRoles, context.CancellationToken);
-        }
+        // One fetch, one commit for whichever of status/roles this message actually carries --
+        // see ApplyMembershipChangeAsync's doc comment for why that matters (two separate
+        // self-committing calls here would silently drop the second one if a message ever
+        // carried both a status and a role change).
+        await _userService.ApplyMembershipChangeAsync(
+            context.Message.UserId,
+            context.Message.TenantId,
+            context.Message.NewStatus,
+            context.Message.ChangeType == "RoleChanged",
+            context.Message.NewRoles,
+            context.CancellationToken);
     }
 }

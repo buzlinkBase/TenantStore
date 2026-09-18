@@ -131,34 +131,45 @@ public class UserService : BaseService<User>
         return Success("Account verified successfully.", user.Email, user.FullName);
     }
 
-    public async Task ChangedStatus(Guid userId, string status, CancellationToken token)
+    /// <summary>
+    /// Applies MembershipChangedWorker's per-message side effects (a status update and/or a
+    /// default-role cache sync -- see ResolveDefaultRoles) as a single fetch + single commit.
+    /// These used to be two separate self-committing methods (ChangedStatus/ChangedRoles), each
+    /// doing its own FindByIdAsync/UpdateAsync/CommitChangesAsync -- harmless while a
+    /// MembershipChanged message only ever carries one change type in practice, but a real risk
+    /// if that ever stopped being true: CommitChangesAsync only actually commits on its first
+    /// call per UnitOfWork instance (the same one-shot guard UserMembershipServiceTests documents
+    /// on the TenantApi side), so whichever of the two calls ran second within one Consume
+    /// invocation would silently no-op instead of persisting -- no exception, no log, the change
+    /// just wouldn't save. One fetch and one commit here removes that failure mode entirely.
+    /// </summary>
+    public async Task ApplyMembershipChangeAsync(Guid userId, Guid tenantId, string? newStatus, bool isRoleChange, List<string>? newRoles, CancellationToken token)
     {
-        if (string.IsNullOrWhiteSpace(status)) return;
+        var hasStatusChange = !string.IsNullOrWhiteSpace(newStatus);
+        var hasRoleChange = isRoleChange && newRoles is { Count: > 0 };
+        if (!hasStatusChange && !hasRoleChange) return;
+
         var user = await _manager.FindByIdAsync(userId.ToString());
         if (user == null) return;
-        user.Status = status;
-        await _manager.UpdateAsync(user);
-        await CommitChangesAsync(token);
 
-    }
+        var changed = false;
 
-    /// <summary>
-    /// Keeps User.DefaultTenantRoles (the denormalized fallback cache -- see its own doc comment
-    /// on User, and MembershipCacheService.FallbackToDefaultTenantAsync, which serves this list
-    /// whenever Tenant Service is unreachable) in sync whenever a role edit lands on the user's
-    /// own default tenant. Only relevant for DefaultTenantId -- a role edit in some other tenant
-    /// the user also belongs to doesn't touch this cache. Keeps whichever of the current fallback
-    /// roles still exist in the edited role set; if none survived the edit, falls back to the
-    /// first of the new roles so the fallback path never points at a role the user no longer
-    /// holds.
-    /// </summary>
-    public async Task ChangedRoles(Guid userId, Guid tenantId, List<string> newRoles, CancellationToken token)
-    {
-        if (newRoles == null || newRoles.Count == 0) return;
-        var user = await _manager.FindByIdAsync(userId.ToString());
-        if (user == null || user.DefaultTenantId != tenantId) return;
+        if (hasStatusChange)
+        {
+            user.Status = newStatus!;
+            changed = true;
+        }
 
-        user.DefaultTenantRoles = ResolveDefaultRoles(user.DefaultTenantRoles, newRoles);
+        // Only relevant for the user's own DefaultTenantId -- a role edit in some other tenant
+        // the user also belongs to doesn't touch this fallback cache.
+        if (hasRoleChange && user.DefaultTenantId == tenantId)
+        {
+            user.DefaultTenantRoles = ResolveDefaultRoles(user.DefaultTenantRoles, newRoles!);
+            changed = true;
+        }
+
+        if (!changed) return;
+
         await _manager.UpdateAsync(user);
         await CommitChangesAsync(token);
     }
