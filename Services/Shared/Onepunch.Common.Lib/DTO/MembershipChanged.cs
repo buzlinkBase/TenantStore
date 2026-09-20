@@ -8,6 +8,7 @@ namespace Onepunch.Common.Lib.DTO;
 public record MembershipChanged
 {
     public Guid UserId { get; set; }
+    public string Email  { get; set; }
     public Guid TenantId { get; set; }
     public string ChangeType { get; set; } = string.Empty; // RoleChanged, MemberAdded, MemberRemoved, OwnerTransferred, TenantDeleted, TenantSuspended, StatusChanged
     /// <summary>The member's complete role set after the change (for ChangeType="RoleChanged").</summary>

@@ -79,6 +79,40 @@ public class UserMembershipServiceTests
         target!.Roles.Should().ContainSingle();
     }
 
+    /// <summary>
+    /// Regression guard for a production 500: "Duplicate entry '...-Employee' for key
+    /// 'membershiproles.IX_MembershipRoles_UserMembershipId_Role'". Two independent
+    /// IUnitOfWorkService instances (own DbContext, own identity map, sharing the same
+    /// underlying store) stand in for two genuinely concurrent requests -- one grants "Employee"
+    /// via AddRoleAsync and commits, then a second, unrelated ReplaceRolesAsync call that also
+    /// wants the member to end up with "Employee" must not blow up just because that role
+    /// already exists in the store.
+    /// </summary>
+    [Fact]
+    public async Task ReplaceRolesAsync_DoesNotThrow_WhenARequestedRoleWasAlreadyGrantedElsewhere()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var uow1 = TenantTestContextFactory.CreateUnitOfWork(TenantTestContextFactory.CreateContext(dbName));
+        await new PermissionCatalogSeederService(uow1).EnsureSeededAsync(CancellationToken.None);
+        var sut1 = new UserMembershipService(uow1, Mock.Of<IPublishEndpoint>(), new RoleService(uow1));
+
+        var tenantId = Guid.NewGuid();
+        var ownerId = Guid.NewGuid();
+        var targetId = Guid.NewGuid();
+        await AddMemberAsync(sut1, tenantId, ownerId, "Owner");
+        await AddMemberAsync(sut1, tenantId, targetId, "Member");
+
+        // A second, independent request-scoped service instance grants "Employee" and commits.
+        var uow2 = TenantTestContextFactory.CreateUnitOfWork(TenantTestContextFactory.CreateContext(dbName));
+        var sut2 = new UserMembershipService(uow2, Mock.Of<IPublishEndpoint>(), new RoleService(uow2));
+        await sut2.AddRoleAsync(ownerId, targetId, tenantId, "Employee", CancellationToken.None);
+        await sut2.Context.SaveChangesAsync(CancellationToken.None);
+
+        var act = () => sut1.ReplaceRolesAsync(ownerId, targetId, tenantId, ["Member", "Employee"], CancellationToken.None);
+
+        await act.Should().NotThrowAsync();
+    }
+
     [Fact]
     public async Task ReplaceRolesAsync_ThrowsUnauthorized_WhenCallerIsPlainMember()
     {

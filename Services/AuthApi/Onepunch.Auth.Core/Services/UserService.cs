@@ -132,16 +132,16 @@ public class UserService : BaseService<User>
     }
 
     /// <summary>
-    /// Applies MembershipChangedWorker's per-message side effects (a status update and/or a
-    /// default-role cache sync -- see ResolveDefaultRoles) as a single fetch + single commit.
-    /// These used to be two separate self-committing methods (ChangedStatus/ChangedRoles), each
-    /// doing its own FindByIdAsync/UpdateAsync/CommitChangesAsync -- harmless while a
-    /// MembershipChanged message only ever carries one change type in practice, but a real risk
-    /// if that ever stopped being true: CommitChangesAsync only actually commits on its first
-    /// call per UnitOfWork instance (the same one-shot guard UserMembershipServiceTests documents
-    /// on the TenantApi side), so whichever of the two calls ran second within one Consume
-    /// invocation would silently no-op instead of persisting -- no exception, no log, the change
-    /// just wouldn't save. One fetch and one commit here removes that failure mode entirely.
+    /// Applies MembershipChangedWorker's per-message side effect: syncing the DefaultTenantRoles
+    /// fallback cache for a role change (see ResolveDefaultRoles). A status change is
+    /// deliberately NOT applied here -- MembershipChanged.NewStatus is a per-tenant
+    /// UserMembership.Status value (TenantApi), and this AuthApi User row has no legitimate
+    /// per-tenant status field to mirror it into. An earlier version of this method wrote it
+    /// straight into the account-wide User.Status, which Login/LoginWithGoogleAsync2/RefreshLogin
+    /// all gate on regardless of tenant -- so revoking one tenant membership silently locked the
+    /// account out of every tenant it belonged to. Tenant-scoped status is already tracked live
+    /// via gRPC (MembershipCacheService/MembershipGrpcClient) and forced-logout for it is already
+    /// handled independently by MembershipChangedWorker's NotifySessionRevoked push.
     /// </summary>
     public async Task ApplyMembershipChangeAsync(Guid userId, Guid tenantId, string? newStatus, bool isRoleChange, List<string>? newRoles, CancellationToken token)
     {
@@ -154,9 +154,15 @@ public class UserService : BaseService<User>
 
         var changed = false;
 
-        if (hasStatusChange)
+        // A revoked default tenant can no longer be used as the user's fallback tenant. Only
+        // clear it when this event belongs to the current default tenant; another tenant's
+        // revocation must not disturb the user's valid default selection.
+        if (string.Equals(newStatus, "Revoked", StringComparison.OrdinalIgnoreCase) &&
+            user.DefaultTenantId == tenantId)
         {
-            user.Status = newStatus!;
+            user.DefaultTenantId = null;
+            user.DefaultTenantName = null;
+            user.DefaultTenantRoles = new();
             changed = true;
         }
 
@@ -169,7 +175,6 @@ public class UserService : BaseService<User>
         }
 
         if (!changed) return;
-
         await _manager.UpdateAsync(user);
         await CommitChangesAsync(token);
     }
@@ -337,11 +342,12 @@ public class UserService : BaseService<User>
     internal async Task<LoginResponse> ComposeLoginResponse(User user, string accessToken, string refreshToken)
     {
         var tenants = await _membershipCacheService.GetMembershipsAsync(user.Id);
-        // Unlike Roles (below, sourced from the denormalized DefaultTenantRoles cache -- can go
-        // stale, a pre-existing behavior not changed here), Permissions is derived fresh from the
-        // just-fetched tenants list every time so it never goes stale the same way.
-        var defaultTenantPermissions = tenants
-            .FirstOrDefault(t => t.TenantId == user.DefaultTenantId)?.Permissions ?? [];
+        // Roles and permissions must come from the same fresh membership snapshot. Using the
+        // denormalized DefaultTenantRoles cache here can leave only one stale role after a role
+        // update; when that role is Employee, the frontend incorrectly treats the user as
+        // employee-only and hides every non-portal menu. The membership snapshot is the source
+        // of truth and preserves the complete role set regardless of role order.
+        var defaultTenant = tenants.FirstOrDefault(t => t.TenantId == user.DefaultTenantId);
         return new LoginResponse
         {
             AccessToken = accessToken,
@@ -349,8 +355,8 @@ public class UserService : BaseService<User>
             Expiry = DateTime.UtcNow.AddMinutes(_jwtService.TokenExpiry),
             Tenants = tenants,
             Name = user.FullName,
-            Roles = user.DefaultTenantRoles,
-            Permissions = defaultTenantPermissions,
+            Roles = defaultTenant?.Roles ?? [],
+            Permissions = defaultTenant?.Permissions ?? [],
             Email = user.Email,
         };
     }

@@ -36,36 +36,17 @@ public class MembersController : ControllerBase
             .Distinct()
             .ToList();
 
-        var userLookup = new Dictionary<string, UserInfoDto>();
-        if (activeUserIds.Count > 0)
-        {
-            var users = await _userInfoService.GetUsersByIdsAsync(activeUserIds, token);
-            userLookup = users.ToDictionary(u => u.Id.ToString(), u => u);
-        }
-
         var result = members.Select(m =>
         {
             var response = new MemberResponse
             {
+                Id = m.Id,
                 UserId = m.UserId,
                 Roles = m.RoleNames(),
                 FullName = m.FullName,
                 Email = m.InvitedEmail,
-                Status = m.Status ?? "Inactive" 
+                Status = m.Status ?? "Inactive"
             };
-
-            if (m.UserId != Guid.Empty && userLookup.TryGetValue(m.UserId.ToString(), out var userInfo))
-            {
-                response.Email = userInfo.Email;
-                response.FullName = userInfo.FullName;
-                response.Status = userInfo.Status;
-            }
-            else if (!string.IsNullOrEmpty(m.InvitedEmail))
-            {
-                response.Email = m.InvitedEmail;
-                response.FullName = m.FullName;
-                response.Status = m.Status ?? "Inactive";
-            }
             return response;
         }).ToList();
         return Ok(result);
@@ -86,19 +67,19 @@ public class MembersController : ControllerBase
     /// <summary>Replaces a member's entire role set with a single role (backward-compatible
     /// single-role update). Use POST/DELETE {userId}/roles to grant/revoke individual roles
     /// while leaving the member's other roles untouched.</summary>
-    [HttpPatch("{userId:guid}/role")]
+    [HttpPatch("{membershipId:guid}/role")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateRole(Guid userId, [FromBody] UpdateRoleRequest request, CancellationToken token)
+    public async Task<IActionResult> UpdateRole(Guid membershipId, [FromBody] UpdateRoleRequest request, CancellationToken token)
     {
         var tenantId = _tenantProvider.TenantId;
         if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
         var callerId = User.GetRequiredUserId();
         try
         {
-            await _service.ReplaceRolesAsync(callerId, userId, tenantId, [request.Role], token);
+            await _service.ReplaceRolesAsync(callerId, membershipId, tenantId, [request.Role], token);
             await _service.CommitChangesAsync(token);
             return Ok();
         }
@@ -109,19 +90,19 @@ public class MembersController : ControllerBase
     }
 
     /// <summary>Replaces all roles for a member at once.</summary>
-    [HttpPut("{userId:guid}/roles")]
+    [HttpPut("{membershipId:guid}/roles")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> ReplaceRoles(Guid userId, [FromBody] ReplaceRolesRequest request, CancellationToken token)
+    public async Task<IActionResult> ReplaceRoles(Guid membershipId, [FromBody] ReplaceRolesRequest request, CancellationToken token)
     {
         var tenantId = _tenantProvider.TenantId;
         if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
         var callerId = User.GetRequiredUserId();
         try
         {
-            await _service.ReplaceRolesAsync(callerId, userId, tenantId, request.Roles, token);
+            await _service.ReplaceRolesAsync(callerId, membershipId, tenantId, request.Roles, token);
             await _service.CommitChangesAsync(token);
             return Ok();
         }
@@ -132,19 +113,19 @@ public class MembersController : ControllerBase
     }
 
     /// <summary>Updates a member's status (e.g. Active, Revoked, Inactive).</summary>
-    [HttpPatch("{userId:guid}/status")]
+    [HttpPatch("{membershipId:guid}/status")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateStatus(Guid userId, [FromBody] UpdateStatusRequest request, CancellationToken token)
+    public async Task<IActionResult> UpdateStatus(Guid membershipId, [FromBody] UpdateStatusRequest request, CancellationToken token)
     {
         var tenantId = _tenantProvider.TenantId;
         if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
         var callerId = User.GetRequiredUserId();
         try
         {
-            await _service.UpdateStatusAsync(callerId, userId, tenantId, request.Status, token);
+            await _service.UpdateStatusAsync(callerId, membershipId, tenantId, request.Status, token);
             await _service.CommitChangesAsync(token);
             return Ok();
         }
@@ -155,19 +136,19 @@ public class MembersController : ControllerBase
     }
 
     /// <summary>Grants an additional role to a member without touching their other roles.</summary>
-    [HttpPost("{userId:guid}/roles")]
+    [HttpPost("{membershipId:guid}/roles")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> AddRole(Guid userId, [FromBody] UpdateRoleRequest request, CancellationToken token)
+    public async Task<IActionResult> AddRole(Guid membershipId, [FromBody] UpdateRoleRequest request, CancellationToken token)
     {
         var tenantId = _tenantProvider.TenantId;
         if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
         var callerId = User.GetRequiredUserId();
         try
         {
-            await _service.AddRoleAsync(callerId, userId, tenantId, request.Role, token);
+            await _service.AddRoleAsync(callerId, membershipId, tenantId, request.Role, token);
             await _service.CommitChangesAsync(token);
             return Ok();
         }
@@ -178,19 +159,19 @@ public class MembersController : ControllerBase
     }
 
     /// <summary>Revokes a single role from a member, leaving any other roles intact.</summary>
-    [HttpDelete("{userId:guid}/roles/{role}")]
+    [HttpDelete("{membershipId:guid}/roles/{role}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> RemoveRole(Guid userId, string role, CancellationToken token)
+    public async Task<IActionResult> RemoveRole(Guid membershipId, string role, CancellationToken token)
     {
         var tenantId = _tenantProvider.TenantId;
         if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
         var callerId = User.GetRequiredUserId();
         try
         {
-            await _service.RemoveRoleAsync(callerId, userId, tenantId, role, token);
+            await _service.RemoveRoleAsync(callerId, membershipId, tenantId, role, token);
             await _service.CommitChangesAsync(token);
             return Ok();
         }
@@ -200,20 +181,19 @@ public class MembersController : ControllerBase
         catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
     }
 
-    [HttpDelete("{userId:guid}")]
+    [HttpDelete("{membershipId:guid}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> RemoveMember(Guid userId, CancellationToken token)
+    public async Task<IActionResult> RemoveMember(Guid membershipId, CancellationToken token)
     {
         var tenantId = _tenantProvider.TenantId;
         if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
-
         var callerId = User.GetRequiredUserId();
         try
         {
-            await _service.RemoveMemberAsync(callerId, userId, tenantId, token);
+            await _service.RemoveMemberAsync(callerId, membershipId, tenantId, token);
             await _service.CommitChangesAsync(token);
             return Ok();
         }

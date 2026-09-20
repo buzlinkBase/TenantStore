@@ -40,7 +40,7 @@ public class InvitationController : ControllerBase
             var accountApiHost = _options.BaseUrl;
             if (string.IsNullOrEmpty(accountApiHost))
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, "Api URL is not configured.");
+                return StatusCode(StatusCodes.Status500InternalServerError, "Api URL env is not configured.");
             }
             var token = HttpContext.Request.GetAuthorizationToken();
             if (token == null) return Unauthorized();

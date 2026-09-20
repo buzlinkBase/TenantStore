@@ -21,6 +21,7 @@ public class UserMembership : BaseEntity, IEntityTenant
 
 /// <summary>One role assignment within a UserMembership. Many-to-one: a membership can have
 /// several of these (e.g. both "Admin" and a custom "Billing" role simultaneously).</summary>
+[DisableSoftDelete]
 public class MembershipRole : BaseEntity
 {
     public Guid UserMembershipId { get; set; }

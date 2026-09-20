@@ -7,6 +7,8 @@ public interface ITenantNotificationClient
 {
     Task TenantCreated(TenantCreatedNotification notification);
     Task HrDbCreated(HrDbCreatedNotification notification);
+    Task RolesChanged(RolesChangedNotification notification);
+    Task SessionRevoked(SessionRevokedNotification notification);
 }
 
 public class TenantCreatedNotification
@@ -21,6 +23,16 @@ public class HrDbCreatedNotification
     public Guid TenantId { get; set; }
     public string DatabaseName { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+}
+
+public class RolesChangedNotification
+{
+    public Guid TenantId { get; set; }
+}
+
+public class SessionRevokedNotification
+{
+    public Guid TenantId { get; set; }
 }
 
 [Authorize]

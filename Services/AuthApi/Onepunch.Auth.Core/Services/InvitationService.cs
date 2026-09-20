@@ -302,16 +302,13 @@ namespace Onepunch.Auth.Core.Services
                 Roles = invitation.Roles,
             }, (PublishContext<InvitationAccepted> ctx) => ctx.Headers.Set("X-Tenant-ID", targetTenantId), ct);
 
-            if (invitation.EmployeeId.HasValue)
+            await _publisher.Publish(new UserOnboarded
             {
-                await _publisher.Publish(new UserOnboarded
-                {
-                    UserId = user.Id,
-                    TenantId = invitation.TenantId,
-                    EmployeeId = invitation.EmployeeId,
-                    Email = invitation.Email,
-                }, (PublishContext<UserOnboarded> ctx) => ctx.Headers.Set("X-Tenant-ID", targetTenantId), ct);
-            }
+                UserId = user.Id,
+                TenantId = invitation.TenantId,
+                EmployeeId = invitation.EmployeeId,
+                Email = invitation.Email,
+            }, (PublishContext<UserOnboarded> ctx) => ctx.Headers.Set("X-Tenant-ID", targetTenantId), ct);
 
             return await MintTenantScopedResponseAsync(user, invitation, ct);
         }

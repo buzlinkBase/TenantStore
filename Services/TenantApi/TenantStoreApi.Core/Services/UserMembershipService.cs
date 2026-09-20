@@ -1,5 +1,6 @@
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using Polly;
 
 namespace TenantStoreApi.Core.Services;
 
@@ -15,11 +16,15 @@ public class UserMembershipService : BaseService<UserMembership>
 {
     private readonly IPublishEndpoint _publisher;
     private readonly RoleService _roleService;
+    private readonly MembershipRoleService _memberRoleService;
 
-    public UserMembershipService(IUnitOfWorkService service, IPublishEndpoint publisher, RoleService roleService) : base(service)
+    public UserMembershipService(IUnitOfWorkService service, IPublishEndpoint publisher,
+        RoleService roleService,
+        MembershipRoleService memberRoleService) : base(service)
     {
         _publisher = publisher;
         _roleService = roleService;
+        _memberRoleService = memberRoleService;
     }
 
     // Resolves each role name to its RoleId (System Role first, then this tenant's Custom Roles)
@@ -72,8 +77,29 @@ public class UserMembershipService : BaseService<UserMembership>
     public async Task<UserMembership?> GetMemberAsync(Guid userId, Guid tenantId, CancellationToken token = default)
     {
         return await Context.Memberships
-            .Include(x => x.Roles).ThenInclude(x => x.RoleRef).ThenInclude(x => x!.RolePermissions).ThenInclude(x => x.Permission)
+            .Include(x => x.Roles)
+            .ThenInclude(x => x.RoleRef)
+            .ThenInclude(x => x!.RolePermissions)
+            .ThenInclude(x => x.Permission)
             .Where(x => x.UserId == userId && x.TenantId == tenantId)
+            .FirstOrDefaultAsync(token);
+    }
+
+    /// <summary>
+    /// Looks up a membership by its own primary key rather than the (UserId, TenantId) pair --
+    /// the row a caller is actually editing on a Users/Members screen is a specific membership,
+    /// not a user-and-tenant combination, and a membership's own Id is already what the list
+    /// endpoint (GetMembers) hands back per row. Still scoped to `tenantId` so a caller can't act
+    /// on a membership belonging to a different tenant just by guessing its Id.
+    /// </summary>
+    public async Task<UserMembership?> GetMemberByIdAsync(Guid membershipId, Guid tenantId, CancellationToken token = default)
+    {
+        return await Context.Memberships
+            .Include(x => x.Roles)
+            .ThenInclude(x => x.RoleRef)
+            .ThenInclude(x => x!.RolePermissions)
+            .ThenInclude(x => x.Permission)
+            .Where(x => x.Id == membershipId && x.TenantId == tenantId)
             .FirstOrDefaultAsync(token);
     }
 
@@ -110,12 +136,15 @@ public class UserMembershipService : BaseService<UserMembership>
     {
         placeholder.UserId = userId;
         placeholder.Status = "Active";
-        placeholder.InvitedEmail = null;
+        // Kept (not cleared) after activation -- this is the only local copy of the member's
+        // email TenantApi has once they're no longer just a pending invite, and MembersController
+        // now serves the members list purely from local data (no AuthApi gRPC lookup), so this
+        // is what backs that Email column going forward.
         await ModifyAsync(placeholder, token);
     }
 
     /// <summary>Grants an additional role to an existing membership, leaving other roles intact.</summary>
-    public async Task AddRoleAsync(Guid callerUserId, Guid targetUserId, Guid tenantId, string newRole, CancellationToken token = default)
+    public async Task AddRoleAsync(Guid callerUserId, Guid targetMembershipId, Guid tenantId, string newRole, CancellationToken token = default)
     {
         if (!await _roleService.IsAssignableAsync(newRole, tenantId, token))
             throw new ArgumentException($"Invalid role '{newRole}'.");
@@ -124,7 +153,7 @@ public class UserMembershipService : BaseService<UserMembership>
         if (caller == null || !caller.HasAnyPermission("Tenant Members:Manage", "Users:Edit"))
             throw new UnauthorizedAccessException("Only Owner or Admin can change roles.");
 
-        var target = await GetMemberAsync(targetUserId, tenantId, token);
+        var target = await GetMemberByIdAsync(targetMembershipId, tenantId, token);
         if (target == null) throw new KeyNotFoundException("Member not found.");
 
         if (!target.HasRole(newRole))
@@ -134,20 +163,20 @@ public class UserMembershipService : BaseService<UserMembership>
             await ModifyAsync(target, token);
         }
 
-        await PublishRoleChangedAsync(targetUserId, tenantId, target.RoleNames(), token);
+        await PublishRoleChangedAsync(target.UserId, tenantId, target.RoleNames(), token);
     }
 
     /// <summary>Revokes a single role from a membership without touching its other roles.</summary>
-    public async Task RemoveRoleAsync(Guid callerUserId, Guid targetUserId, Guid tenantId, string role, CancellationToken token = default)
+    public async Task RemoveRoleAsync(Guid callerUserId, Guid targetMembershipId, Guid tenantId, string role, CancellationToken token = default)
     {
         var caller = await GetMemberAsync(callerUserId, tenantId, token);
         if (caller == null || !caller.HasAnyPermission("Tenant Members:Manage", "Users:Edit"))
             throw new UnauthorizedAccessException("Only Owner or Admin can change roles.");
-        if (callerUserId == targetUserId)
-            throw new InvalidOperationException("Cannot change your own role.");
 
-        var target = await GetMemberAsync(targetUserId, tenantId, token);
+        var target = await GetMemberByIdAsync(targetMembershipId, tenantId, token);
         if (target == null) throw new KeyNotFoundException("Member not found.");
+        if (callerUserId == target.UserId)
+            throw new InvalidOperationException("Cannot change your own role.");
         if (role == TenantRoles.Owner) throw new InvalidOperationException("Cannot remove the Owner role.");
         if (target.Roles.Count <= 1) throw new InvalidOperationException("A member must have at least one role.");
 
@@ -158,12 +187,12 @@ public class UserMembershipService : BaseService<UserMembership>
             await ModifyAsync(target, token);
         }
 
-        await PublishRoleChangedAsync(targetUserId, tenantId, target.RoleNames(), token);
+        await PublishRoleChangedAsync(target.UserId, tenantId, target.RoleNames(), token);
     }
 
     /// <summary>Replaces a member's entire role set in one call (used by the existing role-management UI).</summary>
     public async Task ReplaceRolesAsync(
-        Guid callerUserId, Guid targetUserId, Guid tenantId, IEnumerable<string> newRoles, CancellationToken token = default)
+        Guid callerUserId, Guid targetMembershipId, Guid tenantId, IEnumerable<string> newRoles, CancellationToken token = default)
     {
         var roles = newRoles.Distinct().ToList();
         if (roles.Count == 0)
@@ -179,48 +208,39 @@ public class UserMembershipService : BaseService<UserMembership>
         if (caller == null || !caller.HasAnyPermission("Tenant Members:Manage", "Users:Edit"))
             throw new UnauthorizedAccessException("Only Owner or Admin can change roles.");
 
-        if (callerUserId == targetUserId)
-            throw new InvalidOperationException("Cannot change your own role.");
-
-        var target = await GetMemberAsync(targetUserId, tenantId, token);
+        var target = await GetMemberByIdAsync(targetMembershipId, tenantId, token);
         if (target == null)
             throw new KeyNotFoundException("Member not found.");
 
+        if (callerUserId == target.UserId)
+            throw new InvalidOperationException("Cannot change your own role.");
+
         if (target.HasRole(TenantRoles.Owner))
             throw new InvalidOperationException("Cannot change the Owner's role.");
-
-        // --- EF CORE COLLECTION SYNCHRONIZATION FIX ---
-        var rolesToRemove = target.Roles.Where(r => !roles.Contains(r.Role)).ToList();
-        foreach (var roleToRemove in rolesToRemove)
-        {
-            target.Roles.Remove(roleToRemove);
-        }
-
-        var existingRoleNames = target.Roles.Select(r => r.Role).ToHashSet();
+        Context.MembershipRoles.RemoveRange(target.Roles);
+        await Context.SaveChangesAsync(token);
+        var userRoles = new List<MembershipRole>();
         foreach (var role in roles)
         {
-            if (!existingRoleNames.Contains(role))
-            {
-                var roleEntity = await _roleService.FindByNameAsync(role, tenantId, token);
-                target.Roles.Add(new MembershipRole { UserMembershipId = target.Id, Role = role, RoleId = roleEntity?.Id });
-            }
+            var roleEntity = await _roleService.FindByNameAsync(role, tenantId, token);
+            userRoles.Add(new MembershipRole { UserMembershipId = target.Id, Role = role, RoleId = roleEntity?.Id });
         }
-
-        await ModifyAsync(target, token);
-        await PublishRoleChangedAsync(targetUserId, tenantId, roles, token);
+        await Context.MembershipRoles.AddRangeAsync(userRoles, token);
+        await Context.SaveChangesAsync(token);
+        await PublishRoleChangedAsync(target.UserId, tenantId, roles, token);
     }
 
-    /// <summary>Updates a member's status (e.g. Active, Revoked, Inactive).</summary>
-    public async Task UpdateStatusAsync(Guid callerUserId, Guid targetUserId, Guid tenantId, string newStatus, CancellationToken token = default)
+    /// <summary>Updates a member's status (e.g. Active, Revoked).</summary>
+    public async Task UpdateStatusAsync(Guid callerUserId, Guid targetMembershipId, Guid tenantId, string newStatus, CancellationToken token = default)
     {
         var caller = await GetMemberAsync(callerUserId, tenantId, token);
         if (caller == null || !caller.HasAnyPermission("Tenant Members:Manage", "Users:Edit"))
             throw new UnauthorizedAccessException("Only Owner or Admin can change member status.");
-        if (callerUserId == targetUserId)
-            throw new InvalidOperationException("Cannot change your own status.");
 
-        var target = await GetMemberAsync(targetUserId, tenantId, token);
+        var target = await GetMemberByIdAsync(targetMembershipId, tenantId, token);
         if (target == null) throw new KeyNotFoundException("Member not found.");
+        if (callerUserId == target.UserId)
+            throw new InvalidOperationException("Cannot change your own status.");
         if (target.HasRole(TenantRoles.Owner))
             throw new InvalidOperationException("Cannot change the Owner's status.");
 
@@ -229,7 +249,7 @@ public class UserMembershipService : BaseService<UserMembership>
 
         await _publisher.Publish(new MembershipChanged
         {
-            UserId = targetUserId,
+            UserId = target.UserId,
             TenantId = tenantId,
             ChangeType = "StatusChanged",
             NewStatus = newStatus
@@ -248,22 +268,21 @@ public class UserMembershipService : BaseService<UserMembership>
         }, token);
     }
 
-    public async Task RemoveMemberAsync(Guid callerUserId, Guid targetUserId, Guid tenantId, CancellationToken token = default)
+    public async Task RemoveMemberAsync(Guid callerUserId, Guid targetMembershipId, Guid tenantId, CancellationToken token = default)
     {
         var caller = await GetMemberAsync(callerUserId, tenantId, token);
         if (caller == null || !caller.HasAnyPermission("Tenant Members:Manage", "Users:Delete"))
             throw new UnauthorizedAccessException("Only Owner or Admin can remove members.");
-        if (callerUserId == targetUserId)
-            throw new InvalidOperationException("Cannot remove yourself. Use leave-tenant instead.");
-
-        var target = await GetMemberAsync(targetUserId, tenantId, token);
+        var target = await GetMemberByIdAsync(targetMembershipId, tenantId, token);
         if (target == null) throw new KeyNotFoundException("Member not found.");
+        if (callerUserId == target.UserId)
+            throw new InvalidOperationException("Cannot remove yourself. Use leave-tenant instead.");
         if (target.HasRole(TenantRoles.Owner)) throw new InvalidOperationException("Cannot remove the Owner.");
 
         await RemoveAsync(target);
         await _publisher.Publish(new MembershipChanged
         {
-            UserId = targetUserId,
+            UserId = target.UserId,
             TenantId = tenantId,
             ChangeType = "MemberRemoved"
         }, token);
