@@ -59,7 +59,10 @@ public class UserMembershipService : BaseService<UserMembership>
     public async Task<List<AccountMemberShipQuery>> GetUserMembersAsync(Guid userId, CancellationToken token = default)
     {
         var memberships = await GetQueryable(x => x.UserId == userId)
-            .Include(x => x.Roles).ThenInclude(x => x.RoleRef).ThenInclude(x => x!.RolePermissions).ThenInclude(x => x.Permission)
+            .Include(x => x.Roles)
+            .ThenInclude(x => x.RoleRef)
+            .ThenInclude(x => x!.RolePermissions)
+            .ThenInclude(x => x.Permission)
             .ToListAsync(token);
         return memberships.Select(x => new AccountMemberShipQuery
         {
@@ -284,8 +287,11 @@ public class UserMembershipService : BaseService<UserMembership>
         {
             UserId = target.UserId,
             TenantId = tenantId,
-            ChangeType = "MemberRemoved"
+            ChangeType = "StatusChanged",
+            NewStatus = "Revoked"
         }, token);
+
+
     }
 
     public async Task LeaveTenantAsync(Guid userId, Guid tenantId, CancellationToken token = default)
@@ -299,7 +305,8 @@ public class UserMembershipService : BaseService<UserMembership>
         {
             UserId = userId,
             TenantId = tenantId,
-            ChangeType = "MemberRemoved"
+            ChangeType = "StatusChanged",
+            NewStatus = "Revoked"
         }, token);
     }
 }
