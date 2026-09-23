@@ -189,7 +189,9 @@ public class PermissionCatalogSeederService
         // same reasoning as Work Rotation's Approve above.
         ("Change Schedule", "Change Holiday", ["View", "Create", "Approve", "Delete"]),
 
-        ("DTR Generation", "DTR Master", ["View", "Manage"]),
+        // Approve gates ApproveBatch/DeclineBatch on the DTR posting approval flow -- see
+        // DailyRecordsController. DTR Summary has no equivalent action (it's a read-only report).
+        ("DTR Generation", "DTR Master", ["View", "Manage", "Approve"]),
         ("DTR Generation", "DTR Summary", ["View", "Manage"]),
 
         ("Payroll Generation", "Payroll Run", ["View", "Create", "Approve", "Export"]),
@@ -282,10 +284,8 @@ public class PermissionCatalogSeederService
         {
             "Change Rest Day", "Change Holiday",
         }.SelectMany(feature => new[] { "View", "Create", "Approve", "Delete" }.Select(action => $"{feature}:{action}")),
-        .. new[]
-        {
-            "DTR Master", "DTR Summary",
-        }.SelectMany(feature => new[] { "View", "Manage" }.Select(action => $"{feature}:{action}")),
+        .. new[] { "View", "Manage", "Approve" }.Select(action => $"DTR Master:{action}"),
+        .. new[] { "View", "Manage" }.Select(action => $"DTR Summary:{action}"),
         .. new[]
         {
             "Leave", "Overtime", "Official Business", "Undertime", "Pass Slip",
