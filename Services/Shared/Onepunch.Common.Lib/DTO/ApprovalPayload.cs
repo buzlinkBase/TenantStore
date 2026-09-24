@@ -8,11 +8,6 @@ namespace Onepunch.Common.Lib.DTO;
 // DeliverPush) -- both consumers just respect the flags already resolved once at publish time
 // (see ApprovalEngineService.ResolveNotificationRecipientsAsync), so neither needs its own
 // notification-preference lookup.
-//
-// NOTE: this file is mirrored from the main tenantstore repo's copy of the same path (see
-// reference_api_repos rule) -- this submodule checkout is NOT the source of truth, only here so
-// hrms-api can compile locally against it. Any real edit belongs in the main tenantstore repo;
-// this copy gets overwritten the next time the submodule pointer is bumped.
 public record ApprovalNotificationRequested
 {
     public string RecipientEmail { get; set; } = string.Empty;
