@@ -94,6 +94,11 @@ public class EmailNotificationService
 
     public async Task SendApprovalNotification(ApprovalNotificationRequested payload, CancellationToken token)
     {
+        // Recipient opted out of email for this application type (NotificationPreference,
+        // resolved once in hrms-api's ApprovalEngineService) -- push may still be delivered
+        // independently by hrms-api's own ApprovalPushNotificationWorker via DeliverPush.
+        if (!payload.DeliverEmail) return;
+
         var recipientName = string.IsNullOrWhiteSpace(payload.RecipientName) ? payload.RecipientEmail : payload.RecipientName;
         var subject = payload.StatusLabel == "Pending Your Approval"
             ? $"{payload.ApplicationTypeLabel} application awaiting your approval"
