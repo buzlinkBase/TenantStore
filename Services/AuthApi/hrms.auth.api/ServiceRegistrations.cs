@@ -69,10 +69,10 @@ public static class ServiceRegistrations
         // connection-pool pressure that blocks a thread-pool thread per request with nothing to
         // time it out, which reads to a client as the request just hanging forever instead of
         // erroring. Bump this version string if the deployed MySQL server version changes.
-        var sqlVersion = new MySqlServerVersion(new Version(9, 2, 0));
         builder.Services.AddDbContext<AuthContext>((provider, options) =>
         {
             var connectionString = builder.Configuration.GetConnectionString("AuthConnection")!;
+            var sqlVersion = ServerVersion.AutoDetect(connectionString);
             options.UseMySql(connectionString, sqlVersion);
             options.AddInterceptors(new SoftDeleteInterceptor());
             options.UseLazyLoadingProxies(true);
