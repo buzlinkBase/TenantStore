@@ -53,6 +53,42 @@ public class TenantInfoServiceProvider : GetTenantService.GetTenantServiceBase
         }
 
         var membership = await _membershipService.GetMemberAsync(userId, tenantId, context.CancellationToken);
+        return ToMembershipResponse(membership);
+    }
+
+    /// <summary>
+    /// Invitation acceptance (Auth's InvitationService.FinalizeAcceptanceAsync) calls this
+    /// BEFORE minting the invitee's tenant-scoped token. The UserJoin/InvitationAccepted events
+    /// Auth also publishes only leave its outbox after its own commit -- i.e. after the token is
+    /// already minted -- so without this synchronous step the token and login response carried
+    /// no permissions for the joined tenant, leaving the frontend's permission guards bouncing
+    /// the user between routes. JoinAsync is idempotent, so those later events become no-ops.
+    /// </summary>
+    public override async Task<MembershipResponse> ActivateMembership(ActivateMembershipRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId) || !Guid.TryParse(request.TenantId, out var tenantId))
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid GUID format for UserId/TenantId"));
+        }
+
+        await _membershipService.JoinAsync(
+            userId,
+            tenantId,
+            request.TenantName,
+            request.Email,
+            request.FullName,
+            request.Roles.ToList(),
+            context.CancellationToken);
+        await _membershipService.CommitChangesAsync(context.CancellationToken);
+
+        // Re-read with the full role->permission graph loaded -- JoinAsync's returned entity
+        // doesn't have RoleRef/RolePermissions populated for a newly created/activated row.
+        var membership = await _membershipService.GetMemberAsync(userId, tenantId, context.CancellationToken);
+        return ToMembershipResponse(membership);
+    }
+
+    private static MembershipResponse ToMembershipResponse(UserMembership? membership)
+    {
         if (membership == null)
         {
             return new MembershipResponse { Found = false };
@@ -73,7 +109,7 @@ public class TenantInfoServiceProvider : GetTenantService.GetTenantServiceBase
     {
         if (!Guid.TryParse(request.UserId, out var userId))
         {
-            throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid GUID format for UserId"));
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid UserId format"));
         }
 
         var memberships = await _membershipService.GetUserMembersAsync(userId, context.CancellationToken);

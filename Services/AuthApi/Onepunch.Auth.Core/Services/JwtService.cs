@@ -61,7 +61,17 @@ public class JwtService
     // is handled asynchronously). Without this, the membership-cache lookup below finds nothing
     // and the token carries no role claim at all, so IsOwnerOrAdmin()-style backend checks
     // reject the caller's very first actions until their next token refresh.
-    public async Task<string> CreateTokenAsync(User user, string tenantId, string tenantName, IEnumerable<string>? overrideRoles = null)
+    //
+    // overridePermissions: only read alongside overrideRoles -- for callers that already hold the
+    // authoritative permission set too (InvitationService, straight from Tenant Service's
+    // synchronous ActivateMembership response), so the token doesn't depend on a second,
+    // independently-failing membership lookup to carry them.
+    public async Task<string> CreateTokenAsync(
+        User user,
+        string tenantId,
+        string tenantName,
+        IEnumerable<string>? overrideRoles = null,
+        IEnumerable<string>? overridePermissions = null)
     {
         string tenantState = TenantCreationStatus.Initial.ToString();
         if (!string.IsNullOrWhiteSpace(tenantId))
@@ -93,6 +103,10 @@ public class JwtService
         if (overrideRoles != null)
         {
             claims.AddRange(overrideRoles.Select(role => new Claim(ClaimTypes.Role, role)));
+            if (overridePermissions != null)
+            {
+                claims.AddRange(overridePermissions.Select(code => new Claim("permission", code)));
+            }
         }
         else if (Guid.TryParse(tenantId, out var parsedTenantId))
         {

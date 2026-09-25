@@ -61,6 +61,7 @@ public class TenantCreationRequestWorker : IConsumer<TenantCreationRequested>
             TenantId = tenant.Id,
             TenantName = tenant.TenantName,
             FullName = msg.FullName,
+            InvitedEmail = msg.Email,
             IsHidden = true,
             UserId = tenant.UserId,
         }, [role], token);

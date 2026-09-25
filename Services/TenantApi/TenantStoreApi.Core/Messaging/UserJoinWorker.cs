@@ -21,49 +21,25 @@ public class UserJoinWorker : IConsumer<UserJoin>
     public async Task Consume(ConsumeContext<UserJoin> context)
     {
         var message = context.Message;
-        var existing = await _userMembershipService.GetMemberAsync(message.UserId, message.TenantId, context.CancellationToken);
-        if (existing != null)
-        {
-            await _publisher.Publish(new UserJoinToTenantPayload
-            {
-                TenantId = message.TenantId,
-                TenantName = message.TenantName,
-                UserId = message.UserId,
-                Roles = existing.RoleNames(),
-            });
-            return;
-        }
 
-        var roles = message.Roles.Count > 0 ? message.Roles : ["Member"];
-
-        // Flow B: if an invite placeholder (Status="Invited") is waiting for this email,
-        // activate it in place instead of creating a duplicate membership row.
-        var pendingInvite = !string.IsNullOrWhiteSpace(message.Email)
-            ? await _userMembershipService.FindPendingInviteAsync(message.TenantId, message.Email, context.CancellationToken)
-            : null;
-
-        if (pendingInvite != null)
-        {
-            await _userMembershipService.ActivateInviteAsync(pendingInvite, message.UserId, context.CancellationToken);
-            roles = pendingInvite.RoleNames();
-        }
-        else
-        {
-            await _userMembershipService.AddAsync(new UserMembership
-            {
-                TenantId = message.TenantId,
-                InvitedEmail = message.Email,
-                FullName = message.FullName,
-                UserId = message.UserId,
-            }, roles, context.CancellationToken);
-        }
+        // Idempotent -- for invitation acceptance, Auth's synchronous ActivateMembership gRPC
+        // call has usually already activated this membership by the time this event arrives,
+        // in which case JoinAsync just hands back the existing row.
+        var membership = await _userMembershipService.JoinAsync(
+            message.UserId,
+            message.TenantId,
+            message.TenantName,
+            message.Email,
+            message.FullName,
+            message.Roles,
+            context.CancellationToken);
 
         await _publisher.Publish(new UserJoinToTenantPayload
         {
             TenantId = message.TenantId,
             TenantName = message.TenantName,
             UserId = message.UserId,
-            Roles = roles,
+            Roles = membership.RoleNames(),
         });
         await _tenantService.CommitChangesAsync(context.CancellationToken);
     }

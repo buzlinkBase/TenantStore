@@ -22,7 +22,7 @@ public class RoleService : BaseService<Role>
     {
     }
 
-    // System Roles (Owner/Admin/Member/Employee) + every Custom Role this tenant defined.
+    // System Roles (Owner/Admin/Member/Employee/Client) + every Custom Role this tenant defined.
     public Task<List<Role>> FindAllForTenantAsync(Guid tenantId, CancellationToken token)
     {
         return GetQueryable(x => x.TenantId == null || x.TenantId == tenantId)
@@ -146,7 +146,7 @@ public class RoleService : BaseService<Role>
     }
 }
 
-// Seeds the global Permission catalog and the four System Roles (Owner/Admin/Member/Employee),
+// Seeds the global Permission catalog and the System Roles (Owner/Admin/Member/Employee/Client),
 // then backfills existing MembershipRole rows (Migration A's nullable RoleId) to point at them.
 // Idempotent -- safe to run on every TenantApi startup.
 public class PermissionCatalogSeederService
@@ -160,6 +160,10 @@ public class PermissionCatalogSeederService
 
     private static readonly (string Module, string Feature, string[] Actions)[] Catalog =
     [
+        // Gates the frontend's Dashboard menu/page like every other screen -- a role with no
+        // permissions assigned (e.g. plain Member) shouldn't see it either.
+        ("Dashboard", "Dashboard", ["View"]),
+
         ("Setup", "Organization Setup", ["View", "Create", "Edit", "Delete"]),
         ("Setup", "Workforce Setup", ["View", "Create", "Edit", "Delete"]),
         ("Setup", "Time Shift Setup", ["View", "Create", "Edit", "Delete"]),
@@ -167,6 +171,11 @@ public class PermissionCatalogSeederService
         ("Setup", "Leave Setup", ["View", "Create", "Edit", "Delete"]),
         ("Setup", "Statutory Tables", ["View", "Create", "Edit", "Delete"]),
         ("Setup", "Biometric Setup", ["View", "Create", "Edit", "Delete"]),
+        // New rows -- Holidays and Minimum Wage Rates were the only Setup screens with no
+        // catalog entry, which left their menu items visible to every member (even one with no
+        // permissions at all) because there was nothing to gate them on.
+        ("Setup", "Holiday Setup", ["View", "Create", "Edit", "Delete"]),
+        ("Setup", "Minimum Wage Setup", ["View", "Create", "Edit", "Delete"]),
 
         ("Timekeeping", "Upload Attendance", ["View", "Edit", "Export"]),
         // Delete: AttendanceController.Delete(id)/Delete(batch) remove manually-entered
@@ -255,6 +264,20 @@ public class PermissionCatalogSeederService
     private const string AdminRole = "Admin";
     private const string MemberRole = "Member";
     private const string EmployeeRole = "Employee";
+    private const string ClientRole = "Client";
+
+    private static readonly (string Name, string Description)[] SystemRoles =
+    [
+        (OwnerRole, "Full access to everything."),
+        (AdminRole, "Manages tenant members and roles."),
+        (MemberRole, "Standard member."),
+        (EmployeeRole, "Employee-linked member."),
+        // Reserved for the upcoming client-facing portal (the client counterpart of the
+        // Employee Self-Service Portal). Deliberately granted nothing yet -- it gets its own
+        // portal permission(s) once that feature exists, the way Employee has
+        // EmployeeGrantedCodes.
+        (ClientRole, "Client-linked member."),
+    ];
     // "Tenant Administration" (member/role management) plus every module below -- Admin has
     // always had de facto full access everywhere (nothing checked permissions before each
     // module's own enforcement pass), so each addition here keeps that true now that something
@@ -265,11 +288,19 @@ public class PermissionCatalogSeederService
     private static readonly string[] AdminGrantedCodes =
     [
         "Tenant Members:Manage", "Tenant Roles:Manage",
+        "Dashboard:View",
         .. new[]
         {
             "Organization Setup", "Workforce Setup", "Time Shift Setup",
             "Deductions & Income Setup", "Leave Setup", "Statutory Tables", "Biometric Setup",
+            "Holiday Setup", "Minimum Wage Setup",
         }.SelectMany(feature => new[] { "View", "Create", "Edit", "Delete" }.Select(action => $"{feature}:{action}")),
+        // Security module -- its menu items are now permission-gated like every other module,
+        // so Admin needs these explicitly to keep the Users/Roles/Permissions/Audit screens.
+        .. new[]
+        {
+            "Users", "Roles", "Permissions", "Audit Trail",
+        }.SelectMany(feature => new[] { "View", "Create", "Edit", "Delete", "Manage" }.Select(action => $"{feature}:{action}")),
         .. new[]
         {
             "Payroll Run", "Payroll Summary", "13th Month Run", "Last Pay Run", "Year-End Adjustment Run",
@@ -321,7 +352,7 @@ public class PermissionCatalogSeederService
             await Context.SaveChangesAsync(token);
         }
 
-        if (await SeedSystemRolesAsync(token))
+        if (await SeedMissingSystemRolesAsync(token))
         {
             await Context.SaveChangesAsync(token);
         }
@@ -372,11 +403,10 @@ public class PermissionCatalogSeederService
         return true;
     }
 
-    // Mirrors SeedPermissionsAsync's incrementality: SeedSystemRolesAsync only ever runs once
-    // (gated on "no system role exists yet"), so a permission added to the catalog after a
-    // tenant's roles already exist would otherwise never reach Owner -- silently breaking its
-    // "Full access to everything" description. Runs every startup; a no-op once Owner is
-    // caught up (including right after SeedSystemRolesAsync itself just granted everything).
+    // The only thing that grants Owner its permissions -- both on a brand-new seed (right after
+    // SeedMissingSystemRolesAsync creates the role) and whenever the catalog later gains a code,
+    // which keeps its "Full access to everything" description true. Runs every startup; a no-op
+    // once Owner is caught up.
     private async Task<bool> GrantNewPermissionsToOwnerAsync(CancellationToken token)
     {
         var owner = await Context.Roles.FirstOrDefaultAsync(x => x.IsSystemRole && x.Name == OwnerRole, token);
@@ -399,10 +429,9 @@ public class PermissionCatalogSeederService
         return true;
     }
 
-    // Same reasoning as GrantNewPermissionsToOwnerAsync, for Employee's own fixed grant list
-    // (EmployeeGrantedCodes) instead of "everything" -- an existing tenant's Employee role must
-    // pick up Employee Self-Service Portal:View even though SeedSystemRolesAsync (which grants it
-    // to brand-new tenants) never runs again for them.
+    // Same reasoning as GrantNewPermissionsToOwnerAsync, for a role's own fixed grant list
+    // (AdminGrantedCodes, EmployeeGrantedCodes) instead of "everything" -- grants a brand-new
+    // role its codes and catches an existing one up whenever its list gains a code.
     private async Task<bool> GrantMissingCodesToRoleAsync(string roleName, string[] codes, CancellationToken token)
     {
         var role = await Context.Roles.FirstOrDefaultAsync(x => x.IsSystemRole && x.Name == roleName, token);
@@ -430,29 +459,33 @@ public class PermissionCatalogSeederService
         return true;
     }
 
-    private async Task<bool> SeedSystemRolesAsync(CancellationToken token)
+    // Incremental like SeedPermissionsAsync: creates whichever System Roles don't exist yet, so a
+    // role added here later (e.g. Client) reaches existing tenants on their next startup too,
+    // not just brand-new ones. Only creates the rows -- permissions are granted by the steps
+    // that run right after it on every startup (GrantNewPermissionsToOwnerAsync for Owner,
+    // GrantMissingCodesToRoleAsync for Admin/Employee), so a fresh seed and a catch-up take the
+    // exact same path.
+    private async Task<bool> SeedMissingSystemRolesAsync(CancellationToken token)
     {
-        if (await Context.Roles.AnyAsync(x => x.IsSystemRole, token)) return false;
+        var existingNames = await Context.Roles
+            .Where(x => x.IsSystemRole)
+            .Select(x => x.Name)
+            .ToHashSetAsync(token);
 
-        var allPermissions = await Context.Permissions.ToListAsync(token);
-        var byCode = allPermissions.ToDictionary(x => x.Code);
+        var missing = SystemRoles
+            .Where(role => !existingNames.Contains(role.Name))
+            .Select(role => new Role
+            {
+                Id = Guid.CreateVersion7(),
+                Name = role.Name,
+                Description = role.Description,
+                IsSystemRole = true,
+            })
+            .ToList();
 
-        var owner = new Role { Id = Guid.CreateVersion7(), Name = OwnerRole, Description = "Full access to everything.", IsSystemRole = true };
-        var admin = new Role { Id = Guid.CreateVersion7(), Name = AdminRole, Description = "Manages tenant members and roles.", IsSystemRole = true };
-        var member = new Role { Id = Guid.CreateVersion7(), Name = MemberRole, Description = "Standard member.", IsSystemRole = true };
-        var employee = new Role { Id = Guid.CreateVersion7(), Name = EmployeeRole, Description = "Employee-linked member.", IsSystemRole = true };
-        await Context.Roles.AddRangeAsync([owner, admin, member, employee], token);
+        if (missing.Count == 0) return false;
 
-        var rolePermissions = new List<RolePermission>();
-        rolePermissions.AddRange(allPermissions.Select(p => new RolePermission { Id = Guid.CreateVersion7(), RoleId = owner.Id, PermissionId = p.Id }));
-        rolePermissions.AddRange(AdminGrantedCodes
-            .Where(byCode.ContainsKey)
-            .Select(code => new RolePermission { Id = Guid.CreateVersion7(), RoleId = admin.Id, PermissionId = byCode[code].Id }));
-        rolePermissions.AddRange(EmployeeGrantedCodes
-            .Where(byCode.ContainsKey)
-            .Select(code => new RolePermission { Id = Guid.CreateVersion7(), RoleId = employee.Id, PermissionId = byCode[code].Id }));
-        await Context.RolePermissions.AddRangeAsync(rolePermissions, token);
-
+        await Context.Roles.AddRangeAsync(missing, token);
         return true;
     }
 

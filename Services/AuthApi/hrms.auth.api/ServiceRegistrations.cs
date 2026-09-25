@@ -61,11 +61,18 @@ public static class ServiceRegistrations
         .AddDefaultTokenProviders();
 
         builder.Services.AddScoped<JwtService>();
+        // Hardcoded rather than ServerVersion.AutoDetect(connectionString) -- AddDbContext's
+        // (IServiceProvider, DbContextOptionsBuilder) overload re-runs this lambda on every
+        // scoped AuthContext construction (i.e. essentially every request that touches the
+        // database, not once at startup). AutoDetect opens its own separate, synchronous,
+        // unbounded MySQL connection to probe the server version -- under any DB slowness or
+        // connection-pool pressure that blocks a thread-pool thread per request with nothing to
+        // time it out, which reads to a client as the request just hanging forever instead of
+        // erroring. Bump this version string if the deployed MySQL server version changes.
+        var sqlVersion = new MySqlServerVersion(new Version(9, 2, 0));
         builder.Services.AddDbContext<AuthContext>((provider, options) =>
         {
-            var defaultConn = builder.Configuration.GetConnectionString("AuthConnection");
-            var connectionString = defaultConn!;
-            var sqlVersion = ServerVersion.AutoDetect(connectionString);//new MySqlServerVersion(new Version(9, 2, 0))
+            var connectionString = builder.Configuration.GetConnectionString("AuthConnection")!;
             options.UseMySql(connectionString, sqlVersion);
             options.AddInterceptors(new SoftDeleteInterceptor());
             options.UseLazyLoadingProxies(true);

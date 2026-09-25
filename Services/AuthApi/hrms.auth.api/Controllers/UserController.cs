@@ -244,11 +244,21 @@ namespace OnePunch.Auth.Api.Controllers
         [AllowAnonymous]
         [HttpPost("logout")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<IActionResult> Logout([FromBody] RefreshTokenPayload payload, CancellationToken ct)
+        public async Task<IActionResult> Logout([FromBody] RefreshTokenPayload? payload, CancellationToken ct)
         {
             LoginResponseComposer.SetRefreshTokenCookies("", -1, true, Response);
-            if (!string.IsNullOrWhiteSpace(payload.RefreshToken))
-                await _service.RevokeRefreshTokenAsync(payload.RefreshToken, ct);
+
+            // The refresh token is httpOnly (see Refresh's identical cookie read below) --
+            // deliberately unreadable by frontend JS, so it can never actually arrive in
+            // `payload.RefreshToken` from a real browser caller. Read it from the cookie
+            // instead, same as Refresh does; payload.RefreshToken is kept only as a fallback
+            // for a non-browser caller that might supply it directly.
+            var refreshToken = payload?.RefreshToken;
+            if (string.IsNullOrWhiteSpace(refreshToken))
+                Request.Cookies.TryGetValue("X-Refresh-Token", out refreshToken);
+
+            if (!string.IsNullOrWhiteSpace(refreshToken))
+                await _service.RevokeRefreshTokenAsync(refreshToken, ct);
             return Ok();
         }
 

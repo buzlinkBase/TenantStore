@@ -34,6 +34,11 @@ public sealed class GlobalExceptionHandler(IHostEnvironment env) : IExceptionHan
             Instance = $"{httpContext.Request.Method} {httpContext.Request.Path}"
         };
 
+        if (exception is GuardException { Code: not null } guardException)
+        {
+            errorDetail.Extensions.Add("code", guardException.Code);
+        }
+
         if (env.IsDevelopment())
         {
             errorDetail.Extensions.Add("stackTrace", exception.StackTrace);

@@ -79,6 +79,62 @@ public class MembershipGrpcClient
         }
     }
 
+    /// <summary>
+    /// Synchronously activates (or creates) the user's membership on a tenant and returns its
+    /// resolved roles/permissions -- see Tenant Service's TenantInfoServiceProvider.ActivateMembership.
+    /// Virtual so InvitationService tests can stub it without a live gRPC channel.
+    /// </summary>
+    public virtual async Task<MembershipResolveResult> ActivateMembershipAsync(
+        Guid userId,
+        Guid tenantId,
+        string? tenantName,
+        string? email,
+        string? fullName,
+        IEnumerable<string> roles,
+        int deadlineMilliseconds = 2000)
+    {
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            var request = new ActivateMembershipRequest
+            {
+                UserId = userId.ToString(),
+                TenantId = tenantId.ToString(),
+                TenantName = tenantName ?? string.Empty,
+                Email = email ?? string.Empty,
+                FullName = fullName ?? string.Empty,
+            };
+            request.Roles.AddRange(roles);
+            var response = await _client.ActivateMembershipAsync(
+                request,
+                deadline: DateTime.UtcNow.AddMilliseconds(deadlineMilliseconds));
+
+            Log.Logger.Information(
+                "MembershipGrpcClient.ActivateMembershipAsync succeeded for user {UserId}/tenant {TenantId} in {ElapsedMs}ms -- found={Found}, {PermissionCount} permission(s)",
+                userId, tenantId, sw.ElapsedMilliseconds, response.Found, response.Permissions.Count);
+
+            return new MembershipResolveResult
+            {
+                Success = true,
+                Found = response.Found,
+                Roles = response.Roles.ToList(),
+                Permissions = response.Permissions.ToList(),
+                Status = response.Status,
+                TenantName = response.TenantName
+            };
+        }
+        catch (RpcException ex)
+        {
+            Log.Logger.Warning(ex, "MembershipGrpcClient.ActivateMembershipAsync failed for user {UserId}/tenant {TenantId} after {ElapsedMs}ms: {Status}", userId, tenantId, sw.ElapsedMilliseconds, ex.StatusCode);
+            return new MembershipResolveResult { Success = false };
+        }
+        catch (Exception ex)
+        {
+            Log.Logger.Warning(ex, "MembershipGrpcClient.ActivateMembershipAsync failed for user {UserId}/tenant {TenantId} after {ElapsedMs}ms with a non-RPC exception", userId, tenantId, sw.ElapsedMilliseconds);
+            return new MembershipResolveResult { Success = false };
+        }
+    }
+
     public async Task<MembershipResolveResult> ResolveMembershipAsync(Guid userId, Guid tenantId, int deadlineMilliseconds = 200)
     {
         var sw = Stopwatch.StartNew();

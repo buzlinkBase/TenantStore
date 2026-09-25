@@ -19,7 +19,7 @@ namespace Onepunch.Auth.Core.Services
         // still be rejected here even though tenant-api would accept it. Ideally this list should
         // be replaced with a live cross-service check instead of a hardcoded array kept in sync by
         // hand.
-        private static readonly string[] AllowedInviteRoles = ["Admin", "Member", "Employee"];
+        private static readonly string[] AllowedInviteRoles = ["Admin", "Member", "Employee", "Client"];
 
         private readonly EmailTokenService _emailTokenService;
         private readonly TenantRequestService _tenantCreationRequestStatusService;
@@ -29,6 +29,7 @@ namespace Onepunch.Auth.Core.Services
         private readonly IPublishEndpoint _publisher;
         private readonly JwtService _jwtService;
         private readonly MembershipCacheService _membershipCacheService;
+        private readonly MembershipGrpcClient _membershipGrpcClient;
 
         public InvitationService(
             IUnitOfWorkService uow,
@@ -40,8 +41,10 @@ namespace Onepunch.Auth.Core.Services
             UserManager<User> manager,
             IPublishEndpoint publisher,
             JwtService jwtService,
-            MembershipCacheService membershipCacheService) : base(uow)
+            MembershipCacheService membershipCacheService,
+            MembershipGrpcClient membershipGrpcClient) : base(uow)
         {
+            _membershipGrpcClient = membershipGrpcClient;
             _emailTokenService = emailTokenService;
             _tenantCreationRequestStatusService = tenantCreationRequestStatusService;
             _httpContextAccessor = httpContextAccessor;
@@ -76,6 +79,21 @@ namespace Onepunch.Auth.Core.Services
             {
                 if (!AllowedInviteRoles.Contains(role))
                     throw new GuardException($"Invalid role '{role}'. Allowed values: {string.Join(", ", AllowedInviteRoles)}.");
+            }
+
+            // Block re-inviting someone who already has an active membership on this tenant --
+            // sending another invitation would just create a redundant Pending row for someone
+            // who can already sign in; if the goal is to change what they can do, that's a role
+            // edit on their existing membership (Security > Users), not a new invitation. Scoped
+            // to this specific tenant, not "any tenant", since a member of one tenant with no
+            // membership on THIS one is exactly who invitations exist for. Only "Active" blocks
+            // -- a Revoked/Inactive member re-gaining access via a fresh invite is fine.
+            var existingUser = await _manager.FindByEmailAsync(payload.Email);
+            if (existingUser != null)
+            {
+                var memberships = await _membershipCacheService.GetMembershipsAsync(existingUser.Id);
+                if (memberships.Any(m => m.TenantId == tenantId && m.State == "Active"))
+                    throw new GuardException("This person is already a member of your organization. Change their role from the Users page instead of sending a new invitation.");
             }
 
             // Tenant must not be pending provisioning
@@ -117,16 +135,7 @@ namespace Onepunch.Auth.Core.Services
                 Name = payload.Name,
             };
             Repository.Add(invitation);
-
-            // Diagram Flow B step 6 "Clicks invite link": this must land the invitee on the
-            // frontend's accept-invite page (which previews the invite and creates/links their
-            // account), not a bare backend API route.
-            var frontEndHost = (_domains.FrontEnd ?? "").TrimEnd('/');
-
-            // Prefer the invited employee's actual name (sent by the inviter, who already has
-            // it from picking them off the Employee list) -- falls back to their email the same
-            // way EmailNotificationService itself falls back when Name comes through blank
-            // (e.g. inviting a bare email address with no linked Employee record).
+            var frontEndHost = (_domains.FrontEnd ?? "").TrimEnd('/'); 
             await _publisher.Publish(new UserInvitionNotificationPayload
             {
                 Email = payload.Email,
@@ -145,6 +154,7 @@ namespace Onepunch.Auth.Core.Services
                 TenantName = tenantName ?? "",
                 Roles = roles,
                 InvitedByUserId = user.Id,
+                FullName = string.IsNullOrWhiteSpace(payload.Name) ? payload.Email : payload.Name,
                 InvitationToken = token,
                 Expiry = exp,
             }, ct);
@@ -167,13 +177,13 @@ namespace Onepunch.Auth.Core.Services
             // the entity must be tracked for that mutation to actually persist on commit.
             var invitation = await GetQueryable(x => x.Token == invitationToken, false).FirstOrDefaultAsync(ct);
             if (invitation == null)
-                throw new GuardException("This invitation link is invalid.");
+                throw new GuardException("This invitation link is invalid.", "INVITATION_INVALID");
 
             // Must be verified before anything else — otherwise any authenticated user holding
             // a valid token for someone else's invite (forwarded email, shared link, etc.) could
             // join that tenant under their own account.
             if (!string.Equals(invitation.Email, user.Email, StringComparison.OrdinalIgnoreCase))
-                throw new GuardException("This invitation was sent to a different email address.");
+                throw new GuardException("This invitation was sent to a different email address.", "INVITATION_EMAIL_MISMATCH");
 
             if (invitation.Status == InvitationStatus.Accepted)
             {
@@ -186,7 +196,7 @@ namespace Onepunch.Auth.Core.Services
             }
 
             if (invitation.Expiry <= DateTime.UtcNow)
-                throw new GuardException("This invitation has expired. Ask whoever invited you to send a new one.");
+                throw new GuardException("This invitation has expired. Ask whoever invited you to send a new one.", "INVITATION_EXPIRED");
 
             return await FinalizeAcceptanceAsync(user, invitation, ct);
         }
@@ -234,20 +244,20 @@ namespace Onepunch.Auth.Core.Services
             // noTracking: false — see the matching comment in Accept().
             var invitation = await GetQueryable(x => x.Token == invitationToken, false).FirstOrDefaultAsync(ct);
             if (invitation == null)
-                throw new GuardException("This invitation link is invalid.");
+                throw new GuardException("This invitation link is invalid.", "INVITATION_INVALID");
 
             // Checked before the invitation's own status — it's the most actionable message
             // regardless of whether the invitation itself is still pending, already accepted, or
             // expired: if an account exists, the answer is always "sign in instead".
             var existingUser = await _manager.FindByEmailAsync(invitation.Email);
             if (existingUser != null)
-                throw new GuardException("An account already exists for this email. Please sign in — you'll be prompted to accept this invitation automatically.");
+                throw new GuardException("An account already exists for this email. Please sign in — you'll be prompted to accept this invitation automatically.", "INVITATION_ACCOUNT_EXISTS");
 
             if (invitation.Status == InvitationStatus.Accepted)
-                throw new GuardException("This invitation has already been used.");
+                throw new GuardException("This invitation has already been used.", "INVITATION_ALREADY_USED");
 
             if (invitation.Expiry <= DateTime.UtcNow)
-                throw new GuardException("This invitation has expired. Ask whoever invited you to send a new one.");
+                throw new GuardException("This invitation has expired. Ask whoever invited you to send a new one.", "INVITATION_EXPIRED");
 
             var user = new User
             {
@@ -265,12 +275,13 @@ namespace Onepunch.Auth.Core.Services
         }
 
         /// <summary>
-        /// Shared tail of both Accept paths: marks the invitation accepted, publishes UserJoin
-        /// (Tenant Service activates/creates the membership async off this), and mints a token
-        /// scoped to the newly-joined tenant. The membership activation hasn't necessarily landed
-        /// by the time we read it back here, so the tenant is appended to the list optimistically
-        /// (mirrors WorkspaceService.Create) — diagram step 13 "Enter workspace, no provisioning
-        /// wait" since the tenant itself already exists and is already fully provisioned.
+        /// Shared tail of both Accept paths: marks the invitation accepted, publishes UserJoin /
+        /// InvitationAccepted / UserOnboarded, and mints a token scoped to the newly-joined
+        /// tenant. The membership itself is activated synchronously inside
+        /// MintTenantScopedResponseAsync (gRPC ActivateMembership) so the token already carries
+        /// its roles/permissions; the events stay for their other downstream consumers and are
+        /// idempotent against that activation — diagram step 13 "Enter workspace, no
+        /// provisioning wait" since the tenant itself already exists and is fully provisioned.
         /// </summary>
         private async Task<LoginResponse> FinalizeAcceptanceAsync(User user, Invitation invitation, CancellationToken ct)
         {
@@ -320,8 +331,53 @@ namespace Onepunch.Auth.Core.Services
         // Status flip/event publishing above since those already happened once.
         private async Task<LoginResponse> MintTenantScopedResponseAsync(User user, Invitation invitation, CancellationToken ct)
         {
-            var accessToken = await _jwtService.CreateTokenAsync(user, invitation.TenantId.ToString(), invitation.TenantName ?? "");
+            // Activate the membership on Tenant Service SYNCHRONOUSLY, before minting anything.
+            // The UserJoin/InvitationAccepted events the caller published go through the EF bus
+            // outbox, so they only leave this service after CommitChangesAsync below -- i.e.
+            // after the token is already minted. Relying on them meant the token and response
+            // never had this tenant's permissions (and the JWT had no role claims at all), which
+            // left the frontend's permission guards redirecting the invitee in an endless loop.
+            // Idempotent on Tenant Service's side (UserMembershipService.JoinAsync), so the
+            // replay path calling this again, and the events arriving later, are both harmless.
+            var activation = await _membershipGrpcClient.ActivateMembershipAsync(
+                user.Id,
+                invitation.TenantId,
+                invitation.TenantName,
+                invitation.Email,
+                user.FullName ?? user.Email,
+                invitation.Roles);
+
+            // Drop any snapshot cached before this membership existed (an earlier login, or
+            // before the invite was even sent) so the lookup below reads it fresh -- same
+            // reasoning as UserService.RefreshLogin's identical invalidate-before-read.
+            await _membershipCacheService.InvalidateAsync(user.Id);
+            var tenants = await _membershipCacheService.GetMembershipsAsync(user.Id);
+            var joinedWasMissing = tenants.All(t => t.TenantId != invitation.TenantId);
+            var joinedTenant = ResolveJoinedTenant(tenants, invitation, activation);
+            if (joinedWasMissing)
+            {
+                // GetMembershipsAsync just cached a snapshot without this tenant (activation
+                // degraded, or the lookup itself fell back) -- invalidate again so the next read
+                // (token refresh, reload, another tab) retries Tenant Service live instead of
+                // serving that incomplete snapshot for the full 5-minute TTL.
+                await _membershipCacheService.InvalidateAsync(user.Id);
+            }
+
+            // Roles/permissions come straight from the resolution above rather than from
+            // CreateTokenAsync's own independent membership lookup, so the JWT's claims always
+            // match the LoginResponse body exactly.
+            var accessToken = await _jwtService.CreateTokenAsync(
+                user,
+                invitation.TenantId.ToString(),
+                invitation.TenantName ?? "",
+                joinedTenant.Roles,
+                joinedTenant.Permissions);
             var refreshTokenString = await _jwtService.GenerateRefreshToken();
+
+            user.DefaultTenantId = invitation.TenantId;
+            user.DefaultTenantName = joinedTenant.Name;
+            user.DefaultTenantRoles = joinedTenant.Roles;
+
             await Context.RefreshTokens.AddAsync(new RefreshToken
             {
                 UserId = user.Id,
@@ -333,29 +389,6 @@ namespace Onepunch.Auth.Core.Services
 
             await CommitChangesAsync(ct);
 
-            // UserJoin (published above by the caller) is what actually activates the
-            // membership on Tenant Service's side, asynchronously -- but this user may already
-            // have a cached membership snapshot from before that (from an earlier login, or
-            // from before this invite was even sent), and MembershipCacheService's 5-minute TTL
-            // has no trigger tied to this event. Without invalidating first, GetMembershipsAsync
-            // below can keep serving that pre-existing stale list, and — since nothing else in
-            // this app's silent-refresh path ever re-invalidates on its own — a user who never
-            // fully logs out again could see that stale list indefinitely. Same reasoning as
-            // UserService.RefreshLogin's identical invalidate-before-read.
-            await _membershipCacheService.InvalidateAsync(user.Id);
-            var tenants = await _membershipCacheService.GetMembershipsAsync(user.Id);
-            if (!tenants.Any(t => t.TenantId == invitation.TenantId))
-            {
-                tenants.Add(new UsersTenant
-                {
-                    TenantId = invitation.TenantId,
-                    Name = invitation.TenantName ?? "",
-                    Roles = invitation.Roles,
-                    State = "Active",
-                    HrDbReady = true,
-                });
-            }
-
             return new LoginResponse
             {
                 AccessToken = accessToken,
@@ -363,9 +396,51 @@ namespace Onepunch.Auth.Core.Services
                 Expiry = DateTime.UtcNow.AddMinutes(_jwtService.TokenExpiry),
                 Tenants = tenants,
                 Name = user.FullName,
-                Roles = invitation.Roles,
+                Roles = joinedTenant.Roles,
+                Permissions = joinedTenant.Permissions,
                 Email = user.Email,
             };
+        }
+
+        /// <summary>
+        /// Picks the joined tenant's entry out of the user's membership list (appending an
+        /// optimistic one if the lookup didn't include it), then overlays Tenant Service's
+        /// authoritative roles/permissions from the synchronous activation whenever it
+        /// succeeded. Without a successful activation, the entry keeps whatever the lookup
+        /// knew, or the invitation's own roles with no permissions as a last resort -- the next
+        /// token refresh corrects it once the async UserJoin event lands. Mutates and returns
+        /// the entry inside <paramref name="tenants"/>.
+        /// </summary>
+        public static UsersTenant ResolveJoinedTenant(
+            List<UsersTenant> tenants,
+            Invitation invitation,
+            MembershipResolveResult activation)
+        {
+            var joinedTenant = tenants.FirstOrDefault(t => t.TenantId == invitation.TenantId);
+            if (joinedTenant == null)
+            {
+                joinedTenant = new UsersTenant
+                {
+                    TenantId = invitation.TenantId,
+                    Name = invitation.TenantName ?? "",
+                    Roles = invitation.Roles,
+                    State = "Active",
+                    // Invites can only be sent once the tenant has finished provisioning (see
+                    // SendUserInvitationAsync's Provisioning guard).
+                    HrDbReady = true,
+                };
+                tenants.Add(joinedTenant);
+            }
+
+            if (activation.Success && activation.Found)
+            {
+                joinedTenant.Roles = activation.Roles;
+                joinedTenant.Permissions = activation.Permissions;
+                if (!string.IsNullOrEmpty(activation.Status)) joinedTenant.State = activation.Status;
+                if (string.IsNullOrEmpty(joinedTenant.Name)) joinedTenant.Name = activation.TenantName;
+            }
+
+            return joinedTenant;
         }
 
         public async Task<bool> IsValidAsync(string invitationToken, CancellationToken token = default)

@@ -25,6 +25,13 @@ namespace Onepunch.Auth.Api.Tests.Services;
 /// here — it requires a real signing key/gRPC membership client to reach
 /// MintTenantScopedResponseAsync, which this project's own JwtServiceTests avoids for the same
 /// reason (see its Hash-only coverage). Verify that path manually/end-to-end instead.
+///
+/// SendUserInvitationAsync's already-a-member guard branch (the one that calls
+/// MembershipCacheService.GetMembershipsAsync once FindByEmailAsync resolves an existing
+/// account) isn't covered here either, since CreateSut() passes no MembershipCacheService --
+/// only the "no account exists yet" branch (which never reaches it) is. The membership merge
+/// itself is covered by MembershipCacheServiceTests, and the accept path's roles/permissions
+/// resolution by the ResolveJoinedTenant tests at the bottom of this class.
 /// </summary>
 public class InvitationServiceTests
 {
@@ -50,7 +57,8 @@ public class InvitationServiceTests
             userManager.Object,
             publisher.Object,
             null!, // JwtService — not needed by any branch under test (see class doc comment)
-            null!  // MembershipCacheService — same
+            null!, // MembershipCacheService — same (see class doc comment)
+            null!  // MembershipGrpcClient — same; ResolveJoinedTenant below covers the activation merge
         );
 
         return (sut, context, userManager, publisher);
@@ -269,5 +277,160 @@ public class InvitationServiceTests
 
         var reloaded = await context.Invitations.FirstAsync(x => x.Token == "unrelated-tok");
         reloaded.Expiry.Should().Be(originalExpiry);
+    }
+
+    [Fact]
+    public async Task SendUserInvitationAsync_Allows_WhenNoAccountExistsForEmail()
+    {
+        // No User row at all for this email -- FindByEmailAsync returns null, so the guard is
+        // skipped entirely (MembershipCacheService is never consulted, matching CreateSut()'s
+        // default null! for every test that doesn't need it).
+        var (sut, context, userManager, _) = CreateSut();
+        var tenantId = Guid.NewGuid();
+
+        var admin = new User { Email = "admin@test.com", DefaultTenantRoles = ["Owner"] };
+        userManager.Setup(m => m.GetUserAsync(It.IsAny<ClaimsPrincipal>())).ReturnsAsync(admin);
+        userManager.Setup(m => m.FindByEmailAsync("new-person@test.com")).ReturnsAsync((User?)null);
+
+        await sut.SendUserInvitationAsync(
+            new InvitationRequest { Email = "new-person@test.com" }, tenantId, "Acme", "app.test", SomeClaimsPrincipal(), default);
+
+        context.Invitations.Should().ContainSingle(x => x.Email == "new-person@test.com");
+    }
+
+    [Fact]
+    public async Task SendUserInvitationAsync_AllowsInvitingAsClient()
+    {
+        var (sut, context, userManager, _) = CreateSut();
+        var admin = new User { Email = "admin@test.com", DefaultTenantRoles = ["Owner"] };
+        userManager.Setup(m => m.GetUserAsync(It.IsAny<ClaimsPrincipal>())).ReturnsAsync(admin);
+        userManager.Setup(m => m.FindByEmailAsync("client@test.com")).ReturnsAsync((User?)null);
+
+        await sut.SendUserInvitationAsync(
+            new InvitationRequest { Email = "client@test.com", Roles = ["Client"] },
+            Guid.NewGuid(), "Acme", "app.test", SomeClaimsPrincipal(), default);
+
+        context.Invitations.Should().ContainSingle(x => x.Email == "client@test.com")
+            .Which.Roles.Should().Equal("Client");
+    }
+
+    [Fact]
+    public async Task SendUserInvitationAsync_StillRejectsOwner()
+    {
+        var (sut, _, userManager, _) = CreateSut();
+        var admin = new User { Email = "admin@test.com", DefaultTenantRoles = ["Owner"] };
+        userManager.Setup(m => m.GetUserAsync(It.IsAny<ClaimsPrincipal>())).ReturnsAsync(admin);
+
+        var act = () => sut.SendUserInvitationAsync(
+            new InvitationRequest { Email = "x@test.com", Roles = ["Owner"] },
+            Guid.NewGuid(), "Acme", "app.test", SomeClaimsPrincipal(), default);
+
+        (await act.Should().ThrowAsync<GuardException>()).WithMessage("*Invalid role*");
+    }
+
+    // ── ResolveJoinedTenant ──────────────────────────────────────────────────────────────
+    // The pure half of MintTenantScopedResponseAsync: decides which roles/permissions the
+    // accept response AND the minted JWT carry. The regression it guards: a fresh acceptance
+    // used to come back with Permissions=[] (the async UserJoin event hadn't been delivered yet),
+    // which sent the frontend's permission guards into an endless redirect loop.
+
+    private static Invitation SomeInvitation(Guid tenantId) => new()
+    {
+        Token = "tok",
+        Email = "invited@test.com",
+        TenantId = tenantId,
+        TenantName = "Acme",
+        Roles = ["Employee"],
+        Status = InvitationStatus.Accepted,
+        Expiry = DateTime.UtcNow.AddHours(1),
+    };
+
+    [Fact]
+    public void ResolveJoinedTenant_UsesActivationPermissions_WhenLookupDidNotIncludeTenantYet()
+    {
+        var tenantId = Guid.NewGuid();
+        var tenants = new List<UsersTenant>();
+        var activation = new MembershipResolveResult
+        {
+            Success = true,
+            Found = true,
+            Roles = ["Employee"],
+            Permissions = ["Employee Self-Service Portal:View"],
+            Status = "Active",
+            TenantName = "Acme",
+        };
+
+        var joined = InvitationService.ResolveJoinedTenant(tenants, SomeInvitation(tenantId), activation);
+
+        joined.TenantId.Should().Be(tenantId);
+        joined.Permissions.Should().Equal("Employee Self-Service Portal:View");
+        joined.Roles.Should().Equal("Employee");
+        joined.HrDbReady.Should().BeTrue();
+        tenants.Should().ContainSingle().Which.Should().BeSameAs(joined);
+    }
+
+    [Fact]
+    public void ResolveJoinedTenant_OverlaysActivation_OntoExistingLookupEntry()
+    {
+        var tenantId = Guid.NewGuid();
+        var existing = new UsersTenant
+        {
+            TenantId = tenantId,
+            Name = "Acme",
+            Roles = ["Member"],
+            Permissions = [],
+            State = "Active",
+            HrDbReady = true,
+        };
+        var tenants = new List<UsersTenant> { existing };
+        var activation = new MembershipResolveResult
+        {
+            Success = true,
+            Found = true,
+            Roles = ["Admin"],
+            Permissions = ["Users:Edit"],
+            Status = "Active",
+        };
+
+        var joined = InvitationService.ResolveJoinedTenant(tenants, SomeInvitation(tenantId), activation);
+
+        joined.Should().BeSameAs(existing);
+        joined.Roles.Should().Equal("Admin");
+        joined.Permissions.Should().Equal("Users:Edit");
+        tenants.Should().ContainSingle();
+    }
+
+    [Fact]
+    public void ResolveJoinedTenant_FallsBackToInvitationRoles_WhenActivationFailed()
+    {
+        var tenantId = Guid.NewGuid();
+        var tenants = new List<UsersTenant>();
+
+        var joined = InvitationService.ResolveJoinedTenant(
+            tenants, SomeInvitation(tenantId), new MembershipResolveResult { Success = false });
+
+        joined.Roles.Should().Equal("Employee");
+        joined.Permissions.Should().BeEmpty();
+        joined.State.Should().Be("Active");
+    }
+
+    [Fact]
+    public void ResolveJoinedTenant_KeepsLookupEntry_WhenActivationFailed()
+    {
+        var tenantId = Guid.NewGuid();
+        var existing = new UsersTenant
+        {
+            TenantId = tenantId,
+            Name = "Acme",
+            Roles = ["Employee"],
+            Permissions = ["Employee Self-Service Portal:View"],
+            State = "Active",
+        };
+        var tenants = new List<UsersTenant> { existing };
+
+        var joined = InvitationService.ResolveJoinedTenant(
+            tenants, SomeInvitation(tenantId), new MembershipResolveResult { Success = false });
+
+        joined.Permissions.Should().Equal("Employee Self-Service Portal:View");
     }
 }

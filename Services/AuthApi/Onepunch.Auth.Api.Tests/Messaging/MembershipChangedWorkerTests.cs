@@ -254,7 +254,7 @@ public class MembershipChangedWorkerTests
             Mock.Of<IPasswordHasher<User>>(), jwtService, null!, null!, null!, null!, null!, null!,
             null!, Mock.Of<IMapper>());
 
-        await userService.ApplyMembershipChangeAsync(user.Id, tenantId, isRoleChange: true, newRoles: ["Admin"], CancellationToken.None);
+        await userService.ApplyMembershipChangeAsync(user.Id, tenantId, newStatus: null, isRoleChange: true, newRoles: ["Admin"], CancellationToken.None);
 
         userManager.Verify(m => m.UpdateAsync(user), Times.Once);
         user.Status.Should().Be("Active");

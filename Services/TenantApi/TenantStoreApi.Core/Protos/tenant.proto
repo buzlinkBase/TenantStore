@@ -1,4 +1,4 @@
-﻿syntax = "proto3";
+syntax = "proto3";
 
 option csharp_namespace = "Onepunch.Auth.Core"; 
 
@@ -8,6 +8,10 @@ service GetTenantService {
   rpc GetInfo  (TenantRequest) returns (TenantInfoResponse);
   rpc ResolveMembership (MembershipRequest) returns (MembershipResponse);
   rpc GetActiveMemberships (UserMembershipsRequest) returns (UserMembershipsResponse);
+  // Synchronously activates (or creates) a user's membership on a tenant -- used by invitation
+  // acceptance so the token minted right after already carries the joined tenant's roles and
+  // permissions, instead of waiting on the async UserJoin/InvitationAccepted events.
+  rpc ActivateMembership (ActivateMembershipRequest) returns (MembershipResponse);
 }
 
 message TenantRequest  {
@@ -30,6 +34,15 @@ message MembershipResponse {
   string status = 3;
   string tenant_name = 4;
   repeated string permissions = 5;
+}
+
+message ActivateMembershipRequest {
+  string user_id = 1;
+  string tenant_id = 2;
+  string tenant_name = 3;
+  string email = 4;
+  string full_name = 5;
+  repeated string roles = 6;
 }
 
 message UserMembershipsRequest {

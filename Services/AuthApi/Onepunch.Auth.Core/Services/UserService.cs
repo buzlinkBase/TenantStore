@@ -375,9 +375,14 @@ public class UserService : BaseService<User>
     /// Exchanges a Google auth-code (popup/auth-code flow) for the validated id_token payload.
     /// Returns null if Google didn't return a token; throws InvalidJwtException if the token is invalid.
     /// </summary>
-    private async Task<GoogleJsonWebSignature.Payload?> ExchangeGoogleCodeAsync(string code)
+    private async Task<GoogleJsonWebSignature.Payload?> ExchangeGoogleCodeAsync(string code, CancellationToken ct)
     {
-        var tokenResponse = await new HttpClient().PostAsync("https://oauth2.googleapis.com/token",
+        // Explicit timeout (HttpClient's own default is ~100s) plus the caller's own
+        // CancellationToken threaded through -- previously neither existed, so a slow/hung
+        // Google token endpoint could hold this request open for up to 100s with no way for
+        // the caller (or a request abort) to cut it short.
+        using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        var tokenResponse = await httpClient.PostAsync("https://oauth2.googleapis.com/token",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["code"] = code,
@@ -385,10 +390,10 @@ public class UserService : BaseService<User>
                 ["client_secret"] = _configuration["Authentication:Google:ClientSecret"]!,
                 ["redirect_uri"] = "postmessage", // required for popup/auth-code flow
                 ["grant_type"] = "authorization_code",
-            })
+            }), ct
         );
 
-        var tokenJson = await tokenResponse.Content.ReadAsStringAsync();
+        var tokenJson = await tokenResponse.Content.ReadAsStringAsync(ct);
         var tokenData = JsonSerializer.Deserialize<JsonElement>(tokenJson);
 
         if (!tokenData.TryGetProperty("id_token", out var idTokenElement))
@@ -410,7 +415,7 @@ public class UserService : BaseService<User>
     {
         try
         {
-            var payload = await ExchangeGoogleCodeAsync(code);
+            var payload = await ExchangeGoogleCodeAsync(code, ct);
             if (payload == null)
                 return new LoginResponse { ErrorMessage = "Failed to retrieve token from Google." };
 
@@ -449,7 +454,7 @@ public class UserService : BaseService<User>
     {
         try
         {
-            var payload = await ExchangeGoogleCodeAsync(code);
+            var payload = await ExchangeGoogleCodeAsync(code, ct);
             if (payload == null)
                 return new LoginResponse { ErrorMessage = "Failed to retrieve token from Google." };
 

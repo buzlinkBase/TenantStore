@@ -10,6 +10,7 @@ public static class TenantRoles
     public const string Admin = "Admin";
     public const string Member = "Member";
     public const string Employee = "Employee";
+    public const string Client = "Client";
 }
 
 public class UserMembershipService : BaseService<UserMembership>
@@ -106,7 +107,10 @@ public class UserMembershipService : BaseService<UserMembership>
             .FirstOrDefaultAsync(token);
     }
 
-    public async Task CreateInvitePlaceholderAsync(Guid tenantId, string tenantName, string email, IEnumerable<string> roles, CancellationToken token = default)
+    public async Task CreateInvitePlaceholderAsync(Guid tenantId, string tenantName,
+        string email, IEnumerable<string> roles, 
+        string fullName,
+        CancellationToken token = default)
     {
         var existing = await GetQueryable(x =>
             x.TenantId == tenantId &&
@@ -119,6 +123,7 @@ public class UserMembershipService : BaseService<UserMembership>
         {
             TenantId = tenantId,
             TenantName = tenantName,
+            FullName=fullName,
             UserId = Guid.Empty,
             InvitedEmail = email,
             Status = "Invited"
@@ -144,6 +149,64 @@ public class UserMembershipService : BaseService<UserMembership>
         // now serves the members list purely from local data (no AuthApi gRPC lookup), so this
         // is what backs that Email column going forward.
         await ModifyAsync(placeholder, token);
+    }
+
+    /// <summary>
+    /// Single source of truth for "this user is now a member of this tenant" -- shared by the
+    /// synchronous ActivateMembership gRPC call (invitation acceptance) and the async UserJoin
+    /// event, which still arrives afterwards for the same join. Idempotent so whichever runs
+    /// second is a no-op:
+    /// - an existing membership is returned as-is, reactivated if it was Revoked/Inactive (a
+    ///   fresh invite is only ever sent to someone NOT already Active -- see Auth's
+    ///   SendUserInvitationAsync), and any leftover "Invited" placeholder for the same email is
+    ///   removed so InvitationAcceptedWorker can't later activate it into a duplicate row;
+    /// - otherwise a pending invite placeholder for this email is activated in place;
+    /// - otherwise a new membership is created with the given roles (Member if none).
+    /// Doesn't commit -- the caller owns the unit of work.
+    /// </summary>
+    public async Task<UserMembership> JoinAsync(
+        Guid userId,
+        Guid tenantId,
+        string? tenantName,
+        string? email,
+        string? fullName,
+        IReadOnlyCollection<string> roles,
+        CancellationToken token = default)
+    {
+        var pendingInvite = !string.IsNullOrWhiteSpace(email)
+            ? await FindPendingInviteAsync(tenantId, email, token)
+            : null;
+
+        var existing = await GetMemberAsync(userId, tenantId, token);
+        if (existing != null)
+        {
+            if (existing.Status != "Active")
+            {
+                existing.Status = "Active";
+                await ModifyAsync(existing, token);
+            }
+            // By key, not by entity -- FindPendingInviteAsync reads no-tracking, and attaching
+            // that detached copy would conflict with any tracked instance of the same row.
+            if (pendingInvite != null) await RemoveAsync(pendingInvite.Id, token);
+            return existing;
+        }
+
+        if (pendingInvite != null)
+        {
+            await ActivateInviteAsync(pendingInvite, userId, token);
+            return pendingInvite;
+        }
+
+        var membership = new UserMembership
+        {
+            TenantId = tenantId,
+            TenantName = tenantName,
+            InvitedEmail = email,
+            FullName = fullName,
+            UserId = userId,
+        };
+        await AddAsync(membership, roles.Count > 0 ? roles : [TenantRoles.Member], token);
+        return membership;
     }
 
     /// <summary>Grants an additional role to an existing membership, leaving other roles intact.</summary>

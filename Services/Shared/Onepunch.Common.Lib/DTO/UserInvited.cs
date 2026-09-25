@@ -11,6 +11,7 @@ public record UserInvited
     public string Email { get; set; } = string.Empty;
     public Guid TenantId { get; set; }
     public string TenantName { get; set; } = string.Empty;
+    public string FullName  { get; set; } = string.Empty;
     public List<string> Roles { get; set; } = new() { "Member" };
     public Guid InvitedByUserId { get; set; }
     public string InvitationToken { get; set; } = string.Empty;

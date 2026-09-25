@@ -18,7 +18,7 @@ public class UserMembershipServiceTests
         await new PermissionCatalogSeederService(uow).EnsureSeededAsync(CancellationToken.None);
 
         var roleService = new RoleService(uow);
-        var sut = new UserMembershipService(uow, Mock.Of<IPublishEndpoint>(), roleService);
+        var sut = new UserMembershipService(uow, Mock.Of<IPublishEndpoint>(), roleService, new MembershipRoleService(uow));
         return (sut, uow);
     }
 
@@ -45,6 +45,99 @@ public class UserMembershipServiceTests
         membership.Roles.Should().ContainSingle(r => r.Role == "Owner" && r.RoleId != null);
     }
 
+    // ── JoinAsync ────────────────────────────────────────────────────────────────────────
+    // Shared by the synchronous ActivateMembership gRPC call (invitation acceptance) and the
+    // async UserJoin event that still arrives afterwards for the same join -- both run for
+    // every acceptance, so whichever lands second must be a no-op, never a duplicate row.
+
+    private static Task<int> CountMembershipsAsync(UserMembershipService sut, Guid tenantId) =>
+        sut.Context.Memberships.CountAsync(x => x.TenantId == tenantId);
+
+    [Fact]
+    public async Task JoinAsync_ActivatesPendingInvitePlaceholder_InPlace()
+    {
+        var (sut, _) = await CreateSutAsync();
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        await sut.CreateInvitePlaceholderAsync(tenantId, "Acme", "invitee@test.com", ["Employee"], "Invitee", CancellationToken.None);
+        await sut.Context.SaveChangesAsync(CancellationToken.None);
+
+        await sut.JoinAsync(userId, tenantId, "Acme", "invitee@test.com", "Invitee", ["Employee"], CancellationToken.None);
+        await sut.Context.SaveChangesAsync(CancellationToken.None);
+
+        var membership = await sut.GetMemberAsync(userId, tenantId, CancellationToken.None);
+        membership.Should().NotBeNull();
+        membership!.Status.Should().Be("Active");
+        membership.HasRole("Employee").Should().BeTrue();
+        (await CountMembershipsAsync(sut, tenantId)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task JoinAsync_IsIdempotent_WhenCalledTwiceForTheSameJoin()
+    {
+        var (sut, _) = await CreateSutAsync();
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        await sut.CreateInvitePlaceholderAsync(tenantId, "Acme", "invitee@test.com", ["Admin"], "Invitee", CancellationToken.None);
+        await sut.Context.SaveChangesAsync(CancellationToken.None);
+
+        await sut.JoinAsync(userId, tenantId, "Acme", "invitee@test.com", "Invitee", ["Admin"], CancellationToken.None);
+        await sut.Context.SaveChangesAsync(CancellationToken.None);
+        await sut.JoinAsync(userId, tenantId, "Acme", "invitee@test.com", "Invitee", ["Admin"], CancellationToken.None);
+        await sut.Context.SaveChangesAsync(CancellationToken.None);
+
+        (await CountMembershipsAsync(sut, tenantId)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task JoinAsync_ReactivatesRevokedMembership_AndDropsItsNewPlaceholder()
+    {
+        var (sut, _) = await CreateSutAsync();
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var revoked = await AddMemberAsync(sut, tenantId, userId, "Member");
+        revoked.Status = "Revoked";
+        await sut.Context.SaveChangesAsync(CancellationToken.None);
+        await sut.CreateInvitePlaceholderAsync(tenantId, "Acme", "invitee@test.com", ["Member"], "Invitee", CancellationToken.None);
+        await sut.Context.SaveChangesAsync(CancellationToken.None);
+
+        await sut.JoinAsync(userId, tenantId, "Acme", "invitee@test.com", "Invitee", ["Member"], CancellationToken.None);
+        await sut.Context.SaveChangesAsync(CancellationToken.None);
+
+        var membership = await sut.GetMemberAsync(userId, tenantId, CancellationToken.None);
+        membership!.Status.Should().Be("Active");
+        (await sut.FindPendingInviteAsync(tenantId, "invitee@test.com", CancellationToken.None)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task JoinAsync_CreatesMembershipWithGivenRoles_WhenNoPlaceholderExists()
+    {
+        var (sut, _) = await CreateSutAsync();
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+
+        await sut.JoinAsync(userId, tenantId, "Acme", "someone@test.com", "Someone", ["Admin"], CancellationToken.None);
+        await sut.Context.SaveChangesAsync(CancellationToken.None);
+
+        var membership = await sut.GetMemberAsync(userId, tenantId, CancellationToken.None);
+        membership!.HasRole("Admin").Should().BeTrue();
+        membership.EffectivePermissionCodes().Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task JoinAsync_DefaultsToMember_WhenNoRolesGiven()
+    {
+        var (sut, _) = await CreateSutAsync();
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+
+        await sut.JoinAsync(userId, tenantId, "Acme", null, null, [], CancellationToken.None);
+        await sut.Context.SaveChangesAsync(CancellationToken.None);
+
+        var membership = await sut.GetMemberAsync(userId, tenantId, CancellationToken.None);
+        membership!.RoleNames().Should().Equal("Member");
+    }
+
     [Fact]
     public async Task ReplaceRolesAsync_Succeeds_WhenCallerIsOwner()
     {
@@ -53,9 +146,9 @@ public class UserMembershipServiceTests
         var ownerId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
         await AddMemberAsync(sut, tenantId, ownerId, "Owner");
-        await AddMemberAsync(sut, tenantId, targetId, "Member");
+        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "Member");
 
-        await sut.ReplaceRolesAsync(ownerId, targetId, tenantId, ["Admin"], CancellationToken.None);
+        await sut.ReplaceRolesAsync(ownerId, targetMembership.Id, tenantId, ["Admin"], CancellationToken.None);
 
         var target = await sut.GetMemberAsync(targetId, tenantId, CancellationToken.None);
         target!.HasRole("Admin").Should().BeTrue();
@@ -69,9 +162,9 @@ public class UserMembershipServiceTests
         var ownerId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
         await AddMemberAsync(sut, tenantId, ownerId, "Owner");
-        await AddMemberAsync(sut, tenantId, targetId, "Member", "Admin");
+        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "Member", "Admin");
 
-        await sut.ReplaceRolesAsync(ownerId, targetId, tenantId, ["Admin"], CancellationToken.None);
+        await sut.ReplaceRolesAsync(ownerId, targetMembership.Id, tenantId, ["Admin"], CancellationToken.None);
 
         var target = await sut.GetMemberAsync(targetId, tenantId, CancellationToken.None);
         target!.HasRole("Admin").Should().BeTrue();
@@ -94,21 +187,21 @@ public class UserMembershipServiceTests
         var dbName = Guid.NewGuid().ToString();
         var uow1 = TenantTestContextFactory.CreateUnitOfWork(TenantTestContextFactory.CreateContext(dbName));
         await new PermissionCatalogSeederService(uow1).EnsureSeededAsync(CancellationToken.None);
-        var sut1 = new UserMembershipService(uow1, Mock.Of<IPublishEndpoint>(), new RoleService(uow1));
+        var sut1 = new UserMembershipService(uow1, Mock.Of<IPublishEndpoint>(), new RoleService(uow1), new MembershipRoleService(uow1));
 
         var tenantId = Guid.NewGuid();
         var ownerId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
         await AddMemberAsync(sut1, tenantId, ownerId, "Owner");
-        await AddMemberAsync(sut1, tenantId, targetId, "Member");
+        var targetMembership = await AddMemberAsync(sut1, tenantId, targetId, "Member");
 
         // A second, independent request-scoped service instance grants "Employee" and commits.
         var uow2 = TenantTestContextFactory.CreateUnitOfWork(TenantTestContextFactory.CreateContext(dbName));
-        var sut2 = new UserMembershipService(uow2, Mock.Of<IPublishEndpoint>(), new RoleService(uow2));
-        await sut2.AddRoleAsync(ownerId, targetId, tenantId, "Employee", CancellationToken.None);
+        var sut2 = new UserMembershipService(uow2, Mock.Of<IPublishEndpoint>(), new RoleService(uow2), new MembershipRoleService(uow2));
+        await sut2.AddRoleAsync(ownerId, targetMembership.Id, tenantId, "Employee", CancellationToken.None);
         await sut2.Context.SaveChangesAsync(CancellationToken.None);
 
-        var act = () => sut1.ReplaceRolesAsync(ownerId, targetId, tenantId, ["Member", "Employee"], CancellationToken.None);
+        var act = () => sut1.ReplaceRolesAsync(ownerId, targetMembership.Id, tenantId, ["Member", "Employee"], CancellationToken.None);
 
         await act.Should().NotThrowAsync();
     }
@@ -121,9 +214,9 @@ public class UserMembershipServiceTests
         var memberId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
         await AddMemberAsync(sut, tenantId, memberId, "Member");
-        await AddMemberAsync(sut, tenantId, targetId, "Member");
+        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "Member");
 
-        var act = () => sut.ReplaceRolesAsync(memberId, targetId, tenantId, ["Admin"], CancellationToken.None);
+        var act = () => sut.ReplaceRolesAsync(memberId, targetMembership.Id, tenantId, ["Admin"], CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -138,9 +231,9 @@ public class UserMembershipServiceTests
         var adminId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
         await AddMemberAsync(sut, tenantId, adminId, "Admin");
-        await AddMemberAsync(sut, tenantId, targetId, "Member");
+        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "Member");
 
-        await sut.ReplaceRolesAsync(adminId, targetId, tenantId, ["Admin"], CancellationToken.None);
+        await sut.ReplaceRolesAsync(adminId, targetMembership.Id, tenantId, ["Admin"], CancellationToken.None);
 
         var target = await sut.GetMemberAsync(targetId, tenantId, CancellationToken.None);
         target!.HasRole("Admin").Should().BeTrue();
@@ -154,9 +247,9 @@ public class UserMembershipServiceTests
         var memberId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
         await AddMemberAsync(sut, tenantId, memberId, "Member");
-        await AddMemberAsync(sut, tenantId, targetId, "Member");
+        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "Member");
 
-        var act = () => sut.RemoveMemberAsync(memberId, targetId, tenantId, CancellationToken.None);
+        var act = () => sut.RemoveMemberAsync(memberId, targetMembership.Id, tenantId, CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -215,9 +308,9 @@ public class UserMembershipServiceTests
         var callerId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
         await AddMemberAsync(sut, tenantId, callerId, "Member", "User Manager");
-        await AddMemberAsync(sut, tenantId, targetId, "Member");
+        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "Member");
 
-        await sut.ReplaceRolesAsync(callerId, targetId, tenantId, ["Admin"], CancellationToken.None);
+        await sut.ReplaceRolesAsync(callerId, targetMembership.Id, tenantId, ["Admin"], CancellationToken.None);
 
         var target = await sut.GetMemberAsync(targetId, tenantId, CancellationToken.None);
         target!.HasRole("Admin").Should().BeTrue();
@@ -237,9 +330,9 @@ public class UserMembershipServiceTests
         var callerId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
         await AddMemberAsync(sut, tenantId, callerId, "Member", "User Remover");
-        await AddMemberAsync(sut, tenantId, targetId, "Member");
+        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "Member");
 
-        await sut.RemoveMemberAsync(callerId, targetId, tenantId, CancellationToken.None);
+        await sut.RemoveMemberAsync(callerId, targetMembership.Id, tenantId, CancellationToken.None);
         // RemoveMemberAsync itself only marks the entity removed (soft-delete interceptor) --
         // flushing is the caller's job in production (end of the HTTP request's unit of work);
         // do it explicitly here to observe the effect.

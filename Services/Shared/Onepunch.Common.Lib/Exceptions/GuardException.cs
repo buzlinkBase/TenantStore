@@ -5,8 +5,16 @@ namespace Onepunch.Common.Lib.Exceptions;
 
 public class GuardException : Exception
 {
+    /// Optional machine-readable discriminator (e.g. "INVITATION_EMAIL_MISMATCH") for callers
+    /// that need to branch on the failure reason instead of matching the display Message text.
+    public string? Code { get; }
+
     public GuardException(string message) : base(message)
     {
+    }
+    public GuardException(string message, string? code) : base(message)
+    {
+        Code = code;
     }
     public GuardException(string message, Exception exception) : base(message, exception)
     {

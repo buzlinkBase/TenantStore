@@ -108,26 +108,38 @@ public class MembershipCacheService
     /// tenant CREATOR's unrelated TenantCreationStatus (e.g. "Created") for every tenant that
     /// had ever gone through the create-workspace flow -- effectively every tenant. State no
     /// longer reflected this user's own membership standing once that happened.
+    ///
+    /// HrDbStatus/HrDbReady are the exception: HR-resource provisioning is a property of the
+    /// TENANT, not of whoever requested it, so they're applied from the tenant's request row
+    /// for every member. Scoping them to the requester too left every invited member with
+    /// HrDbReady=false forever, which kept the app shell on the "Setting up your company"
+    /// screen for a company that was long since ready.
     /// </summary>
     private async Task<List<UsersTenant>> ApplyRequestStateAsync(List<UsersTenant> tenants, Guid userId)
     {
         var ids = tenants.Select(t => t.TenantId).ToList();
-        var requestStates = await _uow.Context.TenantCreationRequests
-            .Where(x => ids.Contains(x.TenantId) && x.UserId == userId)
+        // Materialized before grouping -- only one request row exists per tenant in practice,
+        // and grouping client-side keeps this translatable on every EF provider.
+        var requestRows = await _uow.Context.TenantCreationRequests
+            .Where(x => ids.Contains(x.TenantId))
+            .ToListAsync();
+        var requestsByTenant = requestRows
             .GroupBy(x => x.TenantId)
-            .ToDictionaryAsync(x => x.Key, x => x.First());
+            .ToDictionary(x => x.Key, x => x.ToList());
 
         foreach (var tenant in tenants)
         {
-            requestStates.TryGetValue(tenant.TenantId, out var stateData);
+            if (!requestsByTenant.TryGetValue(tenant.TenantId, out var rows)) continue;
+
+            var tenantRow = rows[0];
+            tenant.HrDbStatus = tenantRow.HrDbStatus;
+            tenant.HrDbReady = tenantRow.HrDbReady;
+
+            var ownRequest = rows.FirstOrDefault(x => x.UserId == userId);
             if (string.IsNullOrEmpty(tenant.Name))
-                tenant.Name = stateData?.TenantName ?? "";
-            if (stateData != null)
-            {
-                tenant.State = stateData.Status.ToString();
-                tenant.HrDbStatus = stateData.HrDbStatus;
-                tenant.HrDbReady = stateData.HrDbReady;
-            }
+                tenant.Name = ownRequest?.TenantName ?? tenantRow.TenantName ?? "";
+            if (ownRequest != null)
+                tenant.State = ownRequest.Status.ToString();
         }
         return tenants;
     }
