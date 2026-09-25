@@ -97,38 +97,62 @@ public class EmailNotificationService
         // Recipient opted out of email for this application type (NotificationPreference,
         // resolved once in hrms-api's ApprovalEngineService) -- push may still be delivered
         // independently by hrms-api's own ApprovalPushNotificationWorker via DeliverPush.
-        if (!payload.DeliverEmail) return;
+        if (!payload.DeliverEmail || string.IsNullOrWhiteSpace(payload.RecipientEmail)) return;
 
+        // Subject comes from the composer for both paths (it also covers "Step Approved").
+        var content = ApprovalEmailComposer.Compose(payload);
         var recipientName = string.IsNullOrWhiteSpace(payload.RecipientName) ? payload.RecipientEmail : payload.RecipientName;
-        var subject = payload.StatusLabel == "Pending Your Approval"
-            ? $"{payload.ApplicationTypeLabel} application awaiting your approval"
-            : $"Your {payload.ApplicationTypeLabel} application was {payload.StatusLabel.ToLowerInvariant()}";
 
-        var message = new EmailMessage
+        try
         {
-            From = "Onepunch <approvals@onepunch.site>",
-            To = payload.RecipientEmail,
-            Subject = subject,
-            Template = new EmailMessageTemplate
+            // Primary: the designed "approval-notification" template in the Resend dashboard.
+            await _resend.EmailSendAsync(new EmailMessage
             {
-                TemplateId = "approval-notification",
-                Variables = new Dictionary<string, object>
+                From = ApprovalsSender,
+                To = payload.RecipientEmail,
+                Subject = content.Subject,
+                Template = new EmailMessageTemplate
                 {
-                    { "appName", "Onepunch" },
-                    { "recipientName", recipientName },
-                    { "applicationType", payload.ApplicationTypeLabel },
-                    { "applicantName", payload.ApplicantName },
-                    { "statusLabel", payload.StatusLabel },
-                    { "stepNumber", payload.StepNumber?.ToString() ?? "" },
-                    { "totalSteps", payload.TotalSteps?.ToString() ?? "" },
-                    { "note", payload.Note ?? "" },
-                    { "CurrentYear", DateTime.UtcNow.Year.ToString() }
+                    TemplateId = ApprovalTemplateId,
+                    Variables = new Dictionary<string, object>
+                    {
+                        { "appName", "Onepunch" },
+                        { "recipientName", recipientName },
+                        { "applicationType", payload.ApplicationTypeLabel },
+                        { "applicantName", payload.ApplicantName },
+                        { "statusLabel", payload.StatusLabel },
+                        { "stepNumber", payload.StepNumber?.ToString() ?? "" },
+                        { "totalSteps", payload.TotalSteps?.ToString() ?? "" },
+                        { "note", payload.Note ?? "" },
+                        { "CurrentYear", DateTime.UtcNow.Year.ToString() }
+                    }
                 }
-            }
-        };
+            }, token);
+        }
+        catch (ResendException ex) when (ex.ErrorType == ErrorType.NotFound)
+        {
+            // Resend answers "Template not found" when the template is still a Draft (only
+            // Published templates can send) or the API key belongs to a different Resend team
+            // than the one holding it. Don't lose the email over that -- send the composed
+            // version instead, and leave a trail so the template can be fixed. Any other Resend
+            // error still throws, so MassTransit retries/faults as usual.
+            Serilog.Log.Logger.Warning(ex,
+                "Resend template {TemplateId} not found -- sent the composed fallback approval email to {Recipient} instead. Publish the template in Resend and check the API key's team.",
+                ApprovalTemplateId, payload.RecipientEmail);
 
-        await _resend.EmailSendAsync(message, token);
+            await _resend.EmailSendAsync(new EmailMessage
+            {
+                From = ApprovalsSender,
+                To = payload.RecipientEmail,
+                Subject = content.Subject,
+                HtmlBody = content.HtmlBody,
+                TextBody = content.TextBody,
+            }, token);
+        }
     }
+
+    private const string ApprovalsSender = "Onepunch <approvals@onepunch.site>";
+    private const string ApprovalTemplateId = "approval-notification";
 
     public async Task SendResetPassword(ResetPasswordEmail payload, CancellationToken token)
     {
