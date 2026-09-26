@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 	<PropertyGroup>
 		<TargetFramework>net9.0</TargetFramework>
 		<Nullable>enable</Nullable>
@@ -23,7 +23,7 @@
 		<PackageReference Include="RabbitMQ.Client" />
 		<PackageReference Include="Resend" />
 		<PackageReference Include="Serilog.Exceptions" />
-		<PackageReference Include="Serilog.Sinks.Loki" />
+		<PackageReference Include="Serilog.Sinks.Grafana.Loki" />
 		<PackageReference Include="Swashbuckle.AspNetCore" />
 		<PackageReference Include="Asp.Versioning.Http" />
 		<PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" /> 
