@@ -17,6 +17,7 @@
 		<PackageReference Include="Grpc.Net.Client" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" />
+		<PackageReference Include="Serilog.Sinks.Loki" />
 		<PackageReference Include="StackExchange.Redis" />
 		<PackageReference Include="Grpc.Tools" />
 		<PackageReference Include="FluentValidation" />

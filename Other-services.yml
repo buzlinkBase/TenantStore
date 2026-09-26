@@ -1,30 +1,10 @@
 services:
-  # mysql:
-  #   image: mysql:${MYSQL_VERSION:-8.0}
-  #   container_name: mysql
-  #   restart: always
-  #   environment:
-  #     MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-  #     MYSQL_DATABASE: ${MYSQL_DATABASE}
-  #   ports:
-  #     - "3306:3306"
-  #   networks:
-  #     - hrmsnet
-  #   volumes:
-  #     - mysql_data:/var/lib/mysql
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$${MYSQL_ROOT_PASSWORD} --silent"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
-  #     start_period: 30s
-
   redis:
     image: redis:7-alpine
     container_name: redis
     restart: always
-    ports:
-      - "6379:6379"
+    stop_grace_period: 2s
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
     networks:
       - hrmsnet
     volumes:
@@ -33,11 +13,13 @@ services:
   redis-commander:
     image: rediscommander/redis-commander:latest
     container_name: redis-commander
-    restart: always 
+    stop_grace_period: 2s
     environment:
-      - REDIS_HOSTS=local:redis:6379
+      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD}
+      - HTTP_USER=${REDIS_COMMANDER_USER}
+      - HTTP_PASSWORD=${REDIS_COMMANDER_PASSWORD}
     ports:
-      - "8081:8081"
+      - "8088:8081"
     networks:
       - hrmsnet
     depends_on:
@@ -46,7 +28,9 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq
+    hostname: rabbitmq
     restart: always
+    stop_grace_period: 2s
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -55,39 +39,55 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
-    entrypoint: >
-      sh -c "rabbitmq-plugins enable --offline rabbitmq_shovel rabbitmq_shovel_management && rabbitmq-server"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+      - ./enabled_plugins:/etc/rabbitmq/enabled_plugins
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # Serilog Sink: Seq Dashboard
-  seq:
-    image: datalust/seq:latest
-    container_name: seq
-    restart: always 
+  loki:
+    image: grafana/loki:2.9.2
+    container_name: loki
+    restart: always
+    stop_grace_period: 2s
     ports:
-      - "5341:5341"
-      - "5342:80" # Standard UI port often used by Seq
-    environment:
-      - ACCEPT_EULA=Y
-      # Add one of the following two options:
-      - SEQ_FIRSTRUN_ADMINPASSWORD=Administrator! 
-      # OR, if this is just for local dev and you don't want a login:
-      # - SEQ_FIRSTRUN_NOAUTHENTICATION=Y 
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - hrmsnet
     volumes:
-      - seq_data:/data
+      - loki_data:/loki
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "5342:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+    networks:
+      - hrmsnet
+    volumes:
+      - grafana_data:/var/lib/grafana
+    deploy:
+      resources:
+        limits:
+          memory: 200M
 
 networks:
   hrmsnet:
     driver: bridge
 
 volumes:
-  # mysql_data:
   redis_data:
   rabbitmq_data:
-  seq_data:
+  loki_data:
+  grafana_data:

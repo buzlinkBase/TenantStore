@@ -14,6 +14,7 @@
 		<PackageReference Include="Newtonsoft.Json" />
 		<PackageReference Include="Refit.HttpClientFactory" />
 		<PackageReference Include="MessagePack" />
+		<PackageReference Include="Serilog.Sinks.Loki" />
 		<PackageReference Include="StackExchange.Redis" />
 		<PackageReference Include="BuzlinkRepository" />
 		<PackageReference Include="FluentValidation" />

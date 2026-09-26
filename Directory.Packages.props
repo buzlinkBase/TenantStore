@@ -51,7 +51,6 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Proxies" Version="9.0.2" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Proxies" Version="9.0.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.2" />
     <!-- <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.2" />
@@ -61,6 +60,7 @@
     <PackageVersion Include="Pomelo.EntityFrameworkCore.MySql.NetTopologySuite" Version="9.0.0" />
     <PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="8.1.0" />
     <PackageVersion Include="Asp.Versioning.Http" Version="8.1.0" />
+    <PackageVersion Include="Serilog.Sinks.Loki" Version="3.0.0" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="7.2.0" />
     <PackageVersion Include="Refit.HttpClientFactory" Version="8.0.0" />
     <PackageVersion Include="Resend" Version="0.8.0" />
