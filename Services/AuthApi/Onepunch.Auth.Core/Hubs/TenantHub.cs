@@ -9,6 +9,15 @@ public interface ITenantNotificationClient
     Task HrDbCreated(HrDbCreatedNotification notification);
     Task RolesChanged(RolesChangedNotification notification);
     Task SessionRevoked(SessionRevokedNotification notification);
+    Task TenantRenamed(TenantRenamedNotification notification);
+}
+
+/// <summary>A company the user belongs to was renamed -- the frontend refreshes its session
+/// (token tenantName claim + company switcher) to pick up the new name.</summary>
+public class TenantRenamedNotification
+{
+    public Guid TenantId { get; set; }
+    public string TenantName { get; set; } = string.Empty;
 }
 
 public class TenantCreatedNotification

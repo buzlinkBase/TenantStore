@@ -12,12 +12,46 @@ public class TenantsController : ControllerBase
 {
     private readonly TenantService _service;
     private readonly IMapper _mapper;
+    private readonly UserMembershipService _membershipService;
+    private readonly ITenantProvider _tenantProvider;
 
     public TenantsController(TenantService service,
-        IMapper mapper)
+        IMapper mapper,
+        UserMembershipService membershipService,
+        ITenantProvider tenantProvider)
     {
         _service = service;
         _mapper = mapper;
+        _membershipService = membershipService;
+        _tenantProvider = tenantProvider;
+    }
+
+    // Renames the caller's current company. Called by HRIS when Company Info's "Company Name" is
+    // saved, forwarding the caller's own bearer token -- so the caller must be an active member
+    // of this tenant with at least one role beyond the portal-only ones, the same audience HRIS
+    // lets onto the Company Settings screen. The tenant always comes from the token, never the
+    // request, so no one can rename a company they don't belong to.
+    [HttpPut("current/name")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RenameCurrent([FromQuery] string name, CancellationToken token)
+    {
+        var tenantId = _tenantProvider.TenantId;
+        if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
+
+        if (!await _membershipService.CanManageCompanyAsync(User.GetRequiredUserId(), tenantId, token))
+            return Forbid();
+
+        try
+        {
+            await _service.RenameAsync(tenantId, name ?? "", token);
+            await _service.CommitChangesAsync(token);
+            return Ok();
+        }
+        catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
     }
 
     [HttpPut("{id}")]

@@ -179,6 +179,34 @@ public class UserService : BaseService<User>
         await CommitChangesAsync(token);
     }
 
+    /// <summary>
+    /// A company was renamed (TenantRenamed, from Tenant Service): brings Auth Service's own
+    /// copies of the name in line -- User.DefaultTenantName (the source of every access token's
+    /// tenantName claim, so refreshed/new tokens carry the new name), still-pending invitations
+    /// (the name shown on the invite email/accept page), and the tenant creation request row.
+    /// Idempotent: re-applying the same name is a no-op write, safe under MassTransit's retries.
+    /// </summary>
+    public async Task ApplyTenantRenameAsync(Guid tenantId, string tenantName, CancellationToken token)
+    {
+        var users = await Context.Users.Where(x => x.DefaultTenantId == tenantId).ToListAsync(token);
+        foreach (var user in users)
+            user.DefaultTenantName = tenantName;
+
+        var invitations = await Context.Invitations
+            .Where(x => x.TenantId == tenantId && x.Status == InvitationStatus.Pending)
+            .ToListAsync(token);
+        foreach (var invitation in invitations)
+            invitation.TenantName = tenantName;
+
+        var requests = await Context.TenantCreationRequests
+            .Where(x => x.TenantId == tenantId)
+            .ToListAsync(token);
+        foreach (var request in requests)
+            request.TenantName = tenantName;
+
+        await CommitChangesAsync(token);
+    }
+
     /// <summary>Pure rule behind <see cref="ChangedRoles"/>, split out so it's testable without
     /// standing up UserManager/Identity plumbing.</summary>
     public static List<string> ResolveDefaultRoles(List<string> currentDefaults, List<string> newRoles)

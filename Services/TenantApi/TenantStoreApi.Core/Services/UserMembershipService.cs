@@ -78,6 +78,20 @@ public class UserMembershipService : BaseService<UserMembership>
 
     // Eager-loads the full permission graph -- every mutating method below reads a caller's
     // permissions via this, so this is the one place that Include chain needs to live.
+    // Portal-only roles -- a member holding nothing but these can't manage company details.
+    private static readonly string[] PortalOnlyRoles = ["Employee", "Client"];
+
+    /// <summary>Whether this user may change company-level details (e.g. the company name) --
+    /// an active member with at least one role beyond the portal-only ones, the same audience
+    /// HRIS lets onto its Company Settings screen.</summary>
+    public async Task<bool> CanManageCompanyAsync(Guid userId, Guid tenantId, CancellationToken token = default)
+    {
+        var member = await GetMemberAsync(userId, tenantId, token);
+        return member != null
+            && string.Equals(member.Status, "Active", StringComparison.OrdinalIgnoreCase)
+            && member.RoleNames().Any(r => !PortalOnlyRoles.Contains(r));
+    }
+
     public async Task<UserMembership?> GetMemberAsync(Guid userId, Guid tenantId, CancellationToken token = default)
     {
         return await Context.Memberships

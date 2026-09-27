@@ -10,6 +10,7 @@ public class TenantService : BaseService<Tenant>
 {
     private readonly IMapper _mapper;
     private readonly ITenantProvider _tenantProvider;
+    private readonly IPublishEndpoint _publisher;
     public TenantService(IUnitOfWorkService service,
         IMapper mapper,
         ITenantProvider tenantProvider,
@@ -19,6 +20,47 @@ public class TenantService : BaseService<Tenant>
     {
         _mapper = mapper;
         _tenantProvider = tenantProvider;
+        _publisher = publisher;
+    }
+
+    // The company name is owned by HRIS's Company Info screen; this keeps every copy Tenant
+    // Service holds in line with it -- the Tenant row itself, each member's UserMembership
+    // (what the company switcher lists), and delegations naming this tenant as the guest -- then
+    // tells Auth Service (TenantRenamed) to update its own copies and refresh members' sessions.
+    // Doesn't commit; the caller owns the transaction, like the rest of this service.
+    public async Task RenameAsync(Guid tenantId, string newName, CancellationToken token)
+    {
+        var name = newName.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+            throw new InvalidOperationException("Company name is required.");
+
+        var tenant = await Context.Tenants.FirstOrDefaultAsync(x => x.Id == tenantId, token)
+            ?? throw new KeyNotFoundException("Company not found.");
+
+        tenant.TenantName = name;
+
+        var memberships = await Context.Memberships
+            .Where(x => x.TenantId == tenantId)
+            .ToListAsync(token);
+        foreach (var membership in memberships)
+            membership.TenantName = name;
+
+        var delegations = await Context.TenantDelegations
+            .Where(x => x.GuestTenantId == tenantId)
+            .ToListAsync(token);
+        foreach (var delegation in delegations)
+            delegation.GuestTenantName = name;
+
+        await _publisher.Publish(new TenantRenamed
+        {
+            TenantId = tenantId,
+            TenantName = name,
+            MemberUserIds = memberships
+                .Where(x => x.UserId != Guid.Empty)
+                .Select(x => x.UserId)
+                .Distinct()
+                .ToList(),
+        }, token);
     }
 
     protected override async Task<EvaluationResult> CreateValidatorAsync(Tenant model, CancellationToken token)

@@ -23,4 +23,7 @@ public class TenantNotificationService
 
     public Task NotifySessionRevoked(Guid userId, SessionRevokedNotification notification) =>
         _hubContext.Clients.User(userId.ToString()).SessionRevoked(notification);
+
+    public Task NotifyTenantRenamed(Guid userId, TenantRenamedNotification notification) =>
+        _hubContext.Clients.User(userId.ToString()).TenantRenamed(notification);
 }
