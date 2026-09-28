@@ -473,6 +473,8 @@ namespace Onepunch.Auth.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("OccurredAtUtc");
+
                     b.HasIndex("OrganizationId", "OccurredAtUtc");
 
                     b.HasIndex("OrganizationId", "ActorId", "OccurredAtUtc");

@@ -261,6 +261,8 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("OccurredAtUtc");
+
                     b.HasIndex("OrganizationId", "OccurredAtUtc");
 
                     b.HasIndex("OrganizationId", "ActorId", "OccurredAtUtc");
