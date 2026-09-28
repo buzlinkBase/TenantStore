@@ -30,18 +30,24 @@ internal static class AuditEntryCapture
 
             var auditEvent = entry.State switch
             {
-                EntityState.Added => Build(entry, audited, AuditEventTypes.Create, AddedChanges(entry, options)),
-                EntityState.Deleted => Build(entry, audited, AuditEventTypes.Delete, []),
-                EntityState.Modified when IsSoftDelete(entry, options) => Build(entry, audited, AuditEventTypes.Delete, []),
-                EntityState.Modified => ModifiedChanges(entry, options) is { Count: > 0 } changes
-                    ? Build(entry, audited, AuditEventTypes.Update, changes)
-                    : null,
+                EntityState.Added when Captures(audited, AuditCapture.Create) =>
+                    Build(entry, audited, AuditEventTypes.Create, AddedChanges(entry, options)),
+                EntityState.Deleted when Captures(audited, AuditCapture.Delete) =>
+                    Build(entry, audited, AuditEventTypes.Delete, []),
+                EntityState.Modified when IsSoftDelete(entry, options) =>
+                    Captures(audited, AuditCapture.Delete) ? Build(entry, audited, AuditEventTypes.Delete, []) : null,
+                EntityState.Modified when Captures(audited, AuditCapture.Update) =>
+                    ModifiedChanges(entry, options) is { Count: > 0 } changes
+                        ? Build(entry, audited, AuditEventTypes.Update, changes)
+                        : null,
                 _ => null,
             };
             if (auditEvent != null) events.Add(auditEvent);
         }
         return events;
     }
+
+    private static bool Captures(AuditedAttribute audited, AuditCapture kind) => (audited.Capture & kind) == kind;
 
     private static AuditEvent Build(EntityEntry entry, AuditedAttribute audited, string eventType, List<AuditChange> changes)
     {

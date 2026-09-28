@@ -133,6 +133,35 @@ public class AuditCaptureTests
     }
 
     [Fact]
+    public async Task Capture_RecordsOnlyTheSelectedKindsOfChange()
+    {
+        using var host = new AuditHost();
+        var id = Guid.NewGuid();
+
+        await host.InScopeAsync(async sp =>
+        {
+            var db = sp.GetRequiredService<TestDbContext>();
+            db.Commands.Add(new QueuedCommand { Id = id, Command = "ENROLL_FP 12" });
+            await db.SaveChangesAsync();
+        });
+        await host.InScopeAsync(async sp =>
+        {
+            var db = sp.GetRequiredService<TestDbContext>();
+            (await db.Commands.SingleAsync()).Status = "Done"; // the device acknowledging it
+            await db.SaveChangesAsync();
+        });
+        await host.InScopeAsync(async sp =>
+        {
+            var db = sp.GetRequiredService<TestDbContext>();
+            db.Commands.Remove(await db.Commands.SingleAsync());
+            await db.SaveChangesAsync();
+        });
+
+        (await host.RecordsAsync()).Select(x => x.EventType)
+            .Should().Equal(AuditEventTypes.Create, AuditEventTypes.Delete);
+    }
+
+    [Fact]
     public async Task ExplicitWrite_IsPersistedWithTheHostsSave_AndSeenBySinks()
     {
         using var host = new AuditHost();

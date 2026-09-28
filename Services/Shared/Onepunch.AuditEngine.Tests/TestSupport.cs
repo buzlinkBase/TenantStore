@@ -23,6 +23,15 @@ public class InvoiceRow
     public decimal Amount { get; set; }
 }
 
+/// <summary>Created by a person, then updated by a machine -- only the creation is an action.</summary>
+[Audited(Capture = AuditCapture.Create | AuditCapture.Delete)]
+public class QueuedCommand
+{
+    public Guid Id { get; set; }
+    public string Command { get; set; } = string.Empty;
+    public string Status { get; set; } = "Pending";
+}
+
 /// <summary>Not marked -- must never produce events.</summary>
 public class CacheRow
 {
@@ -35,6 +44,7 @@ public class TestDbContext(DbContextOptions<TestDbContext> options) : DbContext(
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<InvoiceRow> Invoices => Set<InvoiceRow>();
     public DbSet<CacheRow> Cache => Set<CacheRow>();
+    public DbSet<QueuedCommand> Commands => Set<QueuedCommand>();
     public DbSet<AuditEventRecord> AuditEvents => Set<AuditEventRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) => modelBuilder.ApplyAuditEngineModel();
