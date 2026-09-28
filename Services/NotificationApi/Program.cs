@@ -56,10 +56,11 @@ builder.RegisterCoreServices();
 builder.NotifConfigRabbitMq();
 
 builder.Services.AddMapster(typeof(MappingProfile).Assembly);
+var sqlVersion = new MySqlServerVersion(new Version(8, 4, 8));
 builder.Services.AddDbContext<NotifContext>(options =>
 {
     var connectionstring = builder.Configuration.GetConnectionString("NotifConnection");
-    options.UseMySql(connectionstring, new MySqlServerVersion(new Version(9, 2, 0)));
+    options.UseMySql(connectionstring, sqlVersion);
 });
 builder.Services.AddDataProtection()
         .PersistKeysToFileSystem(new DirectoryInfo(@"/app/dp-keys"));

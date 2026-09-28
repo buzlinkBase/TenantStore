@@ -48,11 +48,10 @@ public static class ServiceRegistrations
         builder.Services.AddLogging();
         builder.Services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
         builder.Services.AddScoped<ITenantProvider, TenantProviderAccessor>();
-
+        var sqlVersion = new MySqlServerVersion(new Version(8, 4, 8));
         builder.Services.AddDbContext<TenantContext>(options =>
         {
             var connectionString = builder.Configuration.GetConnectionString("TenantConnection");
-            var sqlVersion = ServerVersion.AutoDetect(connectionString);//new MySqlServerVersion(new Version(9, 2, 0))
             options.UseMySql(connectionString, sqlVersion);
             options.AddInterceptors(new SoftDeleteInterceptor());
             options.UseLazyLoadingProxies(true);
@@ -179,51 +178,19 @@ public static class ServiceRegistrations
              };
          });
 
-        // Resolve JwksClient lazily from the real (post-Build) app container instead of a
-        // throwaway one built eagerly here (see the equivalent Auth Api fix for why that
-        // pattern is unsafe for stateful/persisted singletons — JwksClient itself is a plain
-        // stateless HTTP fetcher, so this is a consistency/robustness change, not a correctness
-        // fix, but keeping the same idiom everywhere avoids the pattern looking safe-by-default).
+        // JWKS keys: in-process -> shared Redis copy -> single-flight fetch with failure backoff.
+        // Replaces an inline resolver that blocked every request on its own HTTP call whenever
+        // Auth was slow or down (see JwksKeyCache).
+        builder.Services.AddJwksKeyCache(
+            builder.Configuration["AuthUrl"] ?? "",
+            builder.Configuration.GetConnectionString("Redis"));
         builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
-            .Configure<IHttpClientFactory>((options, httpClientFactory) =>
+            .Configure<JwksKeyCache>((options, jwksKeyCache) =>
             {
-                var authUrl = (builder.Configuration["AuthUrl"] ?? "").TrimEnd('/') + "/";
-                var allowLegacyHmac = builder.Configuration.GetValue<bool?>("JwtSettings:AllowLegacyHmacValidation") ?? true;
-                var legacySigningKey = builder.Configuration["JwtSettings:SigningKey"];
-
-                List<SecurityKey> cachedKeys = new();
-                DateTime cacheExpiry = DateTime.MinValue;
-                object cacheLock = new();
-
-                options.TokenValidationParameters.IssuerSigningKeyResolver = (token, securityToken, kid, validationParameters) =>
-                {
-                    bool stale;
-                    lock (cacheLock) stale = DateTime.UtcNow > cacheExpiry;
-
-                    if (stale)
-                    {
-                        try
-                        {
-                            var client = httpClientFactory.CreateClient();
-                            var json = client.GetStringAsync($"{authUrl}.well-known/jwks.json").GetAwaiter().GetResult();
-                            var jwks = new JsonWebKeySet(json);
-                            lock (cacheLock)
-                            {
-                                cachedKeys = jwks.GetSigningKeys().ToList();
-                                cacheExpiry = DateTime.UtcNow.AddMinutes(10);
-                            }
-                        }
-                        catch { }
-                    }
-
-                    List<SecurityKey> keys;
-                    lock (cacheLock) keys = cachedKeys.ToList();
-
-                    if (allowLegacyHmac && !string.IsNullOrEmpty(legacySigningKey))
-                        keys.Add(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(legacySigningKey)));
-
-                    return keys;
-                };
+                options.TokenValidationParameters.IssuerSigningKeyResolver = JwksServiceCollectionExtensions.CreateSigningKeyResolver(
+                    jwksKeyCache,
+                    builder.Configuration["JwtSettings:SigningKey"],
+                    builder.Configuration.GetValue<bool?>("JwtSettings:AllowLegacyHmacValidation") ?? true);
             });
     }
 }

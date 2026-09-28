@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
+using Onepunch.Common.Lib.Security;
 using Resend;
 using System.Net;
 using System.Text;
@@ -153,46 +154,19 @@ public static class ServiceRegistrations
              };
          });
 
+        // JWKS keys: in-process -> shared Redis copy -> single-flight fetch with failure backoff.
+        // Replaces an inline resolver that blocked every request on its own HTTP call whenever
+        // Auth was slow or down (see JwksKeyCache).
+        builder.Services.AddJwksKeyCache(
+            builder.Configuration["AuthUrl"] ?? "",
+            builder.Configuration.GetConnectionString("Redis"));
         builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
-            .Configure<IHttpClientFactory>((options, httpClientFactory) =>
+            .Configure<JwksKeyCache>((options, jwksKeyCache) =>
             {
-                var authUrl = (builder.Configuration["AuthUrl"] ?? "").TrimEnd('/') + "/";
-                var legacySigningKey = builder.Configuration["JwtSettings:SigningKey"];
-                var allowLegacyHmac = builder.Configuration.GetValue<bool?>("JwtSettings:AllowLegacyHmacValidation") ?? true;
-
-                List<SecurityKey> cachedKeys = new();
-                DateTime cacheExpiry = DateTime.MinValue;
-                object cacheLock = new();
-
-                options.TokenValidationParameters.IssuerSigningKeyResolver = (token, securityToken, kid, validationParameters) =>
-                {
-                    bool stale;
-                    lock (cacheLock) stale = DateTime.UtcNow > cacheExpiry;
-
-                    if (stale)
-                    {
-                        try
-                        {
-                            var client = httpClientFactory.CreateClient();
-                            var json = client.GetStringAsync($"{authUrl}.well-known/jwks.json").GetAwaiter().GetResult();
-                            var jwks = new JsonWebKeySet(json);
-                            lock (cacheLock)
-                            {
-                                cachedKeys = jwks.GetSigningKeys().ToList();
-                                cacheExpiry = DateTime.UtcNow.AddMinutes(10);
-                            }
-                        }
-                        catch { }
-                    }
-
-                    List<SecurityKey> keys;
-                    lock (cacheLock) keys = cachedKeys.ToList();
-
-                    if (allowLegacyHmac && !string.IsNullOrEmpty(legacySigningKey))
-                        keys.Add(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(legacySigningKey)));
-
-                    return keys;
-                };
+                options.TokenValidationParameters.IssuerSigningKeyResolver = JwksServiceCollectionExtensions.CreateSigningKeyResolver(
+                    jwksKeyCache,
+                    builder.Configuration["JwtSettings:SigningKey"],
+                    builder.Configuration.GetValue<bool?>("JwtSettings:AllowLegacyHmacValidation") ?? true);
             });
     }
 }

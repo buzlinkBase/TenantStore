@@ -12,12 +12,12 @@ public class NotifContextFactory : IDesignTimeDbContextFactory<NotifContext>
         Debug.WriteLine(basePath);
         IConfigurationRoot configuration = new ConfigurationBuilder()
             .SetBasePath(basePath)
-            .AddJsonFile("appsettings.json")
-            //.AddJsonFile("appsettings.Development.json")
+            //.AddJsonFile("appsettings.json")
+            .AddJsonFile("appsettings.Development.json")
             .Build();
         var connectionString = configuration.GetConnectionString("NotifConnection");
         var optionsBuilder = new DbContextOptionsBuilder<NotifContext>();
-        var sqlVersion = ServerVersion.AutoDetect(connectionString);//new MySqlServerVersion(new Version(9, 2, 0))
+        var sqlVersion = new MySqlServerVersion(new Version(8, 4, 8));
         optionsBuilder.UseMySql(connectionString, sqlVersion);
         return new NotifContext(optionsBuilder.Options);
     }

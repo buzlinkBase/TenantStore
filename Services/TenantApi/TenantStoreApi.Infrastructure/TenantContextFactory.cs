@@ -11,12 +11,12 @@ public class TenantContextFactory : IDesignTimeDbContextFactory<TenantContext>
         string basePath = Path.Combine(Directory.GetCurrentDirectory(), "..", "TenantStoreApi");
         IConfigurationRoot configuration = new ConfigurationBuilder()
             .SetBasePath(basePath)
-            .AddJsonFile("appsettings.json")
-            //.AddJsonFile("appsettings.Development.json")
+            //.AddJsonFile("appsettings.json")
+            .AddJsonFile("appsettings.Development.json")
             .Build();
         var connectionString = configuration.GetConnectionString("TenantConnection");
         var optionsBuilder = new DbContextOptionsBuilder<TenantContext>();
-        var sqlVersion = ServerVersion.AutoDetect(connectionString);//new MySqlServerVersion(new Version(9, 2, 0))
+        var sqlVersion = new MySqlServerVersion(new Version(8, 4, 8));
         optionsBuilder.UseMySql(connectionString, sqlVersion);
         return new TenantContext(optionsBuilder.Options);
     }

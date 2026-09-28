@@ -11,12 +11,12 @@ public class AuthContextFactory : IDesignTimeDbContextFactory<AuthContext>
         string basePath = Path.Combine(Directory.GetCurrentDirectory(), "..", "hrms.auth.api");
         IConfigurationRoot configuration = new ConfigurationBuilder()
             .SetBasePath(basePath)
-            .AddJsonFile("appsettings.json")
-            //.AddJsonFile("appsettings.Development.json")
+            //.AddJsonFile("appsettings.json")
+            .AddJsonFile("appsettings.Development.json")
             .Build(); 
         var connectionString = configuration.GetConnectionString("AuthConnection");
         var optionsBuilder = new DbContextOptionsBuilder<AuthContext>();
-        var serverVersion = ServerVersion.AutoDetect(connectionString);//new MySqlServerVersion(new Version(9, 2, 0)
+        var serverVersion = new MySqlServerVersion(new Version(8, 4, 8));
         optionsBuilder.UseMySql(connectionString, serverVersion);
         return new AuthContext(optionsBuilder.Options, null);
     }
