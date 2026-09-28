@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<TargetFramework>net9.0</TargetFramework>
 		<Nullable>enable</Nullable>
@@ -36,6 +36,7 @@
 	</ItemGroup>
 	<ItemGroup>
 		<ProjectReference Include="..\..\Shared\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
+		<ProjectReference Include="..\..\Shared\Onepunch.AuditEngine.EntityFrameworkCore\Onepunch.AuditEngine.EntityFrameworkCore.csproj" />
 		<ProjectReference Include="..\Onepunch.Auth.Domain\Onepunch.Auth.Domain.csproj" />
 	</ItemGroup>
 </Project>

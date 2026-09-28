@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!-- Replication adapter: forwards each recorded event as an AuditEventRecorded message so
+	     another service can keep a combined read copy of several services' trails. -->
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<RootNamespace>Onepunch.AuditEngine.MassTransit</RootNamespace>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="MassTransit" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Onepunch.AuditEngine\Onepunch.AuditEngine.csproj" />
+	</ItemGroup>
+
+</Project>

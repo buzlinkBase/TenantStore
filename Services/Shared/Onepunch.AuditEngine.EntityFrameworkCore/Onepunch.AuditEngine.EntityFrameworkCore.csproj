@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!-- Storage adapter: keeps the audit trail in an AuditEvents table inside the host's own
+	     DbContext (same database, same transaction as the changes it records). -->
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<RootNamespace>Onepunch.AuditEngine.EntityFrameworkCore</RootNamespace>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Onepunch.AuditEngine\Onepunch.AuditEngine.csproj" />
+	</ItemGroup>
+
+</Project>

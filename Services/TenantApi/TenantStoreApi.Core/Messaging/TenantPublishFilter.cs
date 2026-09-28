@@ -8,11 +8,21 @@ public class TenantPublishFilter<T> : IFilter<PublishContext<T>> where T : class
     private readonly ITenantProvider _tenantProvider;
     public TenantPublishFilter(ITenantProvider tenantProvider) => _tenantProvider = tenantProvider;
     public void Probe(ProbeContext context) => context.CreateFilterScope("hrms-publish-filter");
+
+    // Never replaces a company the message already carries (e.g. a forwarded audit event, which
+    // names its own company): a publish from a background consumer resolves an empty tenant
+    // here, and overwriting would relabel the message with no company at all.
     public async Task Send(PublishContext<T> context, IPipe<PublishContext<T>> next)
     {
-        context.Headers.Set("X-Tenant-ID", _tenantProvider.TenantId.ToString());
+        if (!HasTenant(context))
+            context.Headers.Set("X-Tenant-ID", _tenantProvider.TenantId.ToString());
         await next.Send(context);
     }
+
+    private static bool HasTenant(PublishContext<T> context) =>
+        context.Headers.TryGetHeader("X-Tenant-ID", out var value)
+        && Guid.TryParse(value?.ToString(), out var existing)
+        && existing != Guid.Empty;
 }
 
 public class TenantConsumeFilter<T> : IFilter<ConsumeContext<T>> where T : class

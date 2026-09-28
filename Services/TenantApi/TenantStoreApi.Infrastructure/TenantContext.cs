@@ -1,6 +1,7 @@
 ﻿using BuzlinkRepository;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using Onepunch.AuditEngine.EntityFrameworkCore;
 using TenantStoreApi.Domain.Entities;
 using TenantStoreApi.Domain.Entities.Subs;
 
@@ -89,5 +90,8 @@ public class TenantContext : DbContext
         modelBuilder.AddOutboxMessageEntity();
         modelBuilder.AddOutboxStateEntity();
 
+        // Audit trail of [Audited] entities (memberships, roles, permissions) -- see
+        // AddAuditEngine in RegisterSelfServices.
+        modelBuilder.ApplyAuditEngineModel();
     }
 }

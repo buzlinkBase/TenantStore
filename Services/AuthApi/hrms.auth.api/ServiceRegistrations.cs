@@ -7,6 +7,7 @@ using Onepunch.Auth.Core;
 using Onepunch.Auth.Infrastructure;
 using Onepunch.Common.Lib;
 using Onepunch.Common.Lib.Cache;
+using OnePunch.Auth.Core.Auditing;
 using OnePunch.Auth.Core.Providers;
 using StackExchange.Redis;
 using System.Net;
@@ -77,6 +78,7 @@ public static class ServiceRegistrations
             options.AddInterceptors(new SoftDeleteInterceptor());
             options.UseLazyLoadingProxies(true);
         });
+        builder.Services.AddAuthAuditTrail(builder.Configuration);
 
         builder.Services.AddCors(options =>
         {
