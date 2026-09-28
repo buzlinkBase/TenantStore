@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Onepunch.Common.Lib.Security;
+using TenantStoreApi.Core.Auditing;
 using System.Net;
 using System.Text;
 using TenantStoreApi.Core.Providers;
@@ -56,6 +57,8 @@ public static class ServiceRegistrations
             options.AddInterceptors(new SoftDeleteInterceptor());
             options.UseLazyLoadingProxies(true);
         });
+
+        builder.Services.AddTenantAuditTrail(builder.Configuration);
 
         builder.Services.AddCors(options =>
         {

@@ -1,5 +1,8 @@
-﻿namespace TenantStoreApi.Domain.Entities;
+﻿using Onepunch.AuditEngine;
 
+namespace TenantStoreApi.Domain.Entities;
+
+[Audited(EntityType = "Company")]
 public class Tenant : BaseEntity, IUserId
 {
     public string? TenantName { get; set; }

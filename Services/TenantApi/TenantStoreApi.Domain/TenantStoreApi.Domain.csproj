@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<TargetFramework>net9.0</TargetFramework>
@@ -12,5 +12,6 @@
 	</ItemGroup>
 	<ItemGroup>
 	  <ProjectReference Include="..\..\Shared\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
+	  <ProjectReference Include="..\..\Shared\Onepunch.AuditEngine\Onepunch.AuditEngine.csproj" />
 	</ItemGroup>
 </Project>

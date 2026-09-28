@@ -1,3 +1,5 @@
+using OnePunch.Auth.Core.Auditing;
+using Onepunch.AuditEngine;
 using FluentAssertions;
 using MapsterMapper;
 using Microsoft.AspNetCore.Identity;
@@ -43,7 +45,7 @@ public class TenantRenamedWorkerTests
         var userService = new UserService(
             uow, membershipCacheService, null!, null!, null!, IdentityMocks.MockUserManager().Object, null!, null!,
             Mock.Of<IPasswordHasher<User>>(), jwtService, null!, null!, null!, null!, null!, null!,
-            null!, Mock.Of<IMapper>());
+            null!, Mock.Of<IMapper>(), new AuthAuditRecorder(Mock.Of<IAuditWriter>()));
 
         var client = new Mock<ITenantNotificationClient>();
         var hubClients = new Mock<IHubClients<ITenantNotificationClient>>();

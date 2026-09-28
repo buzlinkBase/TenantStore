@@ -1,7 +1,9 @@
 using BuzlinkRepository;
+using Onepunch.AuditEngine;
 
 namespace TenantStoreApi.Domain.Entities;
 
+[Audited]
 public class UserMembership : BaseEntity, IEntityTenant
 {
     public Guid TenantId { get; set; }
@@ -22,6 +24,7 @@ public class UserMembership : BaseEntity, IEntityTenant
 /// <summary>One role assignment within a UserMembership. Many-to-one: a membership can have
 /// several of these (e.g. both "Admin" and a custom "Billing" role simultaneously).</summary>
 [DisableSoftDelete]
+[Audited]
 public class MembershipRole : BaseEntity
 {
     public Guid UserMembershipId { get; set; }

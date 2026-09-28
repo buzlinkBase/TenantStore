@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<TargetFramework>net9.0</TargetFramework>
@@ -54,6 +54,8 @@
 	</ItemGroup>
 	<ItemGroup>
 		<ProjectReference Include="..\..\Shared\Onepunch.Common.Lib\Onepunch.Common.Lib.csproj" />
+		<ProjectReference Include="..\..\Shared\Onepunch.AuditEngine.AspNetCore\Onepunch.AuditEngine.AspNetCore.csproj" />
+		<ProjectReference Include="..\..\Shared\Onepunch.AuditEngine.MassTransit\Onepunch.AuditEngine.MassTransit.csproj" />
 		<ProjectReference Include="..\Onepunch.Auth.Domain\Onepunch.Auth.Domain.csproj" />
 		<ProjectReference Include="..\Onepunch.Auth.Infrastructure\Onepunch.Auth.Infrastructure.csproj" />
 	</ItemGroup>

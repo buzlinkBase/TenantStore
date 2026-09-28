@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!-- Web-host adapter: resolves the actor from the request's claims and records request
+	     context (IP address, user agent, method, path, trace id) on every event. -->
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<RootNamespace>Onepunch.AuditEngine.AspNetCore</RootNamespace>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Onepunch.AuditEngine\Onepunch.AuditEngine.csproj" />
+	</ItemGroup>
+
+</Project>

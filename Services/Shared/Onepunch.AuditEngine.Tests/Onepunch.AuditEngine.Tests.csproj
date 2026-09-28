@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<IsPackable>false</IsPackable>
+		<IsTestProject>true</IsTestProject>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+		<Using Include="Xunit" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.NET.Test.Sdk" />
+		<PackageReference Include="xunit" />
+		<PackageReference Include="xunit.runner.visualstudio">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="FluentAssertions" />
+		<PackageReference Include="Moq" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Onepunch.AuditEngine\Onepunch.AuditEngine.csproj" />
+		<ProjectReference Include="..\Onepunch.AuditEngine.EntityFrameworkCore\Onepunch.AuditEngine.EntityFrameworkCore.csproj" />
+		<ProjectReference Include="..\Onepunch.AuditEngine.AspNetCore\Onepunch.AuditEngine.AspNetCore.csproj" />
+		<ProjectReference Include="..\Onepunch.AuditEngine.MassTransit\Onepunch.AuditEngine.MassTransit.csproj" />
+	</ItemGroup>
+
+</Project>

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
+using OnePunch.Auth.Core.Auditing;
 using Onepunch.Auth.Core.Interfaces;
 using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Domain.DTOs;
@@ -29,6 +30,7 @@ public class UserService : BaseService<User>
     private readonly EmailNotificationService _notificationService;
     private readonly IMapper _mapper;
     private readonly IMfaChallengeService _mfaChallengeService;
+    private readonly AuthAuditRecorder _auditRecorder;
 
     public UserService(
         IUnitOfWorkService uow,
@@ -48,8 +50,10 @@ public class UserService : BaseService<User>
         InvitationService invitationService,
         EmailNotificationService notificationService,
         IMfaChallengeService mfaChallengeService,
-        IMapper mapper) : base(uow)
+        IMapper mapper,
+        AuthAuditRecorder auditRecorder) : base(uow)
     {
+        _auditRecorder = auditRecorder;
         _membershipCacheService = membershipCacheService;
         _membershipGrpcClient = membershipGrpcClient;
         _publisher = publisher;
@@ -331,23 +335,27 @@ public class UserService : BaseService<User>
     #region Authentication
     public async Task<LoginResponse> Login(LoginPayload payload, CancellationToken token)
     {
+        const string method = AuthAuditRecorder.PasswordMethod;
         var user = await GetByEmailAsync(payload.Email);
         if (user == null)
-            return new LoginResponse { ErrorMessage = "Invalid email or password." };
+            return await SignInFailedAsync(payload.Email, null, "Unknown account", "Invalid email or password.", method, token);
 
         if (await _manager.IsLockedOutAsync(user))
-            return new LoginResponse { ErrorMessage = "Account is temporarily locked. Please try again later." };
+            return await SignInFailedAsync(payload.Email, user, "Account locked",
+                "Account is temporarily locked. Please try again later.", method, token);
 
         if (_passwordHasher.VerifyHashedPassword(user, user.PasswordHash ?? "", payload.Password) == PasswordVerificationResult.Failed)
         {
             await _manager.AccessFailedAsync(user);
             if (await _manager.IsLockedOutAsync(user))
-                return new LoginResponse { ErrorMessage = "Too many failed attempts. Account is temporarily locked." };
-            return new LoginResponse { ErrorMessage = "Invalid email or password." };
+                return await SignInFailedAsync(payload.Email, user, "Wrong password; account locked after too many attempts",
+                    "Too many failed attempts. Account is temporarily locked.", method, token);
+            return await SignInFailedAsync(payload.Email, user, "Wrong password", "Invalid email or password.", method, token);
         }
 
         if (user.Status != "Active" || !user.EmailConfirmed)
-            return new LoginResponse { ErrorMessage = "Account is not active. Please verify your email." };
+            return await SignInFailedAsync(payload.Email, user, "Account not active",
+                "Account is not active. Please verify your email.", method, token);
         // Flow C(login) MFA extension point: no-op today (see NoOpMfaChallengeService), so this
         // never actually short-circuits login yet, but the seam is in place for a real MFA
         // implementation to plug into later.
@@ -364,8 +372,20 @@ public class UserService : BaseService<User>
         var accessToken = await _jwtService.CreateTokenAsync(user);
         var refreshToken = await _jwtService.GenerateRefreshToken();
         await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshToken), token);
+        await _auditRecorder.SignedInAsync(user, method, token);
         await CommitChangesAsync(token);
         return await ComposeLoginResponse(user, accessToken, refreshToken);
+    }
+
+    // A failed sign-in has no business change to ride along with, so it commits on its own --
+    // which also persists Identity's failed-attempt counter (AccessFailedAsync), so lockout after
+    // repeated failures takes effect.
+    private async Task<LoginResponse> SignInFailedAsync(
+        string attemptedEmail, User? user, string auditReason, string errorMessage, string method, CancellationToken token)
+    {
+        await _auditRecorder.SignInFailedAsync(attemptedEmail, user, auditReason, method, token);
+        await CommitChangesAsync(token);
+        return new LoginResponse { ErrorMessage = errorMessage };
     }
     internal async Task<LoginResponse> ComposeLoginResponse(User user, string accessToken, string refreshToken)
     {
@@ -447,21 +467,25 @@ public class UserService : BaseService<User>
             if (payload == null)
                 return new LoginResponse { ErrorMessage = "Failed to retrieve token from Google." };
 
+            const string method = AuthAuditRecorder.GoogleMethod;
             var user = await _manager.FindByEmailAsync(payload.Email);
             if (user == null)
-                return new LoginResponse { ErrorMessage = "No account found for this Google email. Please sign up first." };
+                return await SignInFailedAsync(payload.Email, null, "Unknown account",
+                    "No account found for this Google email. Please sign up first.", method, ct);
 
             // Same account-validity gate as password Login/RefreshLogin — Google is an
             // authentication method, not a bypass for lockout/deactivation.
             if (await _manager.IsLockedOutAsync(user))
-                return new LoginResponse { ErrorMessage = "Account is temporarily locked. Please try again later." };
+                return await SignInFailedAsync(payload.Email, user, "Account locked",
+                    "Account is temporarily locked. Please try again later.", method, ct);
 
             if (user.Status != "Active" || !user.EmailConfirmed)
-                return new LoginResponse { ErrorMessage = "Account is not active." };
+                return await SignInFailedAsync(payload.Email, user, "Account not active", "Account is not active.", method, ct);
 
             var refreshTokenString = await _jwtService.GenerateRefreshToken();
             var accessToken = await _jwtService.CreateTokenAsync(user);
             await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshTokenString), ct);
+            await _auditRecorder.SignedInAsync(user, method, ct);
             await CommitChangesAsync(ct);
             return await ComposeLoginResponse(user, accessToken, refreshTokenString);
         }
@@ -509,6 +533,7 @@ public class UserService : BaseService<User>
             var refreshTokenString = await _jwtService.GenerateRefreshToken();
             var accessToken = await _jwtService.CreateTokenAsync(user);
             await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshTokenString), ct);
+            await _auditRecorder.SignedInAsync(user, $"{AuthAuditRecorder.GoogleMethod} sign-up", ct);
             await CommitChangesAsync(ct);
             return await ComposeLoginResponse(user, accessToken, refreshTokenString);
         }
@@ -666,6 +691,9 @@ public class UserService : BaseService<User>
             .FirstOrDefaultAsync(t => t.RefreshTokenHash == hash && !t.Revoked, ct);
         if (tokenEntity == null) return;
         tokenEntity.Revoked = true;
+        var user = await _manager.FindByIdAsync(tokenEntity.UserId.ToString());
+        if (user != null)
+            await _auditRecorder.SignedOutAsync(user, ct);
         await CommitChangesAsync(ct);
     }
     #endregion

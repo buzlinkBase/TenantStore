@@ -2,6 +2,7 @@
 using MassTransit;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Onepunch.AuditEngine.EntityFrameworkCore;
 using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Domain.Entities;
 
@@ -45,5 +46,8 @@ public class AuthContext : IdentityDbContext<User, Role, Guid>
         modelBuilder.AddInboxStateEntity();
         modelBuilder.AddOutboxMessageEntity();
         modelBuilder.AddOutboxStateEntity();
+
+        // Audit trail of sign-ins/sign-outs -- see AuthAuditRecorder.
+        modelBuilder.ApplyAuditEngineModel();
     }
 }

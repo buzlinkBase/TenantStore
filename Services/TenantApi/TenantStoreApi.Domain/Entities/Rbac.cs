@@ -1,3 +1,5 @@
+using Onepunch.AuditEngine;
+
 namespace TenantStoreApi.Domain.Entities;
 
 // Global feature/action catalog -- TenantContext has no auto-tenant-scoping (every service
@@ -16,6 +18,7 @@ public class Permission : BaseEntity
 // TenantId null = System Role (Owner/Admin/Member/Employee -- ships with the product, seeded
 // once, non-deletable, permissions fixed). TenantId set = a Custom Role an org's admin defined
 // for themselves only.
+[Audited]
 public class Role : BaseEntity
 {
     public Guid? TenantId { get; set; }
@@ -25,6 +28,7 @@ public class Role : BaseEntity
     public virtual ICollection<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();
 }
 
+[Audited]
 public class RolePermission : BaseEntity
 {
     public Guid RoleId { get; set; }

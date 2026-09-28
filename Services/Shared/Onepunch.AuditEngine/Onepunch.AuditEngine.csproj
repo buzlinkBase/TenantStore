@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+	  The audit engine's core: the event model, the ports every host and storage adapter plugs
+	  into, and the store-agnostic pipeline (enrichment, redaction, hash chaining). Deliberately
+	  free of EF Core, ASP.NET Core and any messaging library; those live in the
+	  Onepunch.AuditEngine.* adapter packages, so switching the datastore (or adopting the engine
+	  in a non-web host) never touches this project or its callers.
+	-->
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<RootNamespace>Onepunch.AuditEngine</RootNamespace>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="Onepunch.AuditEngine.Tests" />
+	</ItemGroup>
+
+</Project>
