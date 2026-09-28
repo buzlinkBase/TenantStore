@@ -12,6 +12,8 @@ public class Customer
     public string Name { get; set; } = string.Empty;
     public string? BankAccountNo { get; set; }
     [AuditIgnore] public string? Notes { get; set; }
+    public decimal DailyRate { get; set; }
+    public DateTime? HiredAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public DateTime? DeletedAt { get; set; }
 }

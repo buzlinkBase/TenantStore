@@ -85,12 +85,24 @@ internal static class AuditEntryCapture
             .Select(p => new AuditChange(p.Name, null, p.Value))
             .ToList();
 
+    // Compared as values, not as text: a decimal read back from a fixed-scale column is
+    // 1538.4600..., the same amount saved from a form is 1538.46 -- equal, but formatted
+    // differently. Likewise a DateTime differing only in Kind. Neither is a change.
     private static List<AuditChange> ModifiedChanges(EntityEntry entry, AuditEngineOptions options) =>
         Recordable(entry, options)
-            .Where(p => p.IsModified)
+            .Where(p => p.IsModified && !SameValue(p.OriginalValue, p.CurrentValue))
             .Select(p => new AuditChange(p.Metadata.Name, Format(p.OriginalValue), Format(p.CurrentValue)))
             .Where(c => c.OldValue != c.NewValue)
             .ToList();
+
+    internal static bool SameValue(object? original, object? current) => (original, current) switch
+    {
+        (null, null) => true,
+        (null, _) or (_, null) => false,
+        (DateTime a, DateTime b) => a.Ticks == b.Ticks,
+        (byte[] a, byte[] b) => a.AsSpan().SequenceEqual(b),
+        _ => original.Equals(current),
+    };
 
     private static IEnumerable<PropertyEntry> Recordable(EntityEntry entry, AuditEngineOptions options) =>
         entry.Properties.Where(p =>
@@ -116,6 +128,8 @@ internal static class AuditEntryCapture
         DateOnly d => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
         TimeOnly t => t.ToString("HH:mm:ss.FFFFFFF", CultureInfo.InvariantCulture),
         bool b => b ? "true" : "false",
+        // Without the column's trailing zeros: 435, not 435.000000000000000000000000000000.
+        decimal m => m.ToString("0.############################", CultureInfo.InvariantCulture),
         byte[] bytes => $"[{bytes.Length} bytes]",
         IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
         _ => value.ToString(),

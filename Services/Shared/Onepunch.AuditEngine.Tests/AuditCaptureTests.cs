@@ -88,6 +88,53 @@ public class AuditCaptureTests
     }
 
     [Fact]
+    public async Task SameValueInADifferentForm_IsNotAChange()
+    {
+        using var host = new AuditHost();
+        var hired = new DateTime(2026, 1, 5, 8, 0, 0, DateTimeKind.Utc);
+        await host.InScopeAsync(async sp =>
+        {
+            var db = sp.GetRequiredService<TestDbContext>();
+            db.Customers.Add(new Customer { Id = CustomerId, Name = "Acme", DailyRate = 1538.460000m, HiredAt = hired });
+            await db.SaveChangesAsync();
+        });
+
+        // What an edit-form save looks like: the same amount without the column's scale, the same
+        // instant with a different Kind -- and, like the host's ModifyAsync, Update() marking every
+        // property modified (EF's own change detection would otherwise hide the problem).
+        await host.InScopeAsync(async sp =>
+        {
+            var db = sp.GetRequiredService<TestDbContext>();
+            var customer = await db.Customers.SingleAsync(x => x.Id == CustomerId);
+            customer.DailyRate = 1538.46m;
+            customer.HiredAt = DateTime.SpecifyKind(hired, DateTimeKind.Unspecified);
+            db.Customers.Update(customer);
+            await db.SaveChangesAsync();
+        });
+
+        (await host.RecordsAsync()).Select(x => x.EventType).Should().Equal([AuditEventTypes.Create],
+            "a save that changes no value records nothing");
+    }
+
+    [Fact]
+    public async Task ARealAmountChange_IsShownWithoutTrailingZeros()
+    {
+        using var host = new AuditHost();
+        await host.InScopeAsync(async sp =>
+        {
+            var db = sp.GetRequiredService<TestDbContext>();
+            db.Customers.Add(new Customer { Id = CustomerId, Name = "Acme", DailyRate = 435.000000m });
+            await db.SaveChangesAsync();
+        });
+
+        await EditCustomerAsync(host, c => c.DailyRate = 450.50m);
+
+        var update = (await host.RecordsAsync()).Single(x => x.EventType == AuditEventTypes.Update);
+        var ev = await host.InScopeAsync(sp => sp.GetRequiredService<IAuditQueryService>().GetAsync(update.Id, AuditHost.Org));
+        ev!.Changes.Should().ContainSingle().Which.Should().Be(new AuditChange(nameof(Customer.DailyRate), "435", "450.5"));
+    }
+
+    [Fact]
     public async Task SoftDelete_IsRecordedAsADelete()
     {
         using var host = new AuditHost();
