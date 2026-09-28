@@ -57,6 +57,10 @@ public static class AuditModelBuilderExtensions
             b.HasIndex(x => new { x.OrganizationId, x.ActorId, x.OccurredAtUtc });
             b.HasIndex(x => new { x.OrganizationId, x.EntityType, x.EntityId });
             b.HasIndex(x => new { x.OrganizationId, x.Source, x.OccurredAtUtc });
+            // Date-only lookups across every organization -- what a retention/archive job runs
+            // ("everything older than N months"). Every index above leads with OrganizationId,
+            // so without this one that job would scan the whole table.
+            b.HasIndex(x => x.OccurredAtUtc);
         });
         return modelBuilder;
     }

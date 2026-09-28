@@ -213,6 +213,18 @@ public class AuditCaptureTests
     }
 
     [Fact]
+    public void AuditTable_CanBeTrimmedByDateAcrossOrganizations()
+    {
+        using var host = new AuditHost();
+        using var scope = host.Scope();
+        var entity = scope.ServiceProvider.GetRequiredService<TestDbContext>().Model.FindEntityType(typeof(AuditEventRecord))!;
+
+        entity.GetIndexes().Should().Contain(i =>
+            i.Properties.Count == 1 && i.Properties[0].Name == nameof(AuditEventRecord.OccurredAtUtc),
+            "a retention job selects old events by date alone");
+    }
+
+    [Fact]
     public void AddAuditEngine_WithoutStorage_FailsFast()
     {
         var act = () => new ServiceCollection().AddAuditEngine(_ => { });
