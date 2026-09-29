@@ -484,6 +484,35 @@ public class PermissionCatalogSeederServiceTests
     }
 
     [Fact]
+    public async Task EnsureSeededAsync_SeedsAnnouncements_AndGrantsEveryActionToAdminAndOwner()
+    {
+        var sut = CreateSut(out var uow);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        var codes = new[] { "View", "Create", "Edit", "Delete", "Publish" }.Select(a => $"Announcements:{a}").ToList();
+        var seeded = await uow.Context.Permissions.Where(x => codes.Contains(x.Code)).ToListAsync();
+        seeded.Should().HaveCount(codes.Count);
+        seeded.Should().OnlyContain(x => x.Module == "Communication" && x.Feature == "Announcements");
+
+        foreach (var roleName in new[] { "Admin", "Owner" })
+        {
+            var role = await uow.Context.Roles.FirstAsync(x => x.Name == roleName);
+            var granted = await uow.Context.RolePermissions
+                .Where(x => x.RoleId == role.Id)
+                .Select(x => x.Permission.Code)
+                .ToListAsync();
+            granted.Should().Contain(codes, $"{roleName} manages company announcements");
+        }
+
+        // Receiving announcements needs no permission -- the Employee role isn't granted these.
+        var employee = await uow.Context.Roles.FirstAsync(x => x.Name == "Employee");
+        (await uow.Context.RolePermissions
+            .AnyAsync(x => x.RoleId == employee.Id && codes.Contains(x.Permission.Code)))
+            .Should().BeFalse();
+    }
+
+    [Fact]
     public async Task EnsureSeededAsync_AdminGetsSecurityAndHolidayWageSetupAccess()
     {
         var sut = CreateSut(out var uow);

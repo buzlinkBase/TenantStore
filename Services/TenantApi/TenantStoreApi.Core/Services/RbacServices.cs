@@ -251,6 +251,12 @@ public class PermissionCatalogSeederService
 
         ("Employee Portal", "Employee Self-Service Portal", ["View", "Manage"]),
 
+        // Company announcements to employees (hrms-api AnnouncementsController). Publish covers
+        // the whole send lifecycle -- publish/schedule, unpublish/republish, remind, pin,
+        // archive/restore; Delete covers the bin (delete/restore-deleted). Receiving and reading
+        // announcements needs no permission.
+        ("Communication", "Announcements", ["View", "Create", "Edit", "Delete", "Publish"]),
+
         // What UserMembershipService already enforces today via HasAnyRole(Owner, Admin) --
         // folded into the same catalog so it's one permission system, not two. Named "Tenant
         // Members"/"Tenant Roles" (not "Members"/"Roles") to avoid colliding with the Security
@@ -330,6 +336,7 @@ public class PermissionCatalogSeederService
         }.SelectMany(feature => new[] { "View", "Export" }.Select(action => $"{feature}:{action}")),
         .. new[] { "View", "Export", "Edit" }.Select(action => $"Payroll Reports:{action}"),
         "Attendance Reports:View",
+        .. new[] { "View", "Create", "Edit", "Delete", "Publish" }.Select(action => $"Announcements:{action}"),
     ];
     // The frontend's "My Portal" menu is gated on this permission (see hrms-ui-onepunch's
     // navigation.const.ts) -- Employee is the role whose entire purpose is the self-service
