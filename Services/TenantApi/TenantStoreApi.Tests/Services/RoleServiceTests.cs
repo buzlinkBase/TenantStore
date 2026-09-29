@@ -1,4 +1,9 @@
 using FluentAssertions;
+using MassTransit;
+using Moq;
+using Onepunch.Common.Lib;
+using Onepunch.Common.Lib.DTO;
+using Microsoft.EntityFrameworkCore;
 using TenantStoreApi.Core;
 using TenantStoreApi.Core.Services;
 using TenantStoreApi.Domain.Entities;
@@ -175,5 +180,84 @@ public class RoleServiceTests
 
         (await sut.IsAssignableAsync("Payroll Approver", tenantId, CancellationToken.None)).Should().BeTrue();
         (await sut.IsAssignableAsync("Payroll Approver", otherTenantId, CancellationToken.None)).Should().BeFalse();
+    }
+
+    // ── Members of an edited role get their sessions refreshed ─────────────
+
+    private sealed record Seeded(Role Role, Permission Permission, Guid ActiveUser, Guid InactiveUser, Guid OtherUser);
+
+    // A custom role held by an active member and a revoked one; a third member has another role.
+    private static async Task<Seeded> SeedRoleWithMembersAsync(IUnitOfWorkService uow, Guid tenantId, string roleName = "Custom")
+    {
+        var role = new Role { Id = Guid.NewGuid(), TenantId = tenantId, Name = roleName, IsSystemRole = false };
+        var permission = new Permission { Module = "Payroll", Feature = "Payroll Run", Action = "Approve", Code = "Payroll Run:Approve" };
+        var active = new UserMembership { Id = Guid.NewGuid(), TenantId = tenantId, UserId = Guid.NewGuid(), Status = "Active" };
+        var revoked = new UserMembership { Id = Guid.NewGuid(), TenantId = tenantId, UserId = Guid.NewGuid(), Status = "Revoked" };
+        var other = new UserMembership { Id = Guid.NewGuid(), TenantId = tenantId, UserId = Guid.NewGuid(), Status = "Active" };
+        uow.Context.Roles.Add(role);
+        uow.Context.Permissions.Add(permission);
+        uow.Context.Memberships.AddRange(active, revoked, other);
+        uow.Context.MembershipRoles.AddRange(
+            new MembershipRole { UserMembershipId = active.Id, Role = roleName, RoleId = role.Id },
+            new MembershipRole { UserMembershipId = active.Id, Role = "Employee" },
+            new MembershipRole { UserMembershipId = revoked.Id, Role = roleName, RoleId = role.Id },
+            new MembershipRole { UserMembershipId = other.Id, Role = "Admin" });
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+        return new Seeded(role, permission, active.UserId, revoked.UserId, other.UserId);
+    }
+
+    private static (RoleService Sut, List<MembershipChanged> Published) SutWithPublisher(IUnitOfWorkService seededUow)
+    {
+        var published = new List<MembershipChanged>();
+        var publisher = new Mock<IPublishEndpoint>();
+        publisher.Setup(x => x.Publish(It.IsAny<MembershipChanged>(), It.IsAny<CancellationToken>()))
+            .Callback<MembershipChanged, CancellationToken>((m, _) => published.Add(m))
+            .Returns(Task.CompletedTask);
+        return (new RoleService(TenantTestContextFactory.CreateUnitOfWork(seededUow.Context), publisher.Object), published);
+    }
+
+    [Fact]
+    public async Task SetPermissionsAsync_RefreshesEveryActiveMemberOfTheRole()
+    {
+        var uow = TenantTestContextFactory.CreateUnitOfWork();
+        var tenantId = Guid.NewGuid();
+        var seeded = await SeedRoleWithMembersAsync(uow, tenantId);
+        var (sut, published) = SutWithPublisher(uow);
+
+        await sut.SetPermissionsAsync(seeded.Role.Id, [seeded.Permission.Id], CancellationToken.None);
+
+        published.Should().ContainSingle();
+        published[0].UserId.Should().Be(seeded.ActiveUser);
+        published[0].TenantId.Should().Be(tenantId);
+        published[0].ChangeType.Should().Be("RoleChanged");
+        published[0].NewRoles.Should().BeEquivalentTo(["Custom", "Employee"]);
+    }
+
+    [Fact]
+    public async Task UpdateCustomRoleAsync_Rename_UpdatesMembersRoleNames_AndRefreshesThem()
+    {
+        var uow = TenantTestContextFactory.CreateUnitOfWork();
+        var tenantId = Guid.NewGuid();
+        var seeded = await SeedRoleWithMembersAsync(uow, tenantId, "Payroll Clerk");
+        var (sut, published) = SutWithPublisher(uow);
+
+        await sut.UpdateCustomRoleAsync(seeded.Role.Id, "Payroll Officer", "", CancellationToken.None);
+
+        published.Should().ContainSingle(m => m.UserId == seeded.ActiveUser)
+            .Which.NewRoles.Should().BeEquivalentTo(["Payroll Officer", "Employee"]);
+        (await uow.Context.MembershipRoles.Where(x => x.RoleId == seeded.Role.Id).Select(x => x.Role).ToListAsync())
+            .Should().OnlyContain(name => name == "Payroll Officer");
+    }
+
+    [Fact]
+    public async Task UpdateCustomRoleAsync_DescriptionOnly_RefreshesNobody()
+    {
+        var uow = TenantTestContextFactory.CreateUnitOfWork();
+        var seeded = await SeedRoleWithMembersAsync(uow, Guid.NewGuid());
+        var (sut, published) = SutWithPublisher(uow);
+
+        await sut.UpdateCustomRoleAsync(seeded.Role.Id, "Custom", "New description", CancellationToken.None);
+
+        published.Should().BeEmpty();
     }
 }

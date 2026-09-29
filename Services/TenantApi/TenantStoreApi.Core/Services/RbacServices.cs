@@ -1,3 +1,4 @@
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using TenantStoreApi.Infrastructure;
 
@@ -18,8 +19,13 @@ public class PermissionService : BaseService<Permission>
 
 public class RoleService : BaseService<Role>
 {
-    public RoleService(IUnitOfWorkService uow) : base(uow)
+    private readonly IPublishEndpoint? _publisher;
+
+    // publisher is optional so the many direct constructions in tests stay valid; the container
+    // always supplies it.
+    public RoleService(IUnitOfWorkService uow, IPublishEndpoint? publisher = null) : base(uow)
     {
+        _publisher = publisher;
     }
 
     // System Roles (Owner/Admin/Member/Employee/Client) + every Custom Role this tenant defined.
@@ -59,9 +65,20 @@ public class RoleService : BaseService<Role>
         var role = await GetOneAsync(id, token) ?? throw new KeyNotFoundException("Role not found.");
         if (role.IsSystemRole) throw new InvalidOperationException("System roles cannot be edited.");
 
+        var previousName = role.Name;
         role.Name = name;
         role.Description = description;
         await ModifyAsync(role, token);
+        if (previousName != name)
+        {
+            // Members' role rows carry the name too (it's what their sign-in claims show).
+            var assignments = await Context.MembershipRoles
+                .Where(x => x.RoleId == role.Id ||
+                            (x.RoleId == null && x.Role == previousName && x.UserMembership.TenantId == role.TenantId))
+                .ToListAsync(token);
+            assignments.ForEach(x => x.Role = name);
+            await NotifyMembersAsync(role, previousName, token);
+        }
         await CommitChangesAsync(token);
         return role;
     }
@@ -125,7 +142,41 @@ public class RoleService : BaseService<Role>
             await Context.RolePermissions.AddRangeAsync(toAdd, token);
         }
 
+        await NotifyMembersAsync(role, role.Name, token);
         await CommitChangesAsync(token);
+    }
+
+    // Same signal as changing one member's roles (UserMembershipService.PublishRoleChangedAsync):
+    // AuthApi's MembershipChangedWorker drops each member's cached membership and pushes a live
+    // "roles changed" to their open sessions, which silently refresh their token -- so edited
+    // permissions apply right away instead of when the token expires. Sent through the EF bus
+    // outbox, so it goes out only if the commit below succeeds.
+    //
+    // storedName: the role's name as the membership rows still hold it (the old one on a rename);
+    // rows saved before RoleId existed are matched by it, within this company only.
+    private async Task NotifyMembersAsync(Role role, string storedName, CancellationToken token)
+    {
+        if (_publisher == null || role.TenantId is not { } tenantId) return;
+
+        var members = await Context.Memberships.AsNoTracking()
+            .Where(m => m.TenantId == tenantId && m.Status == "Active" && m.UserId != Guid.Empty &&
+                        m.Roles.Any(r => r.RoleId == role.Id || (r.RoleId == null && r.Role == storedName)))
+            .Select(m => new { m.UserId, Roles = m.Roles.Select(r => new { r.RoleId, r.Role }).ToList() })
+            .ToListAsync(token);
+
+        foreach (var member in members)
+        {
+            await _publisher.Publish(new MembershipChanged
+            {
+                UserId = member.UserId,
+                TenantId = tenantId,
+                ChangeType = "RoleChanged",
+                // The roles as they'll read after this save (a rename shows the new name).
+                NewRoles = member.Roles
+                    .Select(r => r.RoleId == role.Id || r.Role == storedName ? role.Name : r.Role)
+                    .ToList(),
+            }, token);
+        }
     }
 
     // Generalizes the old hardcoded TenantRoles.IsValid([Admin, Member]) check: any System Role
@@ -248,6 +299,12 @@ public class PermissionCatalogSeederService
         ("Security", "Roles", ["View", "Create", "Edit", "Delete", "Manage"]),
         ("Security", "Permissions", ["View", "Create", "Edit", "Delete", "Manage"]),
         ("Security", "Audit Trail", ["View", "Create", "Edit", "Delete", "Manage"]),
+        // Clearance for employees tagged Confidential (hrms-api ConfidentialAccessScope). Access:
+        // everything. Operations: their DTR, attendance, schedules and applications. Entries: their
+        // cash bond, allowances / other income and loans. Pay, payroll runs, payslips and pay-based
+        // reports stay Access-only. Owner always has all three; deliberately NOT in
+        // AdminGrantedCodes -- the Owner decides which roles are cleared.
+        ("Security", "Confidential Records", ["Access", "Operations", "Entries"]),
 
         ("Employee Portal", "Employee Self-Service Portal", ["View", "Manage"]),
 

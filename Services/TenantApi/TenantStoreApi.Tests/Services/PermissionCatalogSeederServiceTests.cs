@@ -512,6 +512,33 @@ public class PermissionCatalogSeederServiceTests
             .Should().BeFalse();
     }
 
+    [Theory]
+    [InlineData("Access")]
+    [InlineData("Operations")]
+    [InlineData("Entries")]
+    public async Task EnsureSeededAsync_SeedsConfidentialRecordsClearances_ForOwnerOnly(string action)
+    {
+        var sut = CreateSut(out var uow);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        var permission = await uow.Context.Permissions.SingleAsync(x => x.Code == $"Confidential Records:{action}");
+        permission.Module.Should().Be("Security");
+        permission.Feature.Should().Be("Confidential Records");
+
+        var owner = await uow.Context.Roles.FirstAsync(x => x.Name == "Owner");
+        (await uow.Context.RolePermissions.AnyAsync(x => x.RoleId == owner.Id && x.PermissionId == permission.Id))
+            .Should().BeTrue("the Owner is always cleared");
+
+        // The Owner decides which roles are cleared -- Admin and Employee get nothing by default.
+        foreach (var roleName in new[] { "Admin", "Employee" })
+        {
+            var role = await uow.Context.Roles.FirstAsync(x => x.Name == roleName);
+            (await uow.Context.RolePermissions.AnyAsync(x => x.RoleId == role.Id && x.PermissionId == permission.Id))
+                .Should().BeFalse($"{roleName} isn't cleared for confidential records by default");
+        }
+    }
+
     [Fact]
     public async Task EnsureSeededAsync_AdminGetsSecurityAndHolidayWageSetupAccess()
     {
