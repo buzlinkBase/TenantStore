@@ -400,7 +400,12 @@ public class UserService : BaseService<User>
         await CommitChangesAsync(token);
         return new LoginResponse { ErrorMessage = errorMessage };
     }
-    internal async Task<LoginResponse> ComposeLoginResponse(User user, string accessToken, string refreshToken)
+    /// <param name="sessionTenantId">
+    /// The company the access token is scoped to, when it isn't the account's default (a
+    /// refreshed session that's working in another company) -- Roles/Permissions must describe
+    /// the same company as the token.
+    /// </param>
+    internal async Task<LoginResponse> ComposeLoginResponse(User user, string accessToken, string refreshToken, Guid? sessionTenantId = null)
     {
         var tenants = await _membershipCacheService.GetMembershipsAsync(user.Id);
         // Roles and permissions must come from the same fresh membership snapshot. Using the
@@ -408,7 +413,8 @@ public class UserService : BaseService<User>
         // update; when that role is Employee, the frontend incorrectly treats the user as
         // employee-only and hides every non-portal menu. The membership snapshot is the source
         // of truth and preserves the complete role set regardless of role order.
-        var defaultTenant = tenants.FirstOrDefault(t => t.TenantId == user.DefaultTenantId);
+        var tokenTenantId = sessionTenantId ?? user.DefaultTenantId;
+        var tokenTenant = tenants.FirstOrDefault(t => t.TenantId == tokenTenantId);
         return new LoginResponse
         {
             AccessToken = accessToken,
@@ -416,8 +422,8 @@ public class UserService : BaseService<User>
             Expiry = DateTime.UtcNow.AddMinutes(_jwtService.TokenExpiry),
             Tenants = tenants,
             Name = user.FullName,
-            Roles = defaultTenant?.Roles ?? [],
-            Permissions = defaultTenant?.Permissions ?? [],
+            Roles = tokenTenant?.Roles ?? [],
+            Permissions = tokenTenant?.Permissions ?? [],
             Email = user.Email,
         };
     }
@@ -588,7 +594,7 @@ public class UserService : BaseService<User>
 
         var accessToken = await _jwtService.CreateTokenAsync(user);
         var refreshTokenString = await _jwtService.GenerateRefreshToken();
-        await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshTokenString), ct);
+        await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshTokenString, tenantId, membership.TenantName), ct);
         await CommitChangesAsync(ct);
         return await ComposeLoginResponse(user, accessToken, refreshTokenString);
     }
@@ -689,12 +695,34 @@ public class UserService : BaseService<User>
         // reflect the caller's absolute latest membership, not whatever was cached (up to 5 min
         // old) the last time it was resolved.
         //await _membershipCacheService.InvalidateAsync(user.Id);
-        var accessToken = await _jwtService.CreateTokenAsync(user);
-        var newRefreshToken = await _jwtService.GenerateRefreshToken();
-        await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, newRefreshToken));
-        await CommitChangesAsync(token);
-        return await ComposeLoginResponse(user, accessToken, newRefreshToken);
 
+        // Stay in the company this session was working in -- not the account-wide default,
+        // which a switch on another device may have moved since.
+        var memberships = await _membershipCacheService.GetMembershipsAsync(user.Id);
+        var creationPending = tokenEntity.TenantId is { } requested &&
+            await Context.TenantCreationRequests.AnyAsync(x =>
+                x.TenantId == requested && x.UserId == user.Id && x.Status != TenantCreationStatus.Created, token);
+        var session = SessionTenantResolver.Resolve(
+            tokenEntity.TenantId, tokenEntity.TenantName, user.DefaultTenantId, user.DefaultTenantName,
+            memberships, creationPending);
+
+        var accessToken = session.TenantId is not { } sessionTenantId
+            ? await _jwtService.CreateTokenAsync(user)
+            // A company the user is still creating has no membership row to read roles from --
+            // they're its Owner, same as when WorkspaceService minted their first token for it.
+            : await _jwtService.CreateTokenAsync(user, sessionTenantId.ToString(), session.TenantName,
+                overrideRoles: session.CreationPending ? ["Owner"] : null);
+        var newRefreshToken = await _jwtService.GenerateRefreshToken();
+        await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, newRefreshToken, session.TenantId, session.TenantName));
+        await CommitChangesAsync(token);
+
+        var response = await ComposeLoginResponse(user, accessToken, newRefreshToken, session.TenantId);
+        if (session.CreationPending)
+        {
+            response.Roles = ["Owner"];
+            response.Permissions = [];
+        }
+        return response;
     }
 
     public async Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken ct)
@@ -712,14 +740,21 @@ public class UserService : BaseService<User>
     #endregion
 
     #region Helpers
-    internal RefreshToken CreateRefreshToken(User user, string newRefreshToken) =>
+    /// <summary>
+    /// A refresh token for a session working in <paramref name="tenantId"/> -- the default
+    /// company when none is given. The company is fixed at issue time, so a later change of the
+    /// account-wide default (a switch on another device) doesn't move this session.
+    /// </summary>
+    internal RefreshToken CreateRefreshToken(User user, string newRefreshToken, Guid? tenantId = null, string? tenantName = null) =>
         new()
         {
             UserId = user.Id,
             RefreshTokenHash = _jwtService.Hash(newRefreshToken),
             Expiry = DateTime.UtcNow.AddDays(_jwtService.RefreshExpiry),
             CreatedAt = DateTime.UtcNow,
-            Revoked = false
+            Revoked = false,
+            TenantId = tenantId ?? user.DefaultTenantId,
+            TenantName = tenantId != null ? tenantName : user.DefaultTenantName,
         };
     public string KeyGen() => _jwtService.GenerateKey(32);
     #endregion

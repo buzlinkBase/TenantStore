@@ -1,4 +1,4 @@
-﻿using MassTransit;
+using MassTransit;
 using Microsoft.AspNetCore.Identity;
 using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Core;
@@ -75,7 +75,7 @@ public class WorkspaceService : BaseService<User>
 
         var accessToken = await _jwtService.CreateTokenAsync(user, createTenant.TenantId.ToString(), createTenant.TenantName, overrideRoles: ["Owner"]);
         var refreshTokenString = await _jwtService.GenerateRefreshToken();
-        await Context.RefreshTokens.AddAsync(_userService.CreateRefreshToken(user, refreshTokenString), token);
+        await Context.RefreshTokens.AddAsync(_userService.CreateRefreshToken(user, refreshTokenString, createTenant.TenantId, createTenant.TenantName), token);
         await CommitChangesAsync(token);
         var loginRequest = await _userService.ComposeLoginResponse(user, accessToken, refreshTokenString);
         loginRequest.Tenants.Add(new UsersTenant
@@ -119,7 +119,7 @@ public class WorkspaceService : BaseService<User>
 
         var accessToken = await _jwtService.CreateTokenAsync(user, pending.TenantId.ToString(), pending.TenantName ?? "", overrideRoles: ["Owner"]);
         var refreshTokenString = await _jwtService.GenerateRefreshToken();
-        await Context.RefreshTokens.AddAsync(_userService.CreateRefreshToken(user, refreshTokenString), token);
+        await Context.RefreshTokens.AddAsync(_userService.CreateRefreshToken(user, refreshTokenString, pending.TenantId, pending.TenantName), token);
         await CommitChangesAsync(token);
         var loginRequest = await _userService.ComposeLoginResponse(user, accessToken, refreshTokenString);
         loginRequest.Tenants.Add(new UsersTenant

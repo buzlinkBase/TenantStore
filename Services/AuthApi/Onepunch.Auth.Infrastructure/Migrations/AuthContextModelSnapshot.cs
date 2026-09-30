@@ -696,6 +696,12 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                     b.Property<bool>("Revoked")
                         .HasColumnType("tinyint(1)");
 
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("TenantName")
+                        .HasColumnType("longtext");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime(6)");
 

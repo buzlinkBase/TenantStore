@@ -563,7 +563,10 @@ namespace Onepunch.Auth.Core.Services
                 RefreshTokenHash = _jwtService.Hash(refreshTokenString),
                 Expiry = DateTime.UtcNow.AddDays(_jwtService.RefreshExpiry),
                 CreatedAt = DateTime.UtcNow,
-                Revoked = false
+                Revoked = false,
+                // This session works in the company just joined -- see RefreshToken.TenantId.
+                TenantId = invitation.TenantId,
+                TenantName = joinedTenant.Name,
             }, ct);
 
             await CommitChangesAsync(ct);
