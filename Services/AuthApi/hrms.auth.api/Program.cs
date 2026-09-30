@@ -14,6 +14,7 @@ using OnePunch.Auth.Api;
 using OnePunch.Auth.Api.Exceptions;
 using OnePunch.Auth.Api.Filters;
 using OnePunch.Auth.Api.Middlewares;
+using OnePunch.Auth.Api.RateLimiting;
 using OnePunch.Auth.Core.Hubs;
 using Serilog;
 using Serilog.Events;
@@ -23,20 +24,6 @@ using System.Text.Json.Serialization;
 
 internal class Program
 {
-    // One fixed one-minute window per signed-in user and client IP.
-    private static System.Threading.RateLimiting.RateLimitPartition<string> PerCallerWindow(HttpContext context, int permitsPerMinute)
-    {
-        var user = context.User.FindFirst("sub")?.Value ?? "anonymous";
-        var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter($"{user}|{ip}",
-            _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
-            {
-                PermitLimit = permitsPerMinute,
-                Window = TimeSpan.FromMinutes(1),
-                QueueLimit = 0,
-            });
-    }
-
     private static async Task Main(string[] args)
     {
         // AuthUrl/Domains:TenantUrl point at plain http:// addresses in production (bypassing
@@ -137,16 +124,9 @@ internal class Program
             //};
         });
 
-        // Batch invitations (InvitationController): sending is capped at 10 requests a minute per
-        // user and IP; the modal's live lookups, which fire as the admin types, at 60.
-        builder.Services.AddRateLimiter(options =>
-        {
-            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-            options.AddPolicy(OnePunch.Auth.Api.Controllers.InvitationController.BatchSendPolicy,
-                context => PerCallerWindow(context, permitsPerMinute: 10));
-            options.AddPolicy(OnePunch.Auth.Api.Controllers.InvitationController.BatchCheckPolicy,
-                context => PerCallerWindow(context, permitsPerMinute: 60));
-        });
+        // Per-endpoint limits on sign-in, sign-up, password and invitation endpoints -- see
+        // RateLimitPolicies for which and why.
+        builder.Services.AddAppRateLimiting(builder.Configuration);
 
         builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
         builder.Services.AddEndpointsApiExplorer();

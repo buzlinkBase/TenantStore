@@ -7,6 +7,7 @@ using Onepunch.Auth.Core;
 using Onepunch.Auth.Domain.DTOs;
 using Onepunch.Auth.Domain.Entities;
 using Onepunch.Common.Lib;
+using OnePunch.Auth.Api.RateLimiting;
 using System.Security.Claims;
 
 namespace OnePunch.Auth.Api.Controllers;
@@ -34,6 +35,7 @@ public class InvitationController : ControllerBase
     }
 
     [HttpPost("send-invite")]
+    [EnableRateLimiting(RateLimitPolicies.InviteSend)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> InviteUser([FromBody] InvitationRequest payload, CancellationToken ct)
     {
@@ -57,16 +59,12 @@ public class InvitationController : ControllerBase
         }
     }
 
-    /// <summary>Rate-limit policies (Program.cs): sending, and the modal's live lookups.</summary>
-    public const string BatchSendPolicy = "invitation-batch-send";
-    public const string BatchCheckPolicy = "invitation-batch-check";
-
     /// <summary>
     /// What each email would run into if invited now (invalid, already a member, already
     /// invited) -- the batch invite modal's live chip states.
     /// </summary>
     [HttpPost("batch/check")]
-    [EnableRateLimiting(BatchCheckPolicy)]
+    [EnableRateLimiting(RateLimitPolicies.InviteCheck)]
     [ProducesResponseType(typeof(List<InviteRecipientCheck>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> CheckBatch([FromBody] BatchInvitationCheckRequest payload, CancellationToken ct)
@@ -82,7 +80,7 @@ public class InvitationController : ControllerBase
     /// X-Idempotency-Key per submission; a retry with the same key returns the first result.
     /// </summary>
     [HttpPost("batch")]
-    [EnableRateLimiting(BatchSendPolicy)]
+    [EnableRateLimiting(RateLimitPolicies.InviteSend)]
     [ProducesResponseType(typeof(BatchInvitationResult), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(BatchInvitationResult), StatusCodes.Status207MultiStatus)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -130,6 +128,7 @@ public class InvitationController : ControllerBase
 
     [HttpGet("check-invitation")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.TokenLookup)]
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
     public async Task<IActionResult> IsInvitationValid([FromQuery(Name = "invitation-token")] string invitationToken, CancellationToken token)
     {
@@ -139,6 +138,7 @@ public class InvitationController : ControllerBase
 
     [HttpGet("preview")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.TokenLookup)]
     [ProducesResponseType(typeof(InvitationPreviewResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Preview([FromQuery] string token, CancellationToken ct)
@@ -150,6 +150,7 @@ public class InvitationController : ControllerBase
 
     [HttpPost("accept-by-token")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.TokenLookup)]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> AcceptByToken([FromBody] AcceptInvitationByTokenRequest payload, CancellationToken ct)
     {

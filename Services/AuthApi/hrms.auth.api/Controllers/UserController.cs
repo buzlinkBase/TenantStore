@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Onepunch.Auth.Core;
 using Onepunch.Auth.Domain.DTOs;
 using Onepunch.Common.Lib;
+using OnePunch.Auth.Api.RateLimiting;
 using OnePunch.Auth.Core.Services;
 using Serilog;
 using System.Security.Claims;
@@ -33,6 +35,7 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [HttpPost("create-account")]
+        [EnableRateLimiting(RateLimitPolicies.EmailSending)]
         [AllowAnonymous]
         [ProducesResponseType(typeof(CreateAccountResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> CreateAccount([FromBody] CreateAccount payload, CancellationToken token)
@@ -60,6 +63,7 @@ namespace OnePunch.Auth.Api.Controllers
 
         [AllowAnonymous]
         [HttpGet("confirm-email")]
+        [EnableRateLimiting(RateLimitPolicies.TokenLookup)]
         [ProducesResponseType(StatusCodes.Status302Found)] // Redirect returns a 302 Found, not a 200 OK
         public async Task<IActionResult> Confirm([FromQuery(Name = "token")] string token, CancellationToken ct)
         {
@@ -87,6 +91,7 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [HttpPost("forgot-password")]
+        [EnableRateLimiting(RateLimitPolicies.EmailSending)]
         [AllowAnonymous]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> ResetPasswordRequestAsync([FromBody] EmailPayload payload, CancellationToken token)
@@ -101,6 +106,7 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [HttpPost("reset-password")]
+        [EnableRateLimiting(RateLimitPolicies.TokenLookup)]
         [AllowAnonymous]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPassword payload, CancellationToken token)
@@ -112,6 +118,7 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [HttpPost("change-password")]
+        [EnableRateLimiting(RateLimitPolicies.PasswordChange)]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePassword payload, CancellationToken token)
         {
@@ -122,6 +129,7 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [HttpPost("set-password")]
+        [EnableRateLimiting(RateLimitPolicies.PasswordChange)]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> SetPassword([FromBody] SetPassword payload, CancellationToken token)
         {
@@ -167,6 +175,7 @@ namespace OnePunch.Auth.Api.Controllers
 
         [AllowAnonymous]
         [HttpPost("login")]
+        [EnableRateLimiting(RateLimitPolicies.Login)]
         [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Login([FromBody] LoginPayload payload, CancellationToken token)
         {
@@ -201,6 +210,7 @@ namespace OnePunch.Auth.Api.Controllers
 
 
         [HttpPost("login-google-callback")]
+        [EnableRateLimiting(RateLimitPolicies.Login)]
         [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
         [AllowAnonymous]
         public async Task<IActionResult> LoginWithGoogle([FromBody] GoogleLoginRequest request, CancellationToken token)
@@ -213,6 +223,7 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [HttpPost("signup-google-callback")]
+        [EnableRateLimiting(RateLimitPolicies.Login)]
         [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
         [AllowAnonymous]
         public async Task<IActionResult> SignUpWithGoogle([FromBody] GoogleLoginRequest request, CancellationToken token)
@@ -264,6 +275,7 @@ namespace OnePunch.Auth.Api.Controllers
 
         [AllowAnonymous]
         [HttpPost("refresh")]
+        [EnableRateLimiting(RateLimitPolicies.Refresh)]
         [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Refresh(CancellationToken ct) // Renamed to 'ct' to avoid conflict
         {

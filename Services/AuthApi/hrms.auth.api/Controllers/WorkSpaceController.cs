@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Onepunch.Auth.Core;
 using Onepunch.Auth.Domain.DTOs;
 using Onepunch.Common.Lib;
+using OnePunch.Auth.Api.RateLimiting;
 
 namespace OnePunch.Auth.Api.Controllers
 {
@@ -28,6 +30,7 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [HttpPost()]
+        [EnableRateLimiting(RateLimitPolicies.WorkspaceCreate)]
         [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Create([FromBody] CreateWorkspaceRequest payload, CancellationToken token)
         {
