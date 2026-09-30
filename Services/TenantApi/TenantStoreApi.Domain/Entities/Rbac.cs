@@ -28,7 +28,9 @@ public class Role : BaseEntity
     public virtual ICollection<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();
 }
 
-[Audited]
+// Not [Audited]: a row holds only ids, so capturing it recorded "Delete"/"Create" with nothing
+// readable. RoleService.SetPermissionsAsync records one event per save on the Role instead,
+// naming each permission granted or removed.
 public class RolePermission : BaseEntity
 {
     public Guid RoleId { get; set; }

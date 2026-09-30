@@ -1,5 +1,6 @@
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using Onepunch.AuditEngine;
 using TenantStoreApi.Infrastructure;
 
 namespace TenantStoreApi.Core.Services;
@@ -20,13 +21,18 @@ public class PermissionService : BaseService<Permission>
 public class RoleService : BaseService<Role>
 {
     private readonly IPublishEndpoint? _publisher;
+    private readonly IAuditWriter? _audit;
 
-    // publisher is optional so the many direct constructions in tests stay valid; the container
-    // always supplies it.
-    public RoleService(IUnitOfWorkService uow, IPublishEndpoint? publisher = null) : base(uow)
+    // publisher and audit are optional so the many direct constructions in tests stay valid; the
+    // container always supplies them.
+    public RoleService(IUnitOfWorkService uow, IPublishEndpoint? publisher = null, IAuditWriter? audit = null) : base(uow)
     {
         _publisher = publisher;
+        _audit = audit;
     }
+
+    public const string PermissionGranted = "Granted";
+    public const string PermissionNotGranted = "Not granted";
 
     // System Roles (Owner/Admin/Member/Employee/Client) + every Custom Role this tenant defined.
     public Task<List<Role>> FindAllForTenantAsync(Guid tenantId, CancellationToken token)
@@ -142,8 +148,43 @@ public class RoleService : BaseService<Role>
             await Context.RolePermissions.AddRangeAsync(toAdd, token);
         }
 
+        var before = existing.Where(x => x.DeletedAt == null).Select(x => x.PermissionId).ToHashSet();
+        await RecordPermissionChangesAsync(role, before, distinctIds, token);
+
         await NotifyMembersAsync(role, role.Name, token);
         await CommitChangesAsync(token);
+    }
+
+    // One audit event per save, on the role, naming each permission granted or removed -- so the
+    // trail reads "Payroll Run:Approve: Not granted -> Granted" rather than a bare row id. Written
+    // before the commit so it saves (and is forwarded to hrms-api) with the change itself.
+    private async Task RecordPermissionChangesAsync(Role role, IReadOnlySet<Guid> before, IReadOnlySet<Guid> after, CancellationToken token)
+    {
+        if (_audit == null) return;
+        var granted = after.Except(before).ToList();
+        var removed = before.Except(after).ToList();
+        if (granted.Count == 0 && removed.Count == 0) return;
+
+        var changedIds = granted.Concat(removed).ToList();
+        var codes = await Context.Permissions.AsNoTracking()
+            .Where(p => changedIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id, p => p.Code, token);
+        string CodeOf(Guid id) => codes.GetValueOrDefault(id) ?? id.ToString();
+
+        var changes = granted.Select(id => new AuditChange(CodeOf(id), PermissionNotGranted, PermissionGranted))
+            .Concat(removed.Select(id => new AuditChange(CodeOf(id), PermissionGranted, PermissionNotGranted)))
+            .OrderBy(c => c.Property, StringComparer.Ordinal)
+            .ToList();
+
+        await _audit.WriteAsync(new AuditEvent
+        {
+            EventType = AuditEventTypes.Update,
+            EntityType = nameof(Role),
+            EntityId = role.Id.ToString(),
+            OrganizationId = role.TenantId?.ToString(),
+            Description = $"Changed permissions of role '{role.Name}': {granted.Count} granted, {removed.Count} removed",
+            Changes = changes,
+        }, token);
     }
 
     // Same signal as changing one member's roles (UserMembershipService.PublishRoleChangedAsync):

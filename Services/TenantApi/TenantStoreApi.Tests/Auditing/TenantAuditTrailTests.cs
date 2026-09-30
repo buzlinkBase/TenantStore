@@ -8,7 +8,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Onepunch.AuditEngine;
 using Onepunch.AuditEngine.MassTransit;
+using TenantStoreApi.Core;
 using TenantStoreApi.Core.Auditing;
+using TenantStoreApi.Core.Services;
 using TenantStoreApi.Core.Messaging;
 using TenantStoreApi.Domain.Entities;
 using TenantStoreApi.Domain.Entities.Subs;
@@ -73,6 +75,12 @@ public class TenantAuditTrailTests
             await db.SaveChangesAsync();
         }
 
+        public async Task InScopeAsync(Func<IServiceProvider, Task> action)
+        {
+            using var scope = _root.CreateScope();
+            await action(scope.ServiceProvider);
+        }
+
         public async Task<List<AuditEvent>> EventsAsync()
         {
             using var scope = _root.CreateScope();
@@ -100,6 +108,64 @@ public class TenantAuditTrailTests
         grant.Changes.Should().Contain(c => c.Property == nameof(MembershipRole.Role) && c.NewValue == "Admin");
 
         host.Forwarded.Should().Contain(f => f.Message.Id == grant.Id && f.CompanyHeader == CompanyId.ToString());
+    }
+
+    [Fact]
+    public async Task EditingARolesPermissions_IsOneEventOnTheRole_NamingEachPermission()
+    {
+        using var host = new Host();
+        var roleId = Guid.NewGuid();
+        Permission Perm(string code) => new() { Id = Guid.NewGuid(), Code = code, Feature = code.Split(':')[0], Action = code.Split(':')[1] };
+        var (view, approve, export) = (Perm("Payroll Run:View"), Perm("Payroll Run:Approve"), Perm("Payroll Run:Export"));
+        await host.SaveAsync(db =>
+        {
+            db.Permissions.AddRange(view, approve, export);
+            db.Roles.Add(new Role { Id = roleId, Name = "Payroll Clerk", TenantId = CompanyId });
+            db.RolePermissions.AddRange(
+                new RolePermission { Id = Guid.NewGuid(), RoleId = roleId, PermissionId = view.Id },
+                new RolePermission { Id = Guid.NewGuid(), RoleId = roleId, PermissionId = approve.Id });
+        });
+        var before = (await host.EventsAsync()).Select(e => e.Id).ToHashSet();
+
+        // Keep View, drop Approve, add Export.
+        await host.InScopeAsync(sp => new RoleService(
+                new UnitOfWorkService(sp.GetRequiredService<TenantContext>()), null, sp.GetRequiredService<IAuditWriter>())
+            .SetPermissionsAsync(roleId, [view.Id, export.Id], CancellationToken.None));
+
+        var events = (await host.EventsAsync()).Where(e => !before.Contains(e.Id)).ToList();
+        events.Should().NotContain(e => e.EntityType == nameof(RolePermission), "a bare row id tells nobody what changed");
+        var edit = events.Should().ContainSingle().Subject;
+        edit.EventType.Should().Be(AuditEventTypes.Update);
+        edit.EntityType.Should().Be(nameof(Role));
+        edit.EntityId.Should().Be(roleId.ToString());
+        edit.OrganizationId.Should().Be(CompanyId.ToString());
+        edit.Description.Should().Contain("Payroll Clerk").And.Contain("1 granted, 1 removed");
+        edit.Changes.Should().BeEquivalentTo([
+            new AuditChange("Payroll Run:Approve", RoleService.PermissionGranted, RoleService.PermissionNotGranted),
+            new AuditChange("Payroll Run:Export", RoleService.PermissionNotGranted, RoleService.PermissionGranted),
+        ]);
+        host.Forwarded.Should().Contain(f => f.Message.Id == edit.Id);
+    }
+
+    [Fact]
+    public async Task SavingUnchangedPermissions_RecordsNothing()
+    {
+        using var host = new Host();
+        var roleId = Guid.NewGuid();
+        var view = new Permission { Id = Guid.NewGuid(), Code = "Payroll Run:View", Feature = "Payroll Run", Action = "View" };
+        await host.SaveAsync(db =>
+        {
+            db.Permissions.Add(view);
+            db.Roles.Add(new Role { Id = roleId, Name = "Payroll Clerk", TenantId = CompanyId });
+            db.RolePermissions.Add(new RolePermission { Id = Guid.NewGuid(), RoleId = roleId, PermissionId = view.Id });
+        });
+        var before = (await host.EventsAsync()).Count;
+
+        await host.InScopeAsync(sp => new RoleService(
+                new UnitOfWorkService(sp.GetRequiredService<TenantContext>()), null, sp.GetRequiredService<IAuditWriter>())
+            .SetPermissionsAsync(roleId, [view.Id], CancellationToken.None));
+
+        (await host.EventsAsync()).Should().HaveCount(before);
     }
 
     [Fact]
