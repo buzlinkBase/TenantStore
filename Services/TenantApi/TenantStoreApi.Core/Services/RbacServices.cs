@@ -190,6 +190,34 @@ public class RoleService : BaseService<Role>
         return !(role.IsSystemRole && role.Name == "Owner");
     }
 
+    /// <summary>The assignable roles (never Owner) <paramref name="caller"/> may grant, per RoleGrantPolicy.</summary>
+    public async Task<List<Role>> GrantableRolesAsync(UserMembership caller, Guid tenantId, CancellationToken token)
+    {
+        var callerIsOwner = caller.HasRole(TenantRoles.Owner);
+        var callerCodes = caller.EffectivePermissionCodes().ToHashSet();
+        var roles = await FindAllForTenantAsync(tenantId, token);
+        return roles
+            .Where(r => !(r.IsSystemRole && r.Name == TenantRoles.Owner))
+            .Where(r => RoleGrantPolicy.CanGrant(callerIsOwner, callerCodes, r.Name, r.IsSystemRole,
+                r.RolePermissions.Select(rp => rp.Permission.Code)))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Throws when any of <paramref name="roles"/> is one <paramref name="caller"/> may not grant.
+    /// InvalidOperationException, not UnauthorizedAccessException: MembersController returns the
+    /// former's message as a 400 so the caller learns why, the latter as a bare 403.
+    /// </summary>
+    public async Task EnsureCanGrantAsync(UserMembership caller, IEnumerable<string> roles, Guid tenantId, CancellationToken token)
+    {
+        var grantable = (await GrantableRolesAsync(caller, tenantId, token))
+            .Select(r => r.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var denied = roles.FirstOrDefault(r => !grantable.Contains(r));
+        if (denied != null)
+            throw new InvalidOperationException(RoleGrantPolicy.DeniedMessage(denied));
+    }
+
     public Task<Role?> FindByNameAsync(string name, Guid tenantId, CancellationToken token)
     {
         return GetQueryable(x => x.Name == name && (x.TenantId == null || x.TenantId == tenantId))
@@ -296,7 +324,9 @@ public class PermissionCatalogSeederService
         ("Reports", "Attendance Reports", ["View"]),
 
         // Invite: send company invitations, single or batch (AuthApi InvitationController).
-        ("Security", "Users", ["View", "Create", "Edit", "Delete", "Manage", "Invite"]),
+        // AssignRole: pick a role other than the default (Employee / Client) when inviting --
+        // still limited to roles whose permissions the inviter holds (RoleGrantPolicy).
+        ("Security", "Users", ["View", "Create", "Edit", "Delete", "Manage", "Invite", "AssignRole"]),
         ("Security", "Roles", ["View", "Create", "Edit", "Delete", "Manage"]),
         ("Security", "Permissions", ["View", "Create", "Edit", "Delete", "Manage"]),
         ("Security", "Audit Trail", ["View", "Create", "Edit", "Delete", "Manage"]),
@@ -365,7 +395,7 @@ public class PermissionCatalogSeederService
         {
             "Users", "Roles", "Permissions", "Audit Trail",
         }.SelectMany(feature => new[] { "View", "Create", "Edit", "Delete", "Manage" }.Select(action => $"{feature}:{action}")),
-        "Users:Invite",
+        "Users:Invite", "Users:AssignRole",
         .. new[]
         {
             "Payroll Run", "Payroll Summary", "13th Month Run", "Last Pay Run", "Year-End Adjustment Run",

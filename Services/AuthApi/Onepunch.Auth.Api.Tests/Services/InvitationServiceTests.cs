@@ -306,12 +306,46 @@ public class InvitationServiceTests
         userManager.Setup(m => m.GetUserAsync(It.IsAny<ClaimsPrincipal>())).ReturnsAsync(admin);
         userManager.Setup(m => m.FindByEmailAsync("client@test.com")).ReturnsAsync((User?)null);
 
+        // Client isn't a single (employee) invite's default role, so it takes the Owner's say-so.
+        var owner = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim("sub", Guid.NewGuid().ToString()), new Claim(ClaimTypes.Role, "Owner")], "test"));
         await sut.SendUserInvitationAsync(
             new InvitationRequest { Email = "client@test.com", Roles = ["Client"] },
-            Guid.NewGuid(), "Acme", "app.test", SomeClaimsPrincipal(), default);
+            Guid.NewGuid(), "Acme", "app.test", owner, default);
 
         context.Invitations.Should().ContainSingle(x => x.Email == "client@test.com")
             .Which.Roles.Should().Equal("Client");
+    }
+
+    [Fact]
+    public async Task SendUserInvitationAsync_WithoutRoles_DefaultsToEmployee()
+    {
+        var (sut, context, userManager, _) = CreateSut();
+        userManager.Setup(m => m.GetUserAsync(It.IsAny<ClaimsPrincipal>()))
+            .ReturnsAsync(new User { Email = "admin@test.com", DefaultTenantRoles = ["Admin"] });
+        userManager.Setup(m => m.FindByEmailAsync("new@test.com")).ReturnsAsync((User?)null);
+
+        await sut.SendUserInvitationAsync(
+            new InvitationRequest { Email = "new@test.com", Roles = [] },
+            Guid.NewGuid(), "Acme", "app.test", SomeClaimsPrincipal(), default);
+
+        context.Invitations.Should().ContainSingle(x => x.Email == "new@test.com")
+            .Which.Roles.Should().Equal("Employee");
+    }
+
+    [Fact]
+    public async Task SendUserInvitationAsync_AnotherRole_WithoutAssignRole_IsRefused()
+    {
+        var (sut, context, userManager, _) = CreateSut();
+        userManager.Setup(m => m.GetUserAsync(It.IsAny<ClaimsPrincipal>()))
+            .ReturnsAsync(new User { Email = "admin@test.com", DefaultTenantRoles = ["Admin"] });
+
+        var act = () => sut.SendUserInvitationAsync(
+            new InvitationRequest { Email = "new@test.com", Roles = ["Admin"] },
+            Guid.NewGuid(), "Acme", "app.test", SomeClaimsPrincipal(), default);
+
+        await act.Should().ThrowAsync<GuardException>().WithMessage("*can't choose a different role*");
+        context.Invitations.Should().BeEmpty();
     }
 
     [Fact]

@@ -310,10 +310,103 @@ public class UserMembershipServiceTests
         await AddMemberAsync(sut, tenantId, callerId, "Member", "User Manager");
         var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "Member");
 
-        await sut.ReplaceRolesAsync(callerId, targetMembership.Id, tenantId, ["Admin"], CancellationToken.None);
+        // Employee: a baseline role, grantable by anyone who may edit roles (RoleGrantPolicy).
+        await sut.ReplaceRolesAsync(callerId, targetMembership.Id, tenantId, ["Employee"], CancellationToken.None);
 
         var target = await sut.GetMemberAsync(targetId, tenantId, CancellationToken.None);
-        target!.HasRole("Admin").Should().BeTrue();
+        target!.HasRole("Employee").Should().BeTrue();
+    }
+
+    // ── No privilege escalation (RoleGrantPolicy) ──────────────────────────────────────────
+
+    private static async Task<Guid> AddUserManagerAsync(UserMembershipService sut, IUnitOfWorkService uow, Guid tenantId)
+    {
+        var roleService = new RoleService(uow);
+        var customRole = await roleService.AddCustomRoleAsync(tenantId, "User Manager", "", CancellationToken.None);
+        var permission = await uow.Context.Permissions.SingleAsync(p => p.Code == "Users:Edit");
+        await roleService.SetPermissionsAsync(customRole.Id, [permission.Id], CancellationToken.None);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+        var callerId = Guid.NewGuid();
+        await AddMemberAsync(sut, tenantId, callerId, "Member", "User Manager");
+        return callerId;
+    }
+
+    [Fact]
+    public async Task ReplaceRolesAsync_Rejects_ARoleWithPermissionsTheCallerDoesNotHold()
+    {
+        var (sut, uow) = await CreateSutAsync();
+        var tenantId = Guid.NewGuid();
+        var callerId = await AddUserManagerAsync(sut, uow, tenantId);
+        var targetMembership = await AddMemberAsync(sut, tenantId, Guid.NewGuid(), "Member");
+
+        var act = () => sut.ReplaceRolesAsync(callerId, targetMembership.Id, tenantId, ["Admin"], CancellationToken.None);
+
+        (await act.Should().ThrowAsync<InvalidOperationException>()).WithMessage("*'Admin'*permissions you don't have*");
+    }
+
+    [Fact]
+    public async Task AddRoleAsync_Rejects_ARoleWithPermissionsTheCallerDoesNotHold()
+    {
+        var (sut, uow) = await CreateSutAsync();
+        var tenantId = Guid.NewGuid();
+        var callerId = await AddUserManagerAsync(sut, uow, tenantId);
+        var targetMembership = await AddMemberAsync(sut, tenantId, Guid.NewGuid(), "Member");
+
+        var act = () => sut.AddRoleAsync(callerId, targetMembership.Id, tenantId, "Admin", CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task ReplaceRolesAsync_LetsTheTargetKeepARoleTheCallerCouldNotGrant()
+    {
+        var (sut, uow) = await CreateSutAsync();
+        var tenantId = Guid.NewGuid();
+        var callerId = await AddUserManagerAsync(sut, uow, tenantId);
+        var targetId = Guid.NewGuid();
+        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "Admin", "Member");
+
+        await sut.ReplaceRolesAsync(callerId, targetMembership.Id, tenantId, ["Admin", "Employee"], CancellationToken.None);
+
+        var target = await sut.GetMemberAsync(targetId, tenantId, CancellationToken.None);
+        target!.RoleNames().Should().BeEquivalentTo(["Admin", "Employee"]);
+    }
+
+    [Fact]
+    public async Task Admin_CanGrantAdmin_ButNotARoleHoldingConfidentialAccess()
+    {
+        var (sut, uow) = await CreateSutAsync();
+        var tenantId = Guid.NewGuid();
+        var roleService = new RoleService(uow);
+        var cleared = await roleService.AddCustomRoleAsync(tenantId, "Confidential HR", "", CancellationToken.None);
+        var access = await uow.Context.Permissions.SingleAsync(p => p.Code == "Confidential Records:Access");
+        await roleService.SetPermissionsAsync(cleared.Id, [access.Id], CancellationToken.None);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+        var adminId = Guid.NewGuid();
+        await AddMemberAsync(sut, tenantId, adminId, "Admin");
+        var admin = await sut.GetMemberAsync(adminId, tenantId, CancellationToken.None);
+
+        var grantable = (await roleService.GrantableRolesAsync(admin!, tenantId, CancellationToken.None)).Select(r => r.Name).ToList();
+
+        grantable.Should().Contain(["Admin", "Member", "Employee", "Client"]);
+        grantable.Should().NotContain(["Owner", "Confidential HR"]);
+    }
+
+    [Fact]
+    public async Task Owner_CanGrantEveryRoleButOwner()
+    {
+        var (sut, uow) = await CreateSutAsync();
+        var tenantId = Guid.NewGuid();
+        var roleService = new RoleService(uow);
+        await roleService.AddCustomRoleAsync(tenantId, "Anything", "", CancellationToken.None);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+        var ownerId = Guid.NewGuid();
+        await AddMemberAsync(sut, tenantId, ownerId, "Owner");
+        var owner = await sut.GetMemberAsync(ownerId, tenantId, CancellationToken.None);
+
+        var grantable = (await roleService.GrantableRolesAsync(owner!, tenantId, CancellationToken.None)).Select(r => r.Name).ToList();
+
+        grantable.Should().Contain(["Admin", "Anything"]).And.NotContain("Owner");
     }
 
     [Fact]

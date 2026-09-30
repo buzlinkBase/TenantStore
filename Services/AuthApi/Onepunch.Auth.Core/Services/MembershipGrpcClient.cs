@@ -135,6 +135,30 @@ public class MembershipGrpcClient
         }
     }
 
+    /// <summary>
+    /// Whether this member may grant these roles (Tenant Service's RoleGrantPolicy: no role with
+    /// permissions they don't hold themselves). Fails closed: if Tenant Service can't answer, the
+    /// grant is refused. Virtual so InvitationService tests can stub it.
+    /// </summary>
+    public virtual async Task<(bool Allowed, string? Error)> CheckRoleGrantAsync(
+        Guid userId, Guid tenantId, IEnumerable<string> roles, int deadlineMilliseconds = 2000)
+    {
+        try
+        {
+            var request = new RoleGrantRequest { UserId = userId.ToString(), TenantId = tenantId.ToString() };
+            request.Roles.AddRange(roles);
+            var response = await _client.CheckRoleGrantAsync(
+                request,
+                deadline: DateTime.UtcNow.AddMilliseconds(deadlineMilliseconds));
+            return (response.Allowed, response.Allowed ? null : response.Error);
+        }
+        catch (Exception ex)
+        {
+            Log.Logger.Warning(ex, "MembershipGrpcClient.CheckRoleGrantAsync failed for user {UserId}/tenant {TenantId}", userId, tenantId);
+            return (false, "The role couldn't be checked right now. Please try again.");
+        }
+    }
+
     public async Task<MembershipResolveResult> ResolveMembershipAsync(Guid userId, Guid tenantId, int deadlineMilliseconds = 200)
     {
         var sw = Stopwatch.StartNew();

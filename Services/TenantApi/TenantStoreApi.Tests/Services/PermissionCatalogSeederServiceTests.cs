@@ -531,6 +531,24 @@ public class PermissionCatalogSeederServiceTests
         }
     }
 
+    [Fact]
+    public async Task EnsureSeededAsync_SeedsUsersAssignRole_ForOwnerAndAdmin_NotEmployee()
+    {
+        var sut = CreateSut(out var uow);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        var permission = await uow.Context.Permissions.SingleAsync(x => x.Code == "Users:AssignRole");
+        permission.Feature.Should().Be("Users");
+
+        foreach (var (roleName, granted) in new[] { ("Owner", true), ("Admin", true), ("Employee", false) })
+        {
+            var role = await uow.Context.Roles.FirstAsync(x => x.Name == roleName);
+            (await uow.Context.RolePermissions.AnyAsync(x => x.RoleId == role.Id && x.PermissionId == permission.Id))
+                .Should().Be(granted, $"{roleName} {(granted ? "picks" : "doesn't pick")} invitation roles");
+        }
+    }
+
     [Theory]
     [InlineData("Access")]
     [InlineData("Operations")]

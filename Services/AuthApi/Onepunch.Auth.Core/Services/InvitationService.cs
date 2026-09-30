@@ -67,12 +67,16 @@ namespace Onepunch.Auth.Core.Services
             if (!InvitationPolicy.CanInvite(userClaim, user))
                 throw new UnauthorizedException();
 
-            var roles = payload.Roles.Count > 0 ? payload.Roles.Distinct().ToList() : ["Member"];
+            // A single invite comes from the Employee list, so it's an employee invite.
+            var roles = payload.Roles.Count > 0
+                ? payload.Roles.Distinct().ToList()
+                : [InvitationPolicy.DefaultRoleFor(InviteEntityType.Employee)];
             foreach (var role in roles)
             {
                 if (InvitationPolicy.RoleError(role) is { } error)
                     throw new GuardException($"Invalid role '{role}'. {error}");
             }
+            await EnsureMayGrantRolesAsync(userClaim, user.Id, tenantId, roles, InviteEntityType.Employee);
 
             // Block re-inviting someone who already has an active membership on this tenant --
             // sending another invitation would just create a redundant Pending row for someone
@@ -90,6 +94,26 @@ namespace Onepunch.Auth.Core.Services
                 new BatchInvitationRecipient { Email = payload.Email, EntityId = payload.EmployeeId, Name = payload.Name },
                 roles, clientId: null, ct);
             await CommitChangesAsync(ct);
+        }
+
+        /// <summary>
+        /// The default role for the kind of invite (Employee / Client) needs nothing more. Any
+        /// other role needs "Users:AssignRole", and even then only one the inviter could grant
+        /// themselves -- Tenant Service knows what each role grants, so it decides.
+        /// </summary>
+        private async Task EnsureMayGrantRolesAsync(
+            ClaimsPrincipal userClaim, Guid callerId, Guid tenantId, IEnumerable<string> roles, InviteEntityType entityType)
+        {
+            var chosen = roles.Where(r => !InvitationPolicy.IsDefaultRole(r, entityType)).ToList();
+            if (chosen.Count == 0) return;
+            if (!InvitationPolicy.CanAssignRole(userClaim))
+                throw new GuardException(InvitationPolicy.AssignRoleDenied);
+            // The Owner may grant any role (Tenant Service would say the same).
+            if (InvitationPolicy.IsOwner(userClaim)) return;
+
+            var (allowed, error) = await _membershipGrpcClient.CheckRoleGrantAsync(callerId, tenantId, chosen);
+            if (!allowed)
+                throw new GuardException(error ?? "You can't grant that role.");
         }
 
         /// <summary>
@@ -176,6 +200,7 @@ namespace Onepunch.Auth.Core.Services
                 return System.Text.Json.JsonSerializer.Deserialize<BatchInvitationResult>(previous.ResultJson) ?? new();
 
             if (InvitationPolicy.RoleError(payload.Role) is { } roleError) throw new GuardException(roleError);
+            await EnsureMayGrantRolesAsync(userClaim, user.Id, tenantId, [payload.Role.Trim()], payload.EntityType);
             if (payload.Recipients.Count == 0) throw new GuardException("Add at least one email address.");
             if (payload.Recipients.Count > InvitationPolicy.MaxBatchSize)
                 throw new GuardException($"A batch can invite at most {InvitationPolicy.MaxBatchSize} people.");

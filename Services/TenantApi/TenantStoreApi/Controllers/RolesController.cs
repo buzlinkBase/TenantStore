@@ -44,6 +44,19 @@ public class RolesController : ControllerBase
         return Ok(data);
     }
 
+    /// <summary>The role names the caller may grant when inviting or editing members (RoleGrantPolicy).</summary>
+    [HttpGet("grantable")]
+    [ProducesResponseType(typeof(List<string>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetGrantable(CancellationToken token)
+    {
+        var tenantId = _tenantProvider.TenantId;
+        if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
+        var caller = await _membershipService.GetMemberAsync(User.GetRequiredUserId(), tenantId, token);
+        if (caller == null) return Ok(new List<string>());
+        var roles = await _service.GrantableRolesAsync(caller, tenantId, token);
+        return Ok(roles.Select(r => r.Name).ToList());
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken token)
     {

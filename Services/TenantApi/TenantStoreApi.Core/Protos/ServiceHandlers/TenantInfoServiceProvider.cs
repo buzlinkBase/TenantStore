@@ -18,11 +18,40 @@ public class TenantInfoServiceProvider : GetTenantService.GetTenantServiceBase
 {
     private readonly TenantService _service;
     private readonly UserMembershipService _membershipService;
+    private readonly RoleService _roleService;
 
-    public TenantInfoServiceProvider(TenantService service, UserMembershipService membershipService)
+    public TenantInfoServiceProvider(TenantService service, UserMembershipService membershipService, RoleService roleService)
     {
         _service = service;
         _membershipService = membershipService;
+        _roleService = roleService;
+    }
+
+    /// <summary>
+    /// Whether the inviting member may grant these roles (RoleGrantPolicy) -- AuthApi asks before
+    /// sending an invitation with a role other than the default, since only this service knows
+    /// what each role grants. An unknown or inactive caller may grant nothing.
+    /// </summary>
+    public override async Task<RoleGrantResponse> CheckRoleGrant(RoleGrantRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId) || !Guid.TryParse(request.TenantId, out var tenantId))
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid GUID format for UserId/TenantId"));
+        }
+
+        var caller = await _membershipService.GetMemberAsync(userId, tenantId, context.CancellationToken);
+        if (caller == null || caller.Status != "Active")
+            return new RoleGrantResponse { Allowed = false, Error = "You are not an active member of this company." };
+
+        try
+        {
+            await _roleService.EnsureCanGrantAsync(caller, request.Roles, tenantId, context.CancellationToken);
+            return new RoleGrantResponse { Allowed = true };
+        }
+        catch (InvalidOperationException ex)
+        {
+            return new RoleGrantResponse { Allowed = false, Error = ex.Message };
+        }
     }
 
     public override async Task<TenantInfoResponse> GetInfo(TenantRequest request, ServerCallContext context)

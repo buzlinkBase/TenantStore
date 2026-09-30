@@ -238,6 +238,7 @@ public class UserMembershipService : BaseService<UserMembership>
 
         if (!target.HasRole(newRole))
         {
+            await _roleService.EnsureCanGrantAsync(caller, [newRole], tenantId, token);
             var role = await _roleService.FindByNameAsync(newRole, tenantId, token);
             target.Roles.Add(new MembershipRole { UserMembershipId = target.Id, Role = newRole, RoleId = role?.Id });
             await ModifyAsync(target, token);
@@ -297,6 +298,10 @@ public class UserMembershipService : BaseService<UserMembership>
 
         if (target.HasRole(TenantRoles.Owner))
             throw new InvalidOperationException("Cannot change the Owner's role.");
+
+        // Only roles being added are checked: a member can keep a role the caller couldn't grant.
+        await _roleService.EnsureCanGrantAsync(caller, roles.Where(r => !target.HasRole(r)), tenantId, token);
+
         Context.MembershipRoles.RemoveRange(target.Roles);
         await Context.SaveChangesAsync(token);
         var userRoles = new List<MembershipRole>();

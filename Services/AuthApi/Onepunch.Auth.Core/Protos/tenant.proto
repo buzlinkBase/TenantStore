@@ -12,6 +12,9 @@ service GetTenantService {
   // acceptance so the token minted right after already carries the joined tenant's roles and
   // permissions, instead of waiting on the async UserJoin/InvitationAccepted events.
   rpc ActivateMembership (ActivateMembershipRequest) returns (MembershipResponse);
+  // No privilege escalation (TenantApi RoleGrantPolicy): whether this member may grant these roles,
+  // checked when AuthApi sends an invitation with a non-default role.
+  rpc CheckRoleGrant (RoleGrantRequest) returns (RoleGrantResponse);
 }
 
 message TenantRequest  {
@@ -59,4 +62,15 @@ message MembershipEntry {
   repeated string roles = 3;
   string status = 4;
   repeated string permissions = 5;
+}
+
+message RoleGrantRequest {
+  string user_id = 1;
+  string tenant_id = 2;
+  repeated string roles = 3;
+}
+
+message RoleGrantResponse {
+  bool allowed = 1;
+  string error = 2;
 }

@@ -39,7 +39,7 @@ public class BatchInvitationServiceTests
         List<AuditEvent> Audited);
 
     // MEMBER_EMAIL has an account with an active membership in TenantId; nobody else has one.
-    private static Sut CreateSut(User? caller = null)
+    private static Sut CreateSut(User? caller = null, MembershipGrpcClient? grpc = null)
     {
         var context = AuthTestContextFactory.CreateContext();
         var uow = AuthTestContextFactory.CreateUnitOfWork(context);
@@ -74,7 +74,7 @@ public class BatchInvitationServiceTests
             publisher.Object,
             null!,
             membershipCache,
-            null!,
+            grpc!,
             new AuthAuditRecorder(writer.Object));
         return new Sut(service, context, publisher, audited);
     }
@@ -268,6 +268,94 @@ public class BatchInvitationServiceTests
         audit.OrganizationId.Should().Be(TenantId.ToString());
         audit.Metadata["Role"].Should().Be("Employee");
         audit.Metadata["Recipients"].Should().Contain("alex@test.com").And.Contain(request.Recipients[1].EntityId.ToString());
+    }
+
+    // ── Role choice: default role, Users:AssignRole, no privilege escalation ───────────────
+
+    private static Mock<MembershipGrpcClient> RoleGrant(bool allowed, string? error = null)
+    {
+        var grpc = new Mock<MembershipGrpcClient>(MockBehavior.Loose, new object[] { null! });
+        grpc.Setup(g => g.CheckRoleGrantAsync(It.IsAny<Guid>(), TenantId, It.IsAny<IEnumerable<string>>(), It.IsAny<int>()))
+            .ReturnsAsync((allowed, error));
+        return grpc;
+    }
+
+    private static BatchInvitationRequest AdminBatch()
+    {
+        var request = EmployeeBatch("alex@test.com");
+        request.Role = "Admin";
+        return request;
+    }
+
+    [Fact]
+    public async Task SendBatch_TheDefaultRole_NeedsNoRoleChoicePermission_NorARoleCheck()
+    {
+        var grpc = RoleGrant(allowed: false);
+        var sut = CreateSut(grpc: grpc.Object);
+
+        var result = await sut.Service.SendBatchAsync(EmployeeBatch("alex@test.com"), TenantId, "Acme", "key-1", CanInvite, default);
+
+        result.Sent.Should().Be(1);
+        grpc.Verify(g => g.CheckRoleGrantAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<IEnumerable<string>>(), It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SendBatch_AnotherRole_WithoutAssignRole_IsRefused()
+    {
+        var sut = CreateSut(grpc: RoleGrant(allowed: true).Object);
+
+        var act = () => sut.Service.SendBatchAsync(AdminBatch(), TenantId, "Acme", "key-1", CanInvite, default);
+
+        await act.Should().ThrowAsync<GuardException>().WithMessage("*can't choose a different role*");
+        (await sut.Context.Invitations.AnyAsync()).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SendBatch_ARoleWithMorePermissionsThanTheInviter_IsRefused()
+    {
+        var sut = CreateSut(grpc: RoleGrant(allowed: false, "You can't grant the 'Admin' role: it includes permissions you don't have.").Object);
+        var inviter = Inviter(InvitationPolicy.InvitePermission, InvitationPolicy.AssignRolePermission);
+
+        var act = () => sut.Service.SendBatchAsync(AdminBatch(), TenantId, "Acme", "key-1", inviter, default);
+
+        await act.Should().ThrowAsync<GuardException>().WithMessage("*'Admin'*permissions you don't have*");
+        (await sut.Context.Invitations.AnyAsync()).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SendBatch_AGrantableRole_WithAssignRole_IsSent()
+    {
+        var sut = CreateSut(grpc: RoleGrant(allowed: true).Object);
+        var inviter = Inviter(InvitationPolicy.InvitePermission, InvitationPolicy.AssignRolePermission);
+
+        var result = await sut.Service.SendBatchAsync(AdminBatch(), TenantId, "Acme", "key-1", inviter, default);
+
+        result.Sent.Should().Be(1);
+        (await sut.Context.Invitations.SingleAsync()).Roles.Should().Equal("Admin");
+    }
+
+    [Fact]
+    public async Task SendBatch_ClientDefaultIsClient_NotEmployee()
+    {
+        var sut = CreateSut(grpc: RoleGrant(allowed: false).Object);
+        var request = new BatchInvitationRequest
+        {
+            EntityType = InviteEntityType.Client,
+            ClientId = Guid.NewGuid(),
+            Role = "Employee",
+            Recipients = [new BatchInvitationRecipient { Email = "buyer@client.com" }],
+        };
+
+        var act = () => sut.Service.SendBatchAsync(request, TenantId, "Acme", "key-1", CanInvite, default);
+
+        await act.Should().ThrowAsync<GuardException>().WithMessage("*can't choose a different role*");
+    }
+
+    [Fact]
+    public void DefaultRoles_AreEmployeeAndClient()
+    {
+        InvitationPolicy.DefaultRoleFor(InviteEntityType.Employee).Should().Be("Employee");
+        InvitationPolicy.DefaultRoleFor(InviteEntityType.Client).Should().Be("Client");
     }
 
     [Fact]
