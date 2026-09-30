@@ -531,6 +531,30 @@ public class PermissionCatalogSeederServiceTests
         }
     }
 
+    [Theory]
+    [InlineData("Workforce Analytics")]
+    [InlineData("Attendance Analytics")]
+    [InlineData("Payroll Analytics")]
+    [InlineData("Request Analytics")]
+    public async Task EnsureSeededAsync_SeedsAnalytics_ForOwnerAndAdmin_NotEmployee(string feature)
+    {
+        var sut = CreateSut(out var uow);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        foreach (var action in new[] { "View", "Export" })
+        {
+            var permission = await uow.Context.Permissions.SingleAsync(x => x.Code == $"{feature}:{action}");
+            permission.Module.Should().Be("Analytics");
+            foreach (var (roleName, granted) in new[] { ("Owner", true), ("Admin", true), ("Employee", false) })
+            {
+                var role = await uow.Context.Roles.FirstAsync(x => x.Name == roleName);
+                (await uow.Context.RolePermissions.AnyAsync(x => x.RoleId == role.Id && x.PermissionId == permission.Id))
+                    .Should().Be(granted, $"{roleName} {(granted ? "has" : "lacks")} {feature}:{action}");
+            }
+        }
+    }
+
     [Fact]
     public async Task EnsureSeededAsync_SeedsUsersAssignRole_ForOwnerAndAdmin_NotEmployee()
     {

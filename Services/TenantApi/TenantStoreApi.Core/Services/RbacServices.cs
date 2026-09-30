@@ -364,6 +364,14 @@ public class PermissionCatalogSeederService
         // not BIR); no Export variant exists for either today.
         ("Reports", "Attendance Reports", ["View"]),
 
+        // Analytics module (hrms-api AnalyticsController): trends and breakdowns per area. Pay
+        // figures still follow Confidential Records -- these codes grant the screens, not the
+        // confidential employees in them.
+        ("Analytics", "Workforce Analytics", ["View", "Export"]),
+        ("Analytics", "Attendance Analytics", ["View", "Export"]),
+        ("Analytics", "Payroll Analytics", ["View", "Export"]),
+        ("Analytics", "Request Analytics", ["View", "Export"]),
+
         // Invite: send company invitations, single or batch (AuthApi InvitationController).
         // AssignRole: pick a role other than the default (Employee / Client) when inviting --
         // still limited to roles whose permissions the inviter holds (RoleGrantPolicy).
@@ -466,6 +474,10 @@ public class PermissionCatalogSeederService
         }.SelectMany(feature => new[] { "View", "Export" }.Select(action => $"{feature}:{action}")),
         .. new[] { "View", "Export", "Edit" }.Select(action => $"Payroll Reports:{action}"),
         "Attendance Reports:View",
+        .. new[]
+        {
+            "Workforce Analytics", "Attendance Analytics", "Payroll Analytics", "Request Analytics",
+        }.SelectMany(feature => new[] { "View", "Export" }.Select(action => $"{feature}:{action}")),
         .. new[] { "View", "Create", "Edit", "Delete", "Publish" }.Select(action => $"Announcements:{action}"),
     ];
     // The frontend's "My Portal" menu is gated on this permission (see hrms-ui-onepunch's
