@@ -295,7 +295,8 @@ public class PermissionCatalogSeederService
         // not BIR); no Export variant exists for either today.
         ("Reports", "Attendance Reports", ["View"]),
 
-        ("Security", "Users", ["View", "Create", "Edit", "Delete", "Manage"]),
+        // Invite: send company invitations, single or batch (AuthApi InvitationController).
+        ("Security", "Users", ["View", "Create", "Edit", "Delete", "Manage", "Invite"]),
         ("Security", "Roles", ["View", "Create", "Edit", "Delete", "Manage"]),
         ("Security", "Permissions", ["View", "Create", "Edit", "Delete", "Manage"]),
         ("Security", "Audit Trail", ["View", "Create", "Edit", "Delete", "Manage"]),
@@ -364,6 +365,7 @@ public class PermissionCatalogSeederService
         {
             "Users", "Roles", "Permissions", "Audit Trail",
         }.SelectMany(feature => new[] { "View", "Create", "Edit", "Delete", "Manage" }.Select(action => $"{feature}:{action}")),
+        "Users:Invite",
         .. new[]
         {
             "Payroll Run", "Payroll Summary", "13th Month Run", "Last Pay Run", "Year-End Adjustment Run",

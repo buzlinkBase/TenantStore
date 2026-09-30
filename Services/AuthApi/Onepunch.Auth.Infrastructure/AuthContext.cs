@@ -16,6 +16,7 @@ public class AuthContext : IdentityDbContext<User, Role, Guid>
     public DbSet<EmailToken> EmailTokens { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<Invitation> Invitations { get; set; }
+    public DbSet<InvitationBatch> InvitationBatches { get; set; }
     public DbSet<TenantCreationRequestStatus> TenantCreationRequests { get; set; }
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -28,6 +29,9 @@ public class AuthContext : IdentityDbContext<User, Role, Guid>
         modelBuilder.UseDateFilter();
         modelBuilder.Entity<RefreshToken>().HasIndex(x => x.RefreshTokenHash);
         modelBuilder.Entity<User>().HasIndex(x => x.Email).IsUnique();
+        // One stored result per company + idempotency key (see InvitationService.SendBatchAsync).
+        modelBuilder.Entity<InvitationBatch>().HasIndex(x => new { x.TenantId, x.IdempotencyKey }).IsUnique();
+        modelBuilder.Entity<InvitationBatch>().Property(x => x.IdempotencyKey).HasMaxLength(100);
 
         var stringListConverter = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<List<string>, string>(
             v => string.Join(',', v),

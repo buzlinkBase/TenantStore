@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
+using Onepunch.Auth.Core.Services;
 using Onepunch.Auth.Core;
 using Onepunch.Auth.Domain.DTOs;
 using Onepunch.Auth.Domain.Entities;
@@ -53,6 +55,62 @@ public class InvitationController : ControllerBase
         {
             return Unauthorized();
         }
+    }
+
+    /// <summary>Rate-limit policies (Program.cs): sending, and the modal's live lookups.</summary>
+    public const string BatchSendPolicy = "invitation-batch-send";
+    public const string BatchCheckPolicy = "invitation-batch-check";
+
+    /// <summary>
+    /// What each email would run into if invited now (invalid, already a member, already
+    /// invited) -- the batch invite modal's live chip states.
+    /// </summary>
+    [HttpPost("batch/check")]
+    [EnableRateLimiting(BatchCheckPolicy)]
+    [ProducesResponseType(typeof(List<InviteRecipientCheck>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> CheckBatch([FromBody] BatchInvitationCheckRequest payload, CancellationToken ct)
+    {
+        if (!InvitationPolicy.CanInvite(User)) return Forbid();
+        if (TenantOfCaller() is not { } tenant) return Unauthorized();
+        return Ok(await _service.CheckRecipientsAsync(payload.Emails, tenant.TenantId, ct));
+    }
+
+    /// <summary>
+    /// Invites up to 100 employees, or logins for one client, in one request. 200 when every
+    /// recipient was invited, 207 when some couldn't be (listed with reasons). Send a fresh
+    /// X-Idempotency-Key per submission; a retry with the same key returns the first result.
+    /// </summary>
+    [HttpPost("batch")]
+    [EnableRateLimiting(BatchSendPolicy)]
+    [ProducesResponseType(typeof(BatchInvitationResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(BatchInvitationResult), StatusCodes.Status207MultiStatus)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> SendBatch(
+        [FromBody] BatchInvitationRequest payload,
+        [FromHeader(Name = "X-Idempotency-Key")] string? idempotencyKey,
+        CancellationToken ct)
+    {
+        if (!InvitationPolicy.CanInvite(User)) return Forbid();
+        if (TenantOfCaller() is not { } tenant) return Unauthorized();
+        try
+        {
+            var result = await _service.SendBatchAsync(payload, tenant.TenantId, tenant.TenantName, idempotencyKey ?? "", User, ct);
+            return result.Failed.Count == 0 ? Ok(result) : StatusCode(StatusCodes.Status207MultiStatus, result);
+        }
+        catch (UnauthorizedException)
+        {
+            return Forbid();
+        }
+    }
+
+    // The company the caller's token is for -- invitations always go to that company.
+    private (Guid TenantId, string TenantName)? TenantOfCaller()
+    {
+        var token = HttpContext.Request.GetAuthorizationToken();
+        var info = token == null ? null : _jwtService.ReadTokenToObject(token);
+        return info == null || info.TenantId == Guid.Empty ? null : (info.TenantId, info.TenantName);
     }
 
     [HttpPost("accept")]

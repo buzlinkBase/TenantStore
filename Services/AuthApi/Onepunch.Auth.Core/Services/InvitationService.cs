@@ -12,15 +12,6 @@ namespace Onepunch.Auth.Core.Services
 {
     public class InvitationService : BaseService<Invitation>
     {
-        // Mirrors tenant-api's current System Roles minus Owner (Owner is never invitable). This
-        // is a hardcoded snapshot, not the live source of truth -- tenant-api's RoleService owns
-        // the real catalog (System Roles + this tenant's Custom Roles, see
-        // RoleService.IsAssignableAsync in TenantStoreApi.Core). A tenant-defined Custom Role will
-        // still be rejected here even though tenant-api would accept it. Ideally this list should
-        // be replaced with a live cross-service check instead of a hardcoded array kept in sync by
-        // hand.
-        private static readonly string[] AllowedInviteRoles = ["Admin", "Member", "Employee", "Client"];
-
         private readonly EmailTokenService _emailTokenService;
         private readonly TenantRequestService _tenantCreationRequestStatusService;
         private readonly IHttpContextAccessor _httpContextAccessor;
@@ -30,7 +21,9 @@ namespace Onepunch.Auth.Core.Services
         private readonly JwtService _jwtService;
         private readonly MembershipCacheService _membershipCacheService;
         private readonly MembershipGrpcClient _membershipGrpcClient;
+        private readonly OnePunch.Auth.Core.Auditing.AuthAuditRecorder? _audit;
 
+        // audit is optional so the direct constructions in tests stay valid; the container supplies it.
         public InvitationService(
             IUnitOfWorkService uow,
             EmailTokenService emailTokenService,
@@ -42,8 +35,10 @@ namespace Onepunch.Auth.Core.Services
             IPublishEndpoint publisher,
             JwtService jwtService,
             MembershipCacheService membershipCacheService,
-            MembershipGrpcClient membershipGrpcClient) : base(uow)
+            MembershipGrpcClient membershipGrpcClient,
+            OnePunch.Auth.Core.Auditing.AuthAuditRecorder? audit = null) : base(uow)
         {
+            _audit = audit;
             _membershipGrpcClient = membershipGrpcClient;
             _emailTokenService = emailTokenService;
             _tenantCreationRequestStatusService = tenantCreationRequestStatusService;
@@ -69,46 +64,203 @@ namespace Onepunch.Auth.Core.Services
             Guard.ThrowIfEmpty(tenantId, "tenant");
             Guard.ThrowIfEmpty(payload.Email, "email");
 
-            // Caller must be Owner or Admin of this tenant
-            if (!user.DefaultTenantRoles.Contains("Owner") && !user.DefaultTenantRoles.Contains("Admin"))
+            if (!InvitationPolicy.CanInvite(userClaim, user))
                 throw new UnauthorizedException();
 
-            // Validate role values
             var roles = payload.Roles.Count > 0 ? payload.Roles.Distinct().ToList() : ["Member"];
             foreach (var role in roles)
             {
-                if (!AllowedInviteRoles.Contains(role))
-                    throw new GuardException($"Invalid role '{role}'. Allowed values: {string.Join(", ", AllowedInviteRoles)}.");
+                if (InvitationPolicy.RoleError(role) is { } error)
+                    throw new GuardException($"Invalid role '{role}'. {error}");
             }
 
             // Block re-inviting someone who already has an active membership on this tenant --
             // sending another invitation would just create a redundant Pending row for someone
             // who can already sign in; if the goal is to change what they can do, that's a role
-            // edit on their existing membership (Security > Users), not a new invitation. Scoped
-            // to this specific tenant, not "any tenant", since a member of one tenant with no
-            // membership on THIS one is exactly who invitations exist for. Only "Active" blocks
-            // -- a Revoked/Inactive member re-gaining access via a fresh invite is fine.
-            var existingUser = await _manager.FindByEmailAsync(payload.Email);
-            if (existingUser != null)
-            {
-                var memberships = await _membershipCacheService.GetMembershipsAsync(existingUser.Id);
-                if (memberships.Any(m => m.TenantId == tenantId && m.State == "Active"))
-                    throw new GuardException("This person is already a member of your organization. Change their role from the Users page instead of sending a new invitation.");
-            }
+            // edit on their existing membership (Security > Users), not a new invitation. A
+            // still-pending invitation doesn't block here: a single invite is also how an admin
+            // resends one (CreateInvitationAsync supersedes the old link).
+            var check = (await CheckRecipientsAsync([payload.Email], tenantId, ct)).Single();
+            if (check.Status == InviteRecipientStatus.Member)
+                throw new GuardException("This person is already a member of your organization. Change their role from the Users page instead of sending a new invitation.");
 
-            // Tenant must not be pending provisioning
+            await EnsureProvisionedAsync(tenantId);
+
+            await CreateInvitationAsync(user, tenantId, tenantName,
+                new BatchInvitationRecipient { Email = payload.Email, EntityId = payload.EmployeeId, Name = payload.Name },
+                roles, clientId: null, ct);
+            await CommitChangesAsync(ct);
+        }
+
+        /// <summary>
+        /// For each email, what inviting it now would run into: not an email, already an active
+        /// member of this company, or already holding a still-valid invitation to it. Drives the
+        /// batch modal's live chip states and is re-checked when a batch is actually sent.
+        /// </summary>
+        public async Task<List<InviteRecipientCheck>> CheckRecipientsAsync(IEnumerable<string> emails, Guid tenantId, CancellationToken ct)
+        {
+            var normalized = emails.Select(InvitationPolicy.Normalize).Distinct().Take(InvitationPolicy.MaxBatchSize).ToList();
+            var valid = normalized.Where(InvitationPolicy.IsValidEmail).ToList();
+
+            var now = DateTime.UtcNow;
+            var pending = (await GetQueryable(x =>
+                    valid.Contains(x.Email) &&
+                    x.TenantId == tenantId &&
+                    x.Status == InvitationStatus.Pending &&
+                    x.Expiry > now)
+                .Select(x => new { x.Email, x.CreatedAt })
+                .ToListAsync(ct))
+                .GroupBy(x => x.Email, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.Max(x => x.CreatedAt), StringComparer.OrdinalIgnoreCase);
+
+            var results = new List<InviteRecipientCheck>();
+            foreach (var email in normalized)
+            {
+                if (!InvitationPolicy.IsValidEmail(email))
+                {
+                    results.Add(new InviteRecipientCheck { Email = email, Status = InviteRecipientStatus.InvalidEmail });
+                    continue;
+                }
+
+                // Only "Active" counts -- a Revoked/Inactive member regaining access through a
+                // fresh invite is fine. Scoped to this company: a member of another one is exactly
+                // who invitations are for.
+                var account = await _manager.FindByEmailAsync(email);
+                if (account != null)
+                {
+                    var memberships = await _membershipCacheService.GetMembershipsAsync(account.Id);
+                    if (memberships.Any(m => m.TenantId == tenantId && m.State == "Active"))
+                    {
+                        results.Add(new InviteRecipientCheck
+                        {
+                            Email = email,
+                            Status = InviteRecipientStatus.Member,
+                            Name = account.FullName ?? account.Email,
+                        });
+                        continue;
+                    }
+                }
+
+                results.Add(pending.TryGetValue(email, out var sentAt)
+                    ? new InviteRecipientCheck { Email = email, Status = InviteRecipientStatus.PendingInvite, SentAt = sentAt }
+                    : new InviteRecipientCheck { Email = email, Status = InviteRecipientStatus.Ok });
+            }
+            return results;
+        }
+
+        /// <summary>
+        /// Invites up to 100 people in one go, all with one role: employees (each email tied to its
+        /// employee) or logins for one client. Every recipient is checked again here, since the
+        /// modal's live check can be stale; ones that can't be invited are reported, the rest are
+        /// sent. A repeated <paramref name="idempotencyKey"/> returns the first result without
+        /// sending anything again.
+        /// </summary>
+        public async Task<BatchInvitationResult> SendBatchAsync(
+            BatchInvitationRequest payload,
+            Guid tenantId,
+            string tenantName,
+            string idempotencyKey,
+            ClaimsPrincipal userClaim,
+            CancellationToken ct)
+        {
+            var user = await _manager.GetUserAsync(userClaim);
+            if (user == null) throw new UnauthorizedException();
+            Guard.ThrowIfEmpty(tenantId, "tenant");
+            if (!InvitationPolicy.CanInvite(userClaim, user)) throw new UnauthorizedException();
+
+            if (string.IsNullOrWhiteSpace(idempotencyKey) || idempotencyKey.Length > 100)
+                throw new GuardException("A valid X-Idempotency-Key header is required.");
+            var previous = await Context.InvitationBatches.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.IdempotencyKey == idempotencyKey, ct);
+            if (previous != null)
+                return System.Text.Json.JsonSerializer.Deserialize<BatchInvitationResult>(previous.ResultJson) ?? new();
+
+            if (InvitationPolicy.RoleError(payload.Role) is { } roleError) throw new GuardException(roleError);
+            if (payload.Recipients.Count == 0) throw new GuardException("Add at least one email address.");
+            if (payload.Recipients.Count > InvitationPolicy.MaxBatchSize)
+                throw new GuardException($"A batch can invite at most {InvitationPolicy.MaxBatchSize} people.");
+            if (payload.EntityType == InviteEntityType.Client && (payload.ClientId ?? Guid.Empty) == Guid.Empty)
+                throw new GuardException("Choose the client these logins are for.");
+
+            await EnsureProvisionedAsync(tenantId);
+
+            var recipients = payload.Recipients
+                .Select(r => new BatchInvitationRecipient { Email = InvitationPolicy.Normalize(r.Email), EntityId = r.EntityId, Name = r.Name?.Trim() })
+                .DistinctBy(r => r.Email)
+                .ToList();
+            var checks = (await CheckRecipientsAsync(recipients.Select(r => r.Email), tenantId, ct))
+                .ToDictionary(c => c.Email, StringComparer.OrdinalIgnoreCase);
+
+            var result = new BatchInvitationResult();
+            var sent = new List<BatchInvitationRecipient>();
+            var roles = new List<string> { payload.Role.Trim() };
+            var clientId = payload.EntityType == InviteEntityType.Client ? payload.ClientId : null;
+            foreach (var recipient in recipients)
+            {
+                var reason = checks[recipient.Email].Status switch
+                {
+                    InviteRecipientStatus.InvalidEmail => "Invalid email format.",
+                    InviteRecipientStatus.Member => "Already an active member of this company.",
+                    InviteRecipientStatus.PendingInvite => "Already has a pending invitation.",
+                    _ => payload.EntityType == InviteEntityType.Employee && recipient.EntityId is null
+                        ? "No employee record is linked to this email."
+                        : null,
+                };
+                if (reason != null)
+                {
+                    result.Failed.Add(new FailedInvitation { Email = recipient.Email, Reason = reason });
+                    continue;
+                }
+
+                await CreateInvitationAsync(user, tenantId, tenantName,
+                    payload.EntityType == InviteEntityType.Employee ? recipient : new BatchInvitationRecipient { Email = recipient.Email, Name = recipient.Name },
+                    roles, clientId, ct);
+                sent.Add(recipient);
+            }
+            result.Sent = sent.Count;
+
+            Context.InvitationBatches.Add(new InvitationBatch
+            {
+                TenantId = tenantId,
+                IdempotencyKey = idempotencyKey,
+                InvitedByUserId = user.Id,
+                ResultJson = System.Text.Json.JsonSerializer.Serialize(result),
+            });
+            if (_audit != null && sent.Count > 0)
+            {
+                await _audit.InvitationBatchSentAsync(user, tenantId, payload.EntityType, payload.Role, clientId, sent, ct);
+            }
+            await CommitChangesAsync(ct);
+            return result;
+        }
+
+        private async Task EnsureProvisionedAsync(Guid tenantId)
+        {
             var request = await _tenantCreationRequestStatusService.FindByTenant(tenantId);
             if (request != null && request.Status == TenantCreationStatus.Provisioning)
                 throw new GuardException("Your organization is still being provisioned. Please try again shortly.");
+        }
 
+        /// <summary>
+        /// Creates one invitation (not committed): expires any still-valid one for the same email
+        /// and company, then publishes the invite email and Tenant Service's pending membership.
+        /// Shared by the single and batch paths so both send exactly the same invitation.
+        /// </summary>
+        private async Task CreateInvitationAsync(
+            User inviter,
+            Guid tenantId,
+            string tenantName,
+            BatchInvitationRecipient recipient,
+            List<string> roles,
+            Guid? clientId,
+            CancellationToken ct)
+        {
             // Supersede any still-pending invitations for this email/tenant instead of blocking
-            // a resend — there's no separate "resend" action, so a hard duplicate guard would be
-            // a dead end for the inviting admin. Expiring the old ones (rather than leaving them
-            // valid alongside the new one) closes the "stale token still works" hygiene gap.
-            // noTracking: false — Expiry is mutated directly below, so the entities must be
-            // tracked for that mutation to actually persist on commit.
+            // a resend. Expiring the old ones (rather than leaving them valid alongside the new
+            // one) closes the "stale token still works" hygiene gap. noTracking: false -- Expiry
+            // is mutated directly below, so the entities must be tracked for it to persist.
             var priorPending = await GetQueryable(x =>
-                x.Email == payload.Email &&
+                x.Email == recipient.Email &&
                 x.TenantId == tenantId &&
                 x.Status == InvitationStatus.Pending &&
                 x.Expiry > DateTime.UtcNow, false)
@@ -119,29 +271,30 @@ namespace Onepunch.Auth.Core.Services
             }
 
             var token = _emailTokenService.GetRandomToken;
-            var exp = DateTime.UtcNow.AddDays(1);
+            var exp = DateTime.UtcNow.Add(InvitationPolicy.LinkLifetime);
+            var name = string.IsNullOrWhiteSpace(recipient.Name) ? null : recipient.Name;
 
-            var invitation = new Invitation
+            Repository.Add(new Invitation
             {
-                Email = payload.Email,
+                Email = recipient.Email,
                 TenantId = tenantId,
                 TenantName = tenantName,
-                UserId = user.Id,
+                UserId = inviter.Id,
                 Expiry = exp,
                 Token = token,
                 Status = InvitationStatus.Pending,
                 Roles = roles,
-                EmployeeId = payload.EmployeeId,
-                Name = payload.Name,
-            };
-            Repository.Add(invitation);
-            var frontEndHost = (_domains.FrontEnd ?? "").TrimEnd('/'); 
+                EmployeeId = recipient.EntityId,
+                ClientId = clientId,
+                Name = name,
+            });
+            var frontEndHost = (_domains.FrontEnd ?? "").TrimEnd('/');
             await _publisher.Publish(new UserInvitionNotificationPayload
             {
-                Email = payload.Email,
+                Email = recipient.Email,
                 InviteLink = $"{frontEndHost}/accept-invite?token={token}",
-                Organization = tenantName ?? user.DefaultTenantName ?? "",
-                Name = string.IsNullOrWhiteSpace(payload.Name) ? payload.Email : payload.Name,
+                Organization = tenantName ?? inviter.DefaultTenantName ?? "",
+                Name = name ?? recipient.Email,
                 Expiry = exp,
             }, ct);
 
@@ -149,16 +302,16 @@ namespace Onepunch.Auth.Core.Services
             // Service can create a pending membership row before the invitee ever accepts.
             await _publisher.Publish(new UserInvited
             {
-                Email = payload.Email,
+                Email = recipient.Email,
                 TenantId = tenantId,
                 TenantName = tenantName ?? "",
                 Roles = roles,
-                InvitedByUserId = user.Id,
-                FullName = string.IsNullOrWhiteSpace(payload.Name) ? payload.Email : payload.Name,
+                InvitedByUserId = inviter.Id,
+                FullName = name ?? recipient.Email,
                 InvitationToken = token,
                 Expiry = exp,
+                ClientId = clientId,
             }, ct);
-            await CommitChangesAsync(ct);
         }
 
         /// <summary>
@@ -318,6 +471,7 @@ namespace Onepunch.Auth.Core.Services
                 UserId = user.Id,
                 TenantId = invitation.TenantId,
                 EmployeeId = invitation.EmployeeId,
+                ClientId = invitation.ClientId,
                 Email = invitation.Email,
             }, (PublishContext<UserOnboarded> ctx) => ctx.Headers.Set("X-Tenant-ID", targetTenantId), ct);
 

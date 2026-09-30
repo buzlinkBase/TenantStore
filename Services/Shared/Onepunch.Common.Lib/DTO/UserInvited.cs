@@ -16,4 +16,6 @@ public record UserInvited
     public Guid InvitedByUserId { get; set; }
     public string InvitationToken { get; set; } = string.Empty;
     public DateTime Expiry { get; set; }
+    /// <summary>Set when the invite is for a client login (see UserOnboarded.ClientId).</summary>
+    public Guid? ClientId { get; set; }
 }

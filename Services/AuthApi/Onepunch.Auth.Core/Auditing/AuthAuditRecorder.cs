@@ -63,6 +63,39 @@ public sealed class AuthAuditRecorder(IAuditWriter writer)
             Description = "Signed out",
         }, token);
 
+    public const string InvitationBatchSent = "INVITATION_BATCH_SENT";
+
+    /// <summary>
+    /// One event per batch invitation: who sent it, to whom (each email with the employee or
+    /// client it's for), with which role. Belongs to the company invited into.
+    /// </summary>
+    public Task InvitationBatchSentAsync(
+        User actor,
+        Guid tenantId,
+        Onepunch.Auth.Domain.DTOs.InviteEntityType entityType,
+        string role,
+        Guid? clientId,
+        IReadOnlyCollection<Onepunch.Auth.Domain.DTOs.BatchInvitationRecipient> recipients,
+        CancellationToken token) =>
+        writer.WriteAsync(new AuditEvent
+        {
+            EventType = InvitationBatchSent,
+            EntityType = "Invitation",
+            OrganizationId = tenantId.ToString(),
+            Actor = ActorOf(actor),
+            Description = $"Invited {recipients.Count} {(entityType == Onepunch.Auth.Domain.DTOs.InviteEntityType.Client ? "client login(s)" : "employee(s)")} as {role}",
+            Metadata = new Dictionary<string, string?>
+            {
+                ["EntityType"] = entityType.ToString(),
+                ["Role"] = role,
+                ["ClientId"] = clientId?.ToString(),
+                ["Recipients"] = string.Join("; ", recipients.Select(r =>
+                    entityType == Onepunch.Auth.Domain.DTOs.InviteEntityType.Client
+                        ? $"{r.Email} (client {clientId})"
+                        : $"{r.Email} (employee {r.EntityId})")),
+            },
+        }, token);
+
     private static AuditActor ActorOf(User user) =>
         AuditActor.User(user.Id.ToString(), user.Email ?? user.FullName ?? user.Id.ToString());
 

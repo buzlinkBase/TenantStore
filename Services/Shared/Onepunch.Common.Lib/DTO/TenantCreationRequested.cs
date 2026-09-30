@@ -59,6 +59,11 @@ public record UserOnboarded
     public Guid TenantId { get; set; }
     public Guid? EmployeeId { get; set; }
     public string Email { get; set; } = string.Empty;
+    /// <summary>
+    /// Set when the invitation was for a client login: hrms-api links the new account to that
+    /// client (ClientUserAccount), the way EmployeeId links an employee.
+    /// </summary>
+    public Guid? ClientId { get; set; }
 }
 
 public record InvitationAccepted
