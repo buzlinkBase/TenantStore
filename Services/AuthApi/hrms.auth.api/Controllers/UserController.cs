@@ -115,7 +115,7 @@ namespace OnePunch.Auth.Api.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePassword payload, CancellationToken token)
         {
-            var result = await _service.ChangePassword(payload, token);
+            var result = await _service.ChangePassword(User.FindFirstValue("sub"), payload, token);
             if (result == null || !result.Succeeded)
                 return BadRequest(new ErrorResponse { Errors = result?.Errors.Select(e => e.Description) ?? ["Unable to change password."] });
             return Ok();
@@ -159,7 +159,7 @@ namespace OnePunch.Auth.Api.Controllers
         {
             var user = User;
             var userId = User.GetRequiredUserId();
-            var result = await _service.UpdateProfileAsync(userId, payload);
+            var result = await _service.UpdateProfileAsync(userId, payload, ct);
             if (!result.Succeeded)
                 return BadRequest(new ErrorResponse { Errors = result.Errors.Select(e => e.Description) });
             return Ok();

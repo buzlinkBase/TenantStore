@@ -222,13 +222,22 @@ public class UserService : BaseService<User>
     #endregion
 
     #region User Management
-    public async Task<IdentityResult?> ChangePassword(ChangePassword payload, CancellationToken token)
+    /// <summary>
+    /// Changes the signed-in user's own password. The account comes from the caller's token, never
+    /// the request body. UserManager saves inside the unit of work's open transaction, so this
+    /// must commit or the new password is rolled back when the request ends, while the caller is
+    /// still told it worked.
+    /// </summary>
+    public async Task<IdentityResult?> ChangePassword(string? userId, ChangePassword payload, CancellationToken token)
     {
         if (payload.NewPassword != payload.ConfirmPassword)
             throw new GuardException("Passwords do not match.");
-        var user = await _manager.FindByEmailAsync(payload.Email);
+        var user = await _manager.FindByIdAsync(userId ?? "");
         if (user == null) throw new GuardException("Invalid request.");
-        return await _manager.ChangePasswordAsync(user, payload.OldPassword, payload.NewPassword);
+        var result = await _manager.ChangePasswordAsync(user, payload.OldPassword, payload.NewPassword);
+        if (result.Succeeded)
+            await CommitChangesAsync(token);
+        return result;
     }
 
     public async Task<IdentityResult> PromoteToPasswordAccount(string? userId, string newPassword, CancellationToken token)
@@ -303,13 +312,17 @@ public class UserService : BaseService<User>
     public Task<User?> GetByIdAsync(string id) => _manager.FindByIdAsync(id);
     public Task<User?> GetByEmailAsync(string email) => _manager.FindByEmailAsync(email);
 
-    public async Task<IdentityResult> UpdateProfileAsync(Guid userId, UpdateProfileRequest payload)
+    // Commits for the same reason as ChangePassword: UserManager's own save is rolled back otherwise.
+    public async Task<IdentityResult> UpdateProfileAsync(Guid userId, UpdateProfileRequest payload, CancellationToken token = default)
     {
         var user = await _manager.FindByIdAsync(userId.ToString());
         if (user == null) return IdentityResult.Failed(new IdentityError { Description = "User not found." });
         if (payload.FullName != null) user.FullName = payload.FullName;
         if (payload.PhoneNumber != null) user.PhoneNumber = payload.PhoneNumber;
-        return await _manager.UpdateAsync(user);
+        var result = await _manager.UpdateAsync(user);
+        if (result.Succeeded)
+            await CommitChangesAsync(token);
+        return result;
     }
 
     public async Task<IdentityResult> UpdateAsync(UpdateUser payload)

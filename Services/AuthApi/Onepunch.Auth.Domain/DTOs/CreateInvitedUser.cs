@@ -36,7 +36,8 @@ public record ResetPassword
 
 public record ChangePassword
 {
-    public string Email { get; set; }
+    /// <summary>Ignored: the account is the signed-in caller's. Kept so existing clients still bind.</summary>
+    public string? Email { get; set; }
     public string OldPassword { get; set; }
     public string NewPassword { get; set; }
     public string ConfirmPassword { get; set; }
