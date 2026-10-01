@@ -10,6 +10,25 @@ public interface ITenantNotificationClient
     Task RolesChanged(RolesChangedNotification notification);
     Task SessionRevoked(SessionRevokedNotification notification);
     Task TenantRenamed(TenantRenamedNotification notification);
+    Task SignedOut(SignedOutNotification notification);
+}
+
+/// <summary>
+/// The account's password was changed or reset, and its other sessions were revoked -- every
+/// open app signs out now instead of when its access token expires. The one that made the change
+/// keeps going: it's the session whose access token carries <see cref="ExceptTokenId"/> (its
+/// "jti"). Null after a reset, when no session is kept.
+/// </summary>
+public class SignedOutNotification
+{
+    public string? ExceptTokenId { get; set; }
+    public string Reason { get; set; } = string.Empty;
+}
+
+public static class SignedOutReasons
+{
+    public const string PasswordChanged = "PasswordChanged";
+    public const string PasswordReset = "PasswordReset";
 }
 
 /// <summary>A company the user belongs to was renamed -- the frontend refreshes its session

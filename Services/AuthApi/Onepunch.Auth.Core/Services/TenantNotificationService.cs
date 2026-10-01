@@ -26,4 +26,7 @@ public class TenantNotificationService
 
     public Task NotifyTenantRenamed(Guid userId, TenantRenamedNotification notification) =>
         _hubContext.Clients.User(userId.ToString()).TenantRenamed(notification);
+
+    public Task NotifySignedOut(Guid userId, SignedOutNotification notification) =>
+        _hubContext.Clients.User(userId.ToString()).SignedOut(notification);
 }

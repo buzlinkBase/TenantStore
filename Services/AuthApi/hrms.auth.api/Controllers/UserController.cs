@@ -6,6 +6,7 @@ using Onepunch.Auth.Core;
 using Onepunch.Auth.Domain.DTOs;
 using Onepunch.Common.Lib;
 using OnePunch.Auth.Api.RateLimiting;
+using OnePunch.Auth.Core.Hubs;
 using OnePunch.Auth.Core.Services;
 using Serilog;
 using System.Security.Claims;
@@ -25,13 +26,32 @@ namespace OnePunch.Auth.Api.Controllers
         private readonly UserService _service;
         private readonly JwtService _jwtService;
         private readonly Domains _options;
+        private readonly TenantNotificationService _notifications;
 
         public UsersController(UserService service,
-            JwtService jwtService, IOptions<Domains> options)
+            JwtService jwtService, IOptions<Domains> options, TenantNotificationService notifications)
         {
             _service = service;
             _jwtService = jwtService;
             _options = options.Value;
+            _notifications = notifications;
+        }
+
+        /// <summary>
+        /// Tells the account's open apps to sign out now (their refresh tokens are already revoked,
+        /// so they couldn't renew anyway). Best-effort: a hub hiccup must not fail a password
+        /// change that already succeeded -- those apps then sign out when their access token expires.
+        /// </summary>
+        private async Task SignOutOtherDevicesAsync(Guid userId, string? exceptTokenId, string reason)
+        {
+            try
+            {
+                await _notifications.NotifySignedOut(userId, new SignedOutNotification { ExceptTokenId = exceptTokenId, Reason = reason });
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Couldn't push sign-out to the other sessions of user {UserId}", userId);
+            }
         }
 
         [HttpPost("create-account")]
@@ -111,9 +131,11 @@ namespace OnePunch.Auth.Api.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPassword payload, CancellationToken token)
         {
-            var result = await _service.ResetPassword(payload, token);
-            if (!result.Succeeded)
-                return BadRequest(new ErrorResponse { Errors = result.Errors.Select(e => e.Description) });
+            var reset = await _service.ResetPassword(payload, token);
+            if (!reset.Result.Succeeded)
+                return BadRequest(new ErrorResponse { Errors = reset.Result.Errors.Select(e => e.Description) });
+            if (reset.UserId is { } userId)
+                await SignOutOtherDevicesAsync(userId, exceptTokenId: null, SignedOutReasons.PasswordReset);
             return Ok();
         }
 
@@ -122,9 +144,14 @@ namespace OnePunch.Auth.Api.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePassword payload, CancellationToken token)
         {
-            var result = await _service.ChangePassword(User.FindFirstValue("sub"), payload, token);
+            // This device's own session (its httpOnly refresh cookie) stays signed in; every other one is revoked.
+            Request.Cookies.TryGetValue("X-Refresh-Token", out var currentRefreshToken);
+            var userId = User.FindFirstValue("sub");
+            var result = await _service.ChangePassword(userId, payload, token, currentRefreshToken);
             if (result == null || !result.Succeeded)
                 return BadRequest(new ErrorResponse { Errors = result?.Errors.Select(e => e.Description) ?? ["Unable to change password."] });
+            if (Guid.TryParse(userId, out var id))
+                await SignOutOtherDevicesAsync(id, User.FindFirstValue("jti"), SignedOutReasons.PasswordChanged);
             return Ok();
         }
 

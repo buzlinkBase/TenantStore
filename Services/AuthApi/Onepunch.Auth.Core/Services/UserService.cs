@@ -227,8 +227,13 @@ public class UserService : BaseService<User>
     /// the request body. UserManager saves inside the unit of work's open transaction, so this
     /// must commit or the new password is rolled back when the request ends, while the caller is
     /// still told it worked.
+    ///
+    /// A changed password signs the account out everywhere else: every other device's refresh
+    /// token is revoked, so none of them can renew its session. The device that made the change
+    /// (<paramref name="currentRefreshToken"/>) stays signed in.
     /// </summary>
-    public async Task<IdentityResult?> ChangePassword(string? userId, ChangePassword payload, CancellationToken token)
+    public async Task<IdentityResult?> ChangePassword(
+        string? userId, ChangePassword payload, CancellationToken token, string? currentRefreshToken = null)
     {
         if (payload.NewPassword != payload.ConfirmPassword)
             throw new GuardException("Passwords do not match.");
@@ -236,8 +241,25 @@ public class UserService : BaseService<User>
         if (user == null) throw new GuardException("Invalid request.");
         var result = await _manager.ChangePasswordAsync(user, payload.OldPassword, payload.NewPassword);
         if (result.Succeeded)
+        {
+            await RevokeSessionsAsync(user.Id, currentRefreshToken, token);
             await CommitChangesAsync(token);
+        }
         return result;
+    }
+
+    /// <summary>
+    /// Revokes every live session (refresh token) of the account except <paramref name="keepRefreshToken"/>.
+    /// Saved with the caller's commit, so it never happens without the password change it follows.
+    /// </summary>
+    private async Task RevokeSessionsAsync(Guid userId, string? keepRefreshToken, CancellationToken token)
+    {
+        var keepHash = string.IsNullOrWhiteSpace(keepRefreshToken) ? null : _jwtService.Hash(keepRefreshToken);
+        var sessions = await Context.RefreshTokens
+            .Where(t => t.UserId == userId && !t.Revoked)
+            .ToListAsync(token);
+        foreach (var session in sessions.Where(s => s.RefreshTokenHash != keepHash))
+            session.Revoked = true;
     }
 
     public async Task<IdentityResult> PromoteToPasswordAccount(string? userId, string newPassword, CancellationToken token)
@@ -283,7 +305,12 @@ public class UserService : BaseService<User>
         await _notificationService.SendGoogleSiginInform(userInfo, frontEndHost, token);
     }
 
-    public async Task<IdentityResult> ResetPassword(ResetPassword payload, CancellationToken ctoken)
+    /// <summary>
+    /// Sets a new password from a reset link. Whoever reset it isn't signed in, so every session
+    /// of the account is signed out -- including one that may belong to whoever made a reset
+    /// necessary. <see cref="PasswordResetResult.UserId"/> is set once it succeeded.
+    /// </summary>
+    public async Task<PasswordResetResult> ResetPassword(ResetPassword payload, CancellationToken ctoken)
     {
         var emailInfoDb = await FindToken(payload.Token);
         if (emailInfoDb == null) throw new GuardException("Invalid or expired token.");
@@ -305,8 +332,10 @@ public class UserService : BaseService<User>
         var result = await _manager.ResetPasswordAsync(userInfo, actualToken, payload.NewPassword);
         emailInfoDb.IsUsed = true;
         Context.EmailTokens.Update(emailInfoDb);
+        if (result.Succeeded)
+            await RevokeSessionsAsync(userInfo.Id, keepRefreshToken: null, ctoken);
         await CommitChangesAsync(ctoken);
-        return result;
+        return new PasswordResetResult(result, result.Succeeded ? userInfo.Id : null);
     }
 
     public Task<User?> GetByIdAsync(string id) => _manager.FindByIdAsync(id);
@@ -759,3 +788,6 @@ public class UserService : BaseService<User>
     public string KeyGen() => _jwtService.GenerateKey(32);
     #endregion
 }
+
+/// <summary>A password reset's outcome, and whose account it was once it succeeded.</summary>
+public sealed record PasswordResetResult(IdentityResult Result, Guid? UserId);

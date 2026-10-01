@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Identity;
 using Moq;
 using Onepunch.Auth.Api.Tests.TestSupport;
 using Onepunch.Auth.Core.Services;
+using Onepunch.Auth.Domain.Entities;
+using Onepunch.Auth.Infrastructure;
 using Onepunch.Common.Lib;
 using Onepunch.Common.Lib.Cache;
 using Onepunch.Common.Lib.Exceptions;
@@ -26,10 +28,14 @@ public class UserServiceAccountUpdateTests
     private readonly Mock<UserManager<User>> _userManager = IdentityMocks.MockUserManager();
     private readonly Mock<IUnitOfWorkService> _uow = new();
     private readonly User _ana = new() { Id = Guid.NewGuid(), Email = "ana@acme.com", UserName = "ana@acme.com" };
+    private readonly AuthContext _context = AuthTestContextFactory.CreateContext();
+    private readonly JwtService _jwt = new(null!, null!, Microsoft.Extensions.Options.Options.Create(new JwtSettings()), null!, null!);
 
     public UserServiceAccountUpdateTests()
     {
         _uow.Setup(u => u.CommitChangesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        // Revoked sessions are read and changed through the real (in-memory) context.
+        _uow.SetupGet(u => u.Context).Returns(_context);
         _userManager.Setup(m => m.FindByIdAsync(_ana.Id.ToString())).ReturnsAsync(_ana);
     }
 
@@ -40,11 +46,27 @@ public class UserServiceAccountUpdateTests
         _userManager.Object,
         null!, null!,
         Mock.Of<IPasswordHasher<User>>(),
-        new JwtService(null!, null!, Microsoft.Extensions.Options.Options.Create(new JwtSettings()), null!, null!),
+        _jwt,
         null!, null!, null!, null!, null!, null!,
         new NoOpMfaChallengeService(),
         Mock.Of<IMapper>(),
         null!);
+
+    /// <summary>One signed-in device of <paramref name="userId"/>, identified by its refresh token.</summary>
+    private void SignedInOn(Guid userId, string refreshToken)
+    {
+        _context.RefreshTokens.Add(new RefreshToken
+        {
+            UserId = userId,
+            RefreshTokenHash = _jwt.Hash(refreshToken),
+            Expiry = DateTime.UtcNow.AddDays(1),
+            CreatedAt = DateTime.UtcNow,
+        });
+        _context.SaveChanges();
+    }
+
+    private bool IsSignedIn(string refreshToken) =>
+        _context.RefreshTokens.Local.Single(t => t.RefreshTokenHash == _jwt.Hash(refreshToken)) is { Revoked: false };
 
     private static ChangePassword Change(string confirm = "N3w!Passw0rd") => new()
     {
@@ -98,6 +120,36 @@ public class UserServiceAccountUpdateTests
 
         await act.Should().ThrowAsync<GuardException>();
         _userManager.Verify(m => m.ChangePasswordAsync(It.IsAny<User>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ChangedPassword_SignsOutEveryOtherDevice_ButNotThisOne()
+    {
+        _userManager.Setup(m => m.ChangePasswordAsync(_ana, It.IsAny<string>(), It.IsAny<string>())).ReturnsAsync(IdentityResult.Success);
+        var someoneElse = Guid.NewGuid();
+        SignedInOn(_ana.Id, "laptop");
+        SignedInOn(_ana.Id, "phone");
+        SignedInOn(_ana.Id, "tablet");
+        SignedInOn(someoneElse, "their-laptop");
+
+        await Sut().ChangePassword(_ana.Id.ToString(), Change(), CancellationToken.None, currentRefreshToken: "laptop");
+
+        IsSignedIn("laptop").Should().BeTrue("the device that changed the password stays signed in");
+        IsSignedIn("phone").Should().BeFalse();
+        IsSignedIn("tablet").Should().BeFalse();
+        IsSignedIn("their-laptop").Should().BeTrue("other accounts are untouched");
+    }
+
+    [Fact]
+    public async Task WrongCurrentPassword_SignsOutNobody()
+    {
+        _userManager.Setup(m => m.ChangePasswordAsync(_ana, It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(IdentityResult.Failed(new IdentityError { Description = "Incorrect password." }));
+        SignedInOn(_ana.Id, "phone");
+
+        await Sut().ChangePassword(_ana.Id.ToString(), Change(), CancellationToken.None, currentRefreshToken: "laptop");
+
+        IsSignedIn("phone").Should().BeTrue();
     }
 
     [Fact]
