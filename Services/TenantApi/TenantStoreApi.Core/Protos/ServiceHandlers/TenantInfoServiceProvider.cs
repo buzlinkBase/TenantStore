@@ -1,7 +1,9 @@
 ﻿using Grpc.Core;
 using Microsoft.AspNetCore.Authorization;
 using Onepunch.Auth.Core;
+using Onepunch.Common.Lib.Subscriptions;
 using TenantStoreApi.Core.Services;
+using TenantStoreApi.Core.Services.Subscriptions;
 
 namespace TenantStoreApi.Core.Protos.ServiceHandlers;
 
@@ -20,11 +22,40 @@ public class TenantInfoServiceProvider : GetTenantService.GetTenantServiceBase
     private readonly UserMembershipService _membershipService;
     private readonly RoleService _roleService;
 
-    public TenantInfoServiceProvider(TenantService service, UserMembershipService membershipService, RoleService roleService)
+    private readonly PlanAllowanceService _allowance;
+
+    public TenantInfoServiceProvider(TenantService service, UserMembershipService membershipService, RoleService roleService, PlanAllowanceService allowance)
     {
         _service = service;
         _membershipService = membershipService;
         _roleService = roleService;
+        _allowance = allowance;
+    }
+
+    /// <summary>
+    /// Subscription limits Tenant Service owns -- AuthApi asks before creating a workspace
+    /// (companies.max, per account) and before inviting admins (admins.max, per company).
+    /// </summary>
+    public override async Task<PlanAllowanceResponse> CheckPlanAllowance(PlanAllowanceRequest request, ServerCallContext context)
+    {
+        var allowance = request.LimitKey switch
+        {
+            EntitlementKeys.CompaniesMax when Guid.TryParse(request.UserId, out var userId) =>
+                await _allowance.CheckCompanyAsync(userId, context.CancellationToken),
+            EntitlementKeys.AdminsMax when Guid.TryParse(request.TenantId, out var tenantId) =>
+                await _allowance.CheckAdminSeatsAsync(tenantId, Math.Max(1, request.Requested), context.CancellationToken),
+            _ => throw new RpcException(new Status(StatusCode.InvalidArgument, $"Unsupported limit '{request.LimitKey}' or missing id")),
+        };
+
+        return new PlanAllowanceResponse
+        {
+            Allowed = allowance.Allowed,
+            ProblemType = allowance.ProblemType ?? string.Empty,
+            Error = allowance.Error ?? string.Empty,
+            Max = allowance.Max ?? 0,
+            Unlimited = allowance.Max == null,
+            Used = allowance.Used,
+        };
     }
 
     /// <summary>

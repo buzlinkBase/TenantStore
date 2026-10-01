@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TenantStoreApi.Core.Services.Subscriptions;
 using TenantStoreApi.Core.Utilities;
 
 namespace TenantStoreApi.Controllers;
@@ -14,9 +15,11 @@ public class MembersController : ControllerBase
     private readonly UserMembershipService _service;
     private readonly ITenantProvider _tenantProvider;
     private readonly UserInfoService _userInfoService;
-    public MembersController(UserMembershipService service, ITenantProvider tenantProvider, UserInfoService userInfoService)
+    private readonly PlanAllowanceService _allowance;
+    public MembersController(UserMembershipService service, ITenantProvider tenantProvider, UserInfoService userInfoService, PlanAllowanceService allowance)
     {
         _service = service;
+        _allowance = allowance;
         _tenantProvider = tenantProvider;
         _userInfoService = userInfoService;
     }
@@ -79,10 +82,13 @@ public class MembersController : ControllerBase
         var callerId = User.GetRequiredUserId();
         try
         {
+            // A plan's admin seats: refused before the change, not after.
+            await _allowance.EnsureAdminSeatForChangeAsync(tenantId, membershipId, [request.Role], null, token);
             await _service.ReplaceRolesAsync(callerId, membershipId, tenantId, [request.Role], token);
             await _service.CommitChangesAsync(token);
             return Ok();
         }
+        catch (PlanAllowanceException ex) { return SubscriptionResults.Forbidden(ex.Allowance, ex.LimitKey); }
         catch (ArgumentException ex) { return BadRequest(ex.Message); }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
@@ -102,10 +108,13 @@ public class MembersController : ControllerBase
         var callerId = User.GetRequiredUserId();
         try
         {
+            // A plan's admin seats: refused before the change, not after.
+            await _allowance.EnsureAdminSeatForChangeAsync(tenantId, membershipId, request.Roles, null, token);
             await _service.ReplaceRolesAsync(callerId, membershipId, tenantId, request.Roles, token);
             await _service.CommitChangesAsync(token);
             return Ok();
         }
+        catch (PlanAllowanceException ex) { return SubscriptionResults.Forbidden(ex.Allowance, ex.LimitKey); }
         catch (ArgumentException ex) { return BadRequest(ex.Message); }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
@@ -125,10 +134,13 @@ public class MembersController : ControllerBase
         var callerId = User.GetRequiredUserId();
         try
         {
+            // A plan's admin seats: refused before the change, not after.
+            await _allowance.EnsureAdminSeatForChangeAsync(tenantId, membershipId, null, request.Status, token);
             await _service.UpdateStatusAsync(callerId, membershipId, tenantId, request.Status, token);
             await _service.CommitChangesAsync(token);
             return Ok();
         }
+        catch (PlanAllowanceException ex) { return SubscriptionResults.Forbidden(ex.Allowance, ex.LimitKey); }
         catch (ArgumentException ex) { return BadRequest(ex.Message); }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
@@ -148,10 +160,13 @@ public class MembersController : ControllerBase
         var callerId = User.GetRequiredUserId();
         try
         {
+            // A plan's admin seats: refused before the change, not after.
+            await _allowance.EnsureAdminSeatForChangeAsync(tenantId, membershipId, await RolesWithAsync(membershipId, tenantId, request.Role, token), null, token);
             await _service.AddRoleAsync(callerId, membershipId, tenantId, request.Role, token);
             await _service.CommitChangesAsync(token);
             return Ok();
         }
+        catch (PlanAllowanceException ex) { return SubscriptionResults.Forbidden(ex.Allowance, ex.LimitKey); }
         catch (ArgumentException ex) { return BadRequest(ex.Message); }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
@@ -175,10 +190,17 @@ public class MembersController : ControllerBase
             await _service.CommitChangesAsync(token);
             return Ok();
         }
+        catch (PlanAllowanceException ex) { return SubscriptionResults.Forbidden(ex.Allowance, ex.LimitKey); }
         catch (ArgumentException ex) { return BadRequest(ex.Message); }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
         catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+    }
+
+    private async Task<List<string>> RolesWithAsync(Guid membershipId, Guid tenantId, string role, CancellationToken token)
+    {
+        var member = await _service.GetMemberByIdAsync(membershipId, tenantId, token);
+        return [.. member?.RoleNames() ?? [], role];
     }
 
     [HttpDelete("{membershipId:guid}")]

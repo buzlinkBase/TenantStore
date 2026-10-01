@@ -1,68 +1,134 @@
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TenantStoreApi.Core.Services.Subscriptions;
 using TenantStoreApi.Domain.Entities.Subs;
 
 namespace TenantStoreApi.Controllers;
 
+/// <summary>
+/// The current company's view of its owner account's subscription. Entitlements are for every
+/// member (the UI locks features from them); prices, usage and plan changes need Billing:View /
+/// Billing:Manage, which the Owner has and Admin deliberately doesn't.
+/// </summary>
 [Route("api/v{version:apiVersion}/[controller]")]
 [ApiVersion("1.0")]
 [Authorize]
 [ApiController]
 public class SubscriptionsController : ControllerBase
 {
-    private readonly SubscriptionService _subscriptionService;
-    private readonly PlanService _planService;
+    private const string ViewBilling = "Billing:View";
+    private const string ManageBilling = "Billing:Manage";
+
+    private readonly SubscriptionViewService _views;
+    private readonly AccountSubscriptionService _subscriptions;
+    private readonly UserMembershipService _members;
+    private readonly TenantService _tenants;
     private readonly ITenantProvider _tenantProvider;
 
     public SubscriptionsController(
-        SubscriptionService subscriptionService,
-        PlanService planService,
+        SubscriptionViewService views,
+        AccountSubscriptionService subscriptions,
+        UserMembershipService members,
+        TenantService tenants,
         ITenantProvider tenantProvider)
     {
-        _subscriptionService = subscriptionService;
-        _planService = planService;
+        _views = views;
+        _subscriptions = subscriptions;
+        _members = members;
+        _tenants = tenants;
         _tenantProvider = tenantProvider;
     }
 
+    /// <summary>What this company may use right now.</summary>
+    [HttpGet("entitlements")]
+    [ProducesResponseType(typeof(EntitlementsView), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetEntitlements(CancellationToken token)
+    {
+        var tenantId = _tenantProvider.TenantId;
+        if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
+        if (await _members.GetMemberAsync(User.GetRequiredUserId(), tenantId, token) == null) return Forbid();
+
+        return Ok(await _views.GetEntitlementsAsync(tenantId, token));
+    }
+
     [HttpGet("current")]
-    [ProducesResponseType(typeof(SubscriptionResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetCurrent(CancellationToken token)
+    [ProducesResponseType(typeof(BillingView), StatusCodes.Status200OK)]
+    public Task<IActionResult> GetCurrent(CancellationToken token) =>
+        WithBillingAccess(ViewBilling, token, async tenantId => Ok(await _views.GetBillingForTenantAsync(tenantId, token)));
+
+    [HttpGet("plans")]
+    [ProducesResponseType(typeof(List<PlanView>), StatusCodes.Status200OK)]
+    public Task<IActionResult> GetPlans(CancellationToken token) =>
+        WithBillingAccess(ViewBilling, token, async _ => Ok(await _views.GetPublicPlansAsync(token)));
+
+    /// <summary>Choose a plan: upgrades wait for payment, downgrades apply at period end.</summary>
+    [HttpPost("change")]
+    [ProducesResponseType(typeof(PlanChangeQuote), StatusCodes.Status200OK)]
+    public Task<IActionResult> RequestChange([FromBody] PlanChangeRequest request, CancellationToken token) =>
+        WithBillingAccess(ManageBilling, token, async tenantId =>
+        {
+            var quote = await _subscriptions.RequestPlanChangeAsync(
+                await OwnerOfAsync(tenantId, token), request.PlanCode, request.BillingCycle, ActorId, token);
+            await _subscriptions.CommitChangesAsync(token);
+            return Ok(quote);
+        });
+
+    [HttpDelete("change")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public Task<IActionResult> WithdrawChange(CancellationToken token) =>
+        WithBillingAccess(ManageBilling, token, async tenantId =>
+        {
+            await _subscriptions.WithdrawPlanChangeAsync(await OwnerOfAsync(tenantId, token), ActorId, token);
+            await _subscriptions.CommitChangesAsync(token);
+            return Ok();
+        });
+
+    /// <summary>Cancel at the end of the paid period.</summary>
+    [HttpPost("cancel")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public Task<IActionResult> Cancel(CancellationToken token) =>
+        WithBillingAccess(ManageBilling, token, async tenantId =>
+        {
+            await _subscriptions.CancelAsync(await OwnerOfAsync(tenantId, token), ActorId, token);
+            await _subscriptions.CommitChangesAsync(token);
+            return Ok();
+        });
+
+    [HttpPost("resume")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public Task<IActionResult> Resume(CancellationToken token) =>
+        WithBillingAccess(ManageBilling, token, async tenantId =>
+        {
+            await _subscriptions.ResumeAsync(await OwnerOfAsync(tenantId, token), ActorId, token);
+            await _subscriptions.CommitChangesAsync(token);
+            return Ok();
+        });
+
+    private string ActorId => User.GetRequiredUserId().ToString();
+
+    private async Task<Guid> OwnerOfAsync(Guid tenantId, CancellationToken token) =>
+        (await _tenants.FindTenantAsync(tenantId, token))?.UserId
+        ?? throw new KeyNotFoundException("Company not found.");
+
+    // Checked against the membership itself, not UserMembership.HasPermission: that lets Admin
+    // through everything, and billing is deliberately not an Admin right.
+    private async Task<IActionResult> WithBillingAccess(string code, CancellationToken token, Func<Guid, Task<IActionResult>> action)
     {
         var tenantId = _tenantProvider.TenantId;
         if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
 
-        var sub = await _subscriptionService.GetCurrentAsync(tenantId, token);
-        if (sub == null) return NotFound("No subscription found for this tenant.");
+        var member = await _members.GetMemberAsync(User.GetRequiredUserId(), tenantId, token);
+        var allowed = member is { Status: "Active" }
+            && (member.HasRole(TenantRoles.Owner) || member.EffectivePermissionCodes().Contains(code));
+        if (!allowed) return Forbid();
 
-        var isActive = sub.SubStatus == SubscriptionStatus.Active || sub.SubStatus == SubscriptionStatus.Trialing;
-        return Ok(new SubscriptionResponse
-        {
-            Id = sub.Id,
-            TenantId = sub.TenantId,
-            PlanId = sub.PlanId,
-            PlanName = sub.Plan?.Name,
-            SubStatus = sub.SubStatus.ToString(),
-            StartDate = sub.StartDate,
-            EndDate = sub.EndDate,
-            DaysRemaining = isActive ? Math.Max(0, (int)(sub.EndDate - DateTime.UtcNow).TotalDays) : 0,
-            IsActive = isActive,
-        });
+        return await SubscriptionResults.Run(() => action(tenantId));
     }
+}
 
-    [HttpGet("plans")]
-    [ProducesResponseType(typeof(List<PlanResponse>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetPlans(CancellationToken token)
-    {
-        var plans = await _planService.GetAllAsync(token);
-        return Ok(plans.Select(p => new PlanResponse
-        {
-            Id = p.Id,
-            Name = p.Name,
-            Description = p.Description,
-            Days = p.Days,
-        }).ToList());
-    }
+public record PlanChangeRequest
+{
+    public string PlanCode { get; set; } = string.Empty;
+    public BillingCycle BillingCycle { get; set; } = BillingCycle.Monthly;
 }

@@ -1,4 +1,4 @@
-﻿using MassTransit;
+using MassTransit;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Onepunch.Auth.Infrastructure;
@@ -20,6 +20,7 @@ public static class AuthRabbitConfiguration
             x.AddConsumer<HrDbCreatedWorker, HrDbCreatedConsumerDefinition>();
             x.AddConsumer<MembershipChangedWorker, MembershipChangedConsumerDefinition>();
             x.AddConsumer<TenantRenamedWorker, TenantRenamedConsumerDefinition>();
+            x.AddConsumer<SubscriptionChangedWorker, SubscriptionChangedConsumerDefinition>();
             x.AddEntityFrameworkOutbox<AuthContext>(o =>
             {
                 o.UseMySql();
@@ -89,5 +90,12 @@ public class TenantRenamedConsumerDefinition : ConsumerDefinition<TenantRenamedW
     public TenantRenamedConsumerDefinition()
     {
         EndpointName = "auth-tenant-renamed-que";
+    }
+}
+public class SubscriptionChangedConsumerDefinition : ConsumerDefinition<SubscriptionChangedWorker>
+{
+    public SubscriptionChangedConsumerDefinition()
+    {
+        EndpointName = "auth-subscription-changed-que";
     }
 }

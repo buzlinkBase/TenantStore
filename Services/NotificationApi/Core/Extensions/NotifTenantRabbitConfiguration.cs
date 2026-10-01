@@ -1,4 +1,4 @@
-﻿using MassTransit;
+using MassTransit;
 
 using OnePunch.Notification.Core.Messaging;
 
@@ -26,6 +26,7 @@ public static class NotifTenantRabbitConfiguration
             x.AddConsumer<UserInvitationWorker, UserInvitationConsumerDefinition>();
             x.AddConsumer<SignInGoogleWorker, SignInGoogleConsumerDefinition>();
             x.AddConsumer<ApprovalNotificationWorker, ApprovalNotificationConsumerDefinition>();
+            x.AddConsumer<SubscriptionReminderWorker, SubscriptionReminderConsumerDefinition>();
 
             x.UsingRabbitMq((context, cfg) =>
             {
@@ -91,3 +92,10 @@ public class ApprovalNotificationConsumerDefinition : ConsumerDefinition<Approva
     }
 }
 
+public class SubscriptionReminderConsumerDefinition : ConsumerDefinition<SubscriptionReminderWorker>
+{
+    public SubscriptionReminderConsumerDefinition()
+    {
+        EndpointName = "notification-subscription-reminder-que";
+    }
+}

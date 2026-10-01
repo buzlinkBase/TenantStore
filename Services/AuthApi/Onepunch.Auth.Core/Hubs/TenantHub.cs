@@ -11,6 +11,17 @@ public interface ITenantNotificationClient
     Task SessionRevoked(SessionRevokedNotification notification);
     Task TenantRenamed(TenantRenamedNotification notification);
     Task SignedOut(SignedOutNotification notification);
+    Task SubscriptionChanged(SubscriptionChangedNotification notification);
+}
+
+/// <summary>
+/// The owner account's subscription changed (plan, status, override) -- the frontend refetches
+/// its entitlements so locked and unlocked features update without re-logging in.
+/// </summary>
+public class SubscriptionChangedNotification
+{
+    public List<Guid> TenantIds { get; set; } = new();
+    public string Reason { get; set; } = string.Empty;
 }
 
 /// <summary>

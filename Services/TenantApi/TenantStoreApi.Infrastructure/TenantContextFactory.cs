@@ -24,7 +24,7 @@ public class TenantContextFactory : IDesignTimeDbContextFactory<TenantContext>
     {
         var configuration = new ConfigurationBuilder()
             .SetBasePath(ApiProjectDirectory())
-            .AddJsonFile("appsettings.Development.json", optional: true)
+            .AddJsonFile("appsettings.json", optional: true)
             .AddUserSecrets(ApiUserSecretsId)
             .AddEnvironmentVariables()
             .Build();

@@ -1,7 +1,7 @@
 using BuzlinkRepository;
 using MassTransit;
 using TenantStoreApi.Core.Services;
-using TenantStoreApi.Domain.Entities.Subs;
+using TenantStoreApi.Core.Services.Subscriptions;
 
 namespace TenantStoreApi.Core.Messaging;
 
@@ -12,8 +12,7 @@ public class TenantCreationRequestWorker : IConsumer<TenantCreationRequested>
     private readonly IUnitOfWorkService _uow;
     private readonly ITenantProvider _tenantProvider;
     private readonly IPublishEndpoint _publisher;
-    private readonly PlanService _planService;
-    private readonly SubscriptionService _subscriptionService;
+    private readonly AccountSubscriptionService _subscriptions;
 
     public TenantCreationRequestWorker(
         TenantService tenantService,
@@ -21,16 +20,14 @@ public class TenantCreationRequestWorker : IConsumer<TenantCreationRequested>
         IUnitOfWorkService uow,
         ITenantProvider tenantProvider,
         IPublishEndpoint publisher,
-        PlanService planService,
-        SubscriptionService subscriptionService)
+        AccountSubscriptionService subscriptions)
     {
         _tenantService = tenantService;
         _userMembershipService = userMembershipService;
         _uow = uow;
         _tenantProvider = tenantProvider;
         _publisher = publisher;
-        _planService = planService;
-        _subscriptionService = subscriptionService;
+        _subscriptions = subscriptions;
     }
 
     public async Task Consume(ConsumeContext<TenantCreationRequested> context)
@@ -40,7 +37,8 @@ public class TenantCreationRequestWorker : IConsumer<TenantCreationRequested>
         var tenant = await _tenantService.CreateTenant(message, context.CancellationToken);
         _tenantProvider.SetTenantId(tenant.Id);
         await CreateMembershipAsync(tenant, message, role, context.CancellationToken);
-        await CreateFreeTrialAsync(tenant, context.CancellationToken);
+        // The account's first company starts its one trial; later companies share the subscription.
+        await _subscriptions.StartTrialIfFirstCompanyAsync(tenant.UserId, message.Email, context.CancellationToken);
 
 
         await _publisher.Publish(new TenantCreationCompleted
@@ -67,19 +65,5 @@ public class TenantCreationRequestWorker : IConsumer<TenantCreationRequested>
         }, [role], token);
     }
 
-    private async Task CreateFreeTrialAsync(TenantModel tenant, CancellationToken token)
-    {
-        var freeTrial = await _planService.FindFreeTrialAsync(token);
-        if (freeTrial == null) return;
-
-        await _subscriptionService.AddAsync(new TenantSubscription
-        {
-            TenantId = tenant.Id,
-            PlanId = freeTrial.Id,
-            SubStatus = SubscriptionStatus.Trialing,
-            StartDate = DateTime.UtcNow,
-            EndDate = DateTime.UtcNow.AddDays(freeTrial.Days > 0 ? freeTrial.Days : 15),
-        }, token);
-    }
 
 }

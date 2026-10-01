@@ -1,4 +1,6 @@
 using Grpc.Core;
+using Onepunch.Common.Lib.Exceptions;
+using Onepunch.Common.Lib.Subscriptions;
 using Serilog;
 using System.Diagnostics;
 
@@ -157,6 +159,47 @@ public class MembershipGrpcClient
             Log.Logger.Warning(ex, "MembershipGrpcClient.CheckRoleGrantAsync failed for user {UserId}/tenant {TenantId}", userId, tenantId);
             return (false, "The role couldn't be checked right now. Please try again.");
         }
+    }
+
+    /// <summary>
+    /// Asks Tenant Service whether a subscription limit allows one more (or <paramref name="requested"/>
+    /// more) -- companies.max for an account, admins.max for a company. Throws the refusal as a
+    /// <see cref="PlanRestrictionException"/>. Fails closed: if Tenant Service can't answer, the
+    /// action is refused rather than let past a limit. Virtual so service tests can stub it.
+    /// </summary>
+    public virtual async Task EnsurePlanAllowsAsync(
+        string limitKey, Guid? userId, Guid? tenantId, int requested = 1, int deadlineMilliseconds = 2000)
+    {
+        PlanAllowanceResponse response;
+        try
+        {
+            response = await _client.CheckPlanAllowanceAsync(
+                new PlanAllowanceRequest
+                {
+                    LimitKey = limitKey,
+                    UserId = userId?.ToString() ?? string.Empty,
+                    TenantId = tenantId?.ToString() ?? string.Empty,
+                    Requested = requested,
+                },
+                deadline: DateTime.UtcNow.AddMilliseconds(deadlineMilliseconds));
+        }
+        catch (Exception ex)
+        {
+            Log.Logger.Warning(ex, "MembershipGrpcClient.EnsurePlanAllowsAsync({Limit}) failed for user {UserId}/tenant {TenantId}", limitKey, userId, tenantId);
+            throw new GuardException("Your plan couldn't be checked right now. Please try again.");
+        }
+
+        if (response.Allowed) return;
+
+        throw new PlanRestrictionException(
+            string.IsNullOrEmpty(response.ProblemType) ? SubscriptionProblemTypes.PlanLimitReached : response.ProblemType,
+            string.IsNullOrEmpty(response.Error) ? "Your plan's limit is reached." : response.Error,
+            new Dictionary<string, object?>
+            {
+                ["limit"] = limitKey,
+                ["max"] = response.Unlimited ? null : response.Max,
+                ["used"] = response.Used,
+            });
     }
 
     public async Task<MembershipResolveResult> ResolveMembershipAsync(Guid userId, Guid tenantId, int deadlineMilliseconds = 200)

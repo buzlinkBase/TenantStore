@@ -138,6 +138,7 @@ internal class Program
         builder.Services.AddMapster(typeof(MapperProfileConfig).Assembly);
         builder.RegisterSelfServices();
         builder.RegisterCoreServices();
+        builder.AddSubscriptions();
         //builder.TenantConfigKafka();
         builder.TenantConfigRabbitMq();
         builder.Services.AddEndpointsApiExplorer();
@@ -159,6 +160,21 @@ internal class Program
         {
             scope.ServiceProvider.GetRequiredService<PermissionCatalogSeederService>()
                 .EnsureSeededAsync(CancellationToken.None).GetAwaiter().GetResult();
+        }
+
+        // Existing accounts get a subscription before the first request is enforced against one
+        // -- see SubscriptionBackfillService. Its own scope: the seeder above committed its unit of work.
+        // Logged, not fatal: before the subscription tables are migrated this fails, and the rest
+        // of the service (members, roles, workspaces) must still come up.
+        try
+        {
+            using var scope = app.Services.CreateScope();
+            scope.ServiceProvider.GetRequiredService<TenantStoreApi.Core.Services.Subscriptions.SubscriptionBackfillService>()
+                .EnsureBackfilledAsync(CancellationToken.None).GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Subscription backfill failed -- are the subscription tables migrated?");
         }
 
         // 1. FIRST: Fix headers from Nginx so .NET knows the real IP/Protocol immediately

@@ -15,6 +15,27 @@ service GetTenantService {
   // No privilege escalation (TenantApi RoleGrantPolicy): whether this member may grant these roles,
   // checked when AuthApi sends an invitation with a non-default role.
   rpc CheckRoleGrant (RoleGrantRequest) returns (RoleGrantResponse);
+  // Subscription limits Tenant Service owns: "companies.max" for an account (user_id) before
+  // AuthApi creates a workspace, "admins.max" for a company (tenant_id) before it invites
+  // `requested` more admins.
+  rpc CheckPlanAllowance (PlanAllowanceRequest) returns (PlanAllowanceResponse);
+}
+
+message PlanAllowanceRequest {
+  string user_id = 1;
+  string tenant_id = 2;
+  string limit_key = 3;
+  int32 requested = 4;
+}
+
+message PlanAllowanceResponse {
+  bool allowed = 1;
+  // A SubscriptionProblemTypes value when refused, e.g. "plan-limit-reached".
+  string problem_type = 2;
+  string error = 3;
+  int32 max = 4;
+  bool unlimited = 5;
+  int32 used = 6;
 }
 
 message TenantRequest  {

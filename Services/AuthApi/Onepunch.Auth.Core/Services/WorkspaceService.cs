@@ -1,4 +1,5 @@
 using MassTransit;
+using Onepunch.Common.Lib.Subscriptions;
 using Microsoft.AspNetCore.Identity;
 using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Core;
@@ -16,6 +17,7 @@ public class WorkspaceService : BaseService<User>
     private readonly UserManager<User> _userManager;
     private readonly JwtService _jwtService;
     private readonly ITenantProvider _tenantProvider;
+    private readonly MembershipGrpcClient _membershipGrpcClient;
     public WorkspaceService(
          IPublishEndpoint publisher,
          UserService userService,
@@ -23,7 +25,8 @@ public class WorkspaceService : BaseService<User>
          IUnitOfWorkService uow,
          UserManager<User> userManager,
          JwtService jwtService,
-         ITenantProvider tenantProvider) : base(uow)
+         ITenantProvider tenantProvider,
+         MembershipGrpcClient membershipGrpcClient) : base(uow)
     {
         _publisher = publisher;
         _userService = userService;
@@ -31,6 +34,7 @@ public class WorkspaceService : BaseService<User>
         _userManager = userManager;
         _jwtService = jwtService;
         _tenantProvider = tenantProvider;
+        _membershipGrpcClient = membershipGrpcClient;
     }
 
     public async Task<LoginResponse> Create(CreateWorkspaceRequest payload, ClaimsPrincipal contextUser, CancellationToken token)
@@ -49,6 +53,11 @@ public class WorkspaceService : BaseService<User>
         {
             return await BuildResumeResponse(user, pending, token);
         }
+
+        // Owning more than one company is a plan entitlement (companies.max) -- checked before the
+        // request is stored, so a refused account never gets a half-provisioned tenant. Resuming
+        // an in-flight request above isn't a new company, so it isn't checked.
+        await _membershipGrpcClient.EnsurePlanAllowsAsync(EntitlementKeys.CompaniesMax, user.Id, tenantId: null);
 
         var createTenant = new TenantCreationRequested
         {

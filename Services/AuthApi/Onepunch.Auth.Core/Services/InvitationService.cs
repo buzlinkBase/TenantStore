@@ -2,6 +2,7 @@ using MassTransit;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
+using Onepunch.Common.Lib.Subscriptions;
 using Onepunch.Auth.Domain.Entities;
 using OnePunch.Auth.Core;
 using OnePunch.Auth.Core.Services;
@@ -87,6 +88,10 @@ namespace Onepunch.Auth.Core.Services
             var check = (await CheckRecipientsAsync([payload.Email], tenantId, ct)).Single();
             if (check.Status == InviteRecipientStatus.Member)
                 throw new GuardException("This person is already a member of your organization. Change their role from the Users page instead of sending a new invitation.");
+
+            // An admin invitation takes one of the plan's admin seats; a resend doesn't take another.
+            if (check.Status != InviteRecipientStatus.PendingInvite && InvitationPolicy.TakesAdminSeat(roles))
+                await _membershipGrpcClient.EnsurePlanAllowsAsync(EntitlementKeys.AdminsMax, userId: null, tenantId);
 
             await EnsureProvisionedAsync(tenantId);
 
@@ -220,17 +225,28 @@ namespace Onepunch.Auth.Core.Services
             var sent = new List<BatchInvitationRecipient>();
             var roles = new List<string> { payload.Role.Trim() };
             var clientId = payload.EntityType == InviteEntityType.Client ? payload.ClientId : null;
+
+            string? ReasonToSkip(BatchInvitationRecipient recipient) => checks[recipient.Email].Status switch
+            {
+                InviteRecipientStatus.InvalidEmail => "Invalid email format.",
+                InviteRecipientStatus.Member => "Already an active member of this company.",
+                InviteRecipientStatus.PendingInvite => "Already has a pending invitation.",
+                _ => payload.EntityType == InviteEntityType.Employee && recipient.EntityId is null
+                    ? "No employee record is linked to this email."
+                    : null,
+            };
+
+            // Admin invitations take the plan's admin seats -- the whole batch fits or none is sent.
+            if (InvitationPolicy.TakesAdminSeat(roles))
+            {
+                var seats = recipients.Count(r => ReasonToSkip(r) == null);
+                if (seats > 0)
+                    await _membershipGrpcClient.EnsurePlanAllowsAsync(EntitlementKeys.AdminsMax, userId: null, tenantId, seats);
+            }
+
             foreach (var recipient in recipients)
             {
-                var reason = checks[recipient.Email].Status switch
-                {
-                    InviteRecipientStatus.InvalidEmail => "Invalid email format.",
-                    InviteRecipientStatus.Member => "Already an active member of this company.",
-                    InviteRecipientStatus.PendingInvite => "Already has a pending invitation.",
-                    _ => payload.EntityType == InviteEntityType.Employee && recipient.EntityId is null
-                        ? "No employee record is linked to this email."
-                        : null,
-                };
+                var reason = ReasonToSkip(recipient);
                 if (reason != null)
                 {
                     result.Failed.Add(new FailedInvitation { Email = recipient.Email, Reason = reason });

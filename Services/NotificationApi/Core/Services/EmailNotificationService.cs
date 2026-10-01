@@ -152,6 +152,31 @@ public class EmailNotificationService
     }
 
     private const string ApprovalsSender = "Onepunch <approvals@onepunch.site>";
+
+    /// <summary>Trial, payment and suspension emails to an account owner (Tenant Service's
+    /// subscription lifecycle job). An unknown template is logged and dropped, not retried.</summary>
+    public async Task SendSubscriptionReminder(SubscriptionReminderEmail payload, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(payload.Email)) return;
+
+        var content = SubscriptionEmailComposer.Compose(payload);
+        if (content == null)
+        {
+            Serilog.Log.Logger.Warning("Unknown subscription email template {Template} for {Recipient}", payload.Template, payload.Email);
+            return;
+        }
+
+        await _resend.EmailSendAsync(new EmailMessage
+        {
+            From = BillingSender,
+            To = payload.Email,
+            Subject = content.Subject,
+            HtmlBody = content.HtmlBody,
+            TextBody = content.TextBody,
+        }, token);
+    }
+
+    private const string BillingSender = "Onepunch <support@onepunch.site>";
     private const string ApprovalTemplateId = "approval-notification";
 
     public async Task SendResetPassword(ResetPasswordEmail payload, CancellationToken token)

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Onepunch.Common.Lib;
 using Onepunch.Common.Lib.Exceptions;
+using Onepunch.Common.Lib.Subscriptions;
 
 namespace OnePunch.Auth.Api.Exceptions;
 
@@ -37,6 +38,14 @@ public sealed class GlobalExceptionHandler(IHostEnvironment env) : IExceptionHan
         if (exception is GuardException { Code: not null } guardException)
         {
             errorDetail.Extensions.Add("code", guardException.Code);
+        }
+
+        // The frontend switches on Type to show an upgrade prompt instead of a generic error.
+        if (exception is PlanRestrictionException restriction)
+        {
+            errorDetail.Type = restriction.ProblemType;
+            errorDetail.Title = "Not included in your plan";
+            foreach (var (key, value) in restriction.Extensions) errorDetail.Extensions[key] = value;
         }
 
         if (env.IsDevelopment())

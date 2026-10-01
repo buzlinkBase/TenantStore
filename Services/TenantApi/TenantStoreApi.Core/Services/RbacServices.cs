@@ -394,6 +394,12 @@ public class PermissionCatalogSeederService
         // announcements needs no permission.
         ("Communication", "Announcements", ["View", "Create", "Edit", "Delete", "Publish"]),
 
+        // The account's subscription (TenantApi SubscriptionsController): View sees the plan,
+        // prices, usage and payment history; Manage changes plan, cancels or resumes. Owner has
+        // both; deliberately NOT in AdminGrantedCodes -- pricing and billing are for the owner
+        // and whoever they make a billing admin through a custom role.
+        ("Billing", "Billing", ["View", "Manage"]),
+
         // What UserMembershipService already enforces today via HasAnyRole(Owner, Admin) --
         // folded into the same catalog so it's one permission system, not two. Named "Tenant
         // Members"/"Tenant Roles" (not "Members"/"Roles") to avoid colliding with the Security

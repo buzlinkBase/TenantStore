@@ -29,4 +29,7 @@ public class TenantNotificationService
 
     public Task NotifySignedOut(Guid userId, SignedOutNotification notification) =>
         _hubContext.Clients.User(userId.ToString()).SignedOut(notification);
+
+    public Task NotifySubscriptionChanged(IEnumerable<Guid> userIds, SubscriptionChangedNotification notification) =>
+        _hubContext.Clients.Users(userIds.Select(id => id.ToString()).ToList()).SubscriptionChanged(notification);
 }

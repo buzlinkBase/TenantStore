@@ -63,6 +63,16 @@ public static class InvitationPolicy
         : string.Equals(role.Trim(), "Owner", StringComparison.OrdinalIgnoreCase) ? "The Owner role can't be granted by invitation."
         : null;
 
+    /// <summary>
+    /// Whether these roles give the invitee an admin seat (the plan's admins.max): any role beyond
+    /// the portal-only Employee and Client. Mirrors Tenant Service's PlanAllowanceService.
+    /// </summary>
+    public static bool TakesAdminSeat(IEnumerable<string> roles) =>
+        roles.Any(r => r.Trim() is var role
+            && !string.Equals(role, "Employee", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(role, "Client", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(role, "Owner", StringComparison.OrdinalIgnoreCase));
+
     public static string Normalize(string email) => email.Trim().ToLowerInvariant();
 
     public static bool IsValidEmail(string email) =>

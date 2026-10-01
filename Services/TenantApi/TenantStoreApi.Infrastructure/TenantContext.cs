@@ -20,6 +20,12 @@ public class TenantContext : DbContext
     public DbSet<Plan> Plans { get; set; }
     public DbSet<PlanProduct> PlanServices { get; set; }
     public DbSet<ExtraService> ExtraServices { get; set; }
+    public DbSet<PlanEntitlement> PlanEntitlements { get; set; }
+    public DbSet<AccountSubscription> AccountSubscriptions { get; set; }
+    public DbSet<SubscriptionOverride> SubscriptionOverrides { get; set; }
+    public DbSet<SubscriptionDiscount> SubscriptionDiscounts { get; set; }
+    public DbSet<SubscriptionPayment> SubscriptionPayments { get; set; }
+    public DbSet<BillingEvent> BillingEvents { get; set; }
     public DbSet<Permission> Permissions { get; set; }
     public DbSet<Role> Roles { get; set; }
     public DbSet<RolePermission> RolePermissions { get; set; }
