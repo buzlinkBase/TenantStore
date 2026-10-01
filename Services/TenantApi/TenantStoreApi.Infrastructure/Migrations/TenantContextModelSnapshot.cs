@@ -703,39 +703,6 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.ToTable("BillingEvents");
                 });
 
-            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.ExtraService", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<Guid?>("TenantSubscriptionId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantSubscriptionId");
-
-                    b.ToTable("ExtraServices");
-                });
-
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.Plan", b =>
                 {
                     b.Property<Guid>("Id")
@@ -758,9 +725,6 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(8)
                         .HasColumnType("varchar(8)");
-
-                    b.Property<int>("Days")
-                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime(6)");
@@ -815,7 +779,6 @@ namespace TenantStoreApi.Infrastructure.Migrations
                             Code = "legacy-free-trial",
                             CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Currency = "PHP",
-                            Days = 15,
                             Description = "Free Trial",
                             IsPublic = false,
                             IsRecommended = false,
@@ -832,7 +795,6 @@ namespace TenantStoreApi.Infrastructure.Migrations
                             Code = "timekeeping",
                             CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Currency = "PHP",
-                            Days = 0,
                             Description = "Biometrics, attendance, schedules, DTR and leave/overtime applications.",
                             IsPublic = true,
                             IsRecommended = false,
@@ -849,7 +811,6 @@ namespace TenantStoreApi.Infrastructure.Migrations
                             Code = "payroll",
                             CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Currency = "PHP",
-                            Days = 0,
                             Description = "Everything in Timekeeping plus payroll, payslips, loans and government reports.",
                             IsPublic = true,
                             IsRecommended = true,
@@ -866,7 +827,6 @@ namespace TenantStoreApi.Infrastructure.Migrations
                             Code = "premium",
                             CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Currency = "PHP",
-                            Days = 0,
                             Description = "Everything in Payroll plus multiple companies, analytics, multi-level approvals and the audit trail.",
                             IsPublic = true,
                             IsRecommended = false,
@@ -1379,39 +1339,6 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         });
                 });
 
-            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.PlanProduct", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<Guid>("PlanId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<string>("ServiceType")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PlanId");
-
-                    b.ToTable("PlanServices");
-                });
-
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.SubscriptionDiscount", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1585,56 +1512,14 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.ToTable("SubscriptionPayments");
                 });
 
-            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.TenantSubscription", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime>("EndDate")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<Guid>("PlanId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime>("StartDate")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<int>("SubStatus")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PlanId");
-
-                    b.HasIndex("SubStatus");
-
-                    b.HasIndex("TenantId");
-
-                    b.ToTable("TenantSubscriptions");
-                });
-
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Tenant", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("ActivatedAtUtc")
+                        .HasColumnType("datetime(6)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
@@ -1660,6 +1545,8 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.HasIndex("Status");
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "ActivatedAtUtc");
 
                     b.ToTable("Tenants");
                 });
@@ -1811,13 +1698,6 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.Navigation("Plan");
                 });
 
-            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.ExtraService", b =>
-                {
-                    b.HasOne("TenantStoreApi.Domain.Entities.Subs.TenantSubscription", null)
-                        .WithMany("AddOns")
-                        .HasForeignKey("TenantSubscriptionId");
-                });
-
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.PlanEntitlement", b =>
                 {
                     b.HasOne("TenantStoreApi.Domain.Entities.Subs.Plan", "Plan")
@@ -1827,15 +1707,6 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Plan");
-                });
-
-            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.PlanProduct", b =>
-                {
-                    b.HasOne("TenantStoreApi.Domain.Entities.Subs.Plan", null)
-                        .WithMany("IncludedServices")
-                        .HasForeignKey("PlanId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.SubscriptionDiscount", b =>
@@ -1871,25 +1742,6 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.Navigation("Subscription");
                 });
 
-            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.TenantSubscription", b =>
-                {
-                    b.HasOne("TenantStoreApi.Domain.Entities.Subs.Plan", "Plan")
-                        .WithMany()
-                        .HasForeignKey("PlanId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("TenantStoreApi.Domain.Entities.Tenant", "Tenant")
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Plan");
-
-                    b.Navigation("Tenant");
-                });
-
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Role", b =>
                 {
                     b.Navigation("RolePermissions");
@@ -1903,13 +1755,6 @@ namespace TenantStoreApi.Infrastructure.Migrations
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.Plan", b =>
                 {
                     b.Navigation("Entitlements");
-
-                    b.Navigation("IncludedServices");
-                });
-
-            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.TenantSubscription", b =>
-                {
-                    b.Navigation("AddOns");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Tenant", b =>

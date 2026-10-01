@@ -62,7 +62,8 @@ public static class EntitlementSnapshotBuilder
         Plan? plan,
         Guid tenantId,
         DateTime nowUtc,
-        SubscriptionStateMachine stateMachine)
+        SubscriptionStateMachine stateMachine,
+        int lockedPunchRetentionDays = 60)
     {
         if (subscription == null)
         {
@@ -79,6 +80,8 @@ public static class EntitlementSnapshotBuilder
             source = new OverrideEntitlementDecorator(source, live.Where(o => o.TenantId == tenantId), EntitlementSources.CompanyOverride);
 
         var values = source.Resolve().Values;
+        var accessMode = stateMachine.AccessModeOf(subscription);
+        var readOnlySince = accessMode == SubscriptionAccessMode.ReadOnly ? ReadOnlySince(subscription) : null;
 
         return new EntitlementSnapshot
         {
@@ -87,7 +90,7 @@ public static class EntitlementSnapshotBuilder
             PlanCode = plan?.Code,
             PlanName = plan?.Name,
             Status = subscription.SubStatus.ToString(),
-            AccessMode = stateMachine.AccessModeOf(subscription),
+            AccessMode = accessMode,
             Features = EntitlementKeys.Features.ToDictionary(
                 key => key,
                 key => values.TryGetValue(key, out var v) && ParseBool(v.Value)),
@@ -100,8 +103,25 @@ public static class EntitlementSnapshotBuilder
             CurrentPeriodEndUtc = subscription.CurrentPeriodEndUtc,
             GraceEndsAtUtc = subscription.GraceEndsAtUtc,
             CancelAtPeriodEnd = subscription.CancelAtPeriodEnd,
+            ReadOnlySinceUtc = readOnlySince,
+            PunchesAcceptedUntilUtc = readOnlySince is { } since
+                ? Earliest(since.AddDays(Math.Max(0, lockedPunchRetentionDays)), subscription.PurgeAfterUtc)
+                : null,
         };
     }
+
+    // The moment the state that made it read-only began.
+    private static DateTime? ReadOnlySince(AccountSubscription subscription) => subscription.SubStatus switch
+    {
+        AccountSubscriptionStatus.Expired => subscription.TrialEndsAtUtc,
+        AccountSubscriptionStatus.Suspended => subscription.GraceEndsAtUtc,
+        AccountSubscriptionStatus.Canceled => subscription.CanceledAtUtc,
+        _ => null,
+    };
+
+    // The retention window, cut short by the purge date: past purge the account is no longer valid.
+    private static DateTime Earliest(DateTime window, DateTime? purgeAfter) =>
+        purgeAfter is { } purge && purge < window ? purge : window;
 
     public static bool ParseBool(string value) =>
         bool.TryParse(value, out var on) && on;

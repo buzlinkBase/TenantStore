@@ -1,7 +1,6 @@
 using BuzlinkRepository;
 using MassTransit;
 using TenantStoreApi.Core.Services;
-using TenantStoreApi.Core.Services.Subscriptions;
 
 namespace TenantStoreApi.Core.Messaging;
 
@@ -12,22 +11,19 @@ public class TenantCreationRequestWorker : IConsumer<TenantCreationRequested>
     private readonly IUnitOfWorkService _uow;
     private readonly ITenantProvider _tenantProvider;
     private readonly IPublishEndpoint _publisher;
-    private readonly AccountSubscriptionService _subscriptions;
 
     public TenantCreationRequestWorker(
         TenantService tenantService,
         UserMembershipService userMembershipService,
         IUnitOfWorkService uow,
         ITenantProvider tenantProvider,
-        IPublishEndpoint publisher,
-        AccountSubscriptionService subscriptions)
+        IPublishEndpoint publisher)
     {
         _tenantService = tenantService;
         _userMembershipService = userMembershipService;
         _uow = uow;
         _tenantProvider = tenantProvider;
         _publisher = publisher;
-        _subscriptions = subscriptions;
     }
 
     public async Task Consume(ConsumeContext<TenantCreationRequested> context)
@@ -37,9 +33,8 @@ public class TenantCreationRequestWorker : IConsumer<TenantCreationRequested>
         var tenant = await _tenantService.CreateTenant(message, context.CancellationToken);
         _tenantProvider.SetTenantId(tenant.Id);
         await CreateMembershipAsync(tenant, message, role, context.CancellationToken);
-        // The account's first company starts its one trial; later companies share the subscription.
-        await _subscriptions.StartTrialIfFirstCompanyAsync(tenant.UserId, message.Email, context.CancellationToken);
-
+        // No trial yet: it starts when the company finishes setting up (TenantActivatedWorker),
+        // so a workspace whose setup fails or is abandoned never uses up the account's one trial.
 
         await _publisher.Publish(new TenantCreationCompleted
         {

@@ -112,13 +112,15 @@ public class SubscriptionUsageService
 
     private TenantContext Context => _uow.Context;
 
+    // Only activated companies (setup finished) are the account's: one still provisioning, or
+    // whose setup failed or was abandoned, neither counts toward companies.max nor shows in billing.
     public Task<int> CountOwnedCompaniesAsync(Guid ownerUserId, CancellationToken token = default) =>
-        Context.Tenants.AsNoTracking().CountAsync(t => t.UserId == ownerUserId, token);
+        Context.Tenants.AsNoTracking().CountAsync(t => t.UserId == ownerUserId && t.ActivatedAtUtc != null, token);
 
     public async Task<List<(Guid Id, string Name)>> OwnedCompaniesAsync(Guid ownerUserId, CancellationToken token = default)
     {
         var companies = await Context.Tenants.AsNoTracking()
-            .Where(t => t.UserId == ownerUserId)
+            .Where(t => t.UserId == ownerUserId && t.ActivatedAtUtc != null)
             .OrderBy(t => t.TenantName)
             .Select(t => new { t.Id, t.TenantName })
             .ToListAsync(token);

@@ -1,3 +1,4 @@
+using TenantStoreApi.Core.Filters;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,6 +16,8 @@ namespace TenantStoreApi.Controllers;
 [ApiVersion("1.0")]
 [Authorize]
 [ApiController]
+// Reachable when locked: the app reads the entitlements to show the lock screen, the owner pays.
+[AllowWhenLocked]
 public class SubscriptionsController : ControllerBase
 {
     private const string ViewBilling = "Billing:View";

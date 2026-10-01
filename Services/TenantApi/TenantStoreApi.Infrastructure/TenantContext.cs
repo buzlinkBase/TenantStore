@@ -16,10 +16,7 @@ public class TenantContext : DbContext
     public DbSet<UserMembership> Memberships { get; set; }
     public DbSet<MembershipRole> MembershipRoles { get; set; }
     public DbSet<TenantDelegation> TenantDelegations { get; set; }
-    public DbSet<TenantSubscription> TenantSubscriptions { get; set; }
     public DbSet<Plan> Plans { get; set; }
-    public DbSet<PlanProduct> PlanServices { get; set; }
-    public DbSet<ExtraService> ExtraServices { get; set; }
     public DbSet<PlanEntitlement> PlanEntitlements { get; set; }
     public DbSet<AccountSubscription> AccountSubscriptions { get; set; }
     public DbSet<SubscriptionOverride> SubscriptionOverrides { get; set; }
@@ -45,13 +42,9 @@ public class TenantContext : DbContext
 
         modelBuilder.Entity<Tenant>().HasIndex(x => x.UserId);
         modelBuilder.Entity<Tenant>().HasIndex(x => x.Status);
-
-        modelBuilder.Entity<TenantSubscription>().HasIndex(x => x.TenantId);
-        modelBuilder.Entity<TenantSubscription>().HasIndex(x => x.PlanId);
-        modelBuilder.Entity<TenantSubscription>().HasIndex(x => x.SubStatus);
+        modelBuilder.Entity<Tenant>().HasIndex(x => new { x.UserId, x.ActivatedAtUtc });
 
         modelBuilder.Entity<Plan>().HasIndex(x => x.Name);
-        modelBuilder.Entity<PlanProduct>().HasIndex(x => x.PlanId);
 
         modelBuilder.Entity<UserMembership>().HasIndex(x => x.TenantId);
         modelBuilder.Entity<UserMembership>().HasIndex(x => x.UserId);

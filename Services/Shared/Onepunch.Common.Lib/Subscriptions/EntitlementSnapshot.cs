@@ -44,8 +44,23 @@ public sealed record EntitlementSnapshot
     public DateTime? CurrentPeriodEndUtc { get; init; }
     public DateTime? GraceEndsAtUtc { get; init; }
     public bool CancelAtPeriodEnd { get; init; }
+    /// <summary>When the company became read-only (trial end, grace end, cancellation, deletion).</summary>
+    public DateTime? ReadOnlySinceUtc { get; init; }
+    /// <summary>
+    /// Until when biometric devices' punches are still stored while read-only: a retention window
+    /// after the lock, cut short once the account is no longer valid at all (data purge date,
+    /// company deleted). Null = no cut-off.
+    /// </summary>
+    public DateTime? PunchesAcceptedUntilUtc { get; init; }
+
+    /// <summary>Status of a company that was deleted -- nothing about it is valid any more.</summary>
+    public const string InvalidStatus = "Invalid";
 
     public bool IsReadOnly => AccessMode == SubscriptionAccessMode.ReadOnly;
+
+    /// <summary>Whether device punches for this company are still stored at <paramref name="nowUtc"/>.</summary>
+    public bool AcceptsPunches(DateTime nowUtc) =>
+        !IsReadOnly || PunchesAcceptedUntilUtc is not { } until || nowUtc < until;
 
     public bool HasFeature(string key) => Features.TryGetValue(key, out var enabled) && enabled;
 

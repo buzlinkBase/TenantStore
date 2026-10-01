@@ -100,6 +100,8 @@ internal class Program
         builder.Services.AddControllers(options =>
         {
             options.Filters.Add<ResponseWrapperFilter>();
+            // A lapsed subscription: owner/billing read-only, everyone else locked out.
+            options.Filters.Add<TenantStoreApi.Core.Filters.SubscriptionAccessFilter>();
             options.RespectBrowserAcceptHeader = true;
             //options.InputFormatters.Insert(0, new MessagePackInputFormatter(mpackOptions));
             //options.OutputFormatters.Insert(0, new MessagePackOutputFormatter(mpackOptions));

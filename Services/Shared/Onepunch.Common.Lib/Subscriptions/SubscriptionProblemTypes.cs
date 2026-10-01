@@ -11,6 +11,10 @@ public static class SubscriptionProblemTypes
     public const string PlanRequired = "plan-required";
     /// <summary>A plan limit is reached. Extensions "limit", "max" and "used".</summary>
     public const string PlanLimitReached = "plan-limit-reached";
-    /// <summary>The subscription is read-only (trial ended, suspended, or canceled).</summary>
+    /// <summary>The subscription is read-only (trial ended, suspended, or canceled) -- what the
+    /// owner and billing admins get when they try to change something.</summary>
     public const string ReadOnly = "subscription-read-only";
+    /// <summary>The same lapsed subscription, as every other member sees it: the company is
+    /// closed to them entirely until the owner pays.</summary>
+    public const string Locked = "subscription-locked";
 }

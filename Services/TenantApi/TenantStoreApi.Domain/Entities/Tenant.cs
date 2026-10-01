@@ -8,6 +8,13 @@ public class Tenant : BaseEntity, IUserId
     public string? TenantName { get; set; }
     public Guid UserId { get; set; }
 
+    /// <summary>
+    /// When the company finished setting up (hrms-api's HrisOrgProvisioned with a success status --
+    /// TenantActivatedWorker). Null while provisioning, or when setup failed or was abandoned. Only
+    /// activated companies start the owner's trial and count as companies the account owns.
+    /// </summary>
+    public DateTime? ActivatedAtUtc { get; set; }
+
     // Rename to plural for clarity
     public virtual ICollection<SchemaVersion> SchemaVersions { get; set; } = new List<SchemaVersion>();
 }

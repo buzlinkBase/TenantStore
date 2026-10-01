@@ -1,4 +1,4 @@
-﻿using MassTransit;
+using MassTransit;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using TenantStoreApi.Core.Messaging;
@@ -22,6 +22,8 @@ public static class TenantRabbitMqConfiguration
             x.AddConsumer<SchemaMigrationUpdatedWorker, SchemaMigrationUpdatedWorkerDefinition>();
             x.AddConsumer<UserInvitedWorker, UserInvitedWorkerDefinition>();
             x.AddConsumer<InvitationAcceptedWorker, InvitationAcceptedWorkerDefinition>();
+            // A company finished setting up: it's activated, and the owner's trial starts.
+            x.AddConsumer<TenantActivatedWorker, TenantActivatedWorkerDefinition>();
             x.SetEndpointNameFormatter(KebabCaseEndpointNameFormatter.Instance);
             x.AddEntityFrameworkOutbox<TenantContext>(o =>
             {
@@ -106,5 +108,13 @@ public class InvitationAcceptedWorkerDefinition : ConsumerDefinition<InvitationA
     public InvitationAcceptedWorkerDefinition()
     {
         EndpointName = "tenant-service-invitation-accepted-que";
+    }
+}
+
+public class TenantActivatedWorkerDefinition : ConsumerDefinition<TenantActivatedWorker>
+{
+    public TenantActivatedWorkerDefinition()
+    {
+        EndpointName = "tenant-service-hris-provisioned-que";
     }
 }

@@ -1,3 +1,4 @@
+using TenantStoreApi.Core.Filters;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -62,6 +63,8 @@ public class TenantsController : ControllerBase
         return Ok();
     }
 
+    // The caller's own companies -- a locked-out member still needs to switch away.
+    [AllowWhenLocked]
     [HttpGet()]
     [ProducesResponseType(typeof(List<TenantModel>), StatusCodes.Status200OK)]
     public async Task<ActionResult<List<TenantModel>>> FindAll(CancellationToken token)

@@ -29,4 +29,8 @@ public class PlanRestrictionException(
     public static PlanRestrictionException ReadOnly(string? message = null) =>
         new(SubscriptionProblemTypes.ReadOnly,
             message ?? "Your subscription is read-only. Choose a plan to make changes.");
+
+    public static PlanRestrictionException Locked(string? message = null) =>
+        new(SubscriptionProblemTypes.Locked,
+            message ?? "This company's subscription has ended. Contact the company owner to restore access.");
 }

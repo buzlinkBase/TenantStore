@@ -10,14 +10,6 @@ public record TenantCreationRequested
     public string FullName { get; set; }
 }
 
-public class PlanRequest
-{
-    public Guid TenantId { get; set; }
-    public Guid UserId { get; set; }
-    public Guid PlanId { get; set; }
-    public DateTime? ValidUntil { get; set; }
-}
-
 public record UserJoin
 {
     public Guid UserId { get; set; }
@@ -36,21 +28,6 @@ public record TenantJoin
 {
     public Guid HostTenantId { get; set; }
     public Guid GuestTenantId { get; set; }
-}
-
-public record ServicePlanNotFound
-{
-    public Guid PlanId { get; set; }
-    public Guid TenantId { get; set; }
-    public Guid UserId { get; set; }
-}
-
-public record TenantPaymentReceived
-{
-    public Guid PlanId { get; set; }
-    public Guid TenantId { get; set; }
-    public Guid UserId { get; set; }
-
 }
 
 public record UserOnboarded

@@ -24,10 +24,6 @@ public class Plan : BaseEntity
     public bool PricesIncludeVat { get; set; } = true;
 
     public virtual ICollection<PlanEntitlement> Entitlements { get; set; } = new List<PlanEntitlement>();
-
-    // ── Legacy per-tenant model (TenantSubscription) -- unused; dropped with that table ─────
-    public int Days { get; set; }
-    public virtual ICollection<PlanProduct> IncludedServices { get; set; } = new List<PlanProduct>();
 }
 
 /// <summary>One entitlement a plan grants: a feature flag ("true"/"false") or a limit (an

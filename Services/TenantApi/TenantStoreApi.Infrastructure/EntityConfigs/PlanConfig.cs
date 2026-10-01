@@ -51,7 +51,6 @@ public static class PlanSeed
             Code = "legacy-free-trial",
             Name = "Free Trial",
             Description = "Free Trial",
-            Days = 15,
             IsPublic = false,
         },
         NewPlan(TimekeepingId, TimekeepingCode, "Timekeeping",

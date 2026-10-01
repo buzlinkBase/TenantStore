@@ -35,8 +35,10 @@ public class SubscriptionBackfillService
 
     public async Task<int> EnsureBackfilledAsync(CancellationToken token)
     {
+        // Only owners of an activated company: an account that only joined others' companies, or
+        // whose own workspace never finished setting up, needs no plan of its own.
         var owners = await Context.Tenants.AsNoTracking()
-            .Where(t => t.UserId != Guid.Empty)
+            .Where(t => t.UserId != Guid.Empty && t.ActivatedAtUtc != null)
             .Select(t => t.UserId)
             .Distinct()
             .Where(owner => !Context.AccountSubscriptions.Any(s => s.OwnerUserId == owner))

@@ -16,6 +16,12 @@ public sealed class SubscriptionOptions
     public int GraceDays { get; set; } = 7;
     /// <summary>How long a canceled account's data is kept.</summary>
     public int PurgeAfterDays { get; set; } = 90;
+    /// <summary>
+    /// How long biometric punches are still stored after a company becomes read-only (Expired,
+    /// Suspended, Canceled) -- never past the account's data purge date. Platform-wide for now;
+    /// the Platform Admin Console will own it later, with this as the fallback.
+    /// </summary>
+    public int LockedPunchRetentionDays { get; set; } = 60;
     /// <summary>A platform admin may extend a trial once, by at most this many days.</summary>
     public int MaxTrialExtensionDays { get; set; } = 30;
 

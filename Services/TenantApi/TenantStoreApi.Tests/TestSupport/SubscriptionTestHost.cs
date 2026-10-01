@@ -54,7 +54,7 @@ public sealed class SubscriptionTestHost
         {
             Id = p.Id, Code = p.Code, Name = p.Name, Description = p.Description, SortOrder = p.SortOrder,
             IsRecommended = p.IsRecommended, IsPublic = p.IsPublic, MonthlyPrice = p.MonthlyPrice,
-            AnnualPrice = p.AnnualPrice, Currency = p.Currency, PricesIncludeVat = p.PricesIncludeVat, Days = p.Days,
+            AnnualPrice = p.AnnualPrice, Currency = p.Currency, PricesIncludeVat = p.PricesIncludeVat,
         }));
         Uow.Context.PlanEntitlements.AddRange(PlanSeed.Entitlements());
         Uow.Context.SaveChanges();
@@ -78,10 +78,10 @@ public sealed class SubscriptionTestHost
     public SubscriptionViewService Views => new(Subscriptions, Resolver, Usage, WrappedOptions, Clock);
 
     /// <summary>A company owned by <paramref name="owner"/>, with its hidden Owner membership.</summary>
-    public Guid AddCompany(Guid owner, string name = "Acme", string email = "owner@acme.ph")
+    public Guid AddCompany(Guid owner, string name = "Acme", string email = "owner@acme.ph", bool activated = true)
     {
         var tenantId = Guid.NewGuid();
-        Uow.Context.Tenants.Add(new Tenant { Id = tenantId, TenantName = name, UserId = owner });
+        Uow.Context.Tenants.Add(new Tenant { Id = tenantId, TenantName = name, UserId = owner, ActivatedAtUtc = activated ? Clock.UtcNow : null });
         Uow.Context.Memberships.Add(new UserMembership
         {
             Id = Guid.NewGuid(), TenantId = tenantId, TenantName = name, UserId = owner,
@@ -94,14 +94,16 @@ public sealed class SubscriptionTestHost
         return tenantId;
     }
 
-    public void AddMember(Guid tenantId, string role, string status = "Active")
+    public Guid AddMember(Guid tenantId, string role, string status = "Active", Guid? userId = null)
     {
+        var memberUserId = userId ?? Guid.NewGuid();
         Uow.Context.Memberships.Add(new UserMembership
         {
-            Id = Guid.NewGuid(), TenantId = tenantId, UserId = Guid.NewGuid(), Status = status,
+            Id = Guid.NewGuid(), TenantId = tenantId, UserId = memberUserId, Status = status,
             Roles = [new MembershipRole { Id = Guid.NewGuid(), Role = role }],
         });
         Uow.Context.SaveChanges();
+        return memberUserId;
     }
 
     /// <summary>An account with a started trial and one company.</summary>

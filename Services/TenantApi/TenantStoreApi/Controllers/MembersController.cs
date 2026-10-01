@@ -1,3 +1,4 @@
+using TenantStoreApi.Core.Filters;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -58,6 +59,7 @@ public class MembersController : ControllerBase
     [HttpGet("account-tenants")]
     [ProducesResponseType(typeof(List<AccountMemberShipQuery>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [AllowWhenLocked]
     public async Task<ActionResult<List<AccountMemberShipQuery>>> FindTenants([FromQuery(Name = "user-id")] Guid? userId)
     {
         // 1. Check if the query parameter was passed (e.g., during login service-to-service calls)
@@ -224,6 +226,8 @@ public class MembersController : ControllerBase
         catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
     }
 
+    // Leaving a company stays possible while it's locked.
+    [AllowWhenLocked]
     [HttpDelete("me")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]

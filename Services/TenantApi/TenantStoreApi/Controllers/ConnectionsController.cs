@@ -1,3 +1,4 @@
+using TenantStoreApi.Core.Filters;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -8,6 +9,8 @@ namespace TenantStoreApi.Controllers;
 [ApiVersion("1.0")]
 [ApiController]
 [Authorize]
+// Infrastructure: other services resolve a company's database with the caller's token.
+[AllowWhenLocked]
 public class ConnectionsController : ControllerBase
 {
     private readonly ConnectionService _service;
