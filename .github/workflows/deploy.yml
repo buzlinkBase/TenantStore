@@ -11,56 +11,85 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
+
+    # 1. Detect changes in path directories
+    # Note: Adjust paths according to your repository structure
+    - name: Check path changes
+      id: changes
+      uses: dorny/paths-filter@v3
+      with:
+        filters: |
+          auth:
+            - 'src/auth/**'
+            - 'apps/auth/**'
+            - 'Dockerfile'
+          tenant:
+            - 'src/tenant/**'
+            - 'apps/tenant/**'
+            - 'Dockerfile'
+          notification:
+            - 'src/notification/**'
+            - 'apps/notification/**'
+            - 'Dockerfile'
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
+      uses: docker/setup-buildx-action@v3
 
     - name: Log in to Docker Hub
-      uses: docker/login-action@v2
+      uses: docker/login-action@v3
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    # 1. Build and Push Auth API
+    # 2. Build and Push Auth API (only if auth code or Dockerfile changed)
     - name: Build and push Auth API
-      uses: docker/build-push-action@v4
+      if: steps.changes.outputs.auth == 'true'
+      uses: docker/build-push-action@v5
       with:
         context: .
         file: Dockerfile
         target: auth-service
         push: true
-        tags: jhoncee2018/hrms-auth-api:latest
+        tags: |
+          jhoncee2018/hrms-auth-api:latest
+          jhoncee2018/hrms-auth-api:${{ github.sha }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
-    # 2. Build and Push Tenant API
+    # 3. Build and Push Tenant API (only if tenant code or Dockerfile changed)
     - name: Build and push Tenant API
-      uses: docker/build-push-action@v4
+      if: steps.changes.outputs.tenant == 'true'
+      uses: docker/build-push-action@v5
       with:
         context: .
         file: Dockerfile
         target: tenant-service
         push: true
-        tags: jhoncee2018/hrms-tenant-api:latest
+        tags: |
+          jhoncee2018/hrms-tenant-api:latest
+          jhoncee2018/hrms-tenant-api:${{ github.sha }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
-    # 3. Build and Push Notification Service
+    # 4. Build and Push Notification Service (only if notification code or Dockerfile changed)
     - name: Build and push Notification Service
-      uses: docker/build-push-action@v4
+      if: steps.changes.outputs.notification == 'true'
+      uses: docker/build-push-action@v5
       with:
         context: .
         file: Dockerfile
         target: notification-service
         push: true
-        tags: jhoncee2018/hrms-notification:latest
+        tags: |
+          jhoncee2018/hrms-notification:latest
+          jhoncee2018/hrms-notification:${{ github.sha }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
-    # 4. Deploy to Droplet
+    # 5. Deploy to Droplet
     - name: SSH into Droplet and deploy
-      uses: appleboy/ssh-action@v1.0.0
+      uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.DIGITALOCEAN_DROPLET_IP }}
         username: ${{ secrets.DIGITALOCEAN_DROPLET_USERNAME }}
@@ -71,8 +100,8 @@ jobs:
           echo "Pulling updated images..."
           docker compose pull
           
-          echo "Restarting containers..."
-          docker compose up -d --force-recreate
+          echo "Updating modified containers..."
+          docker compose up -d
           
-          echo "Cleaning up..."
+          echo "Cleaning up dangling images..."
           docker image prune -f
