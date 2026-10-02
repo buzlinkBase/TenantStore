@@ -33,7 +33,12 @@ public sealed class SubscriptionOptions
     /// <summary>Unset: 90 days from the backfill. Set the real date before go-live.</summary>
     public DateTime? LegacyPeriodEndUtc { get; set; }
 
-    public int LifecycleIntervalMinutes { get; set; } = 60;
+    /// <summary>When the lifecycle job fires (Quartz cron, UTC). Default: the top of every hour.</summary>
+    public string LifecycleCron { get; set; } = "0 0 * * * ?";
+
+    /// <summary>Off: Quartz isn't started, so TenantApi can run before the QRTZ_ tables exist.
+    /// Statuses still follow the dates on every read; only emails and saved transitions wait.</summary>
+    public bool SchedulerEnabled { get; set; } = true;
 
     /// <summary>Shown after an owner picks a plan, until online payment exists (phase 2): where to
     /// send the bank transfer and what reference to use.</summary>

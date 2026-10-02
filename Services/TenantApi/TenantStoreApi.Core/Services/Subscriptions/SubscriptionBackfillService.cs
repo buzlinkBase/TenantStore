@@ -18,23 +18,31 @@ public class SubscriptionBackfillService
     private readonly BillingEventService _events;
     private readonly SubscriptionOptions _options;
     private readonly TimeProvider _clock;
+    private readonly CompanyActivationSyncService? _activationSync;
 
     public SubscriptionBackfillService(
         IUnitOfWorkService uow,
         BillingEventService events,
         IOptions<SubscriptionOptions> options,
-        TimeProvider clock)
+        TimeProvider clock,
+        CompanyActivationSyncService? activationSync = null)
     {
         _uow = uow;
         _events = events;
         _options = options.Value;
         _clock = clock;
+        _activationSync = activationSync;
     }
 
     private TenantContext Context => _uow.Context;
 
     public async Task<int> EnsureBackfilledAsync(CancellationToken token)
     {
+        // Existing companies are only "activated" once AuthApi confirms they finished setting up;
+        // without this the backfill below would find no owners at all.
+        // One unit of work for both: the sync only stages its changes, committed below.
+        var activated = _activationSync != null ? await _activationSync.SyncAsync(token) : 0;
+
         // Only owners of an activated company: an account that only joined others' companies, or
         // whose own workspace never finished setting up, needs no plan of its own.
         var owners = await Context.Tenants.AsNoTracking()
@@ -43,13 +51,18 @@ public class SubscriptionBackfillService
             .Distinct()
             .Where(owner => !Context.AccountSubscriptions.Any(s => s.OwnerUserId == owner))
             .ToListAsync(token);
-        if (owners.Count == 0) return 0;
+        if (owners.Count == 0)
+        {
+            if (activated > 0) await _uow.CommitChangesAsync("", token);
+            return 0;
+        }
 
         var plan = await Context.Plans.FirstOrDefaultAsync(p => p.Code == _options.LegacyPlanCode, token);
         if (plan == null)
         {
             Log.Logger.Error("Subscription backfill: legacy plan '{Plan}' not found; {Count} account(s) left without a subscription",
                 _options.LegacyPlanCode, owners.Count);
+            if (activated > 0) await _uow.CommitChangesAsync("", token);
             return 0;
         }
 

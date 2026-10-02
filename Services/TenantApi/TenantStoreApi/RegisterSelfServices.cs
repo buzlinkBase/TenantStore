@@ -28,6 +28,14 @@ public static class ServiceRegistrations
             var authUrl = builder.Configuration["Grpc_AuthUrl"]?.ToString() ?? "";
             options.Address = new Uri(authUrl);
         }).AddHeaderPropagation();
+        builder.Services.AddGrpcClient<Onepunch.Auth.Core.TenantProvisioningService.TenantProvisioningServiceClient>(options =>
+        {
+            var authUrl = builder.Configuration["Grpc_AuthUrl"]?.ToString() ?? "";
+            options.Address = new Uri(authUrl);
+        });
+        // Which companies finished setting up -- see CompanyActivationSyncService.
+        builder.Services.AddScoped<TenantStoreApi.Core.Services.Subscriptions.IProvisionedTenantSource,
+            TenantStoreApi.Core.Services.Subscriptions.AuthProvisionedTenantSource>();
         builder.Services.AddScoped<UserInfoService>();
         builder.Services.AddHttpClient<JwksClient>(client =>
         {

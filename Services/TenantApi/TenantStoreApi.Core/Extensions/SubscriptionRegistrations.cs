@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Onepunch.Common.Lib.Subscriptions;
+using Quartz;
 using Refit;
 using TenantStoreApi.Core.Services.Subscriptions;
 
@@ -10,7 +11,7 @@ namespace TenantStoreApi.Core.Extensions;
 /// <summary>
 /// Subscription plans and entitlements. The *Service classes are picked up by
 /// RegisterCoreServices' convention scan; this adds the rest -- options, the state machine, the
-/// usage providers (Composite) and the hourly lifecycle job.
+/// usage providers (Composite) and the hourly lifecycle job on Quartz.
 /// </summary>
 public static class SubscriptionRegistrations
 {
@@ -22,7 +23,7 @@ public static class SubscriptionRegistrations
         services.Configure<SubscriptionOptions>(config.GetSection(SubscriptionOptions.Section));
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<SubscriptionStateMachine>();
-        services.AddHostedService<SubscriptionLifecycleJob>();
+        AddSubscriptionScheduler(services, config);
 
         services.AddScoped<ICompanyUsageProvider, AdminSeatUsageProvider>();
         AddRemoteUsageProvider(services, "hrms-api",
@@ -35,6 +36,56 @@ public static class SubscriptionRegistrations
         AddRemoteUsageProvider(services, "hrms-adms-api",
             config["Subscriptions:Usage:AdmsApiUrl"], config["Subscriptions:Usage:AdmsApiKey"],
             [EntitlementKeys.BiometricDevicesMax]);
+    }
+
+    /// <summary>
+    /// The lifecycle job on Quartz, the same way hrms-api runs its scheduled jobs (AddHrmsQuartz):
+    /// a persistent, clustered job store in the tenantstore database (ConnectionStrings:Quartz,
+    /// else TenantConnection) so each fire runs on exactly one instance and a fire missed while
+    /// every instance was down runs once when one is back. Needs Quartz's standard QRTZ_ tables
+    /// (Scripts/quartz-tables-mysql.sql). Subscriptions:SchedulerEnabled = false skips it all.
+    /// </summary>
+    public static void AddSubscriptionScheduler(IServiceCollection services, IConfiguration config)
+    {
+        var section = config.GetSection(SubscriptionOptions.Section);
+        if (!section.GetValue(nameof(SubscriptionOptions.SchedulerEnabled), true)) return;
+
+        var connectionString = config.GetConnectionString("Quartz")
+                               ?? config.GetConnectionString("TenantConnection")
+                               ?? throw new InvalidOperationException("No connection string for the Quartz job store.");
+        var cron = section.GetValue<string?>(nameof(SubscriptionOptions.LifecycleCron)) is { Length: > 0 } configured
+            ? configured
+            : new SubscriptionOptions().LifecycleCron;
+
+        services.AddQuartz(q =>
+        {
+            q.SchedulerName = "tenantstore-scheduler";
+            q.SchedulerId = "AUTO";
+            q.UsePersistentStore(store =>
+            {
+                store.UseProperties = true;
+                store.UseMySqlConnector(db =>
+                {
+                    db.ConnectionString = connectionString;
+                    db.TablePrefix = "QRTZ_";
+                });
+                store.UseSystemTextJsonSerializer();
+                store.UseClustering();
+            });
+
+            q.AddJob<SubscriptionLifecycleJob>(SubscriptionLifecycleJob.Key, job => job.StoreDurably());
+            q.AddTrigger(trigger => trigger
+                .ForJob(SubscriptionLifecycleJob.Key)
+                .WithIdentity(SubscriptionLifecycleJob.TriggerKey)
+                .WithCronSchedule(cron, schedule => schedule
+                    .InTimeZone(TimeZoneInfo.Utc)
+                    .WithMisfireHandlingInstructionFireAndProceed()));
+        });
+        services.AddQuartzHostedService(options =>
+        {
+            options.StartDelay = TimeSpan.FromSeconds(5);
+            options.WaitForJobsToComplete = true;
+        });
     }
 
     // Unconfigured: that service's counts stay unknown, so a downgrade that depends on them is

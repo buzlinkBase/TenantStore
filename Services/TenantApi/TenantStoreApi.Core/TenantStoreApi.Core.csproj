@@ -25,6 +25,7 @@
 	<ItemGroup>
 		<Protobuf Include="Protos\checkemail.proto" GrpcServices="Client" />
 		<Protobuf Include="Protos\userinfo.proto" GrpcServices="Client" />
+		<Protobuf Include="Protos\tenantprovisioning.proto" GrpcServices="Client" />
 		<Protobuf Include="Protos\tenant.proto" GrpcServices="Server" />
 		<PackageReference Include="Mapster" />
 		<PackageReference Include="Mapster.DependencyInjection" />
@@ -41,6 +42,8 @@
 		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" /> 
 		<PackageReference Include="Microsoft.Extensions.Hosting" />
 		<PackageReference Include="Polly" />
+		<PackageReference Include="Quartz.Extensions.Hosting" />
+		<PackageReference Include="Quartz.Serialization.SystemTextJson" />
 		<PackageReference Include="RabbitMQ.Client" />
 		<PackageReference Include="Serilog.AspNetCore" />
 		<PackageReference Include="Serilog.Exceptions" />

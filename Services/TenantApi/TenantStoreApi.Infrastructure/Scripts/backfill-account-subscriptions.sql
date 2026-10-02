@@ -25,6 +25,11 @@ SET @cycle      = 'Monthly';                -- 'Monthly' or 'Annual'
 SET @now        = UTC_TIMESTAMP(6);
 SET @no_owner   = '00000000-0000-0000-0000-000000000000';
 
+-- A past @period_end is written as the state the lifecycle would reach: the 7-day grace after
+-- the period end has passed too, so Suspended (read-only) straight away. A future one is Active.
+SET @grace_end  = IF(@period_end <= @now, DATE_ADD(@period_end, INTERVAL 7 DAY), NULL);
+SET @status     = IF(@period_end > @now, 'Active', IF(@grace_end > @now, 'PastDue', 'Suspended'));
+
 SELECT Id, MonthlyPrice, AnnualPrice
   INTO @plan_id, @monthly_price, @annual_price
   FROM tenantstore.Plans
@@ -88,10 +93,10 @@ INSERT INTO tenantstore.AccountSubscriptions (
     PendingPlanId, PendingBillingCycle, PendingChangeTiming, PendingChangeEffectiveAtUtc,
     LockedMonthlyPrice, LockedAnnualPrice, ConcurrencyStamp,
     CreatedAt, UpdatedAt, DeletedAt, Status)
-SELECT UUID(), owners.UserId, @plan_id, 'Active', @cycle,
+SELECT UUID(), owners.UserId, @plan_id, @status, @cycle,
        NULL, 0,
        @now, @period_end,
-       NULL, NULL, NULL, 0,
+       @grace_end, NULL, NULL, 0,
        NULL, NULL, NULL, NULL,
        @monthly_price, @annual_price, UUID(),
        @now, NULL, NULL, 'Active'
@@ -119,7 +124,7 @@ SELECT UUID(), s.Id, s.OwnerUserId, 'subscription.legacy-backfill',
    AND s.PlanId = @plan_id;
 
 -- D. Check, then COMMIT (or ROLLBACK if anything looks wrong) ---------------------------------
-SELECT s.OwnerUserId, s.SubStatus, s.CurrentPeriodEndUtc, s.LockedMonthlyPrice
+SELECT s.OwnerUserId, s.SubStatus, s.CurrentPeriodEndUtc, s.GraceEndsAtUtc, s.LockedMonthlyPrice
   FROM tenantstore.AccountSubscriptions s
  WHERE s.CreatedAt = @now;
 

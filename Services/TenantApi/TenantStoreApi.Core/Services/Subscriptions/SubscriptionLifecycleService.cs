@@ -1,8 +1,8 @@
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Quartz;
 using Onepunch.Common.Lib.Subscriptions;
 using Serilog;
 using TenantStoreApi.Domain.Entities.Subs;
@@ -132,32 +132,35 @@ public class SubscriptionLifecycleService
 }
 
 /// <summary>
-/// Runs <see cref="SubscriptionLifecycleService"/> for every account shortly after startup and
-/// then every <see cref="SubscriptionOptions.LifecycleIntervalMinutes"/>. Each account gets its
-/// own scope (and unit of work), so one failing -- e.g. a concurrent payment winning the
-/// optimistic-concurrency race -- is retried on the next run without holding up the rest.
+/// The hourly Quartz job running <see cref="SubscriptionLifecycleService"/> for every account
+/// (schedule: Subscriptions:LifecycleCron, see SubscriptionRegistrations). Quartz's clustered job
+/// store makes each fire run on exactly one TenantApi instance, and runs a fire missed while every
+/// instance was down as soon as one is back. Each run first catches up on activations and the
+/// legacy backfill, then gives every account its own scope (and unit of work), so one failing --
+/// e.g. a concurrent payment winning the optimistic-concurrency race -- is retried on the next fire
+/// without holding up the rest.
 /// </summary>
-public sealed class SubscriptionLifecycleJob(IServiceScopeFactory scopes, IOptions<SubscriptionOptions> options) : BackgroundService
+[DisallowConcurrentExecution]
+public sealed class SubscriptionLifecycleJob(IServiceScopeFactory scopes) : IJob
 {
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        try
-        {
-            await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
-            using var timer = new PeriodicTimer(TimeSpan.FromMinutes(Math.Max(1, options.Value.LifecycleIntervalMinutes)));
-            do
-            {
-                await RunOnceAsync(stoppingToken);
-            }
-            while (await timer.WaitForNextTickAsync(stoppingToken));
-        }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-        {
-        }
-    }
+    public static readonly JobKey Key = new("subscription-lifecycle", "tenantstore");
+    public static readonly TriggerKey TriggerKey = new("subscription-lifecycle-trigger", "tenantstore");
 
+    public Task Execute(IJobExecutionContext context) => RunOnceAsync(context.CancellationToken);
     public async Task RunOnceAsync(CancellationToken token)
     {
+        // First catch up on companies that finished setting up without us hearing about it (and
+        // give any still-unbilled existing owner the legacy plan) -- see CompanyActivationSyncService.
+        try
+        {
+            using var syncScope = scopes.CreateScope();
+            await syncScope.ServiceProvider.GetRequiredService<SubscriptionBackfillService>().EnsureBackfilledAsync(token);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.Logger.Error(ex, "Subscription lifecycle: activation sync/backfill failed");
+        }
+
         List<Guid> ids;
         try
         {

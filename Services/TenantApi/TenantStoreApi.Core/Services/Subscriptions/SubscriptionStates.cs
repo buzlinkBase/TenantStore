@@ -118,7 +118,10 @@ public sealed class PastDueState : ISubscriptionState
 
     public SubscriptionTransition? Advance(AccountSubscription subscription, DateTime nowUtc, SubscriptionOptions options)
     {
-        if (subscription.GraceEndsAtUtc is not { } graceEnds || nowUtc < graceEnds) return null;
+        // A row put into PastDue by hand or by an import has no grace end, and would never move
+        // on: give it the one the lifecycle would have (period end + grace).
+        subscription.GraceEndsAtUtc ??= (subscription.CurrentPeriodEndUtc ?? nowUtc).AddDays(options.GraceDays);
+        if (nowUtc < subscription.GraceEndsAtUtc) return null;
 
         subscription.SubStatus = AccountSubscriptionStatus.Suspended;
         return new(Status, AccountSubscriptionStatus.Suspended, BillingEventTypes.Suspended);

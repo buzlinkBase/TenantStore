@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+option csharp_namespace = "Onepunch.Auth.Core";
+
+package tenant.core;
+
+// Which companies finished setting up (their HR database is ready) -- AuthApi records it from
+// hrms-api's HrisOrgProvisioned (TenantCreationRequests.HrDbReady). Tenant Service asks so it can
+// mark existing companies activated, and heal a missed provisioning message.
+// Copied verbatim in TenantApi (TenantStoreApi.Core/Protos) -- keep the two identical.
+service TenantProvisioningService {
+  rpc GetReadyTenants (ReadyTenantsRequest) returns (ReadyTenantsResponse);
+}
+
+message ReadyTenantsRequest {
+  repeated string tenant_ids = 1;
+}
+
+message ReadyTenant {
+  string tenant_id = 1;
+  // ISO 8601, UTC.
+  string ready_at_utc = 2;
+}
+
+message ReadyTenantsResponse {
+  repeated ReadyTenant tenants = 1;
+}

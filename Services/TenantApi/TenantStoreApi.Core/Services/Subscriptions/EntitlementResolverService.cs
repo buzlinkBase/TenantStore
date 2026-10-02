@@ -97,10 +97,29 @@ public class EntitlementResolverService
     public EntitlementSnapshot ResolveAgainstPlan(AccountSubscription subscription, Plan plan, Guid tenantId) =>
         EntitlementSnapshotBuilder.Build(subscription, plan, tenantId, _clock.GetUtcNow().UtcDateTime, _stateMachine, _options.LockedPunchRetentionDays);
 
-    private Task<AccountSubscription?> LoadAsync(Guid ownerUserId, CancellationToken token) =>
-        Context.AccountSubscriptions
+    /// <summary>
+    /// The account's subscription as of now: loaded untracked, then moved through whatever
+    /// transitions its dates imply (trial ended → Expired, period ended → PastDue → Suspended, a
+    /// scheduled downgrade's date passed → new plan). So access follows the dates the moment they
+    /// pass -- or are edited -- instead of waiting for the hourly lifecycle job, which still makes
+    /// the same transitions permanent (and sends the emails). Nothing here is saved.
+    /// </summary>
+    private async Task<AccountSubscription?> LoadAsync(Guid ownerUserId, CancellationToken token)
+    {
+        var subscription = await Context.AccountSubscriptions
             .AsNoTracking()
             .Include(s => s.Plan).ThenInclude(p => p.Entitlements)
             .Include(s => s.Overrides)
             .FirstOrDefaultAsync(s => s.OwnerUserId == ownerUserId, token);
+        if (subscription == null) return null;
+
+        _stateMachine.Advance(subscription, _clock.GetUtcNow().UtcDateTime, _options);
+        if (subscription.Plan?.Id != subscription.PlanId)
+        {
+            subscription.Plan = await Context.Plans.AsNoTracking()
+                .Include(p => p.Entitlements)
+                .FirstAsync(p => p.Id == subscription.PlanId, token);
+        }
+        return subscription;
+    }
 }
