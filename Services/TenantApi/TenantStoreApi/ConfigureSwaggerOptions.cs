@@ -12,6 +12,7 @@ public class ConfigureSwaggerOptions : IConfigureOptions<SwaggerGenOptions>
     public ConfigureSwaggerOptions(IApiVersionDescriptionProvider provider) => _provider = provider;
     public void Configure(SwaggerGenOptions options)
     {
+
         options.OperationFilter<ResponseModelOperationFilter>();
         options.OperationFilter<SwaggerHeader>();
 
