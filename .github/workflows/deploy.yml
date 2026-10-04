@@ -21,16 +21,19 @@ jobs:
       with:
         filters: |
           auth:
-            - 'src/auth/**'
-            - 'apps/auth/**'
+            - 'Services/AuthApi/**'
+            - 'Services/Shared/**'
+            - 'Directory.Packages.props'
             - 'Dockerfile'
           tenant:
-            - 'src/tenant/**'
-            - 'apps/tenant/**'
+            - 'Services/TenantApi/**'
+            - 'Services/Shared/**'
+            - 'Directory.Packages.props'
             - 'Dockerfile'
           notification:
-            - 'src/notification/**'
-            - 'apps/notification/**'
+            - 'Services/NotificationApi/**'
+            - 'Services/Shared/**'
+            - 'Directory.Packages.props'
             - 'Dockerfile'
 
     - name: Set up Docker Buildx
