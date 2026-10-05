@@ -22,7 +22,9 @@ public static class SubscriptionRegistrations
 
         services.Configure<SubscriptionOptions>(config.GetSection(SubscriptionOptions.Section));
         services.AddSingleton(TimeProvider.System);
-        services.AddSingleton<SubscriptionStateMachine>();
+        // Factory, not the type: DI would pick the greedy IEnumerable<ISubscriptionState> constructor
+        // (always resolvable, but empty here) and every StateOf lookup would throw KeyNotFound.
+        services.AddSingleton(_ => new SubscriptionStateMachine());
         AddSubscriptionScheduler(services, config);
 
         services.AddScoped<ICompanyUsageProvider, AdminSeatUsageProvider>();
