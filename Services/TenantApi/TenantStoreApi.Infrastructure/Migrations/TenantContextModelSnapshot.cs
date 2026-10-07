@@ -430,6 +430,47 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.ToTable("Permissions");
                 });
 
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.PlatformSetting", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.ToTable("PlatformSettings");
+                });
+
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Role", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1504,6 +1545,15 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<string>("VoidReason")
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("VoidedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("VoidedBy")
+                        .HasColumnType("longtext");
 
                     b.HasKey("Id");
 
