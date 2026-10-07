@@ -18,6 +18,21 @@ public sealed record UpdatePlanCommand
     public bool? PricesIncludeVat { get; init; }
 }
 
+public sealed record CreatePlanCommand
+{
+    public string Code { get; init; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
+    public string? Description { get; init; }
+    public int? SortOrder { get; init; }
+    public decimal MonthlyPrice { get; init; }
+    public decimal AnnualPrice { get; init; }
+    public bool PricesIncludeVat { get; init; } = true;
+    /// <summary>Start from another plan's entitlements. Unset: every feature off and every limit 0.</summary>
+    public string? CopyEntitlementsFromCode { get; init; }
+}
+
+/// <summary>How many accounts a change to a plan reaches (entitlement edits apply to all of them at once).</summary>
+public sealed record PlanImpact(string Code, int Accounts, Dictionary<AccountSubscriptionStatus, int> ByStatus);
 /// <summary>
 /// Plan maintenance for the platform. Price edits reach new subscribers only (existing ones keep
 /// their locked price); entitlement edits reach everyone on the plan at once, so those accounts
@@ -95,6 +110,132 @@ public class PlanCatalogService
             .ToListAsync(token);
         foreach (var owner in owners)
             await _notifier.PublishAsync(owner, "plan.entitlement-changed", token);
+    }
+
+    // ── Console operations ───────────────────────────────────────────────────────────────────
+
+    private static readonly System.Text.RegularExpressions.Regex CodePattern = new("^[a-z][a-z0-9_-]{1,39}$");
+
+    /// <summary>
+    /// A new plan. It starts hidden (not public) so it can be set up before customers see it, and
+    /// with every feature off and every limit 0 unless it copies another plan's entitlements.
+    /// </summary>
+    public async Task<Plan> CreateAsync(CreatePlanCommand command, string? actor, CancellationToken token = default)
+    {
+        var code = command.Code.Trim().ToLowerInvariant();
+        if (!CodePattern.IsMatch(code))
+            throw new SubscriptionRuleException("A plan code is 2-40 lowercase letters, digits, '-' or '_', starting with a letter.");
+        if (string.IsNullOrWhiteSpace(command.Name)) throw new SubscriptionRuleException("A plan needs a name.");
+        if (command.MonthlyPrice < 0 || command.AnnualPrice < 0) throw new SubscriptionRuleException("Prices can't be negative.");
+        if (await Context.Plans.AnyAsync(p => p.Code == code, token) || Context.Plans.Local.Any(p => p.Code == code))
+            throw new SubscriptionRuleException($"A plan with code '{code}' already exists.");
+
+        Plan? source = null;
+        if (!string.IsNullOrWhiteSpace(command.CopyEntitlementsFromCode))
+            source = await RequireAsync(command.CopyEntitlementsFromCode.Trim(), token);
+
+        var sortOrder = command.SortOrder
+            ?? (await Context.Plans.AnyAsync(token) ? await Context.Plans.MaxAsync(p => p.SortOrder, token) + 10 : 10);
+        var plan = new Plan
+        {
+            Id = Guid.CreateVersion7(),
+            Code = code,
+            Name = command.Name.Trim(),
+            Description = command.Description?.Trim() ?? string.Empty,
+            SortOrder = sortOrder,
+            IsPublic = false,
+            IsRecommended = false,
+            MonthlyPrice = command.MonthlyPrice,
+            AnnualPrice = command.AnnualPrice,
+            Currency = "PHP",
+            PricesIncludeVat = command.PricesIncludeVat,
+        };
+        await Context.Plans.AddAsync(plan, token);
+
+        var values = source != null
+            ? source.Entitlements.ToDictionary(e => e.Key, e => e.Value)
+            : EntitlementKeys.Features.ToDictionary(k => k, _ => "false")
+                .Concat(EntitlementKeys.Limits.ToDictionary(k => k, _ => "0"))
+                .ToDictionary(kv => kv.Key, kv => kv.Value);
+        foreach (var (key, value) in values)
+        {
+            await Context.PlanEntitlements.AddAsync(new PlanEntitlement { Id = Guid.CreateVersion7(), PlanId = plan.Id, Key = key, Value = value }, token);
+        }
+
+        await _events.AddAsync(null, "plan.created", new { plan.Code, plan.Name, copiedFrom = source?.Code }, actor, token: token);
+        return plan;
+    }
+
+    /// <summary>
+    /// Sets several entitlements of a plan at once, all or nothing: one invalid value changes
+    /// nothing. Reaches every account on the plan immediately, so they're told once, not per key.
+    /// Returns the keys whose value actually changed.
+    /// </summary>
+    public async Task<List<string>> SetEntitlementsAsync(
+        string code, IReadOnlyDictionary<string, string> values, string? actor, CancellationToken token = default)
+    {
+        if (values.Count == 0) throw new SubscriptionRuleException("Nothing to change.");
+
+        var cleaned = new Dictionary<string, string>();
+        foreach (var (rawKey, rawValue) in values)
+        {
+            var key = rawKey.Trim();
+            var value = rawValue.Trim();
+            if (!EntitlementKeys.IsKnown(key)) throw new SubscriptionRuleException($"Unknown entitlement '{key}'.");
+            if (!EntitlementSnapshotBuilder.IsValidValue(key, value))
+                throw new SubscriptionRuleException($"'{value}' isn't a valid value for {key}.");
+            cleaned[key] = value;
+        }
+
+        var plan = await RequireAsync(code, token);
+        var changed = new Dictionary<string, (string? From, string To)>();
+        foreach (var (key, value) in cleaned)
+        {
+            var entitlement = plan.Entitlements.FirstOrDefault(e => e.Key == key);
+            if (entitlement == null)
+            {
+                await Context.PlanEntitlements.AddAsync(new PlanEntitlement { Id = Guid.CreateVersion7(), PlanId = plan.Id, Key = key, Value = value }, token);
+                changed[key] = (null, value);
+            }
+            else if (entitlement.Value != value)
+            {
+                changed[key] = (entitlement.Value, value);
+                entitlement.Value = value;
+            }
+        }
+        if (changed.Count == 0) return [];
+
+        await _events.AddAsync(null, "plan.entitlements-changed",
+            new { plan.Code, changes = changed.ToDictionary(c => c.Key, c => new { from = c.Value.From, to = c.Value.To }) }, actor, token: token);
+
+        var owners = await Context.AccountSubscriptions.AsNoTracking()
+            .Where(s => s.PlanId == plan.Id)
+            .Select(s => s.OwnerUserId)
+            .ToListAsync(token);
+        foreach (var owner in owners)
+            await _notifier.PublishAsync(owner, "plan.entitlements-changed", token);
+        return changed.Keys.ToList();
+    }
+
+    /// <summary>Accounts currently on each plan (by plan id) -- the "subscribers" column.</summary>
+    public async Task<Dictionary<Guid, int>> GetSubscriberCountsAsync(CancellationToken token = default) =>
+        (await Context.AccountSubscriptions.AsNoTracking()
+            .GroupBy(s => s.PlanId)
+            .Select(g => new { PlanId = g.Key, Count = g.Count() })
+            .ToListAsync(token))
+        .ToDictionary(x => x.PlanId, x => x.Count);
+
+    public async Task<PlanImpact> GetImpactAsync(string code, CancellationToken token = default)
+    {
+        var plan = await Context.Plans.AsNoTracking().FirstOrDefaultAsync(p => p.Code == code, token)
+            ?? throw new KeyNotFoundException($"Unknown plan '{code}'.");
+        var byStatus = (await Context.AccountSubscriptions.AsNoTracking()
+                .Where(s => s.PlanId == plan.Id)
+                .GroupBy(s => s.SubStatus)
+                .Select(g => new { Status = g.Key, Count = g.Count() })
+                .ToListAsync(token))
+            .ToDictionary(x => x.Status, x => x.Count);
+        return new PlanImpact(plan.Code, byStatus.Values.Sum(), byStatus);
     }
 
     private async Task<Plan> RequireAsync(string code, CancellationToken token) =>

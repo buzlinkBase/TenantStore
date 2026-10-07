@@ -27,6 +27,7 @@
 	<ItemGroup>
 		<ProjectReference Include="..\TenantStoreApi.Core\TenantStoreApi.Core.csproj" />
 		<ProjectReference Include="..\TenantStoreApi.Domain\TenantStoreApi.Domain.csproj" />
+		<ProjectReference Include="..\TenantStoreApi\TenantStoreApi.csproj" />
 	</ItemGroup>
 
 </Project>

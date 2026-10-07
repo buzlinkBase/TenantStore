@@ -9,7 +9,9 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 using Onepunch.Auth.Core.Protos;
 using Onepunch.Auth.Domain;
+using Onepunch.Auth.Core.Platform;
 using Onepunch.Common.Lib;
+using Onepunch.Common.Lib.Platform;
 using OnePunch.Auth.Api;
 using OnePunch.Auth.Api.Exceptions;
 using OnePunch.Auth.Api.Filters;
@@ -208,6 +210,10 @@ internal class Program
         app.MapHub<TenantHub>("/hubs/tenant");
         app.MapGet("/.well-known/jwks.json", (RsaKeyProvider rsaKeyProvider) =>
             Results.Json(new { keys = new[] { rsaKeyProvider.GetPublicJsonWebKey() } }))
+            .AllowAnonymous();
+        // Platform operators sign with their own key, so TenantApi's platform scheme fetches this one.
+        app.MapGet(PlatformAuthDefaults.JwksPath, (PlatformRsaKeyProvider platformKeys) =>
+            Results.Json(new { keys = new[] { platformKeys.GetPublicJsonWebKey() } }))
             .AllowAnonymous();
 
         app.Run();

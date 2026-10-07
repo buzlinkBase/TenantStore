@@ -124,9 +124,11 @@ public class AccountSubscriptionService
         return plan;
     }
 
-    public Task<List<SubscriptionPayment>> GetPaymentsAsync(Guid subscriptionId, CancellationToken token = default) =>
+    /// <summary>The account's payments, newest first. Voided ones are left out unless asked for: to the
+    /// owner a voided payment never happened.</summary>
+    public Task<List<SubscriptionPayment>> GetPaymentsAsync(Guid subscriptionId, bool includeVoided = false, CancellationToken token = default) =>
         Context.SubscriptionPayments.AsNoTracking()
-            .Where(p => p.SubscriptionId == subscriptionId)
+            .Where(p => p.SubscriptionId == subscriptionId && (includeVoided || p.VoidedAtUtc == null))
             .OrderByDescending(p => p.PaidAtUtc)
             .ToListAsync(token);
 

@@ -45,6 +45,13 @@ public static class BillingEventTypes
     public const string DiscountAdded = "discount.added";
     public const string DiscountRemoved = "discount.removed";
     public const string EmailSent = "email.sent";
+
+    // Platform operator actions (PlatformAccountActionsService).
+    public const string SuspendedByAdmin = "subscription.suspended-by-admin";
+    public const string Reinstated = "subscription.reinstated";
+    public const string CanceledByAdmin = "subscription.canceled-by-admin";
+    public const string PeriodExtended = "subscription.period-extended";
+    public const string PaymentVoided = "payment.voided";
 }
 
 public sealed class TrialingState : ISubscriptionState

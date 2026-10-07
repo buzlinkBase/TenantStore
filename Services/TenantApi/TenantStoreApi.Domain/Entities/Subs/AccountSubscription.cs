@@ -136,6 +136,15 @@ public class SubscriptionPayment : BaseEntity
     public DateTime PeriodEndUtc { get; set; }
     public string? RecordedBy { get; set; }
     public string? Notes { get; set; }
+
+    /// <summary>
+    /// Set when a platform admin voids a payment recorded by mistake (never deleted: the money trail
+    /// stays). A voided payment no longer counts towards the paid period or the billing history the
+    /// owner sees -- see PlatformAccountActionsService.VoidPaymentAsync.
+    /// </summary>
+    public DateTime? VoidedAtUtc { get; set; }
+    public string? VoidedBy { get; set; }
+    public string? VoidReason { get; set; }
 }
 
 /// <summary>

@@ -169,7 +169,7 @@ public class SubscriptionViewService
                 await _subscriptions.PriceForAsync(subscription, pendingPlan, cycle, token));
         }
 
-        var payments = await _subscriptions.GetPaymentsAsync(subscription.Id, token);
+        var payments = await _subscriptions.GetPaymentsAsync(subscription.Id, token: token);
         var planNames = plans.ToDictionary(p => p.Id, p => p.Name);
         planNames.TryAdd(subscription.PlanId, subscription.Plan.Name);
 

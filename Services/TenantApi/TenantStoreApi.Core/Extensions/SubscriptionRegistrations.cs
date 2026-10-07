@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Onepunch.Common.Lib.Subscriptions;
 using Quartz;
 using Refit;
+using TenantStoreApi.Core.Services.Platform;
 using TenantStoreApi.Core.Services.Subscriptions;
 
 namespace TenantStoreApi.Core.Extensions;
@@ -21,6 +22,11 @@ public static class SubscriptionRegistrations
         var config = builder.Configuration;
 
         services.Configure<SubscriptionOptions>(config.GetSection(SubscriptionOptions.Section));
+        // What the services get for IOptions<SubscriptionOptions>: the configured values with the operator's
+        // overrides (set from the Platform Admin Console) laid on top. See SettingsAwareSubscriptionOptions.
+        services.AddSingleton<IPlatformSettingsSource, DbPlatformSettingsSource>();
+        services.AddSingleton<PlatformSettingsCache>();
+        services.AddScoped<Microsoft.Extensions.Options.IOptions<SubscriptionOptions>, SettingsAwareSubscriptionOptions>();
         services.AddSingleton(TimeProvider.System);
         // Factory, not the type: DI would pick the greedy IEnumerable<ISubscriptionState> constructor
         // (always resolvable, but empty here) and every StateOf lookup would throw KeyNotFound.

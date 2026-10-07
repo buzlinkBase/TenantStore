@@ -68,11 +68,15 @@ public sealed class JwksKeyCache
     private string? _keysSource;
     private DateTimeOffset _localExpiry = DateTimeOffset.MinValue;
 
-    public JwksKeyCache(IHttpClientFactory httpClientFactory, IJwksStore store, string authUrl, TimeProvider? time = null)
+    public const string DefaultJwksPath = "/.well-known/jwks.json";
+
+    /// <param name="jwksPath">Where the keys are published; defaults to the tenant users' JWKS. The platform
+    /// operators' keys live at a different path (see PlatformAuthDefaults.JwksPath).</param>
+    public JwksKeyCache(IHttpClientFactory httpClientFactory, IJwksStore store, string authUrl, TimeProvider? time = null, string jwksPath = DefaultJwksPath)
     {
         _httpClientFactory = httpClientFactory;
         _store = store;
-        _jwksUrl = authUrl.TrimEnd('/') + "/.well-known/jwks.json";
+        _jwksUrl = authUrl.TrimEnd('/') + "/" + jwksPath.TrimStart('/');
         _time = time ?? TimeProvider.System;
     }
 

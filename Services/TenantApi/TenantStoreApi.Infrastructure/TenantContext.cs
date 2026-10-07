@@ -23,6 +23,7 @@ public class TenantContext : DbContext
     public DbSet<SubscriptionDiscount> SubscriptionDiscounts { get; set; }
     public DbSet<SubscriptionPayment> SubscriptionPayments { get; set; }
     public DbSet<BillingEvent> BillingEvents { get; set; }
+    public DbSet<PlatformSetting> PlatformSettings { get; set; }
     public DbSet<Permission> Permissions { get; set; }
     public DbSet<Role> Roles { get; set; }
     public DbSet<RolePermission> RolePermissions { get; set; }
