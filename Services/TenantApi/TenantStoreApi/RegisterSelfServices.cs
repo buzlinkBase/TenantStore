@@ -207,5 +207,6 @@ public static class ServiceRegistrations
 
         // Platform Admin Console operators: their own scheme/keys/policies, beside the company users'.
         builder.Services.AddPlatformAuth(builder.Configuration["AuthUrl"] ?? "");
+        builder.Services.AddPlatformRateLimiting(builder.Configuration);
     }
 }

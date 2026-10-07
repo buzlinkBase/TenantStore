@@ -323,9 +323,15 @@ public static class ServiceRegistrations
 
         // Only the operator-management endpoints are permission-gated here; the rest of the platform
         // permissions are enforced by TenantApi.
-        services.AddAuthorizationBuilder().AddPolicy(PlatformPermissions.AdminsManage, policy => policy
-            .AddAuthenticationSchemes(PlatformAuthDefaults.Scheme)
-            .RequireAuthenticatedUser()
-            .RequireClaim(PlatformAuthDefaults.PermissionClaim, PlatformPermissions.AdminsManage));
+        services.AddAuthorizationBuilder()
+            .AddPolicy(PlatformAuthDefaults.MfaPolicy, policy => policy
+                .AddAuthenticationSchemes(PlatformAuthDefaults.Scheme)
+                .RequireAuthenticatedUser()
+                .RequireClaim(PlatformAuthDefaults.MethodClaim, PlatformAuthDefaults.OtpMethod))
+            .AddPolicy(PlatformPermissions.AdminsManage, policy => policy
+                .AddAuthenticationSchemes(PlatformAuthDefaults.Scheme)
+                .RequireAuthenticatedUser()
+                .RequireClaim(PlatformAuthDefaults.MethodClaim, PlatformAuthDefaults.OtpMethod)
+                .RequireClaim(PlatformAuthDefaults.PermissionClaim, PlatformPermissions.AdminsManage));
     }
 }

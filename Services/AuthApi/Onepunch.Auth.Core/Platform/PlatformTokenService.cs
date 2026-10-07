@@ -39,6 +39,9 @@ public static class PlatformTokenValidation
 /// - the ACCESS token the platform API accepts (<see cref="PlatformAuthDefaults.Audience"/>);
 /// - the CHALLENGE token issued after a correct password, good only to finish the MFA step.
 /// </summary>
+/// <summary>What a valid challenge token says: who it was issued to, and the account state it was bound to.</summary>
+public sealed record PlatformChallenge(Guid UserId, string Stamp, string LoginMarker);
+
 public class PlatformTokenService
 {
     private readonly PlatformRsaKeyProvider _keys;
@@ -94,12 +97,27 @@ public class PlatformTokenService
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new("purpose", "mfa"),
+            // Bind the challenge to the account as it is now. A completed sign-in moves LastLoginAtUtc and a
+            // password/MFA reset or deactivation rotates the stamp, so a challenge can't be used a second time
+            // (or after the account changed) -- without remembering used tokens anywhere.
+            new("stamp", user.SecurityStamp),
+            new("login", LoginMarker(user)),
         };
         return (Write(claims, PlatformAuthDefaults.ChallengeAudience, now, expires), expires);
     }
 
+    private static string LoginMarker(PlatformUser user) =>
+        (user.LastLoginAtUtc?.Ticks ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>True while the account is still in the state the challenge was issued for.</summary>
+    public static bool IsCurrent(PlatformChallenge challenge, PlatformUser user) =>
+        challenge.Stamp == user.SecurityStamp && challenge.LoginMarker == LoginMarker(user);
+
     /// <summary>The user a challenge token was issued to, or null if it is forged, expired or not a challenge token.</summary>
-    public Guid? ReadChallengeToken(string? token)
+    public Guid? ReadChallengeToken(string? token) => ReadChallenge(token)?.UserId;
+
+    /// <summary>The user and account state a challenge token was issued for, or null if it is forged, expired or not a challenge token.</summary>
+    public PlatformChallenge? ReadChallenge(string? token)
     {
         if (string.IsNullOrWhiteSpace(token)) return null;
         try
@@ -120,7 +138,9 @@ public class PlatformTokenService
 
             if (validated.ValidTo < _time.GetUtcNow().UtcDateTime) return null;
             if (principal.FindFirst("purpose")?.Value != "mfa") return null;
-            return Guid.TryParse(principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value, out var id) ? id : null;
+            return Guid.TryParse(principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value, out var id)
+                ? new PlatformChallenge(id, principal.FindFirst("stamp")?.Value ?? "", principal.FindFirst("login")?.Value ?? "")
+                : null;
         }
         catch (Exception)
         {

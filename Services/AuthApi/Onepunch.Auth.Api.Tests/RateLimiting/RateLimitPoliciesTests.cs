@@ -4,6 +4,7 @@ using System.Security.Claims;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using OnePunch.Auth.Api.Controllers;
@@ -61,6 +62,9 @@ public class RateLimitPoliciesTests
     [InlineData(RateLimitPolicies.PasswordChange)]
     [InlineData(RateLimitPolicies.InviteSend)]
     [InlineData(RateLimitPolicies.WorkspaceCreate)]
+    [InlineData(RateLimitPolicies.PlatformMfa)]
+    [InlineData(RateLimitPolicies.PlatformSession)]
+    [InlineData(RateLimitPolicies.PlatformAdmin)]
     public void EachPolicy_AllowsItsLimit_ThenRefuses(string name)
     {
         var rule = Rule(name);
@@ -114,6 +118,10 @@ public class RateLimitPoliciesTests
         { typeof(InvitationController), nameof(InvitationController.CheckBatch), RateLimitPolicies.InviteCheck },
         { typeof(InvitationController), nameof(InvitationController.AcceptByToken), RateLimitPolicies.TokenLookup },
         { typeof(WorkSpaceController), nameof(WorkSpaceController.Create), RateLimitPolicies.WorkspaceCreate },
+        { typeof(PlatformAuthController), nameof(PlatformAuthController.Login), RateLimitPolicies.Login },
+        { typeof(PlatformAuthController), nameof(PlatformAuthController.MfaSetup), RateLimitPolicies.PlatformMfa },
+        { typeof(PlatformAuthController), nameof(PlatformAuthController.MfaVerify), RateLimitPolicies.PlatformMfa },
+        { typeof(PlatformAuthController), nameof(PlatformAuthController.Me), RateLimitPolicies.PlatformSession },
     };
 
     [Theory]
@@ -133,4 +141,22 @@ public class RateLimitPoliciesTests
 
         used.Should().OnlyContain(p => registered.Contains(p));
     }
+
+    [Fact]
+    public void EveryPlatformAction_IsRateLimited_ByTheActionOrItsController()
+    {
+        var unlimited = new[] { typeof(PlatformAuthController), typeof(PlatformAdminsController) }
+            .SelectMany(c => c.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                .Where(m => m.GetCustomAttributes<HttpMethodAttribute>().Any())
+                .Where(m => m.GetCustomAttribute<EnableRateLimitingAttribute>() == null
+                            && c.GetCustomAttribute<EnableRateLimitingAttribute>() == null)
+                .Select(m => $"{c.Name}.{m.Name}"));
+
+        unlimited.Should().BeEmpty("a platform endpoint without a limit can be hammered");
+    }
+
+    [Fact]
+    public void PlatformAdminsController_CarriesTheAdminLimit_OnTheController() =>
+        typeof(PlatformAdminsController).GetCustomAttribute<EnableRateLimitingAttribute>()!.PolicyName
+            .Should().Be(RateLimitPolicies.PlatformAdmin);
 }

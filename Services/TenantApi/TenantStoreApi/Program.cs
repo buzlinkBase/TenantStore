@@ -186,9 +186,7 @@ internal class Program
                              | ForwardedHeaders.XForwardedProto
                              | ForwardedHeaders.XForwardedHost
         };
-        forwardedOptions.KnownNetworks.Clear();
-        forwardedOptions.KnownProxies.Clear();
-        app.UseForwardedHeaders(forwardedOptions);
+        app.UseForwardedHeaders(forwardedOptions.Apply(app.Configuration));
         // 2. SECOND: Catch global exceptions early
         app.UseExceptionHandler();
         app.UseStatusCodePages();
@@ -222,6 +220,8 @@ internal class Program
         // app.UseMiddleware<ApiKeyMiddleware>();
         // 6. SIXTH: Security Handshake
         app.UseAuthentication();
+        // After routing so [EnableRateLimiting] is visible; before authorization so a flood of bad tokens is cut off early.
+        app.UseRateLimiter();
         app.UseAuthorization();
         // 7. LAST: Map your execution endpoints
         app.MapGrpcService<TenantInfoServiceProvider>();

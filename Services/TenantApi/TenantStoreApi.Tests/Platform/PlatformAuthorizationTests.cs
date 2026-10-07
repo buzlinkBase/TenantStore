@@ -27,14 +27,16 @@ public class PlatformAuthorizationTests
         return services.BuildServiceProvider();
     }
 
-    private static ClaimsPrincipal Operator(string role, bool mustChangePassword = false)
+    private static ClaimsPrincipal Operator(string role, bool mustChangePassword = false, bool authenticatorStepDone = true)
     {
         var claims = new List<Claim>
         {
             new("sub", Guid.NewGuid().ToString()),
             new("email", "ops@example.com"),
             new(PlatformAuthDefaults.RoleClaim, role),
+            new(PlatformAuthDefaults.MethodClaim, "pwd"),
         };
+        if (authenticatorStepDone) claims.Add(new Claim(PlatformAuthDefaults.MethodClaim, PlatformAuthDefaults.OtpMethod));
         if (!mustChangePassword)
             claims.AddRange(PlatformRolePermissions.For(role).Select(p => new Claim(PlatformAuthDefaults.PermissionClaim, p)));
         return new ClaimsPrincipal(new ClaimsIdentity(claims, PlatformAuthDefaults.Scheme));
@@ -101,6 +103,15 @@ public class PlatformAuthorizationTests
     public async Task ARole_HoldsExactlyItsPermissions(string role, string permission, bool expected)
     {
         (await CanAsync(Operator(role), permission)).Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task ATokenThatNeverPassedTheAuthenticatorStep_CanDoNothing()
+    {
+        var passwordOnly = Operator(PlatformRoles.SuperAdmin, authenticatorStepDone: false);
+
+        foreach (var permission in PlatformPermissions.All)
+            (await CanAsync(passwordOnly, permission)).Should().BeFalse($"{permission} needs the authenticator step");
     }
 
     [Fact]

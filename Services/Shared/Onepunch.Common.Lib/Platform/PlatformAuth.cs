@@ -27,6 +27,13 @@ public static class PlatformAuthDefaults
     public const string PermissionClaim = "permission";
     public const string RoleClaim = "role";
     public const string NameClaim = "name";
+
+    /// <summary>Authentication-method claim; platform access tokens are only ever minted after a password AND an authenticator code.</summary>
+    public const string MethodClaim = "amr";
+    public const string OtpMethod = "otp";
+
+    /// <summary>Policy: an authenticated operator whose token proves the authenticator step (not just the password).</summary>
+    public const string MfaPolicy = "platform.mfa";
 }
 
 public static class PlatformRoles

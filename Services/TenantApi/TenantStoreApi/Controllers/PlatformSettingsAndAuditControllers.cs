@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.RateLimiting;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Onepunch.Common.Lib.Platform;
@@ -18,6 +19,7 @@ public record SetSettingRequest
 /// </summary>
 [Route("api/v{version:apiVersion}/platform/settings")]
 [ApiVersion("1.0")]
+[EnableRateLimiting(PlatformRateLimiting.PolicyName)]
 [ApiController]
 public class PlatformSettingsController : ControllerBase
 {
@@ -54,6 +56,7 @@ public class PlatformSettingsController : ControllerBase
 /// <summary>The audit trail across all accounts: operator actions and system events, filterable and paged.</summary>
 [Route("api/v{version:apiVersion}/platform/audit")]
 [ApiVersion("1.0")]
+[EnableRateLimiting(PlatformRateLimiting.PolicyName)]
 [ApiController]
 public class PlatformAuditController : ControllerBase
 {

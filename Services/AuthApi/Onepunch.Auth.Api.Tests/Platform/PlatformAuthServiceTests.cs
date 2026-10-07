@@ -158,6 +158,39 @@ public class PlatformAuthServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task AChallengeToken_CompletesASignInOnlyOnce()
+    {
+        await _h.SeedUserAsync();
+        var service = _h.NewService();
+        var challenge = await service.LoginAsync("ops@example.com", PlatformAuthHarness.StrongPassword, _ct);
+        var secret = (await service.GetMfaSetupAsync(challenge.ChallengeToken, _ct)).Secret;
+        await service.VerifyMfaAsync(challenge.ChallengeToken, _h.CodeFor(secret), _ct);
+        _h.Time.Advance(TimeSpan.FromSeconds(31));
+
+        // A fresh, valid code -- but the challenge it rides on has already been spent.
+        await Assert.ThrowsAsync<UnauthorizedException>(() => service.VerifyMfaAsync(challenge.ChallengeToken, _h.CodeFor(secret), _ct));
+    }
+
+    [Fact]
+    public async Task AChallengeToken_StopsWorking_WhenTheAccountIsResetBeforeItIsUsed()
+    {
+        var user = await _h.SeedUserAsync();
+        var service = _h.NewService();
+        var challenge = await service.LoginAsync("ops@example.com", PlatformAuthHarness.StrongPassword, _ct);
+        var secret = (await service.GetMfaSetupAsync(challenge.ChallengeToken, _ct)).Secret;
+        await using (var db = _h.NewContext())
+        {
+            (await db.PlatformUsers.SingleAsync(x => x.Id == user.Id, _ct)).SecurityStamp = Guid.NewGuid().ToString("N");
+            await db.SaveChangesAsync(_ct);
+        }
+
+        // A new request means a new context (the first service still tracks the old stamp).
+        var next = _h.NewService();
+        await Assert.ThrowsAsync<UnauthorizedException>(() => next.VerifyMfaAsync(challenge.ChallengeToken, _h.CodeFor(secret), _ct));
+        await Assert.ThrowsAsync<UnauthorizedException>(() => next.GetMfaSetupAsync(challenge.ChallengeToken, _ct));
+    }
+
+    [Fact]
     public async Task AnEnrolledOperator_IsAskedForTheCode_NotForSetup_OnTheNextSignIn()
     {
         await _h.SeedUserAsync();

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.RateLimiting;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Onepunch.Common.Lib.Platform;
@@ -23,6 +24,7 @@ public sealed record PlatformPlanView(PlanView Plan, int Subscribers);
 /// </summary>
 [Route("api/v{version:apiVersion}/platform/plans")]
 [ApiVersion("1.0")]
+[EnableRateLimiting(PlatformRateLimiting.PolicyName)]
 [ApiController]
 public class PlatformPlansController : ControllerBase
 {
@@ -46,7 +48,9 @@ public class PlatformPlansController : ControllerBase
     [HttpGet("catalog")]
     [PlatformAuthorize(PlatformPermissions.AccountsRead)]
     [ProducesResponseType(typeof(IReadOnlyList<EntitlementInfo>), StatusCodes.Status200OK)]
-    public IActionResult Catalog() => Ok(EntitlementCatalog.All);
+    // A List, not the catalog's own collection: that one is a compiler-generated internal type, which
+    // ResponseWrapperFilter cannot wrap (it binds the runtime type dynamically) -- the action would 500.
+    public IActionResult Catalog() => Ok(EntitlementCatalog.All.ToList());
 
     [HttpGet("{code}/impact")]
     [PlatformAuthorize(PlatformPermissions.AccountsRead)]

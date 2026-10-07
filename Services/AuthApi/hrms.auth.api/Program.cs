@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
+using OnePunch.Auth.Api.Extensions;
 using Onepunch.Auth.Core.Protos;
 using Onepunch.Auth.Domain;
 using Onepunch.Auth.Core.Platform;
@@ -160,10 +161,8 @@ internal class Program
                              | ForwardedHeaders.XForwardedHost
                              | ForwardedHeaders.XForwardedPrefix
         };
-        // CRITICAL: Clear these collections so .NET trusts Nginx running on localhost/docker
-        forwardedOptions.KnownNetworks.Clear();
-        forwardedOptions.KnownProxies.Clear();
-        app.UseForwardedHeaders(forwardedOptions);
+        // Trusts any proxy unless ForwardedHeaders:KnownProxies / KnownNetworks list the real one (see ForwardedHeadersTrust).
+        app.UseForwardedHeaders(forwardedOptions.Apply(app.Configuration));
 
         // Ensure PathBase is explicitly assigned from header if provided by Nginx
         app.Use(async (context, next) =>

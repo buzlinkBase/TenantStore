@@ -267,11 +267,13 @@ public class PlatformAuthService
 
     private async Task<PlatformUser> ResolveChallengeUserAsync(string? challengeToken, CancellationToken ct)
     {
-        var userId = _tokens.ReadChallengeToken(challengeToken);
-        if (userId is null) throw new UnauthorizedException(InvalidSession);
+        var challenge = _tokens.ReadChallenge(challengeToken);
+        if (challenge is null) throw new UnauthorizedException(InvalidSession);
 
-        var user = await _db.PlatformUsers.FirstOrDefaultAsync(x => x.Id == userId, ct);
+        var user = await _db.PlatformUsers.FirstOrDefaultAsync(x => x.Id == challenge.UserId, ct);
         if (user is null || !user.IsActive || IsLocked(user)) throw new UnauthorizedException(InvalidSession);
+        // Already used to sign in, or the account was reset/changed since: ask for the password again.
+        if (!PlatformTokenService.IsCurrent(challenge, user)) throw new UnauthorizedException(InvalidSession);
         return user;
     }
 

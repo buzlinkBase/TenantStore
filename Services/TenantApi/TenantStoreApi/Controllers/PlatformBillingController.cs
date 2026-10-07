@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.RateLimiting;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,6 +18,7 @@ namespace TenantStoreApi.Controllers;
 /// </summary>
 [Route("api/v{version:apiVersion}/platform/billing")]
 [ApiVersion("1.0")]
+[EnableRateLimiting(PlatformRateLimiting.PolicyName)]
 [ApiController]
 public class PlatformBillingController : ControllerBase
 {

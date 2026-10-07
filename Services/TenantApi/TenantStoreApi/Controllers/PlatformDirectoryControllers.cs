@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.RateLimiting;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Onepunch.Common.Lib.Platform;
@@ -25,6 +26,7 @@ public record ExtendPeriodRequest
 /// </summary>
 [Route("api/v{version:apiVersion}/platform/accounts")]
 [ApiVersion("1.0")]
+[EnableRateLimiting(PlatformRateLimiting.PolicyName)]
 [ApiController]
 public class PlatformAccountsController : ControllerBase
 {
@@ -95,6 +97,7 @@ public class PlatformAccountsController : ControllerBase
 /// <summary>Companies across all accounts, for the console's companies screen.</summary>
 [Route("api/v{version:apiVersion}/platform/companies")]
 [ApiVersion("1.0")]
+[EnableRateLimiting(PlatformRateLimiting.PolicyName)]
 [ApiController]
 public class PlatformCompaniesController : ControllerBase
 {
@@ -112,6 +115,7 @@ public class PlatformCompaniesController : ControllerBase
 /// <summary>Recorded payments across all accounts, and voiding one recorded in error.</summary>
 [Route("api/v{version:apiVersion}/platform/payments")]
 [ApiVersion("1.0")]
+[EnableRateLimiting(PlatformRateLimiting.PolicyName)]
 [ApiController]
 public class PlatformPaymentsController : ControllerBase
 {

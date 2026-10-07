@@ -38,14 +38,14 @@ public class PlatformAuthController : ControllerBase
 
     [AllowAnonymous]
     [HttpPost("mfa/setup")]
-    [EnableRateLimiting(RateLimitPolicies.Login)]
+    [EnableRateLimiting(RateLimitPolicies.PlatformMfa)]
     [ProducesResponseType(typeof(PlatformMfaSetup), StatusCodes.Status200OK)]
     public async Task<IActionResult> MfaSetup([FromBody] PlatformMfaSetupRequest request, CancellationToken ct) =>
         Ok(await _auth.GetMfaSetupAsync(request.ChallengeToken, ct));
 
     [AllowAnonymous]
     [HttpPost("mfa/verify")]
-    [EnableRateLimiting(RateLimitPolicies.Login)]
+    [EnableRateLimiting(RateLimitPolicies.PlatformMfa)]
     [ProducesResponseType(typeof(PlatformSession), StatusCodes.Status200OK)]
     public async Task<IActionResult> MfaVerify([FromBody] PlatformMfaVerifyRequest request, CancellationToken ct) =>
         Ok(await _auth.VerifyMfaAsync(request.ChallengeToken, request.Code, ct));
@@ -66,11 +66,14 @@ public class PlatformAuthController : ControllerBase
         return NoContent();
     }
 
+    [Authorize(AuthenticationSchemes = PlatformAuthDefaults.Scheme, Policy = PlatformAuthDefaults.MfaPolicy)]
     [HttpGet("me")]
+    [EnableRateLimiting(RateLimitPolicies.PlatformSession)]
     [ProducesResponseType(typeof(PlatformProfile), StatusCodes.Status200OK)]
     public async Task<IActionResult> Me(CancellationToken ct) =>
         Ok(await _auth.GetProfileAsync(User.GetRequiredUserId(), ct));
 
+    [Authorize(AuthenticationSchemes = PlatformAuthDefaults.Scheme, Policy = PlatformAuthDefaults.MfaPolicy)]
     [HttpPost("change-password")]
     [EnableRateLimiting(RateLimitPolicies.PasswordChange)]
     [ProducesResponseType(typeof(PlatformSession), StatusCodes.Status200OK)]

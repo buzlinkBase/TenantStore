@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Onepunch.Auth.Core.Platform;
 using Onepunch.Auth.Domain.DTOs;
 using Onepunch.Common.Lib;
 using Onepunch.Common.Lib.Platform;
 using OnePunch.Auth.Api.Extensions;
+using OnePunch.Auth.Api.RateLimiting;
 
 namespace OnePunch.Auth.Api.Controllers;
 
@@ -17,6 +19,7 @@ namespace OnePunch.Auth.Api.Controllers;
 [ApiVersion("1.0")]
 [ApiController]
 [Authorize(AuthenticationSchemes = PlatformAuthDefaults.Scheme, Policy = PlatformPermissions.AdminsManage)]
+[EnableRateLimiting(RateLimitPolicies.PlatformAdmin)]
 [ProducesResponseType(typeof(ResponseModel<ProblemDetails>), StatusCodes.Status400BadRequest)]
 [ProducesResponseType(typeof(ResponseModel<ProblemDetails>), StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(typeof(ResponseModel<ProblemDetails>), StatusCodes.Status403Forbidden)]

@@ -52,6 +52,8 @@ public static class PlatformAuthRegistration
             authorization.AddPolicy(permission, policy => policy
                 .AddAuthenticationSchemes(PlatformAuthDefaults.Scheme)
                 .RequireAuthenticatedUser()
+                // Defence in depth: only tokens minted after the authenticator step carry this.
+                .RequireClaim(PlatformAuthDefaults.MethodClaim, PlatformAuthDefaults.OtpMethod)
                 .RequireClaim(PlatformAuthDefaults.PermissionClaim, permission));
         }
         return services;
