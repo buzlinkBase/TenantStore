@@ -60,5 +60,15 @@ public record CreatePlatformAdminRequest(string Email, string DisplayName, strin
 
 public record ChangePlatformAdminRoleRequest(string Role);
 
+public record PlatformAdminAuditView(
+    Guid Id,
+    DateTime CreatedUtc,
+    string ActorEmail,
+    string Action,
+    string? TargetEmail,
+    string? Detail);
+
+public record PlatformAdminAuditPage(IReadOnlyList<PlatformAdminAuditView> Items, int Total, int Page, int PageSize);
+
 /// <summary>An operator plus the one-time password to hand them. Shown once; only its hash is stored.</summary>
 public record PlatformAdminCredentials(PlatformAdminView Admin, string TemporaryPassword);

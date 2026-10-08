@@ -28,5 +28,13 @@ public class PlatformAuthSettings
         public string? Email { get; set; }
         public string? Password { get; set; }
         public string? DisplayName { get; set; }
+
+        /// <summary>
+        /// Break-glass for when every SuperAdmin is locked out (lost authenticators, forgotten passwords):
+        /// with this on, the configured email is (re)created as an active SuperAdmin with this password, its
+        /// authenticator is forgotten and its sessions are ended. Works on a non-empty table, so it is off by
+        /// default and must be removed after use. It acts once: it skips an operator who has signed in since.
+        /// </summary>
+        public bool Recover { get; set; }
     }
 }

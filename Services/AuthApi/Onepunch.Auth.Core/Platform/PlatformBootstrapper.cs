@@ -13,6 +13,7 @@ namespace Onepunch.Auth.Core.Platform;
 /// from somewhere: when the platform user table is empty and <c>PlatformAuth:Bootstrap:Email</c> and
 /// <c>Password</c> are set, one is created (with a forced password change and MFA enrolment at first
 /// sign-in). Once any operator exists this does nothing, and the settings should be removed.
+/// The one exception is <c>Recover</c>, the break-glass switch for when every SuperAdmin is locked out.
 /// Never throws: a missing table (migration not applied yet) must not stop the API starting.
 /// </summary>
 public class PlatformBootstrapper : IHostedService
@@ -36,6 +37,18 @@ public class PlatformBootstrapper : IHostedService
         try
         {
             using var scope = _scopes.CreateScope();
+
+            if (bootstrap.Recover)
+            {
+                var admins = scope.ServiceProvider.GetRequiredService<PlatformAdminService>();
+                var acted = await admins.RecoverSuperAdminAsync(bootstrap.Email!, bootstrap.DisplayName, bootstrap.Password!, cancellationToken);
+                _logger.LogWarning(acted
+                    ? "Recovered platform SuperAdmin {Email}: sign in with the configured password, enrol an authenticator and choose a new password. Then remove PlatformAuth:Bootstrap (including Recover) from the configuration."
+                    : "PlatformAuth:Bootstrap:Recover is still set, but {Email} has already signed in since the recovery -- nothing changed. Remove PlatformAuth:Bootstrap from the configuration.",
+                    bootstrap.Email);
+                return;
+            }
+
             var db = scope.ServiceProvider.GetRequiredService<PlatformAuthContext>();
             if (await db.PlatformUsers.AnyAsync(cancellationToken)) return;
 

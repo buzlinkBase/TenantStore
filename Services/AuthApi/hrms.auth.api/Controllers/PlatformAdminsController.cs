@@ -35,6 +35,12 @@ public class PlatformAdminsController : ControllerBase
     [ProducesResponseType(typeof(List<PlatformAdminView>), StatusCodes.Status200OK)]
     public async Task<IActionResult> List(CancellationToken ct) => Ok(await _admins.ListAsync(ct));
 
+    /// <summary>What operators have done to operators, newest first.</summary>
+    [HttpGet("audit")]
+    [ProducesResponseType(typeof(PlatformAdminAuditPage), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Audit([FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
+        Ok(await _admins.GetAuditAsync(page, pageSize, ct));
+
     [HttpPost]
     [ProducesResponseType(typeof(PlatformAdminCredentials), StatusCodes.Status200OK)]
     public async Task<IActionResult> Create([FromBody] CreatePlatformAdminRequest request, CancellationToken ct) =>

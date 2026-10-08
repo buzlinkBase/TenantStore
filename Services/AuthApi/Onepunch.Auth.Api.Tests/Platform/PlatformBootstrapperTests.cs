@@ -23,6 +23,9 @@ public class PlatformBootstrapperTests : IDisposable
         var services = new ServiceCollection();
         services.AddScoped(_ => _h.NewContext());
         services.AddScoped(sp => _h.NewService(sp.GetRequiredService<PlatformAuthContext>()));
+        services.AddScoped(sp => new PlatformAdminService(
+            sp.GetRequiredService<PlatformAuthContext>(), sp.GetRequiredService<PlatformAuthService>(),
+            new PlatformPasswordGenerator(), _h.Time, NullLogger<PlatformAdminService>.Instance));
         var provider = services.BuildServiceProvider();
 
         var settings = new PlatformAuthSettings { Bootstrap = bootstrap };
@@ -74,5 +77,38 @@ public class PlatformBootstrapperTests : IDisposable
         await act.Should().NotThrowAsync();
         await using var db = _h.NewContext();
         (await db.PlatformUsers.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task WithRecoverSet_ALockedOutSuperAdmin_IsTakenBack_EvenThoughTheTableIsNotEmpty()
+    {
+        var locked = await _h.SeedUserAsync("root@example.com", PlatformRoles.SuperAdmin);
+        await using (var db = _h.NewContext())
+        {
+            (await db.PlatformUsers.SingleAsync(x => x.Id == locked.Id)).IsActive = false;
+            await db.SaveChangesAsync();
+        }
+
+        await Bootstrapper(new() { Email = "root@example.com", Password = PlatformAuthHarness.NewStrongPassword, Recover = true })
+            .StartAsync(CancellationToken.None);
+
+        await using var check = _h.NewContext();
+        var user = await check.PlatformUsers.SingleAsync();
+        user.IsActive.Should().BeTrue();
+        user.MustChangePassword.Should().BeTrue();
+        (await check.PlatformAdminAudits.SingleAsync()).Action.Should().Be("operator.recovered");
+    }
+
+    [Fact]
+    public async Task WithoutRecover_AStaleBootstrapConfig_CannotTouchAnExistingOperator()
+    {
+        var existing = await _h.SeedUserAsync("root@example.com", PlatformRoles.SuperAdmin);
+
+        await Bootstrapper(new() { Email = "root@example.com", Password = PlatformAuthHarness.NewStrongPassword })
+            .StartAsync(CancellationToken.None);
+
+        await using var db = _h.NewContext();
+        (await db.PlatformUsers.SingleAsync(x => x.Id == existing.Id)).MustChangePassword.Should().BeFalse();
+        (await db.PlatformAdminAudits.CountAsync()).Should().Be(0);
     }
 }

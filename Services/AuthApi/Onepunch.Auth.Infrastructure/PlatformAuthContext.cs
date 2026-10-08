@@ -24,6 +24,7 @@ public class PlatformAuthContext : DbContext
 
     public DbSet<PlatformUser> PlatformUsers { get; set; }
     public DbSet<PlatformRefreshToken> PlatformRefreshTokens { get; set; }
+    public DbSet<PlatformAdminAudit> PlatformAdminAudits { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -42,6 +43,18 @@ public class PlatformAuthContext : DbContext
             user.Property(x => x.SecurityStamp).HasMaxLength(64).IsRequired();
             user.Property(x => x.MfaSecretProtected).HasMaxLength(1000);
             user.Property(x => x.CreatedBy).HasMaxLength(256);
+        });
+
+        modelBuilder.Entity<PlatformAdminAudit>(audit =>
+        {
+            audit.ToTable("PlatformAdminAudits");
+            audit.HasKey(x => x.Id);
+            audit.HasIndex(x => x.CreatedUtc);
+            audit.HasIndex(x => x.TargetId);
+            audit.Property(x => x.ActorEmail).HasMaxLength(256).IsRequired();
+            audit.Property(x => x.Action).HasMaxLength(64).IsRequired();
+            audit.Property(x => x.TargetEmail).HasMaxLength(256);
+            audit.Property(x => x.Detail).HasMaxLength(500);
         });
 
         modelBuilder.Entity<PlatformRefreshToken>(token =>
