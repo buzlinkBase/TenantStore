@@ -108,6 +108,8 @@ public class SubscriptionDiscount : BaseEntity
     public string? CreatedBy { get; set; }
 }
 
+/// <summary>Stored as text, so new values need no migration. The ones after <see cref="Other"/>
+/// come from online checkout (PaymentCheckout), mapped from the gateway's payment source.</summary>
 public enum PaymentMethod
 {
     BankTransfer,
@@ -117,9 +119,15 @@ public enum PaymentMethod
     Maya,
     Card,
     Other,
+    QrPh,
+    GrabPay,
+    ShopeePay,
+    OnlineBanking,
+    BillEase,
 }
 
-/// <summary>A payment for one billing period. Phase 1: recorded by a platform admin.</summary>
+/// <summary>A payment for one billing period: recorded by a platform admin, or by the payment
+/// gateway's webhook when an online checkout is paid (RecordedBy "paymongo").</summary>
 [Audited]
 public class SubscriptionPayment : BaseEntity
 {

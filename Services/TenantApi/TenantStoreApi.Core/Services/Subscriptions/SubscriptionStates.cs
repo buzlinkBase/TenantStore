@@ -52,6 +52,14 @@ public static class BillingEventTypes
     public const string CanceledByAdmin = "subscription.canceled-by-admin";
     public const string PeriodExtended = "subscription.period-extended";
     public const string PaymentVoided = "payment.voided";
+
+    // Online checkout (SubscriptionCheckoutService).
+    public const string CheckoutStarted = "checkout.started";
+    public const string CheckoutPaid = "checkout.paid";
+    /// <summary>The gateway reported a payment no checkout here matches -- for an operator to reconcile.</summary>
+    public const string CheckoutUnmatched = "checkout.unmatched";
+    /// <summary>Paid, but not the amount quoted -- not applied, for an operator to reconcile.</summary>
+    public const string CheckoutAmountMismatch = "checkout.amount-mismatch";
 }
 
 public sealed class TrialingState : ISubscriptionState
