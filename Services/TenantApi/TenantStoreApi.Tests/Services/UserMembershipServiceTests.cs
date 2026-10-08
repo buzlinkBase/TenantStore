@@ -2,6 +2,7 @@ using FluentAssertions;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Moq;
+using Onepunch.Common.Lib.DTO;
 using TenantStoreApi.Core;
 using TenantStoreApi.Core.Services;
 using TenantStoreApi.Domain.Entities;
@@ -433,5 +434,58 @@ public class UserMembershipServiceTests
 
         var target = await sut.GetMemberAsync(targetId, tenantId, CancellationToken.None);
         target.Should().BeNull();
+    }
+
+    // ── RevokeForSeparatedEmployeeAsync ──────────────────────────────────────────────────
+    // Driven by hrms-api when an employee is Terminated/Resigned/Retired/Deceased -- no caller,
+    // so no permission checks; the Owner is never locked out this way.
+
+    [Fact]
+    public async Task RevokeForSeparatedEmployeeAsync_RevokesAnActiveMemberAndAnnouncesIt()
+    {
+        var uow = TenantTestContextFactory.CreateUnitOfWork();
+        await new PermissionCatalogSeederService(uow).EnsureSeededAsync(CancellationToken.None);
+        var publisher = new Mock<IPublishEndpoint>();
+        var sut = new UserMembershipService(uow, publisher.Object, new RoleService(uow), new MembershipRoleService(uow));
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        await AddMemberAsync(sut, tenantId, userId, "Employee");
+
+        var revoked = await sut.RevokeForSeparatedEmployeeAsync(userId, tenantId, CancellationToken.None);
+        await sut.Context.SaveChangesAsync(CancellationToken.None);
+
+        revoked.Should().BeTrue();
+        (await sut.GetMemberAsync(userId, tenantId, CancellationToken.None))!.Status.Should().Be("Revoked");
+        publisher.Verify(p => p.Publish(
+            It.Is<MembershipChanged>(m => m.UserId == userId && m.TenantId == tenantId
+                && m.ChangeType == "StatusChanged" && m.NewStatus == "Revoked"),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RevokeForSeparatedEmployeeAsync_LeavesTheOwnerAlone()
+    {
+        var (sut, _) = await CreateSutAsync();
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        await AddMemberAsync(sut, tenantId, userId, "Owner");
+
+        (await sut.RevokeForSeparatedEmployeeAsync(userId, tenantId, CancellationToken.None)).Should().BeFalse();
+
+        (await sut.GetMemberAsync(userId, tenantId, CancellationToken.None))!.Status.Should().NotBe("Revoked");
+    }
+
+    [Fact]
+    public async Task RevokeForSeparatedEmployeeAsync_IsIdempotentAndIgnoresUnknownAccounts()
+    {
+        var (sut, _) = await CreateSutAsync();
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        await AddMemberAsync(sut, tenantId, userId, "Employee");
+
+        (await sut.RevokeForSeparatedEmployeeAsync(userId, tenantId, CancellationToken.None)).Should().BeTrue();
+        await sut.Context.SaveChangesAsync(CancellationToken.None);
+        (await sut.RevokeForSeparatedEmployeeAsync(userId, tenantId, CancellationToken.None)).Should().BeFalse();
+        (await sut.RevokeForSeparatedEmployeeAsync(Guid.NewGuid(), tenantId, CancellationToken.None)).Should().BeFalse();
     }
 }

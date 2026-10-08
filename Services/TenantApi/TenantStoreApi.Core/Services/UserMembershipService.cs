@@ -342,6 +342,33 @@ public class UserMembershipService : BaseService<UserMembership>
 
     }
 
+    /// <summary>
+    /// System-initiated revoke for a separated employee (no caller, so none of UpdateStatusAsync's
+    /// permission checks). Skips the Owner, who is never locked out this way, and a membership
+    /// that is already Revoked. Re-granting access stays a manual Security > Users action.
+    /// Returns true when the membership was revoked.
+    /// </summary>
+    public async Task<bool> RevokeForSeparatedEmployeeAsync(Guid userId, Guid tenantId, CancellationToken token = default)
+    {
+        var target = await GetMemberAsync(userId, tenantId, token);
+        if (target == null
+            || target.HasRole(TenantRoles.Owner)
+            || string.Equals(target.Status, "Revoked", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        target.Status = "Revoked";
+        await ModifyAsync(target, token);
+
+        await _publisher.Publish(new MembershipChanged
+        {
+            UserId = userId,
+            TenantId = tenantId,
+            ChangeType = "StatusChanged",
+            NewStatus = "Revoked"
+        }, token);
+        return true;
+    }
+
     private async Task PublishRoleChangedAsync(Guid userId, Guid tenantId, IEnumerable<string> roles, CancellationToken token)
     {
         await _publisher.Publish(new MembershipChanged

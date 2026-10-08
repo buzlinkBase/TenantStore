@@ -24,6 +24,8 @@ public static class TenantRabbitMqConfiguration
             x.AddConsumer<InvitationAcceptedWorker, InvitationAcceptedWorkerDefinition>();
             // A company finished setting up: it's activated, and the owner's trial starts.
             x.AddConsumer<TenantActivatedWorker, TenantActivatedWorkerDefinition>();
+            // A separated employee's login is revoked -- see EmployeeSeparatedWorker.
+            x.AddConsumer<EmployeeSeparatedWorker, EmployeeSeparatedWorkerDefinition>();
             x.SetEndpointNameFormatter(KebabCaseEndpointNameFormatter.Instance);
             x.AddEntityFrameworkOutbox<TenantContext>(o =>
             {
@@ -108,6 +110,14 @@ public class InvitationAcceptedWorkerDefinition : ConsumerDefinition<InvitationA
     public InvitationAcceptedWorkerDefinition()
     {
         EndpointName = "tenant-service-invitation-accepted-que";
+    }
+}
+
+public class EmployeeSeparatedWorkerDefinition : ConsumerDefinition<EmployeeSeparatedWorker>
+{
+    public EmployeeSeparatedWorkerDefinition()
+    {
+        EndpointName = "tenant-service-employee-separated-que";
     }
 }
 
