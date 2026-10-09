@@ -14,6 +14,9 @@ public sealed class SubscriptionOptions
     public string TrialPlanCode { get; set; } = "premium";
     /// <summary>Full access after a period ends unpaid, before suspension.</summary>
     public int GraceDays { get; set; } = 7;
+    /// <summary>How long before a paid period ends the owner is reminded, and may pay for the
+    /// next one online.</summary>
+    public int RenewalWindowDays { get; set; } = 7;
     /// <summary>How long a canceled account's data is kept.</summary>
     public int PurgeAfterDays { get; set; } = 90;
     /// <summary>

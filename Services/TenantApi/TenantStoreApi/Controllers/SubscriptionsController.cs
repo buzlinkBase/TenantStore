@@ -2,6 +2,7 @@ using TenantStoreApi.Core.Filters;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TenantStoreApi.Core.Services.Payments;
 using TenantStoreApi.Core.Services.Subscriptions;
 using TenantStoreApi.Domain.Entities.Subs;
 
@@ -25,6 +26,7 @@ public class SubscriptionsController : ControllerBase
 
     private readonly SubscriptionViewService _views;
     private readonly AccountSubscriptionService _subscriptions;
+    private readonly SubscriptionCheckoutService _checkouts;
     private readonly UserMembershipService _members;
     private readonly TenantService _tenants;
     private readonly ITenantProvider _tenantProvider;
@@ -32,12 +34,14 @@ public class SubscriptionsController : ControllerBase
     public SubscriptionsController(
         SubscriptionViewService views,
         AccountSubscriptionService subscriptions,
+        SubscriptionCheckoutService checkouts,
         UserMembershipService members,
         TenantService tenants,
         ITenantProvider tenantProvider)
     {
         _views = views;
         _subscriptions = subscriptions;
+        _checkouts = checkouts;
         _members = members;
         _tenants = tenants;
         _tenantProvider = tenantProvider;
@@ -63,7 +67,8 @@ public class SubscriptionsController : ControllerBase
     [HttpGet("plans")]
     [ProducesResponseType(typeof(List<PlanView>), StatusCodes.Status200OK)]
     public Task<IActionResult> GetPlans(CancellationToken token) =>
-        WithBillingAccess(ViewBilling, token, async _ => Ok(await _views.GetPublicPlansAsync(token)));
+        WithBillingAccess(ViewBilling, token, async tenantId =>
+            Ok(await _views.GetVisiblePlansAsync(await OwnerOfAsync(tenantId, token), token)));
 
     /// <summary>Choose a plan: upgrades wait for payment, downgrades apply at period end.</summary>
     [HttpPost("change")]
@@ -107,6 +112,21 @@ public class SubscriptionsController : ControllerBase
             await _subscriptions.CommitChangesAsync(token);
             return Ok();
         });
+
+    /// <summary>Pay online: opens the payment gateway's page for what's due now (BillingView.PaymentDue).
+    /// The browser goes to CheckoutUrl and comes back to /billing/payment?checkout={id}.</summary>
+    [HttpPost("checkout")]
+    [ProducesResponseType(typeof(CheckoutStarted), StatusCodes.Status200OK)]
+    public Task<IActionResult> StartCheckout(CancellationToken token) =>
+        WithBillingAccess(ManageBilling, token, async tenantId =>
+            Ok(await _checkouts.StartAsync(await OwnerOfAsync(tenantId, token), User.GetRequiredUserId(), token)));
+
+    /// <summary>Where an online payment stands -- the return screen polls this until it's paid.</summary>
+    [HttpGet("checkout/{checkoutId:guid}")]
+    [ProducesResponseType(typeof(CheckoutView), StatusCodes.Status200OK)]
+    public Task<IActionResult> GetCheckout(Guid checkoutId, CancellationToken token) =>
+        WithBillingAccess(ViewBilling, token, async tenantId =>
+            Ok(await _checkouts.RefreshAsync(await OwnerOfAsync(tenantId, token), checkoutId, token)));
 
     private string ActorId => User.GetRequiredUserId().ToString();
 

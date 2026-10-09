@@ -57,7 +57,22 @@ public class SubscriptionDiscountConfig : IEntityTypeConfiguration<SubscriptionD
     }
 }
 
-public class SubscriptionPaymentConfig : IEntityTypeConfiguration<SubscriptionPayment>
+public class PlanOfferConfig : IEntityTypeConfiguration<PlanOffer>
+{
+    public void Configure(EntityTypeBuilder<PlanOffer> builder)
+    {
+        builder.Property(x => x.CreatedBy).HasMaxLength(128);
+        builder.HasOne(x => x.Plan)
+            .WithMany()
+            .HasForeignKey(x => x.PlanId)
+            .OnDelete(DeleteBehavior.Cascade);
+        // Not unique: revoking soft-deletes, and the same plan can be offered again afterwards.
+        builder.HasIndex(x => new { x.PlanId, x.OwnerUserId });
+        builder.HasIndex(x => x.OwnerUserId);
+    }
+}
+
+public class SubscriptionPaymentConfig: IEntityTypeConfiguration<SubscriptionPayment>
 {
     public void Configure(EntityTypeBuilder<SubscriptionPayment> builder)
     {

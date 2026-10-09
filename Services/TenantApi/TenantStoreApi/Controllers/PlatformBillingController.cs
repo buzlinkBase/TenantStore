@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TenantStoreApi.Core.Services.Platform;
 using TenantStoreApi.Core.Services.Subscriptions;
 using Onepunch.Common.Lib.Platform;
 using TenantStoreApi.Domain.Entities.Subs;
@@ -26,17 +27,20 @@ public class PlatformBillingController : ControllerBase
     private readonly SubscriptionViewService _views;
     private readonly PlanCatalogService _plans;
     private readonly BillingEventService _events;
+    private readonly PlatformDirectoryService _directory;
 
     public PlatformBillingController(
         AccountSubscriptionService subscriptions,
         SubscriptionViewService views,
         PlanCatalogService plans,
-        BillingEventService events)
+        BillingEventService events,
+        PlatformDirectoryService directory)
     {
         _subscriptions = subscriptions;
         _views = views;
         _plans = plans;
         _events = events;
+        _directory = directory;
     }
 
     /// <summary>Who did it, for the billing history: the signed-in operator, from their token.</summary>
@@ -68,6 +72,51 @@ public class PlatformBillingController : ControllerBase
         {
             await _plans.SetEntitlementAsync(code, key, request.Value, Actor, token);
             await _plans.CommitChangesAsync(token);
+            return Ok();
+        });
+
+    // ── Private plan offers ──────────────────────────────────────────────────────────────────
+
+    /// <summary>The accounts a private plan is offered to.</summary>
+    [PlatformAuthorize(PlatformPermissions.AccountsRead)]
+    [HttpGet("plans/{code}/offers")]
+    [ProducesResponseType(typeof(List<PlanOfferView>), StatusCodes.Status200OK)]
+    public Task<IActionResult> GetPlanOffers(string code, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            var offers = await _subscriptions.GetOffersAsync(code, token);
+            var identities = await _directory.OwnerIdentitiesAsync(offers.Select(o => o.OwnerUserId).Distinct().ToList(), token);
+            return Ok(offers.Select(o => ToView(o, identities)).ToList());
+        });
+
+    /// <summary>Offer a plan to one account, or change when its offer expires.</summary>
+    [PlatformAuthorize(PlatformPermissions.PlansManage)]
+    [HttpPut("plans/{code}/offers/{ownerUserId:guid}")]
+    [ProducesResponseType(typeof(PlanOfferView), StatusCodes.Status200OK)]
+    public Task<IActionResult> OfferPlan(string code, Guid ownerUserId, [FromBody] OfferPlanRequest request, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            var offer = await _subscriptions.OfferPlanAsync(code, ownerUserId, request.ExpiresAtUtc, Actor, token);
+            await _subscriptions.CommitChangesAsync(token);
+            var identities = await _directory.OwnerIdentitiesAsync([ownerUserId], token);
+            return Ok(ToView(offer, identities));
+        });
+
+    private static PlanOfferView ToView(PlanOffer offer, Dictionary<Guid, (string? Email, string? Name)> identities)
+    {
+        identities.TryGetValue(offer.OwnerUserId, out var identity);
+        return new PlanOfferView(offer.Id, offer.OwnerUserId, identity.Email, identity.Name, offer.ExpiresAtUtc, offer.CreatedBy, offer.CreatedAt);
+    }
+
+    /// <summary>Withdraw an offer. An account already on the plan stays on it.</summary>
+    [PlatformAuthorize(PlatformPermissions.PlansManage)]
+    [HttpDelete("plans/{code}/offers/{ownerUserId:guid}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public Task<IActionResult> RevokePlanOffer(string code, Guid ownerUserId, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            await _subscriptions.RevokeOfferAsync(code, ownerUserId, Actor, token);
+            await _subscriptions.CommitChangesAsync(token);
             return Ok();
         });
 
@@ -184,6 +233,15 @@ public record SetValueRequest
 {
     public string Value { get; set; } = string.Empty;
 }
+
+public record OfferPlanRequest
+{
+    /// <summary>Unset: the offer never expires.</summary>
+    public DateTime? ExpiresAtUtc { get; set; }
+}
+
+public record PlanOfferView(
+    Guid Id, Guid OwnerUserId, string? OwnerEmail, string? OwnerName, DateTime? ExpiresAtUtc, string? CreatedBy, DateTime CreatedAt);
 
 public record ExtendTrialRequest
 {

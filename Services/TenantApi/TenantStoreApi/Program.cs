@@ -141,6 +141,7 @@ internal class Program
         builder.RegisterSelfServices();
         builder.RegisterCoreServices();
         builder.AddSubscriptions();
+        builder.AddPayments();
         //builder.TenantConfigKafka();
         builder.TenantConfigRabbitMq();
         builder.Services.AddEndpointsApiExplorer();

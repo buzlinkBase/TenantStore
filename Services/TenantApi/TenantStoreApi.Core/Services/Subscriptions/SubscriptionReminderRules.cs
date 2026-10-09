@@ -58,10 +58,11 @@ public static class SubscriptionReminderSchedule
                 IsUnpaidExpiredTrial(s) && s.TrialEndsAtUtc is { } ends && now - ends < TimeSpan.FromDays(1)
                     ? Day(ends) : null),
 
-            // Seven days before a paid period ends (not when it's been canceled).
-            new SubscriptionReminderRule(SubscriptionEmailTemplates.PaymentDue, (s, now, _) =>
+            // When the renewal window opens before a paid period ends (not when it's been canceled)
+            // -- the same moment the billing screen starts offering to pay for the next period.
+            new SubscriptionReminderRule(SubscriptionEmailTemplates.PaymentDue, (s, now, o) =>
                 s.SubStatus == AccountSubscriptionStatus.Active && !s.CancelAtPeriodEnd
-                && s.CurrentPeriodEndUtc is { } end && end > now && end - now <= TimeSpan.FromDays(7)
+                && s.CurrentPeriodEndUtc is { } end && end > now && end - now <= TimeSpan.FromDays(o.RenewalWindowDays)
                     ? Day(end) : null),
 
             new SubscriptionReminderRule(SubscriptionEmailTemplates.PastDue, (s, _, _) =>
