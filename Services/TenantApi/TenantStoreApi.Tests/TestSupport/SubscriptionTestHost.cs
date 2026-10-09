@@ -44,7 +44,7 @@ public sealed class SubscriptionTestHost
     public ManualClock Clock { get; } = new(Start);
     public Mock<IPublishEndpoint> Publisher { get; } = new();
     public SubscriptionOptions Options { get; } = new();
-    public FakeUsageProvider HrmsUsage { get; } = new(EntitlementKeys.EmployeesMax, EntitlementKeys.PayrollCore);
+    public FakeUsageProvider HrmsUsage { get; } = new(EntitlementKeys.EmployeesMax, EntitlementKeys.PayrollCore, EntitlementKeys.StorageMaxMb);
     public FakeUsageProvider AdmsUsage { get; } = new(EntitlementKeys.BiometricDevicesMax);
     public SubscriptionStateMachine StateMachine { get; } = new();
 
@@ -58,6 +58,12 @@ public sealed class SubscriptionTestHost
             AnnualPrice = p.AnnualPrice, Currency = p.Currency, PricesIncludeVat = p.PricesIncludeVat,
         }));
         Uow.Context.PlanEntitlements.AddRange(PlanSeed.Entitlements());
+        Uow.Context.StorageAddOnOfferings.AddRange(StorageAddOnSeed.Offerings.Select(o => new StorageAddOnOffering
+        {
+            Id = o.Id, Code = o.Code, Name = o.Name, Description = o.Description, SortOrder = o.SortOrder,
+            BlockMb = o.BlockMb, MonthlyPrice = o.MonthlyPrice, Currency = o.Currency,
+            PricesIncludeVat = o.PricesIncludeVat, IsPublic = o.IsPublic, IsActive = o.IsActive,
+        }));
         Uow.Context.SaveChanges();
     }
 
@@ -76,10 +82,14 @@ public sealed class SubscriptionTestHost
     public DataPurgeService DataPurge => new(Uow, Events, Notifier, Publisher.Object, WrappedOptions, Clock);
 
     public SubscriptionLifecycleService Lifecycle =>
-        new(Uow, StateMachine, Events, Notifier, Usage, DataPurge, Publisher.Object, WrappedOptions, Clock);
+        new(Uow, StateMachine, Events, Notifier, Usage, DataPurge, Publisher.Object, WrappedOptions, Clock, Storage);
 
     public FakePaymentGateway Gateway { get; } = new();
     public PaymentOptions PaymentOptions { get; } = new() { ReturnBaseUrl = "https://hris.test/" };
+
+    public StorageOfferingCatalogService StorageCatalog => new(Uow, Subscriptions, Events, Notifier, Clock);
+
+    public StorageAddOnService Storage => new(Uow, Subscriptions, StorageCatalog, Resolver, Usage, Events, Notifier, Clock);
 
     public SubscriptionViewService Views => new(Subscriptions, Resolver, Usage, WrappedOptions, Clock, Gateway);
 
@@ -87,7 +97,7 @@ public sealed class SubscriptionTestHost
     /// checkout service commits, and BuzlinkRepository's unit of work commits only once.</summary>
     public SubscriptionCheckoutService Checkouts =>
         new(TenantTestContextFactory.CreateUnitOfWork(Uow.Context), Subscriptions, Events, Gateway,
-            Microsoft.Extensions.Options.Options.Create(PaymentOptions), Clock);
+            Microsoft.Extensions.Options.Options.Create(PaymentOptions), Clock, Storage);
 
     /// <summary>A company owned by <paramref name="owner"/>, with its hidden Owner membership.</summary>
     public Guid AddCompany(Guid owner, string name = "Acme", string email = "owner@acme.ph", bool activated = true)
@@ -101,7 +111,7 @@ public sealed class SubscriptionTestHost
             Roles = [new MembershipRole { Id = Guid.NewGuid(), Role = "Owner" }],
         });
         Uow.Context.SaveChanges();
-        HrmsUsage.Usage[tenantId] = new() { [EntitlementKeys.EmployeesMax] = 0 };
+        HrmsUsage.Usage[tenantId] = new() { [EntitlementKeys.EmployeesMax] = 0, [EntitlementKeys.StorageMaxMb] = 0 };
         AdmsUsage.Usage[tenantId] = new() { [EntitlementKeys.BiometricDevicesMax] = 0 };
         return tenantId;
     }

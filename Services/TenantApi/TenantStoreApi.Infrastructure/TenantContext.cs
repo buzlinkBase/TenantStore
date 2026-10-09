@@ -24,6 +24,10 @@ public class TenantContext : DbContext
     public DbSet<SubscriptionDiscount> SubscriptionDiscounts { get; set; }
     public DbSet<SubscriptionPayment> SubscriptionPayments { get; set; }
     public DbSet<PaymentCheckout> PaymentCheckouts { get; set; }
+    public DbSet<StorageAddOnOffering> StorageAddOnOfferings { get; set; }
+    public DbSet<StorageAddOnOffer> StorageAddOnOffers { get; set; }
+    public DbSet<StorageAddOn> StorageAddOns { get; set; }
+    public DbSet<StorageAddOnPayment> StorageAddOnPayments { get; set; }
     public DbSet<BillingEvent> BillingEvents { get; set; }
     public DbSet<PlatformSetting> PlatformSettings { get; set; }
     public DbSet<Permission> Permissions { get; set; }

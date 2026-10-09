@@ -110,6 +110,7 @@ public class EntitlementResolverService
             .AsNoTracking()
             .Include(s => s.Plan).ThenInclude(p => p.Entitlements)
             .Include(s => s.Overrides)
+            .Include(s => s.StorageAddOns)
             .FirstOrDefaultAsync(s => s.OwnerUserId == ownerUserId, token);
         if (subscription == null) return null;
 

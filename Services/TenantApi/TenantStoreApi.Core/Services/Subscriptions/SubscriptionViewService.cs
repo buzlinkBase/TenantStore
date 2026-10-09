@@ -40,7 +40,8 @@ public sealed record PaymentDueView(
     string PlanName,
     BillingCycle BillingCycle,
     decimal Amount,
-    PaymentDueReason Reason);
+    PaymentDueReason Reason,
+    decimal AddOnsAmount = 0m);
 
 public sealed record CompanyUsageView(
     Guid TenantId,
@@ -219,7 +220,7 @@ public class SubscriptionViewService
                 p.Id, p.PaidAtUtc, p.Amount, p.Currency, p.Method, p.Reference,
                 planNames.GetValueOrDefault(p.PlanId), p.BillingCycle, p.PeriodStartUtc, p.PeriodEndUtc)).ToList(),
             RecommendedPlanCode = Recommend(subscription, plans, usage),
-            PaymentDue = due == null ? null : new PaymentDueView(due.Plan.Code, due.Plan.Name, due.BillingCycle, due.Amount, due.Reason),
+            PaymentDue = due == null ? null : new PaymentDueView(due.Plan.Code, due.Plan.Name, due.BillingCycle, due.Amount, due.Reason, due.AddOnsAmount),
             OnlinePaymentEnabled = _gateway.IsEnabled,
         };
     }

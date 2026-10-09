@@ -13,6 +13,14 @@ public enum PaymentCheckoutStatus
     Failed,
 }
 
+public enum PaymentCheckoutKind
+{
+    /// <summary>One period of a plan (<see cref="PaymentCheckout.PlanId"/> and cycle).</summary>
+    Plan,
+    /// <summary>Extra storage blocks for one company; PlanId/BillingCycle are the plan running at the time.</summary>
+    StorageAddOn,
+}
+
 /// <summary>
 /// One attempt to pay online: what was quoted (plan, cycle, amount) when the owner clicked Pay,
 /// and the gateway's hosted checkout session it opened. When the gateway reports it paid, the
@@ -21,6 +29,15 @@ public enum PaymentCheckoutStatus
 /// </summary>
 public class PaymentCheckout : BaseEntity
 {
+    /// <summary>What is being bought. Stored as text; existing rows are plan checkouts.</summary>
+    public PaymentCheckoutKind Kind { get; set; } = PaymentCheckoutKind.Plan;
+    /// <summary>Storage checkouts: the offering, block count and company quoted.</summary>
+    public Guid? StorageOfferingId { get; set; }
+    public int? StorageBlocks { get; set; }
+    public Guid? StorageTenantId { get; set; }
+    /// <summary>Storage checkouts: the StorageAddOnPayment recorded when it was paid.</summary>
+    public Guid? StorageAddOnPaymentId { get; set; }
+
     public Guid SubscriptionId { get; set; }
     public virtual AccountSubscription Subscription { get; set; } = null!;
     public Guid OwnerUserId { get; set; }

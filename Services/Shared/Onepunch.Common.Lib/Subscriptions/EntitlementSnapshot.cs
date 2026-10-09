@@ -13,6 +13,8 @@ public enum SubscriptionAccessMode
 public static class EntitlementSources
 {
     public const string Plan = "plan";
+    /// <summary>The plan's value plus purchased storage blocks.</summary>
+    public const string StorageAddOn = "plan+storage-addon";
     public const string AccountOverride = "account-override";
     public const string CompanyOverride = "company-override";
 }

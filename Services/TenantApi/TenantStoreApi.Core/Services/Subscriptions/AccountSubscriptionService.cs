@@ -29,7 +29,9 @@ public enum PaymentDueReason
 
 /// <summary>What paying now buys: one period of <see cref="Plan"/> on <see cref="BillingCycle"/>,
 /// at this account's price.</summary>
-public sealed record PaymentDue(Plan Plan, BillingCycle BillingCycle, decimal Amount, PaymentDueReason Reason);
+/// <param name="Amount">The whole charge: the plan's price plus <paramref name="AddOnsAmount"/>.</param>
+/// <param name="AddOnsAmount">The part of it that renews the company's paid storage blocks.</param>
+public sealed record PaymentDue(Plan Plan, BillingCycle BillingCycle, decimal Amount, PaymentDueReason Reason, decimal AddOnsAmount = 0m);
 
 public sealed record RecordPaymentCommand
 {
@@ -113,6 +115,7 @@ public class AccountSubscriptionService
         Context.AccountSubscriptions
             .Include(s => s.Plan).ThenInclude(p => p.Entitlements)
             .Include(s => s.Overrides)
+            .Include(s => s.StorageAddOns)
             .FirstOrDefaultAsync(s => s.OwnerUserId == ownerUserId, token);
 
     private async Task<AccountSubscription> RequireAsync(Guid ownerUserId, CancellationToken token) =>
@@ -294,7 +297,9 @@ public class AccountSubscriptionService
             ? subscription.Plan
             : await Context.Plans.Include(p => p.Entitlements).FirstOrDefaultAsync(p => p.Id == planId, token);
         if (plan == null) return null;
-        return new PaymentDue(plan, cycle, await PriceForAsync(subscription, plan, cycle, token), reason);
+        // Storage blocks renew with the plan, so paying for a period pays for them too.
+        var addOns = StorageAddOnPricing.RenewalAmount(subscription, cycle);
+        return new PaymentDue(plan, cycle, await PriceForAsync(subscription, plan, cycle, token) + addOns, reason, addOns);
     }
 
     // ── Owner commands ───────────────────────────────────────────────────────────────────────

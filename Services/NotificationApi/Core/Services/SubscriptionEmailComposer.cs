@@ -85,6 +85,12 @@ public static class SubscriptionEmailComposer
                     "Payroll, employee, attendance and tax records are moved to a secure archive and kept for the period the law requires. Everything else, such as notifications, announcements and uploaded files, is deleted.",
                     "Choose a plan from Billing before then to keep everything as it is, or export what you need now.",
                 ]),
+            SubscriptionEmailTemplates.StorageAlmostFull => (
+                $"{CompanyLabel(p)} storage is {p.StoragePercent}% full",
+                [
+                    $"{CompanyLabel(p)} is using {Size(p.StorageUsedMb)} of its {Size(p.StorageLimitMb)} of storage ({p.StoragePercent}%).",
+                    "When it is full, uploads are blocked. Open Billing and add storage blocks to keep going -- the extra space is available as soon as payment is confirmed -- or delete files you no longer need.",
+                ]),
             _ => null,
         };
         if (content is not { } c) return null;
@@ -93,6 +99,17 @@ public static class SubscriptionEmailComposer
         var paragraphs = c.Paragraphs.Where(x => !string.IsNullOrWhiteSpace(x)).ToArray();
         return new SubscriptionEmailContent(c.Subject, BuildHtml(recipient, paragraphs), BuildText(recipient, paragraphs));
     }
+
+    private static string CompanyLabel(SubscriptionReminderEmail p) =>
+        string.IsNullOrWhiteSpace(p.CompanyName) ? "Your company's" : $"{p.CompanyName}'s";
+
+    /// <summary>MB as people read it: "512 MB", "9.5 GB".</summary>
+    public static string Size(int? megabytes) => megabytes switch
+    {
+        null => "unlimited",
+        < 1024 => $"{megabytes} MB",
+        { } mb => $"{Math.Round(mb / 1024.0, 2)} GB",
+    };
 
     private static string UsageLine(SubscriptionReminderEmail p) =>
         (p.CompanyCount, p.EmployeeCount) switch

@@ -11,6 +11,7 @@ public class PaymentCheckoutConfig : IEntityTypeConfiguration<PaymentCheckout>
         builder.Property(x => x.Provider).HasMaxLength(32);
         builder.Property(x => x.ProviderSessionId).HasMaxLength(128);
         builder.Property(x => x.CheckoutUrl).HasMaxLength(1024);
+        builder.Property(x => x.Kind).HasConversion<string>().HasMaxLength(16).HasDefaultValue(PaymentCheckoutKind.Plan);
         builder.Property(x => x.CheckoutStatus).HasConversion<string>().HasMaxLength(16);
         builder.Property(x => x.BillingCycle).HasConversion<string>().HasMaxLength(16);
         builder.Property(x => x.Amount).HasPrecision(18, 2);

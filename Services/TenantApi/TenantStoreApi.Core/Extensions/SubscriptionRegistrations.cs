@@ -37,7 +37,7 @@ public static class SubscriptionRegistrations
         AddRemoteUsageProvider(services, "hrms-api",
             config["Subscriptions:Usage:HrmsApiUrl"], config["Subscriptions:Usage:HrmsApiKey"],
             [
-                EntitlementKeys.EmployeesMax,
+                EntitlementKeys.EmployeesMax, EntitlementKeys.StorageMaxMb,
                 EntitlementKeys.PayrollCore, EntitlementKeys.PayrollLoansIncome, EntitlementKeys.ReportsStatutory,
                 EntitlementKeys.ApprovalsMultilevel, EntitlementKeys.Announcements, EntitlementKeys.ClientsAgency,
             ]);
