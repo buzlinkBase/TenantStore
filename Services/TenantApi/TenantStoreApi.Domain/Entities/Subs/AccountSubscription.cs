@@ -28,6 +28,22 @@ public enum PlanChangeTiming
     AtPeriodEnd,
 }
 
+/// <summary>Where a locked account's data is in its removal: kept, archived and deleted from the live
+/// databases a year after the lock, and finally the archive itself destroyed (DOLE 3 yrs, BIR 5 yrs).</summary>
+public enum DataPurgeState
+{
+    None,
+    /// <summary>Locked, with a purge date set.</summary>
+    Scheduled,
+    /// <summary>Asked hrms-api to archive and delete; waiting for every company to report back.</summary>
+    InProgress,
+    /// <summary>Archived and removed from the live databases; the archive is kept until
+    /// <see cref="AccountSubscription.ArchiveRetainUntilUtc"/>.</summary>
+    Purged,
+    /// <summary>The archive's retention ran out and it was destroyed. Nothing is left.</summary>
+    ArchiveDestroyed,
+}
+
 /// <summary>
 /// An account's subscription. Belongs to the account (the owner <c>User</c>), not to a company:
 /// every company whose <see cref="Tenant.UserId"/> is <see cref="OwnerUserId"/> gets its
@@ -51,8 +67,19 @@ public class AccountSubscription : BaseEntity
     /// <summary>Set on entering PastDue: full access continues until then.</summary>
     public DateTime? GraceEndsAtUtc { get; set; }
     public DateTime? CanceledAtUtc { get; set; }
-    /// <summary>Set on cancellation: company data may be purged after this (phase 2).</summary>
+    /// <summary>Set once the account is read-only (canceled, expired or suspended): its data is
+    /// archived and removed from the live databases after this.</summary>
     public DateTime? PurgeAfterUtc { get; set; }
+    public DataPurgeState PurgeState { get; set; }
+    /// <summary>When every company's data had been archived and removed.</summary>
+    public DateTime? DataPurgedAtUtc { get; set; }
+    /// <summary>The compliance archive is destroyed after this: 5 years from the last payroll /
+    /// attendance / accounting entry.</summary>
+    public DateTime? ArchiveRetainUntilUtc { get; set; }
+    /// <summary>An operator's hold (pending tax audit, protest, refund claim, labor case): blocks
+    /// both the purge and the archive's destruction until released.</summary>
+    public bool LegalHold { get; set; }
+    public string? LegalHoldReason { get; set; }
 
     /// <summary>The owner canceled: access continues to the end of the paid period.</summary>
     public bool CancelAtPeriodEnd { get; set; }

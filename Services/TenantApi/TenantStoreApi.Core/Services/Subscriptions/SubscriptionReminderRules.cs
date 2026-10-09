@@ -83,10 +83,13 @@ public static class SubscriptionReminderSchedule
                 && now - ends >= TimeSpan.FromDays(day) && now - ends < TimeSpan.FromDays(day + 1)
                     ? $"d{day}:{Day(ends)}" : null)));
 
-        // Before a canceled account's data may be purged.
+        // Before a locked account's data (canceled, expired or suspended) is archived and removed.
+        // Not once it's on legal hold: nothing is going to happen on that date.
         rules.AddRange(PurgeWarningDays.Select(days => new SubscriptionReminderRule(
             SubscriptionEmailTemplates.PurgeWarning, (s, now, _) =>
-                s.SubStatus == AccountSubscriptionStatus.Canceled && s.PurgeAfterUtc is { } purge
+                DataPurgeSchedule.IsLocked(s) && !s.LegalHold
+                && s.PurgeState is DataPurgeState.None or DataPurgeState.Scheduled
+                && s.PurgeAfterUtc is { } purge
                 && purge > now && purge - now <= TimeSpan.FromDays(days) && purge - now > TimeSpan.FromDays(days - 1)
                     ? $"d{days}:{Day(purge)}" : null)));
 

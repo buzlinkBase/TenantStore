@@ -92,6 +92,27 @@ public class PlatformAccountsController : ControllerBase
             await _actions.CommitChangesAsync(token);
             return Ok();
         });
+
+    /// <summary>Holds the account's data back from deletion (pending audit, protest, refund claim, case).</summary>
+    [HttpPost("{ownerUserId:guid}/legal-hold")]
+    [PlatformAuthorize(PlatformPermissions.SubscriptionsManage)]
+    public Task<IActionResult> SetLegalHold(Guid ownerUserId, [FromBody] ReasonRequest request, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            await _actions.SetLegalHoldAsync(ownerUserId, request.Reason, Actor, token);
+            await _actions.CommitChangesAsync(token);
+            return Ok();
+        });
+
+    [HttpPost("{ownerUserId:guid}/legal-hold/release")]
+    [PlatformAuthorize(PlatformPermissions.SubscriptionsManage)]
+    public Task<IActionResult> ReleaseLegalHold(Guid ownerUserId, [FromBody] ReasonRequest request, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            await _actions.ReleaseLegalHoldAsync(ownerUserId, request.Reason, Actor, token);
+            await _actions.CommitChangesAsync(token);
+            return Ok();
+        });
 }
 
 /// <summary>Companies across all accounts, for the console's companies screen.</summary>

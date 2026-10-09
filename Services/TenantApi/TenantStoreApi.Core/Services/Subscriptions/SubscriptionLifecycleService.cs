@@ -24,6 +24,7 @@ public class SubscriptionLifecycleService
     private readonly BillingEventService _events;
     private readonly SubscriptionChangeNotifierService _notifier;
     private readonly SubscriptionUsageService _usage;
+    private readonly DataPurgeService _purge;
     private readonly IPublishEndpoint _publisher;
     private readonly SubscriptionOptions _options;
     private readonly TimeProvider _clock;
@@ -35,6 +36,7 @@ public class SubscriptionLifecycleService
         BillingEventService events,
         SubscriptionChangeNotifierService notifier,
         SubscriptionUsageService usage,
+        DataPurgeService purge,
         IPublishEndpoint publisher,
         IOptions<SubscriptionOptions> options,
         TimeProvider clock)
@@ -44,6 +46,7 @@ public class SubscriptionLifecycleService
         _events = events;
         _notifier = notifier;
         _usage = usage;
+        _purge = purge;
         _publisher = publisher;
         _options = options.Value;
         _clock = clock;
@@ -75,6 +78,11 @@ public class SubscriptionLifecycleService
             }
             await _notifier.PublishAsync(subscription.OwnerUserId, transitions[^1].EventType, token);
         }
+
+        // A locked account gets its purge date (and loses it if it paid up), then, if the date has
+        // come, hrms-api is told to archive and delete. The emails below warn ahead of it.
+        DataPurgeSchedule.Reconcile(subscription, now, _options);
+        await _purge.RequestDueAsync(subscription, now, token);
 
         await SendDueEmailsAsync(subscription, now, token);
         await _uow.CommitChangesAsync("", token);

@@ -91,7 +91,12 @@ public sealed record AccountDetail(
     DateTime? PurgeAfterUtc,
     int OverrideCount,
     IReadOnlyList<CompanyListItem> Companies,
-    IReadOnlyList<DiscountView> Discounts);
+    IReadOnlyList<DiscountView> Discounts,
+    DataPurgeState PurgeState = DataPurgeState.None,
+    DateTime? DataPurgedAtUtc = null,
+    DateTime? ArchiveRetainUntilUtc = null,
+    bool LegalHold = false,
+    string? LegalHoldReason = null);
 
 public sealed record PlatformPaymentView(
     Guid Id,
@@ -201,7 +206,12 @@ public class PlatformDirectoryService
             subscription?.PurgeAfterUtc,
             subscription?.Overrides.Count ?? 0,
             companies.Items,
-            discounts);
+            discounts,
+            subscription?.PurgeState ?? DataPurgeState.None,
+            subscription?.DataPurgedAtUtc,
+            subscription?.ArchiveRetainUntilUtc,
+            subscription?.LegalHold ?? false,
+            subscription?.LegalHoldReason);
     }
 
     private async Task<List<AccountListItem>> BuildAccountItemsAsync(List<Guid> ownerIds, CancellationToken token)

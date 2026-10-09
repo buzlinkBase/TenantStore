@@ -75,14 +75,15 @@ public static class SubscriptionEmailComposer
                 [
                     "Your subscription ended and your companies are now read-only.",
                     p.PurgeAfterUtc != null
-                        ? $"Your data is kept until {Date(p.PurgeAfterUtc)}. Choose a plan before then to keep it."
+                        ? $"Your data stays in your account until {Date(p.PurgeAfterUtc)}. Choose a plan before then to keep it."
                         : "Choose a plan from Billing to continue.",
                 ]),
             SubscriptionEmailTemplates.PurgeWarning => (
-                $"Your Onepunch data will be deleted on {Date(p.PurgeAfterUtc)}",
+                $"Your Onepunch data will be removed from your account on {Date(p.PurgeAfterUtc)}",
                 [
-                    $"Your subscription ended, and your companies' data is scheduled for deletion on {Date(p.PurgeAfterUtc)}.",
-                    "Choose a plan from Billing before then to keep it, or export what you need.",
+                    $"Your companies are read-only, and on {Date(p.PurgeAfterUtc)} their data will be removed from your account.",
+                    "Payroll, employee, attendance and tax records are moved to a secure archive and kept for the period the law requires. Everything else, such as notifications, announcements and uploaded files, is deleted.",
+                    "Choose a plan from Billing before then to keep everything as it is, or export what you need now.",
                 ]),
             _ => null,
         };

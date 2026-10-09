@@ -73,8 +73,10 @@ public sealed class SubscriptionTestHost
 
     public PlanAllowanceService Allowance => new(Uow, Resolver, Usage, WrappedOptions);
 
+    public DataPurgeService DataPurge => new(Uow, Events, Notifier, Publisher.Object, WrappedOptions, Clock);
+
     public SubscriptionLifecycleService Lifecycle =>
-        new(Uow, StateMachine, Events, Notifier, Usage, Publisher.Object, WrappedOptions, Clock);
+        new(Uow, StateMachine, Events, Notifier, Usage, DataPurge, Publisher.Object, WrappedOptions, Clock);
 
     public FakePaymentGateway Gateway { get; } = new();
     public PaymentOptions PaymentOptions { get; } = new() { ReturnBaseUrl = "https://hris.test/" };

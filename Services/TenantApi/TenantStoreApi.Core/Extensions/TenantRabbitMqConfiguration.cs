@@ -26,6 +26,8 @@ public static class TenantRabbitMqConfiguration
             x.AddConsumer<TenantActivatedWorker, TenantActivatedWorkerDefinition>();
             // A separated employee's login is revoked -- see EmployeeSeparatedWorker.
             x.AddConsumer<EmployeeSeparatedWorker, EmployeeSeparatedWorkerDefinition>();
+            // hrms-api reports a company's data archived and removed (or the archive destroyed).
+            x.AddConsumer<CompanyDataPurgedWorker, CompanyDataPurgedWorkerDefinition>();
             x.SetEndpointNameFormatter(KebabCaseEndpointNameFormatter.Instance);
             x.AddEntityFrameworkOutbox<TenantContext>(o =>
             {
@@ -118,6 +120,14 @@ public class EmployeeSeparatedWorkerDefinition : ConsumerDefinition<EmployeeSepa
     public EmployeeSeparatedWorkerDefinition()
     {
         EndpointName = "tenant-service-employee-separated-que";
+    }
+}
+
+public class CompanyDataPurgedWorkerDefinition : ConsumerDefinition<CompanyDataPurgedWorker>
+{
+    public CompanyDataPurgedWorkerDefinition()
+    {
+        EndpointName = "tenant-service-company-data-purged-que";
     }
 }
 

@@ -17,8 +17,18 @@ public sealed class SubscriptionOptions
     /// <summary>How long before a paid period ends the owner is reminded, and may pay for the
     /// next one online.</summary>
     public int RenewalWindowDays { get; set; } = 7;
-    /// <summary>How long a canceled account's data is kept.</summary>
-    public int PurgeAfterDays { get; set; } = 90;
+    /// <summary>How long a locked account's operational data is kept (one year). Payroll, employee and
+    /// attendance records are archived rather than destroyed then -- DOLE and BIR retention.</summary>
+    public int PurgeAfterDays { get; set; } = 365;
+    /// <summary>Off: purge dates are still set and the warning emails still go out, but hrms-api is
+    /// never told to delete anything. Deleting is irreversible, so turn it on deliberately.</summary>
+    public bool DataPurgeEnabled { get; set; }
+    /// <summary>The least warning an account gets before its first purge date: an account that had
+    /// already been locked for over a year when purging went live gets this long, not zero.</summary>
+    public int MinPurgeNoticeDays { get; set; } = 30;
+    /// <summary>How long the compliance archive is kept after the company's last payroll / attendance /
+    /// accounting entry. DOLE asks 3 years and BIR 5 (NIRC Sec. 235), so one 5-year clock covers both.</summary>
+    public int ArchiveRetentionYears { get; set; } = 5;
     /// <summary>
     /// How long biometric punches are still stored after a company becomes read-only (Expired,
     /// Suspended, Canceled) -- never past the account's data purge date. Platform-wide for now;

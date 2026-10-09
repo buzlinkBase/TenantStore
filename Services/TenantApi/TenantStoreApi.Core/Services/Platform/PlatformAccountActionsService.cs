@@ -223,6 +223,55 @@ public class PlatformAccountActionsService
         await _notifier.PublishAsync(subscription.OwnerUserId, BillingEventTypes.PaymentVoided, token);
     }
 
+    /// <summary>
+    /// Stops the account's data being purged, and its archive destroyed, until released -- for a
+    /// pending tax audit, protest, refund claim or labor case, where the records must be kept past
+    /// the usual period.
+    /// </summary>
+    public async Task SetLegalHoldAsync(Guid ownerUserId, string? reason, string? actor, CancellationToken token = default)
+    {
+        reason = RequireReason(reason);
+        var subscription = await RequireAsync(ownerUserId, token);
+        if (subscription.PurgeState == DataPurgeState.ArchiveDestroyed)
+            throw new SubscriptionRuleException("This account's data has already been destroyed; there is nothing to hold.");
+        if (subscription.LegalHold)
+            throw new SubscriptionRuleException("This account is already on legal hold.");
+
+        subscription.LegalHold = true;
+        subscription.LegalHoldReason = reason;
+        Touch(subscription);
+
+        await _events.AddAsync(subscription, BillingEventTypes.LegalHoldSet, new { reason }, actor, token: token);
+    }
+
+    /// <summary>
+    /// Lifts a legal hold. If the purge date passed during the hold, it moves to the minimum notice
+    /// from now, so the owner is warned (and can pay or export) before anything is deleted.
+    /// </summary>
+    public async Task ReleaseLegalHoldAsync(Guid ownerUserId, string? reason, string? actor, CancellationToken token = default)
+    {
+        reason = RequireReason(reason);
+        var subscription = await RequireAsync(ownerUserId, token);
+        if (!subscription.LegalHold)
+            throw new SubscriptionRuleException("This account isn't on legal hold.");
+
+        var earliest = Now.AddDays(_options.MinPurgeNoticeDays);
+        subscription.LegalHold = false;
+        subscription.LegalHoldReason = null;
+        if (subscription.PurgeState is DataPurgeState.Scheduled or DataPurgeState.InProgress
+            && subscription.PurgeAfterUtc is { } purgeAfter && purgeAfter < earliest)
+        {
+            subscription.PurgeAfterUtc = earliest;
+            subscription.PurgeState = DataPurgeState.Scheduled;
+        }
+        if (subscription.PurgeState == DataPurgeState.Purged
+            && subscription.ArchiveRetainUntilUtc is { } retainUntil && retainUntil < earliest)
+            subscription.ArchiveRetainUntilUtc = earliest;
+        Touch(subscription);
+
+        await _events.AddAsync(subscription, BillingEventTypes.LegalHoldReleased, new { reason }, actor, token: token);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private async Task<AccountSubscription> RequireAsync(Guid ownerUserId, CancellationToken token) =>

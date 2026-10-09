@@ -15,6 +15,9 @@ public class AccountSubscriptionConfig : IEntityTypeConfiguration<AccountSubscri
         builder.Property(x => x.BillingCycle).HasConversion<string>().HasMaxLength(16);
         builder.Property(x => x.PendingBillingCycle).HasConversion<string>().HasMaxLength(16);
         builder.Property(x => x.PendingChangeTiming).HasConversion<string>().HasMaxLength(16);
+        builder.Property(x => x.PurgeState).HasConversion<string>().HasMaxLength(16).HasDefaultValue(DataPurgeState.None);
+        builder.Property(x => x.LegalHoldReason).HasMaxLength(500);
+        builder.HasIndex(x => x.PurgeAfterUtc);
         builder.Property(x => x.LockedMonthlyPrice).HasPrecision(18, 2);
         builder.Property(x => x.LockedAnnualPrice).HasPrecision(18, 2);
         builder.Property(x => x.ConcurrencyStamp).IsConcurrencyToken();

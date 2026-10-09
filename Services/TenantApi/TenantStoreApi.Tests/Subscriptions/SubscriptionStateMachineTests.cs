@@ -26,6 +26,12 @@ public class SubscriptionStateMachineTests
     }
 
     [Fact]
+    public void PurgeAfterDays_DefaultsToOneYear()
+    {
+        _options.PurgeAfterDays.Should().Be(365);
+    }
+
+    [Fact]
     public void Trial_StaysTrialing_UntilItsEnd()
     {
         var subscription = new AccountSubscription { SubStatus = AccountSubscriptionStatus.Trialing, TrialEndsAtUtc = Now.AddMinutes(1) };

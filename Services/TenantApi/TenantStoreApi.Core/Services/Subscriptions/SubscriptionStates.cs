@@ -48,6 +48,16 @@ public static class BillingEventTypes
     public const string DiscountRemoved = "discount.removed";
     public const string EmailSent = "email.sent";
 
+    // Data removal (DataPurgeService). A year after the lock, the company's data is archived and
+    // deleted from the live databases; five years after its last entry the archive is destroyed.
+    public const string DataPurgeRequested = "data.purge-requested";
+    public const string DataPurged = "data.purged";
+    public const string DataPurgeFailed = "data.purge-failed";
+    public const string ArchiveDestroyRequested = "data.archive-destroy-requested";
+    public const string ArchiveDestroyed = "data.archive-destroyed";
+    public const string LegalHoldSet = "data.legal-hold-set";
+    public const string LegalHoldReleased = "data.legal-hold-released";
+
     // Platform operator actions (PlatformAccountActionsService).
     public const string SuspendedByAdmin = "subscription.suspended-by-admin";
     public const string Reinstated = "subscription.reinstated";
