@@ -57,7 +57,11 @@ public sealed class PayMongoGateway : IPaymentGateway
                     cancel_url = request.CancelUrl,
                     reference_number = request.CheckoutId.ToString("N"),
                     description = request.Description,
-                    statement_descriptor = _options.StatementDescriptor,
+                    // A JSON null in appsettings binds as "", which PayMongo refuses ("cannot be blank"):
+                    // blank means unset, so it's left out and the account's default descriptor applies.
+                    statement_descriptor = string.IsNullOrWhiteSpace(_options.StatementDescriptor)
+                        ? null
+                        : _options.StatementDescriptor.Trim(),
                     send_email_receipt = true,
                     show_description = true,
                     show_line_items = true,

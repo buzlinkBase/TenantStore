@@ -26,11 +26,15 @@ public class PayMongoGatewayTests
         }
     }
 
-    private static (PayMongoGateway Gateway, StubHandler Handler) Build(HttpStatusCode status, string body, string secretKey = "sk_test_abc")
+    private static (PayMongoGateway Gateway, StubHandler Handler) Build(HttpStatusCode status, string body, string secretKey = "sk_test_abc",
+        string? statementDescriptor = null)
     {
         var handler = new StubHandler(status, body);
         var http = new HttpClient(handler) { BaseAddress = new Uri("https://api.paymongo.test/v1/") };
-        var options = new PaymentOptions { PayMongo = { SecretKey = secretKey, WebhookSecret = WebhookSecret } };
+        var options = new PaymentOptions
+        {
+            PayMongo = { SecretKey = secretKey, WebhookSecret = WebhookSecret, StatementDescriptor = statementDescriptor },
+        };
         return (new PayMongoGateway(http, Microsoft.Extensions.Options.Options.Create(options)), handler);
     }
 
@@ -118,6 +122,36 @@ public class PayMongoGatewayTests
         attributes.GetProperty("metadata").GetProperty("checkout_id").GetString().Should().Be(checkoutId.ToString());
         attributes.GetProperty("success_url").GetString().Should().EndWith("checkout=1");
         attributes.TryGetProperty("statement_descriptor", out _).Should().BeFalse("unset values aren't sent");
+    }
+
+    // appsettings.json's "StatementDescriptor": null binds as "" -- sending that made PayMongo refuse
+    // every checkout with "The value for statement_descriptor cannot be blank".
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task CreateCheckout_BlankStatementDescriptor_IsLeftOut(string descriptor)
+    {
+        var (gateway, handler) = Build(HttpStatusCode.OK,
+            """{"data":{"id":"cs_new","type":"checkout_session","attributes":{"checkout_url":"https://checkout.paymongo.com/cs_new"}}}""",
+            statementDescriptor: descriptor);
+
+        await gateway.CreateCheckoutAsync(Request(Guid.NewGuid()), CancellationToken.None);
+
+        var attributes = JsonDocument.Parse(handler.RequestBody!).RootElement.GetProperty("data").GetProperty("attributes");
+        attributes.TryGetProperty("statement_descriptor", out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task CreateCheckout_SetStatementDescriptor_IsSentTrimmed()
+    {
+        var (gateway, handler) = Build(HttpStatusCode.OK,
+            """{"data":{"id":"cs_new","type":"checkout_session","attributes":{"checkout_url":"https://checkout.paymongo.com/cs_new"}}}""",
+            statementDescriptor: " ONEPUNCH HRIS ");
+
+        await gateway.CreateCheckoutAsync(Request(Guid.NewGuid()), CancellationToken.None);
+
+        var attributes = JsonDocument.Parse(handler.RequestBody!).RootElement.GetProperty("data").GetProperty("attributes");
+        attributes.GetProperty("statement_descriptor").GetString().Should().Be("ONEPUNCH HRIS");
     }
 
     [Fact]
