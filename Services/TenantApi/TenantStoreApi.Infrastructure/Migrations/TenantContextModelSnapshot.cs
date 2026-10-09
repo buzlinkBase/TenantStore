@@ -597,6 +597,9 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
+                    b.Property<DateTime?>("ArchiveRetainUntilUtc")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<string>("BillingCycle")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -621,11 +624,21 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.Property<DateTime?>("CurrentPeriodStartUtc")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<DateTime?>("DataPurgedAtUtc")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime(6)");
 
                     b.Property<DateTime?>("GraceEndsAtUtc")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<bool>("LegalHold")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("LegalHoldReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
 
                     b.Property<decimal?>("LockedAnnualPrice")
                         .HasPrecision(18, 2)
@@ -658,6 +671,13 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.Property<DateTime?>("PurgeAfterUtc")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<string>("PurgeState")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("varchar(16)")
+                        .HasDefaultValue("None");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -682,6 +702,8 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .IsUnique();
 
                     b.HasIndex("PlanId");
+
+                    b.HasIndex("PurgeAfterUtc");
 
                     b.HasIndex("SubStatus");
 
