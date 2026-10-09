@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using Onepunch.Common.Lib.Subscriptions;
+using TenantStoreApi.Core.Services.Payments;
 using TenantStoreApi.Domain.Entities.Subs;
 
 namespace TenantStoreApi.Core.Services.Subscriptions;
@@ -32,6 +33,14 @@ public sealed record PendingChangeView(
     PlanChangeTiming Timing,
     DateTime? EffectiveAtUtc,
     decimal AmountDue);
+
+/// <summary>What Pay now would pay for (see AccountSubscriptionService.GetPaymentDueAsync).</summary>
+public sealed record PaymentDueView(
+    string PlanCode,
+    string PlanName,
+    BillingCycle BillingCycle,
+    decimal Amount,
+    PaymentDueReason Reason);
 
 public sealed record CompanyUsageView(
     Guid TenantId,
@@ -74,6 +83,10 @@ public sealed record BillingView
     /// what the plan selection screen pre-selects.</summary>
     public string? RecommendedPlanCode { get; init; }
     public string PaymentInstructions { get; init; } = string.Empty;
+    /// <summary>What the account can pay for now; null when nothing is due.</summary>
+    public PaymentDueView? PaymentDue { get; init; }
+    /// <summary>Whether Pay now (the payment gateway's hosted page) is offered.</summary>
+    public bool OnlinePaymentEnabled { get; init; }
 }
 
 /// <summary>Builds the subscription read models the controllers return.</summary>
@@ -84,19 +97,22 @@ public class SubscriptionViewService
     private readonly SubscriptionUsageService _usage;
     private readonly SubscriptionOptions _options;
     private readonly TimeProvider _clock;
+    private readonly IPaymentGateway _gateway;
 
     public SubscriptionViewService(
         AccountSubscriptionService subscriptions,
         EntitlementResolverService resolver,
         SubscriptionUsageService usage,
         IOptions<SubscriptionOptions> options,
-        TimeProvider clock)
+        TimeProvider clock,
+        IPaymentGateway gateway)
     {
         _subscriptions = subscriptions;
         _resolver = resolver;
         _usage = usage;
         _options = options.Value;
         _clock = clock;
+        _gateway = gateway;
     }
 
     public static PlanView ToView(Plan plan)
@@ -169,9 +185,10 @@ public class SubscriptionViewService
                 await _subscriptions.PriceForAsync(subscription, pendingPlan, cycle, token));
         }
 
-        var payments = await _subscriptions.GetPaymentsAsync(subscription.Id, token);
+        var payments = await _subscriptions.GetPaymentsAsync(subscription.Id, token: token);
         var planNames = plans.ToDictionary(p => p.Id, p => p.Name);
         planNames.TryAdd(subscription.PlanId, subscription.Plan.Name);
+        var due = await _subscriptions.GetPaymentDueAsync(subscription, token);
 
         return view with
         {
@@ -201,6 +218,8 @@ public class SubscriptionViewService
                 p.Id, p.PaidAtUtc, p.Amount, p.Currency, p.Method, p.Reference,
                 planNames.GetValueOrDefault(p.PlanId), p.BillingCycle, p.PeriodStartUtc, p.PeriodEndUtc)).ToList(),
             RecommendedPlanCode = Recommend(subscription, plans, usage),
+            PaymentDue = due == null ? null : new PaymentDueView(due.Plan.Code, due.Plan.Name, due.BillingCycle, due.Amount, due.Reason),
+            OnlinePaymentEnabled = _gateway.IsEnabled,
         };
     }
 

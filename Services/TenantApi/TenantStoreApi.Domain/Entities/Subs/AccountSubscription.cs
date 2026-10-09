@@ -108,6 +108,8 @@ public class SubscriptionDiscount : BaseEntity
     public string? CreatedBy { get; set; }
 }
 
+/// <summary>Stored as text, so new values need no migration. The ones after <see cref="Other"/>
+/// come from online checkout (PaymentCheckout), mapped from the gateway's payment source.</summary>
 public enum PaymentMethod
 {
     BankTransfer,
@@ -117,9 +119,15 @@ public enum PaymentMethod
     Maya,
     Card,
     Other,
+    QrPh,
+    GrabPay,
+    ShopeePay,
+    OnlineBanking,
+    BillEase,
 }
 
-/// <summary>A payment for one billing period. Phase 1: recorded by a platform admin.</summary>
+/// <summary>A payment for one billing period: recorded by a platform admin, or by the payment
+/// gateway's webhook when an online checkout is paid (RecordedBy "paymongo").</summary>
 [Audited]
 public class SubscriptionPayment : BaseEntity
 {
@@ -136,6 +144,15 @@ public class SubscriptionPayment : BaseEntity
     public DateTime PeriodEndUtc { get; set; }
     public string? RecordedBy { get; set; }
     public string? Notes { get; set; }
+
+    /// <summary>
+    /// Set when a platform admin voids a payment recorded by mistake (never deleted: the money trail
+    /// stays). A voided payment no longer counts towards the paid period or the billing history the
+    /// owner sees -- see PlatformAccountActionsService.VoidPaymentAsync.
+    /// </summary>
+    public DateTime? VoidedAtUtc { get; set; }
+    public string? VoidedBy { get; set; }
+    public string? VoidReason { get; set; }
 }
 
 /// <summary>

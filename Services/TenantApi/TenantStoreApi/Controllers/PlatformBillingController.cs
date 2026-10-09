@@ -1,22 +1,24 @@
+using Microsoft.AspNetCore.RateLimiting;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TenantStoreApi.Core.Services.Subscriptions;
+using Onepunch.Common.Lib.Platform;
 using TenantStoreApi.Domain.Entities.Subs;
-using TenantStoreApi.Filters;
+using TenantStoreApi.Security;
 
 namespace TenantStoreApi.Controllers;
 
 /// <summary>
 /// The platform (SaaS operator) side of billing -- what the separate Platform Admin Console will
 /// call: plans and prices, an account's plan, trial extensions, overrides, discounts, manual
-/// payments and billing history. Accounts are addressed by their owner's user id. Not reachable
-/// with a company user's token: <see cref="PlatformApiKeyAttribute"/> only.
+/// payments and billing history. Accounts are addressed by their owner's user id. Every action needs a
+/// platform operator holding a specific permission (<see cref="PlatformAuthorizeAttribute"/>) -- a company
+/// user's token is rejected, and there is no shared key any more.
 /// </summary>
 [Route("api/v{version:apiVersion}/platform/billing")]
 [ApiVersion("1.0")]
-[AllowAnonymous]
-[PlatformApiKey]
+[EnableRateLimiting(PlatformRateLimiting.PolicyName)]
 [ApiController]
 public class PlatformBillingController : ControllerBase
 {
@@ -37,18 +39,17 @@ public class PlatformBillingController : ControllerBase
         _events = events;
     }
 
-    /// <summary>Who did it, for the billing history -- the console sends its operator's id.</summary>
-    private string Actor => Request.Headers[PlatformApiKeyAttribute.ActorHeaderName].FirstOrDefault() is { Length: > 0 } actor
-        ? $"platform:{actor}"
-        : "platform";
-
+    /// <summary>Who did it, for the billing history: the signed-in operator, from their token.</summary>
+    private string Actor => PlatformActor.From(User);
     // ── Plans ────────────────────────────────────────────────────────────────────────────────
 
+    [PlatformAuthorize(PlatformPermissions.AccountsRead)]
     [HttpGet("plans")]
     [ProducesResponseType(typeof(List<PlanView>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetPlans(CancellationToken token) =>
         Ok((await _plans.GetAllAsync(token)).Select(SubscriptionViewService.ToView).ToList());
 
+    [PlatformAuthorize(PlatformPermissions.PlansManage)]
     [HttpPatch("plans/{code}")]
     [ProducesResponseType(typeof(PlanView), StatusCodes.Status200OK)]
     public Task<IActionResult> UpdatePlan(string code, [FromBody] UpdatePlanCommand command, CancellationToken token) =>
@@ -59,6 +60,7 @@ public class PlatformBillingController : ControllerBase
             return Ok(SubscriptionViewService.ToView(plan));
         });
 
+    [PlatformAuthorize(PlatformPermissions.PlansManage)]
     [HttpPut("plans/{code}/entitlements/{key}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public Task<IActionResult> SetPlanEntitlement(string code, string key, [FromBody] SetValueRequest request, CancellationToken token) =>
@@ -71,16 +73,19 @@ public class PlatformBillingController : ControllerBase
 
     // ── Accounts ─────────────────────────────────────────────────────────────────────────────
 
+    [PlatformAuthorize(PlatformPermissions.AccountsRead)]
     [HttpGet("accounts/{ownerUserId:guid}")]
     [ProducesResponseType(typeof(BillingView), StatusCodes.Status200OK)]
     public Task<IActionResult> GetAccount(Guid ownerUserId, CancellationToken token) =>
         SubscriptionResults.Run(async () => Ok(await _views.GetBillingForAccountAsync(ownerUserId, token)));
 
+    [PlatformAuthorize(PlatformPermissions.AccountsRead)]
     [HttpGet("accounts/{ownerUserId:guid}/events")]
     [ProducesResponseType(typeof(List<BillingEvent>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetEvents(Guid ownerUserId, [FromQuery] int take, CancellationToken token) =>
         Ok(await _events.ListAsync(ownerUserId, take > 0 ? take : 100, token));
 
+    [PlatformAuthorize(PlatformPermissions.AccountsRead)]
     [HttpGet("accounts/{ownerUserId:guid}/overrides")]
     [ProducesResponseType(typeof(List<SubscriptionOverride>), StatusCodes.Status200OK)]
     public Task<IActionResult> GetOverrides(Guid ownerUserId, CancellationToken token) =>
@@ -94,6 +99,7 @@ public class PlatformBillingController : ControllerBase
             }).ToList());
         });
 
+    [PlatformAuthorize(PlatformPermissions.SubscriptionsManage)]
     [HttpPut("accounts/{ownerUserId:guid}/plan")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public Task<IActionResult> SetPlan(Guid ownerUserId, [FromBody] SetPlanCommand command, CancellationToken token) =>
@@ -104,6 +110,7 @@ public class PlatformBillingController : ControllerBase
             return Ok();
         });
 
+    [PlatformAuthorize(PlatformPermissions.SubscriptionsManage)]
     [HttpPost("accounts/{ownerUserId:guid}/trial-extension")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public Task<IActionResult> ExtendTrial(Guid ownerUserId, [FromBody] ExtendTrialRequest request, CancellationToken token) =>
@@ -114,6 +121,7 @@ public class PlatformBillingController : ControllerBase
             return Ok();
         });
 
+    [PlatformAuthorize(PlatformPermissions.PaymentsRecord)]
     [HttpPost("accounts/{ownerUserId:guid}/payments")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public Task<IActionResult> RecordPayment(Guid ownerUserId, [FromBody] RecordPaymentCommand command, CancellationToken token) =>
@@ -127,6 +135,7 @@ public class PlatformBillingController : ControllerBase
     /// <summary>Grant, revoke or change an entitlement for the account, or one of its companies
     /// (TenantId). E.g. { "key": "analytics", "value": "false" } takes Analytics away from a
     /// Premium account.</summary>
+    [PlatformAuthorize(PlatformPermissions.SubscriptionsManage)]
     [HttpPost("accounts/{ownerUserId:guid}/overrides")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public Task<IActionResult> AddOverride(Guid ownerUserId, [FromBody] AddOverrideCommand command, CancellationToken token) =>
@@ -137,6 +146,7 @@ public class PlatformBillingController : ControllerBase
             return Ok(new { entry.Id });
         });
 
+    [PlatformAuthorize(PlatformPermissions.SubscriptionsManage)]
     [HttpDelete("accounts/{ownerUserId:guid}/overrides/{overrideId:guid}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public Task<IActionResult> RemoveOverride(Guid ownerUserId, Guid overrideId, CancellationToken token) =>
@@ -147,6 +157,7 @@ public class PlatformBillingController : ControllerBase
             return Ok();
         });
 
+    [PlatformAuthorize(PlatformPermissions.SubscriptionsManage)]
     [HttpPost("accounts/{ownerUserId:guid}/discounts")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public Task<IActionResult> AddDiscount(Guid ownerUserId, [FromBody] AddDiscountCommand command, CancellationToken token) =>
@@ -157,6 +168,7 @@ public class PlatformBillingController : ControllerBase
             return Ok(new { discount.Id });
         });
 
+    [PlatformAuthorize(PlatformPermissions.SubscriptionsManage)]
     [HttpDelete("accounts/{ownerUserId:guid}/discounts/{discountId:guid}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public Task<IActionResult> RemoveDiscount(Guid ownerUserId, Guid discountId, CancellationToken token) =>

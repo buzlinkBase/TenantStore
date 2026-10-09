@@ -34,6 +34,9 @@ public static class RateLimitPolicies
     public const string InviteSend = "invite-send";
     public const string InviteCheck = "invite-check";
     public const string WorkspaceCreate = "workspace-create";
+    public const string PlatformMfa = "platform-mfa";
+    public const string PlatformSession = "platform-session";
+    public const string PlatformAdmin = "platform-admin";
 
     public static readonly IReadOnlyList<RateLimitRule> Defaults =
     [
@@ -47,6 +50,11 @@ public static class RateLimitPolicies
         // The batch invite modal's live lookups fire as the admin types.
         new(InviteCheck, RateLimitKey.User, 60, TimeSpan.FromMinutes(1)),
         new(WorkspaceCreate, RateLimitKey.User, 5, TimeSpan.FromHours(1)),
+        // Platform operators: a 6-digit code is guessable, so the code-checking steps get their own,
+        // tighter bucket (not shared with company-user sign-in), and operator management is throttled.
+        new(PlatformMfa, RateLimitKey.Ip, 10, TimeSpan.FromMinutes(1)),
+        new(PlatformSession, RateLimitKey.User, 60, TimeSpan.FromMinutes(1)),
+        new(PlatformAdmin, RateLimitKey.User, 30, TimeSpan.FromMinutes(1)),
     ];
 
     public static IServiceCollection AddAppRateLimiting(this IServiceCollection services, IConfiguration configuration) =>

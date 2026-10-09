@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Onepunch.Common.Lib.Subscriptions;
+using Serilog;
+using TenantStoreApi.Core.Services.Payments;
 using TenantStoreApi.Core.Services.Subscriptions;
 
 namespace TenantStoreApi.Controllers;
@@ -31,6 +33,13 @@ public static class SubscriptionResults
         {
             return Problem(StatusCodes.Status404NotFound, null, ex.Message);
         }
+        catch (PaymentGatewayException ex)
+        {
+            // The detail is for the logs; the owner gets something they can act on.
+            Log.Logger.Error(ex, "Payment gateway request failed");
+            return Problem(StatusCodes.Status502BadGateway, null,
+                "We couldn't open the payment page. Please try again in a moment, or pay using the payment instructions.");
+        }
     }
 
     public static IActionResult Forbidden(PlanAllowance allowance, string limitKey) =>
@@ -48,6 +57,7 @@ public static class SubscriptionResults
                 StatusCodes.Status403Forbidden => "Not included in your plan",
                 StatusCodes.Status404NotFound => "Not found",
                 StatusCodes.Status409Conflict => "Over plan limits",
+                StatusCodes.Status502BadGateway => "Payment provider unavailable",
                 _ => "Request refused",
             },
             Detail = detail,

@@ -12,6 +12,7 @@ using System.Text;
 using TenantStoreApi.Core.Providers;
 using TenantStoreApi.Core.Utilities;
 using TenantStoreApi.Infrastructure;
+using TenantStoreApi.Security;
 
 public static class ServiceRegistrations
 {
@@ -86,7 +87,8 @@ public static class ServiceRegistrations
                     "https://hris.onepunch.site",
                     "https://hris-dev.onepunch.site",
                     "https://hris-staging.onepunch.site",
-                    "https://api.onepunch.site")
+                    "https://api.onepunch.site",
+                    "https://console.onepunch.site")
                       .AllowCredentials()
                       .AllowAnyMethod()
                       .AllowAnyHeader();
@@ -203,5 +205,9 @@ public static class ServiceRegistrations
                     builder.Configuration["JwtSettings:SigningKey"],
                     builder.Configuration.GetValue<bool?>("JwtSettings:AllowLegacyHmacValidation") ?? true);
             });
+
+        // Platform Admin Console operators: their own scheme/keys/policies, beside the company users'.
+        builder.Services.AddPlatformAuth(builder.Configuration["AuthUrl"] ?? "");
+        builder.Services.AddPlatformRateLimiting(builder.Configuration);
     }
 }

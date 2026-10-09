@@ -17,6 +17,20 @@ public sealed record PlanChangeQuote(
     string Currency,
     bool PricesIncludeVat);
 
+public enum PaymentDueReason
+{
+    /// <summary>A plan the owner chose, waiting for its first payment.</summary>
+    PlanChange,
+    /// <summary>The next period of the plan running (or about to run) -- in the renewal window, or overdue.</summary>
+    Renewal,
+    /// <summary>A lapsed paid subscription (suspended, canceled, expired) coming back.</summary>
+    Reactivation,
+}
+
+/// <summary>What paying now buys: one period of <see cref="Plan"/> on <see cref="BillingCycle"/>,
+/// at this account's price.</summary>
+public sealed record PaymentDue(Plan Plan, BillingCycle BillingCycle, decimal Amount, PaymentDueReason Reason);
+
 public sealed record RecordPaymentCommand
 {
     public decimal Amount { get; init; }
@@ -124,9 +138,11 @@ public class AccountSubscriptionService
         return plan;
     }
 
-    public Task<List<SubscriptionPayment>> GetPaymentsAsync(Guid subscriptionId, CancellationToken token = default) =>
+    /// <summary>The account's payments, newest first. Voided ones are left out unless asked for: to the
+    /// owner a voided payment never happened.</summary>
+    public Task<List<SubscriptionPayment>> GetPaymentsAsync(Guid subscriptionId, bool includeVoided = false, CancellationToken token = default) =>
         Context.SubscriptionPayments.AsNoTracking()
-            .Where(p => p.SubscriptionId == subscriptionId)
+            .Where(p => p.SubscriptionId == subscriptionId && (includeVoided || p.VoidedAtUtc == null))
             .OrderByDescending(p => p.PaidAtUtc)
             .ToListAsync(token);
 
@@ -153,6 +169,55 @@ public class AccountSubscriptionService
             if (discount.FixedAmount is { } amount) price -= amount;
         }
         return Math.Max(0, price);
+    }
+
+    /// <summary>
+    /// What the owner can pay for right now, or null when nothing is due: a chosen plan waiting for
+    /// payment; the next period once the renewal window opens (on the plan a scheduled downgrade
+    /// will switch to, if there is one), or when it's overdue; a lapsed paid subscription coming
+    /// back. A trial -- running or ended -- with no plan chosen has nothing due: choose one first.
+    /// </summary>
+    public async Task<PaymentDue?> GetPaymentDueAsync(AccountSubscription subscription, CancellationToken token = default)
+    {
+        var now = Now;
+        var pendingCycle = subscription.PendingBillingCycle ?? subscription.BillingCycle;
+        Guid planId;
+        BillingCycle cycle;
+        PaymentDueReason reason;
+
+        if (subscription.PendingChangeTiming == PlanChangeTiming.OnPayment && subscription.PendingPlanId is { } chosen)
+        {
+            (planId, cycle, reason) = (chosen, pendingCycle, PaymentDueReason.PlanChange);
+        }
+        else if (subscription.SubStatus == AccountSubscriptionStatus.Active
+                 && !subscription.CancelAtPeriodEnd
+                 && subscription.CurrentPeriodEndUtc is { } periodEnd
+                 && periodEnd - now <= TimeSpan.FromDays(_options.RenewalWindowDays))
+        {
+            (planId, cycle) = subscription.PendingChangeTiming == PlanChangeTiming.AtPeriodEnd && subscription.PendingPlanId is { } next
+                ? (next, pendingCycle)
+                : (subscription.PlanId, subscription.BillingCycle);
+            reason = PaymentDueReason.Renewal;
+        }
+        else if (subscription.SubStatus == AccountSubscriptionStatus.PastDue)
+        {
+            (planId, cycle, reason) = (subscription.PlanId, subscription.BillingCycle, PaymentDueReason.Renewal);
+        }
+        else if (subscription.SubStatus is AccountSubscriptionStatus.Suspended or AccountSubscriptionStatus.Canceled or AccountSubscriptionStatus.Expired
+                 && subscription.CurrentPeriodEndUtc != null)
+        {
+            (planId, cycle, reason) = (subscription.PlanId, subscription.BillingCycle, PaymentDueReason.Reactivation);
+        }
+        else
+        {
+            return null;
+        }
+
+        var plan = planId == subscription.PlanId
+            ? subscription.Plan
+            : await Context.Plans.Include(p => p.Entitlements).FirstOrDefaultAsync(p => p.Id == planId, token);
+        if (plan == null) return null;
+        return new PaymentDue(plan, cycle, await PriceForAsync(subscription, plan, cycle, token), reason);
     }
 
     // ── Owner commands ───────────────────────────────────────────────────────────────────────
@@ -305,9 +370,11 @@ public class AccountSubscriptionService
 
     /// <summary>
     /// Records a payment for one billing period. Paying for the plan and cycle already running,
-    /// before it ends, renews it: the next period starts when this one ends. Anything else --
-    /// a trial, an upgrade awaiting payment, an expired/suspended/canceled account -- activates
-    /// the paid plan from now. (Proration is phase 2.)
+    /// before it ends, renews it: the next period starts when this one ends. So does paying ahead
+    /// for a downgrade scheduled for the period end -- the scheduled change still switches the
+    /// plan when the current period ends. Anything else -- a trial, an upgrade awaiting payment,
+    /// an expired/suspended/canceled account -- activates the paid plan from now. (Proration is
+    /// phase 2.)
     /// </summary>
     public async Task<SubscriptionPayment> RecordPaymentAsync(
         Guid ownerUserId, RecordPaymentCommand command, string? actor, CancellationToken token = default)
@@ -326,15 +393,20 @@ public class AccountSubscriptionService
             ?? subscription.BillingCycle;
 
         var now = Now;
-        var renewal = subscription.SubStatus == AccountSubscriptionStatus.Active
-            && target.Id == subscription.PlanId
-            && cycle == subscription.BillingCycle
+        var periodRunning = subscription.SubStatus == AccountSubscriptionStatus.Active
             && subscription.CurrentPeriodEndUtc > now;
+        var renewal = periodRunning
+            && target.Id == subscription.PlanId
+            && cycle == subscription.BillingCycle;
+        var prepaysScheduledChange = periodRunning
+            && subscription.PendingChangeTiming == PlanChangeTiming.AtPeriodEnd
+            && target.Id == subscription.PendingPlanId
+            && cycle == (subscription.PendingBillingCycle ?? subscription.BillingCycle);
 
-        var periodStart = renewal ? subscription.CurrentPeriodEndUtc!.Value : now;
+        var periodStart = renewal || prepaysScheduledChange ? subscription.CurrentPeriodEndUtc!.Value : now;
         var periodEnd = AddCycle(periodStart, cycle);
 
-        if (renewal)
+        if (renewal || prepaysScheduledChange)
         {
             subscription.CurrentPeriodEndUtc = periodEnd;
         }
@@ -379,7 +451,7 @@ public class AccountSubscriptionService
         };
         await Context.SubscriptionPayments.AddAsync(payment, token);
         await _events.AddAsync(subscription, BillingEventTypes.PaymentRecorded,
-            new { payment.Id, payment.Amount, plan = target.Code, cycle, periodStart, periodEnd, renewal }, actor, token: token);
+            new { payment.Id, payment.Amount, plan = target.Code, cycle, periodStart, periodEnd, renewal, prepaysScheduledChange }, actor, token: token);
         await _notifier.PublishAsync(ownerUserId, BillingEventTypes.PaymentRecorded, token);
         return payment;
     }

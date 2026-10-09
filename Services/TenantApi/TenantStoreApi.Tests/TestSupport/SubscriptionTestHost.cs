@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using Onepunch.Common.Lib.Subscriptions;
 using TenantStoreApi.Core;
+using TenantStoreApi.Core.Services.Payments;
 using TenantStoreApi.Core.Services.Subscriptions;
 using TenantStoreApi.Domain.Entities;
 using TenantStoreApi.Domain.Entities.Subs;
@@ -75,7 +76,16 @@ public sealed class SubscriptionTestHost
     public SubscriptionLifecycleService Lifecycle =>
         new(Uow, StateMachine, Events, Notifier, Usage, Publisher.Object, WrappedOptions, Clock);
 
-    public SubscriptionViewService Views => new(Subscriptions, Resolver, Usage, WrappedOptions, Clock);
+    public FakePaymentGateway Gateway { get; } = new();
+    public PaymentOptions PaymentOptions { get; } = new() { ReturnBaseUrl = "https://hris.test/" };
+
+    public SubscriptionViewService Views => new(Subscriptions, Resolver, Usage, WrappedOptions, Clock, Gateway);
+
+    /// <summary>A fresh unit of work over the same database each time, as each request gets one: the
+    /// checkout service commits, and BuzlinkRepository's unit of work commits only once.</summary>
+    public SubscriptionCheckoutService Checkouts =>
+        new(TenantTestContextFactory.CreateUnitOfWork(Uow.Context), Subscriptions, Events, Gateway,
+            Microsoft.Extensions.Options.Options.Create(PaymentOptions), Clock);
 
     /// <summary>A company owned by <paramref name="owner"/>, with its hidden Owner membership.</summary>
     public Guid AddCompany(Guid owner, string name = "Acme", string email = "owner@acme.ph", bool activated = true)

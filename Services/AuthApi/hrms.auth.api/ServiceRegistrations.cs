@@ -2,11 +2,14 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Tokens;
 using Onepunch.Auth.Core;
+using Onepunch.Auth.Core.Platform;
 using Onepunch.Auth.Infrastructure;
 using Onepunch.Common.Lib;
 using Onepunch.Common.Lib.Cache;
+using Onepunch.Common.Lib.Platform;
 using OnePunch.Auth.Core.Auditing;
 using OnePunch.Auth.Core.Providers;
 using StackExchange.Redis;
@@ -98,7 +101,8 @@ public static class ServiceRegistrations
                     "https://hris.onepunch.site",
                     "https://hris-dev.onepunch.site",
                     "https://hris-staging.onepunch.site",
-                    "https://api.onepunch.site")
+                    "https://api.onepunch.site",
+                    "https://console.onepunch.site")
                       .AllowCredentials()
                       .AllowAnyMethod()
                       .AllowAnyHeader();
@@ -282,5 +286,53 @@ public static class ServiceRegistrations
                 }
                 options.TokenValidationParameters.IssuerSigningKeys = signingKeys;
             });
+
+        builder.RegisterPlatformAuth();
+    }
+
+    /// <summary>
+    /// The Platform Admin Console's operator identity: its own database context, signing key and
+    /// "Platform" authentication scheme, completely separate from the tenant users above. Platform
+    /// endpoints opt in with [Authorize(AuthenticationSchemes = "Platform")]; the tenant scheme and
+    /// fallback policy are untouched, so a tenant token can't authenticate there and vice versa.
+    /// </summary>
+    private static void RegisterPlatformAuth(this WebApplicationBuilder builder)
+    {
+        var services = builder.Services;
+        services.Configure<PlatformAuthSettings>(builder.Configuration.GetSection(PlatformAuthSettings.SectionName));
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<PlatformRsaKeyProvider>();
+
+        // Same server-version reasoning as AuthContext above. Falls back to the AuthConnection
+        // database (separate tables, separate migrations history) when no dedicated one is set.
+        var sqlVersion = new MySqlServerVersion(new Version(8, 4, 8));
+        services.AddDbContext<PlatformAuthContext>(options =>
+        {
+            var connectionString = builder.Configuration.GetConnectionString("PlatformAuthConnection")
+                ?? builder.Configuration.GetConnectionString("AuthConnection")!;
+            options.UseMySql(connectionString, sqlVersion,
+                mysql => mysql.MigrationsHistoryTable(PlatformAuthContext.MigrationsHistoryTable));
+        });
+        services.AddSingleton<IPlatformPasswordGenerator, PlatformPasswordGenerator>();
+        services.AddHostedService<PlatformBootstrapper>();
+
+        services.AddAuthentication()
+            .AddJwtBearer(PlatformAuthDefaults.Scheme, options => options.MapInboundClaims = false);
+        services.AddOptions<JwtBearerOptions>(PlatformAuthDefaults.Scheme)
+            .Configure<PlatformRsaKeyProvider>((options, keys) =>
+                options.TokenValidationParameters = PlatformTokenValidation.AccessToken(keys.SigningKey));
+
+        // Only the operator-management endpoints are permission-gated here; the rest of the platform
+        // permissions are enforced by TenantApi.
+        services.AddAuthorizationBuilder()
+            .AddPolicy(PlatformAuthDefaults.MfaPolicy, policy => policy
+                .AddAuthenticationSchemes(PlatformAuthDefaults.Scheme)
+                .RequireAuthenticatedUser()
+                .RequireClaim(PlatformAuthDefaults.MethodClaim, PlatformAuthDefaults.OtpMethod))
+            .AddPolicy(PlatformPermissions.AdminsManage, policy => policy
+                .AddAuthenticationSchemes(PlatformAuthDefaults.Scheme)
+                .RequireAuthenticatedUser()
+                .RequireClaim(PlatformAuthDefaults.MethodClaim, PlatformAuthDefaults.OtpMethod)
+                .RequireClaim(PlatformAuthDefaults.PermissionClaim, PlatformPermissions.AdminsManage));
     }
 }
