@@ -67,7 +67,8 @@ public class SubscriptionsController : ControllerBase
     [HttpGet("plans")]
     [ProducesResponseType(typeof(List<PlanView>), StatusCodes.Status200OK)]
     public Task<IActionResult> GetPlans(CancellationToken token) =>
-        WithBillingAccess(ViewBilling, token, async _ => Ok(await _views.GetPublicPlansAsync(token)));
+        WithBillingAccess(ViewBilling, token, async tenantId =>
+            Ok(await _views.GetVisiblePlansAsync(await OwnerOfAsync(tenantId, token), token)));
 
     /// <summary>Choose a plan: upgrades wait for payment, downgrades apply at period end.</summary>
     [HttpPost("change")]

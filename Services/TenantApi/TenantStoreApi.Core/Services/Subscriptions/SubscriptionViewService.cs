@@ -126,13 +126,14 @@ public class SubscriptionViewService
             values.GetValueOrDefault(EntitlementKeys.SupportTier));
     }
 
-    public async Task<List<PlanView>> GetPublicPlansAsync(CancellationToken token = default) =>
-        (await _subscriptions.GetPublicPlansAsync(token)).Select(ToView).ToList();
+    /// <summary>The plans this owner may pick: the public catalog plus any private plan offered to them.</summary>
+    public async Task<List<PlanView>> GetVisiblePlansAsync(Guid ownerUserId, CancellationToken token = default) =>
+        (await _subscriptions.GetVisiblePlansAsync(ownerUserId, token)).Select(ToView).ToList();
 
     public async Task<EntitlementsView> GetEntitlementsAsync(Guid tenantId, CancellationToken token = default)
     {
         var snapshot = await _resolver.ResolveForTenantAsync(tenantId, token);
-        var plans = await _subscriptions.GetPublicPlansAsync(token);
+        var plans = await _subscriptions.GetVisiblePlansAsync(snapshot.OwnerUserId, token);
         var availableOn = EntitlementKeys.Features
             .Select(key => (key, plan: plans.FirstOrDefault(p => ToView(p).Features[key])))
             .Where(x => x.plan != null)
@@ -170,7 +171,7 @@ public class SubscriptionViewService
         if (subscription == null) return view;
 
         var now = _clock.GetUtcNow().UtcDateTime;
-        var plans = await _subscriptions.GetPublicPlansAsync(token);
+        var plans = await _subscriptions.GetVisiblePlansAsync(owner, token);
         var usage = await _usage.GetCompanyUsageAsync(owner, token);
 
         PendingChangeView? pending = null;

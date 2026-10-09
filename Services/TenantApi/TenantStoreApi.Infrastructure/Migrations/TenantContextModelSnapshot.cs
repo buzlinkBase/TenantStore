@@ -1474,6 +1474,47 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.PlanOffer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("ExpiresAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerUserId");
+
+                    b.HasIndex("PlanId", "OwnerUserId");
+
+                    b.ToTable("PlanOffers");
+                });
+
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.SubscriptionDiscount", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1857,6 +1898,17 @@ namespace TenantStoreApi.Infrastructure.Migrations
                 {
                     b.HasOne("TenantStoreApi.Domain.Entities.Subs.Plan", "Plan")
                         .WithMany("Entitlements")
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Plan");
+                });
+
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.PlanOffer", b =>
+                {
+                    b.HasOne("TenantStoreApi.Domain.Entities.Subs.Plan", "Plan")
+                        .WithMany()
                         .HasForeignKey("PlanId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

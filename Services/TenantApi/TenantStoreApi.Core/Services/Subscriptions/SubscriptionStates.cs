@@ -39,6 +39,8 @@ public static class BillingEventTypes
     public const string PlanChangeWithdrawn = "plan.change-withdrawn";
     public const string PlanChanged = "plan.changed";
     public const string PlanSetByAdmin = "plan.set-by-admin";
+    public const string PlanOffered = "plan.offered";
+    public const string PlanOfferRevoked = "plan.offer-revoked";
     public const string PaymentRecorded = "payment.recorded";
     public const string OverrideAdded = "override.added";
     public const string OverrideRemoved = "override.removed";

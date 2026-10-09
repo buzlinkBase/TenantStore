@@ -18,6 +18,7 @@ public class TenantContext : DbContext
     public DbSet<TenantDelegation> TenantDelegations { get; set; }
     public DbSet<Plan> Plans { get; set; }
     public DbSet<PlanEntitlement> PlanEntitlements { get; set; }
+    public DbSet<PlanOffer> PlanOffers { get; set; }
     public DbSet<AccountSubscription> AccountSubscriptions { get; set; }
     public DbSet<SubscriptionOverride> SubscriptionOverrides { get; set; }
     public DbSet<SubscriptionDiscount> SubscriptionDiscounts { get; set; }

@@ -119,23 +119,100 @@ public class AccountSubscriptionService
         await FindAsync(ownerUserId, token)
         ?? throw new KeyNotFoundException("This account has no subscription.");
 
-    public Task<List<Plan>> GetPublicPlansAsync(CancellationToken token = default) =>
-        Context.Plans.AsNoTracking()
+    /// <summary>The plans one owner may pick: the public catalog, the private plans offered to them
+    /// (until the offer expires), and a private plan they are on or moving to -- so it stays on their
+    /// screen after the offer lapses. With no owner, only the public catalog.</summary>
+    public async Task<List<Plan>> GetVisiblePlansAsync(Guid? ownerUserId, CancellationToken token = default)
+    {
+        var owner = ownerUserId ?? Guid.Empty;
+        var now = Now;
+
+        var offers = await Context.PlanOffers.AsNoTracking()
+            .Where(o => o.OwnerUserId == owner)
+            .Select(o => new { o.PlanId, Active = o.ExpiresAtUtc == null || o.ExpiresAtUtc > now })
+            .ToListAsync(token);
+        var held = await Context.AccountSubscriptions.AsNoTracking()
+            .Where(s => s.OwnerUserId == owner)
+            .Select(s => new { s.PlanId, s.PendingPlanId })
+            .FirstOrDefaultAsync(token);
+
+        // A held plan is shown only when it was offered to them: a retired plan nobody offered
+        // (e.g. the legacy trial) never becomes a card.
+        var visibleIds = offers.Where(o => o.Active).Select(o => o.PlanId).ToHashSet();
+        foreach (var heldId in new[] { held?.PlanId, held?.PendingPlanId })
+            if (heldId is { } id && offers.Any(o => o.PlanId == id)) visibleIds.Add(id);
+
+        return await Context.Plans.AsNoTracking()
             .Include(p => p.Entitlements)
-            .Where(p => p.IsPublic)
+            .Where(p => p.IsPublic || visibleIds.Contains(p.Id))
             .OrderBy(p => p.SortOrder)
             .ToListAsync(token);
+    }
 
     public Task<Plan?> FindPlanAsync(Guid planId, CancellationToken token = default) =>
         Context.Plans.AsNoTracking().Include(p => p.Entitlements).FirstOrDefaultAsync(p => p.Id == planId, token);
 
-    private async Task<Plan> RequirePlanAsync(string code, bool publicOnly, CancellationToken token)
+    /// <summary>The plan with this code. <paramref name="forOwner"/> set: it must be one that owner may
+    /// pick (see <see cref="GetVisiblePlansAsync"/>), otherwise any plan.</summary>
+    private async Task<Plan> RequirePlanAsync(string code, Guid? forOwner, CancellationToken token)
     {
         var plan = await Context.Plans.Include(p => p.Entitlements)
             .FirstOrDefaultAsync(p => p.Code == code, token);
-        if (plan == null || (publicOnly && !plan.IsPublic))
+        if (plan == null || (forOwner is { } owner && !await IsVisibleToAsync(plan, owner, token)))
             throw new SubscriptionRuleException($"Unknown plan '{code}'.");
         return plan;
+    }
+
+    private async Task<bool> IsVisibleToAsync(Plan plan, Guid ownerUserId, CancellationToken token)
+    {
+        if (plan.IsPublic) return true;
+        var now = Now;
+        return await Context.PlanOffers.AnyAsync(o => o.PlanId == plan.Id
+            && o.OwnerUserId == ownerUserId
+            && (o.ExpiresAtUtc == null || o.ExpiresAtUtc > now), token);
+    }
+
+    // ── Private plan offers (platform) ───────────────────────────────────────────────────────
+
+    public Task<List<PlanOffer>> GetOffersAsync(string planCode, CancellationToken token = default) =>
+        Context.PlanOffers.AsNoTracking()
+            .Where(o => o.Plan.Code == planCode)
+            .OrderBy(o => o.CreatedAt)
+            .ToListAsync(token);
+
+    /// <summary>Offers a plan to one owner, or changes when an existing offer expires. Idempotent.</summary>
+    public async Task<PlanOffer> OfferPlanAsync(
+        string planCode, Guid ownerUserId, DateTime? expiresAtUtc, string? actor, CancellationToken token = default)
+    {
+        var plan = await RequirePlanAsync(planCode, forOwner: null, token);
+        var subscription = await RequireAsync(ownerUserId, token);
+
+        var offer = await Context.PlanOffers.FirstOrDefaultAsync(o => o.PlanId == plan.Id && o.OwnerUserId == ownerUserId, token);
+        if (offer == null)
+        {
+            offer = new PlanOffer { Id = Guid.CreateVersion7(), PlanId = plan.Id, OwnerUserId = ownerUserId, CreatedBy = actor };
+            await Context.PlanOffers.AddAsync(offer, token);
+        }
+        offer.ExpiresAtUtc = expiresAtUtc;
+
+        await _events.AddAsync(subscription, BillingEventTypes.PlanOffered,
+            new { plan = plan.Code, expiresAtUtc }, actor, token: token);
+        await _notifier.PublishAsync(ownerUserId, BillingEventTypes.PlanOffered, token);
+        return offer;
+    }
+
+    /// <summary>Withdraws an offer. An owner already on the plan stays on it.</summary>
+    public async Task RevokeOfferAsync(string planCode, Guid ownerUserId, string? actor, CancellationToken token = default)
+    {
+        var subscription = await RequireAsync(ownerUserId, token);
+        var offer = await Context.PlanOffers.FirstOrDefaultAsync(
+            o => o.Plan.Code == planCode && o.OwnerUserId == ownerUserId, token)
+            ?? throw new KeyNotFoundException("This plan isn't offered to that account.");
+
+        Context.PlanOffers.Remove(offer);
+        await _events.AddAsync(subscription, BillingEventTypes.PlanOfferRevoked,
+            new { plan = planCode }, actor, token: token);
+        await _notifier.PublishAsync(ownerUserId, BillingEventTypes.PlanOfferRevoked, token);
     }
 
     /// <summary>The account's payments, newest first. Voided ones are left out unless asked for: to the
@@ -234,7 +311,7 @@ public class AccountSubscriptionService
         if (await Context.AccountSubscriptions.AnyAsync(s => s.OwnerUserId == ownerUserId, token)) return null;
         if (Context.AccountSubscriptions.Local.Any(s => s.OwnerUserId == ownerUserId)) return null;
 
-        var plan = await RequirePlanAsync(_options.TrialPlanCode, publicOnly: false, token);
+        var plan = await RequirePlanAsync(_options.TrialPlanCode, forOwner: null, token);
         var now = Now;
         var subscription = new AccountSubscription
         {
@@ -289,7 +366,7 @@ public class AccountSubscriptionService
         Guid ownerUserId, string planCode, BillingCycle cycle, string? actor, CancellationToken token = default)
     {
         var subscription = await RequireAsync(ownerUserId, token);
-        var target = await RequirePlanAsync(planCode, publicOnly: true, token);
+        var target = await RequirePlanAsync(planCode, forOwner: ownerUserId, token);
         var current = subscription.Plan;
 
         var isPaidActive = subscription.SubStatus == AccountSubscriptionStatus.Active;
@@ -384,8 +461,8 @@ public class AccountSubscriptionService
         var subscription = await RequireAsync(ownerUserId, token);
         var awaitingPayment = subscription.PendingChangeTiming == PlanChangeTiming.OnPayment;
         var target = command.PlanCode != null
-            ? await RequirePlanAsync(command.PlanCode, publicOnly: false, token)
-            : awaitingPayment && subscription.PendingPlanId is { } pendingId
+            ? await RequirePlanAsync(command.PlanCode, forOwner: null, token)
+            :awaitingPayment && subscription.PendingPlanId is { } pendingId
                 ? await Context.Plans.Include(p => p.Entitlements).FirstAsync(p => p.Id == pendingId, token)
                 : subscription.Plan;
         var cycle = command.BillingCycle
@@ -461,7 +538,7 @@ public class AccountSubscriptionService
     public async Task<AccountSubscription> SetPlanAsync(
         Guid ownerUserId, SetPlanCommand command, string? actor, CancellationToken token = default)
     {
-        var plan = await RequirePlanAsync(command.PlanCode, publicOnly: false, token);
+        var plan = await RequirePlanAsync(command.PlanCode, forOwner: null, token);
         var now = Now;
         var subscription = await FindAsync(ownerUserId, token);
         if (subscription == null)

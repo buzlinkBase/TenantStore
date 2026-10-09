@@ -26,6 +26,20 @@ public class Plan : BaseEntity
     public virtual ICollection<PlanEntitlement> Entitlements { get; set; } = new List<PlanEntitlement>();
 }
 
+/// <summary>
+/// A private plan offered to one subscriber (account owner). A plan that isn't public is seen on
+/// the plan selection screen only by the owners it is offered to. Revoking an offer doesn't move
+/// an owner already on the plan.
+/// </summary>
+public class PlanOffer : BaseEntity
+{
+    public Guid PlanId { get; set; }
+    public virtual Plan Plan { get; set; } = null!;
+    public Guid OwnerUserId { get; set; }
+    public DateTime? ExpiresAtUtc { get; set; }
+    public string? CreatedBy { get; set; }
+}
+
 /// <summary>One entitlement a plan grants: a feature flag ("true"/"false") or a limit (an
 /// integer, -1 = unlimited). Keys are <c>Onepunch.Common.Lib.Subscriptions.EntitlementKeys</c>.</summary>
 public class PlanEntitlement : BaseEntity
