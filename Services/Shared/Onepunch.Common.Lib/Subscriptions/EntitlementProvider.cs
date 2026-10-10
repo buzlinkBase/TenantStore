@@ -27,15 +27,37 @@ public interface IEntitlementProvider
 }
 
 /// <summary>
-/// Redis-cached for five minutes (and memoized per request scope), evicted on SubscriptionChanged.
+/// Redis-cached for up to five minutes (and memoized per request scope), evicted on SubscriptionChanged.
+/// A snapshot that is still full-access is never cached past the moment the subscription's dates
+/// turn it read-only (trial end, grace end) -- that flip raises no event, so without this a company
+/// could keep saving for minutes after it lapsed.
 /// If Tenant Service can't be reached it fails open -- briefly, with a short cache -- since
 /// blocking every company's writes because one dependency is down would be worse than letting a
 /// few minutes of over-limit activity through.
 /// </summary>
-public sealed class CachedEntitlementProvider(ITenantEntitlementApi api, ICacheService cache) : IEntitlementProvider
+public sealed class CachedEntitlementProvider(
+    ITenantEntitlementApi api, ICacheService cache, TimeProvider? clock = null) : IEntitlementProvider
 {
     private static readonly TimeSpan CacheFor = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan FailOpenFor = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan Margin = TimeSpan.FromSeconds(1);
+
+    private readonly TimeProvider _clock = clock ?? TimeProvider.System;
+
+    /// <summary>How long <paramref name="snapshot"/> may be cached at <paramref name="nowUtc"/>: the
+    /// usual five minutes, cut short to just past the next date at which a full-access subscription
+    /// can become read-only.</summary>
+    public static TimeSpan ExpiryFor(EntitlementSnapshot snapshot, DateTime nowUtc)
+    {
+        if (snapshot.IsReadOnly) return CacheFor;
+
+        var next = new[] { snapshot.TrialEndsAtUtc, snapshot.CurrentPeriodEndUtc, snapshot.GraceEndsAtUtc }
+            .Where(date => date > nowUtc)
+            .Select(date => date!.Value - nowUtc)
+            .DefaultIfEmpty(CacheFor)
+            .Min();
+        return next + Margin < CacheFor ? next + Margin : CacheFor;
+    }
 
     private readonly Dictionary<Guid, EntitlementSnapshot> _scoped = new();
 
@@ -54,7 +76,7 @@ public sealed class CachedEntitlementProvider(ITenantEntitlementApi api, ICacheS
             {
                 var response = await api.GetAsync(tenantId, token);
                 snapshot = response.Data ?? throw new InvalidOperationException("Empty entitlements response.");
-                await TryCacheSetAsync(key, snapshot, CacheFor);
+                await TryCacheSetAsync(key, snapshot, ExpiryFor(snapshot, _clock.GetUtcNow().UtcDateTime));
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

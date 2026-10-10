@@ -6,6 +6,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<IsPackable>false</IsPackable>
 		<IsTestProject>true</IsTestProject>
+		<UserSecretsId>c06b9955-1296-42bf-8473-e7611f74eda5</UserSecretsId>
 	</PropertyGroup>
 
 	<ItemGroup>

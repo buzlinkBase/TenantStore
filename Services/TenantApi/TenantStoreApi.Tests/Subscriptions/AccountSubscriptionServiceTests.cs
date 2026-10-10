@@ -143,6 +143,51 @@ public class AccountSubscriptionServiceTests
     }
 
     [Fact]
+    public async Task Downgrade_CountsEmployeesAcrossAllCompanies_NotPerCompany()
+    {
+        var host = new SubscriptionTestHost();
+        var (owner, tenantId) = await host.TrialAccountAsync();
+        var second = host.AddCompany(owner, "Second");
+        host.HrmsUsage.Usage[tenantId][EntitlementKeys.EmployeesMax] = 60;
+        host.HrmsUsage.Usage[second][EntitlementKeys.EmployeesMax] = 60;
+
+        // Each company is under Timekeeping's 100, together they're over.
+        var timekeeping = host.Uow.Context.Plans.Single(p => p.Code == "timekeeping");
+        var violations = await host.Subscriptions.FindViolationsAsync(host.SubscriptionOf(owner), timekeeping);
+        violations.Should().ContainSingle(v => v.LimitKey == EntitlementKeys.EmployeesMax)
+            .Which.Should().Match<LimitViolation>(v => v.TenantId == null && v.Used == 120 && v.Max == 100);
+    }
+
+    [Fact]
+    public async Task Usage_IsServedApartFromBilling_SoBillingDoesntWaitOnCounting()
+    {
+        var host = new SubscriptionTestHost();
+        var (owner, tenantId) = await host.TrialAccountAsync();
+        host.AddCompany(owner, "Second");
+        host.HrmsUsage.Usage[tenantId][EntitlementKeys.EmployeesMax] = 7;
+
+        var billing = await host.Views.GetBillingForTenantAsync(tenantId);
+        var usage = await host.Views.GetUsageForTenantAsync(tenantId);
+
+        billing.CompaniesUsed.Should().Be(2);
+        usage.Companies.Should().HaveCount(2);
+        usage.Companies.Single(c => c.TenantId == tenantId).Used[EntitlementKeys.EmployeesMax].Should().Be(7);
+        usage.RecommendedPlanCode.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task EmployeeLimit_CantBeOverriddenForOneCompany()
+    {
+        var host = new SubscriptionTestHost();
+        var (owner, tenantId) = await host.TrialAccountAsync();
+
+        var act = () => host.Subscriptions.AddOverrideAsync(
+            owner, new AddOverrideCommand { Key = EntitlementKeys.EmployeesMax, Value = "500", TenantId = tenantId }, "platform");
+
+        await act.Should().ThrowAsync<SubscriptionRuleException>();
+    }
+
+    [Fact]
     public async Task Downgrade_IsBlocked_WhenUsageCantBeCounted()
     {
         var host = new SubscriptionTestHost();

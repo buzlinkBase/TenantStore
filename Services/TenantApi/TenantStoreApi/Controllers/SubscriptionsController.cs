@@ -67,6 +67,13 @@ public class SubscriptionsController : ControllerBase
     public Task<IActionResult> GetCurrent(CancellationToken token) =>
         WithBillingAccess(ViewBilling, token, async tenantId => Ok(await _views.GetBillingForTenantAsync(tenantId, token)));
 
+    /// <summary>Usage per company and the recommended plan. Apart from <c>current</c> because counting asks
+    /// other services and is slow -- the billing screen loads it after the rest.</summary>
+    [HttpGet("usage")]
+    [ProducesResponseType(typeof(UsageView), StatusCodes.Status200OK)]
+    public Task<IActionResult> GetUsage(CancellationToken token) =>
+        WithBillingAccess(ViewBilling, token, async tenantId => Ok(await _views.GetUsageForTenantAsync(tenantId, token)));
+
     [HttpGet("plans")]
     [ProducesResponseType(typeof(List<PlanView>), StatusCodes.Status200OK)]
     public Task<IActionResult> GetPlans(CancellationToken token) =>

@@ -78,16 +78,25 @@ public sealed record BillingView
     public string Currency { get; init; } = "PHP";
     public int CompaniesUsed { get; init; }
     public int? CompaniesMax { get; init; }
-    public List<CompanyUsageView> Companies { get; init; } = [];
     public List<PaymentView> Payments { get; init; } = [];
-    /// <summary>The cheapest plan covering everything the account has used and fits its usage --
-    /// what the plan selection screen pre-selects.</summary>
-    public string? RecommendedPlanCode { get; init; }
     public string PaymentInstructions { get; init; } = string.Empty;
     /// <summary>What the account can pay for now; null when nothing is due.</summary>
     public PaymentDueView? PaymentDue { get; init; }
     /// <summary>Whether Pay now (the payment gateway's hosted page) is offered.</summary>
     public bool OnlinePaymentEnabled { get; init; }
+}
+
+/// <summary>
+/// Per-company usage against limits, and the plan it points to. Served apart from <see cref="BillingView"/>
+/// because counting asks other services (hrms-api, hrms-adms-api), which is slow -- the billing screen
+/// shows the plan and payments at once and fills this in when it arrives.
+/// </summary>
+public sealed record UsageView
+{
+    public List<CompanyUsageView> Companies { get; init; } = [];
+    /// <summary>The cheapest plan covering everything the account has used and fits its usage --
+    /// what the plan selection screen pre-selects.</summary>
+    public string? RecommendedPlanCode { get; init; }
 }
 
 /// <summary>Builds the subscription read models the controllers return.</summary>
@@ -149,6 +158,34 @@ public class SubscriptionViewService
         return await BuildAsync(snapshot, token);
     }
 
+    /// <summary>Usage per company and the recommended plan, as seen from one of the account's companies.</summary>
+    public async Task<UsageView> GetUsageForTenantAsync(Guid tenantId, CancellationToken token = default)
+    {
+        var snapshot = await _resolver.ResolveActualForTenantAsync(tenantId, token);
+        if (snapshot.OwnerUserId is not { } owner) return new UsageView();
+
+        var subscription = await _subscriptions.FindAsync(owner, token);
+        if (subscription == null) return new UsageView();
+
+        var plans = await _subscriptions.GetVisiblePlansAsync(owner, token);
+        var usage = await _usage.GetCompanyUsageAsync(owner, token);
+
+        return new UsageView
+        {
+            Companies = usage.Select(company =>
+            {
+                var companySnapshot = _resolver.ResolveAgainstPlan(subscription, subscription.Plan, company.TenantId);
+                var limits = company.Limits.ToDictionary(kv => kv.Key, kv => kv.Value);
+                return new CompanyUsageView(
+                    company.TenantId,
+                    company.CompanyName,
+                    limits,
+                    limits.Keys.ToDictionary(key => key, key => companySnapshot.LimitOf(key)));
+            }).ToList(),
+            RecommendedPlanCode = Recommend(subscription, plans, usage),
+        };
+    }
+
     /// <summary>The billing view of an account (platform console), as of its account-level entitlements.</summary>
     public async Task<BillingView> GetBillingForAccountAsync(Guid ownerUserId, CancellationToken token = default)
     {
@@ -173,7 +210,6 @@ public class SubscriptionViewService
 
         var now = _clock.GetUtcNow().UtcDateTime;
         var plans = await _subscriptions.GetVisiblePlansAsync(owner, token);
-        var usage = await _usage.GetCompanyUsageAsync(owner, token);
 
         PendingChangeView? pending = null;
         if (subscription.PendingPlanId is { } pendingPlanId
@@ -204,22 +240,11 @@ public class SubscriptionViewService
             PendingChange = pending,
             NextAmountDue = await _subscriptions.PriceForAsync(subscription, subscription.Plan, subscription.BillingCycle, token),
             Currency = subscription.Plan.Currency,
-            CompaniesUsed = usage.Count,
+            CompaniesUsed = await _usage.CountOwnedCompaniesAsync(owner, token),
             CompaniesMax = _resolver.ResolveAgainstPlan(subscription, subscription.Plan, Guid.Empty).LimitOf(EntitlementKeys.CompaniesMax),
-            Companies = usage.Select(company =>
-            {
-                var companySnapshot = _resolver.ResolveAgainstPlan(subscription, subscription.Plan, company.TenantId);
-                var limits = company.Limits.ToDictionary(kv => kv.Key, kv => kv.Value);
-                return new CompanyUsageView(
-                    company.TenantId,
-                    company.CompanyName,
-                    limits,
-                    limits.Keys.ToDictionary(key => key, key => companySnapshot.LimitOf(key)));
-            }).ToList(),
             Payments = payments.Select(p => new PaymentView(
                 p.Id, p.PaidAtUtc, p.Amount, p.Currency, p.Method, p.Reference,
                 planNames.GetValueOrDefault(p.PlanId), p.BillingCycle, p.PeriodStartUtc, p.PeriodEndUtc)).ToList(),
-            RecommendedPlanCode = Recommend(subscription, plans, usage),
             PaymentDue = due == null ? null : new PaymentDueView(due.Plan.Code, due.Plan.Name, due.BillingCycle, due.Amount, due.Reason, due.AddOnsAmount),
             OnlinePaymentEnabled = _gateway.IsEnabled,
         };
@@ -242,11 +267,11 @@ public class SubscriptionViewService
                 ? Fits(view.Limits[key], usage.Count)
                 : view.Features.GetValueOrDefault(key));
             var fitsLimits = usage.All(company => company.Limits
-                .Where(kv => kv.Key != EntitlementKeys.StorageMaxMb)
+                .Where(kv => !EntitlementKeys.IsPooledLimit(kv.Key))
                 .All(kv => kv.Value is not { } used || Fits(view.Limits.GetValueOrDefault(kv.Key), used)));
-            // Storage is one pool for the account: all companies' files together.
-            fitsLimits &= Fits(view.Limits.GetValueOrDefault(EntitlementKeys.StorageMaxMb),
-                usage.Sum(c => c.Used.GetValueOrDefault(EntitlementKeys.StorageMaxMb) ?? 0));
+            // Employees and storage are one pool for the account: all companies together.
+            fitsLimits &= EntitlementKeys.PooledLimits.All(key =>
+                Fits(view.Limits.GetValueOrDefault(key), usage.Sum(c => c.Used.GetValueOrDefault(key) ?? 0)));
             if (hasFeatures && fitsLimits) return plan.Code;
         }
 

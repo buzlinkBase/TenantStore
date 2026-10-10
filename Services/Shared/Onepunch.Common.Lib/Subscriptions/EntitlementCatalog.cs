@@ -44,8 +44,9 @@ public static class EntitlementCatalog
             "Client setup, client billing and the Cost Summary report (agency use)."),
 
         new(EntitlementKeys.CompaniesMax, EntitlementKind.Limit, "Companies",
-            "Companies the account may own. Account-wide; every other limit is per company."),
-        new(EntitlementKeys.EmployeesMax, EntitlementKind.Limit, "Employees", "Employees per company."),
+            "Companies the account may own. Account-wide; admins and biometric devices are per company."),
+        new(EntitlementKeys.EmployeesMax, EntitlementKind.Limit, "Employees",
+            "Active employees for the whole account, shared by all its companies."),
         new(EntitlementKeys.AdminsMax, EntitlementKind.Limit, "Admins",
             "Members holding any role beyond the portal-only ones (Employee, Client), excluding the owner, per company."),
         new(EntitlementKeys.BiometricDevicesMax, EntitlementKind.Limit, "Biometric devices", "Biometric devices per company."),

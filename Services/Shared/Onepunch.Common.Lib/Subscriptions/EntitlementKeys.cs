@@ -32,8 +32,10 @@ public static class EntitlementKeys
     public const string ClientsAgency = "clients.agency";
 
     // ── Limits (integer value; -1 = unlimited) ──────────────────────────────────────────────
-    /// <summary>Companies the account may own. Account-wide; every other limit is per company.</summary>
+    /// <summary>Companies the account may own. Account-wide.</summary>
     public const string CompaniesMax = "companies.max";
+    /// <summary>Active employees for the whole account, shared by every company it owns. Account-wide
+    /// like <see cref="CompaniesMax"/>.</summary>
     public const string EmployeesMax = "employees.max";
     /// <summary>Members holding any role beyond the portal-only ones (Employee, Client), excluding the owner.</summary>
     public const string AdminsMax = "admins.max";
@@ -58,6 +60,12 @@ public static class EntitlementKeys
     [
         CompaniesMax, EmployeesMax, AdminsMax, BiometricDevicesMax, StorageMaxMb,
     ];
+
+    /// <summary>Limits counted across all of an account's companies together, against one account-wide
+    /// maximum (so, unlike admins and devices, they can't be overridden for a single company).</summary>
+    public static readonly IReadOnlyList<string> PooledLimits = [EmployeesMax, StorageMaxMb];
+
+    public static bool IsPooledLimit(string key) => PooledLimits.Contains(key);
 
     public static bool IsFeature(string key) => Features.Contains(key);
 
