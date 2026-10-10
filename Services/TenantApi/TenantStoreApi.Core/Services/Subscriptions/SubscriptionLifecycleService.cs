@@ -29,6 +29,7 @@ public class SubscriptionLifecycleService
     private readonly SubscriptionOptions _options;
     private readonly TimeProvider _clock;
     private readonly IEnumerable<ISubscriptionReminderRule> _rules;
+    private readonly StorageAddOnService _storage;
 
     public SubscriptionLifecycleService(
         IUnitOfWorkService uow,
@@ -39,8 +40,10 @@ public class SubscriptionLifecycleService
         DataPurgeService purge,
         IPublishEndpoint publisher,
         IOptions<SubscriptionOptions> options,
-        TimeProvider clock)
+        TimeProvider clock,
+        StorageAddOnService storage)
     {
+        _storage = storage;
         _uow = uow;
         _stateMachine = stateMachine;
         _events = events;
@@ -63,10 +66,24 @@ public class SubscriptionLifecycleService
     {
         var subscription = await Context.AccountSubscriptions
             .Include(s => s.Plan)
+            .Include(s => s.StorageAddOns)
             .FirstOrDefaultAsync(s => s.Id == subscriptionId, token);
         if (subscription == null) return [];
 
         var now = _clock.GetUtcNow().UtcDateTime;
+
+        // Scheduled storage reductions whose paid period has ended become permanent (entitlements
+        // already follow them by date, so this only keeps the stored blocks and the next charge honest).
+        var reductions = StorageAddOnPricing.ApplyDueReductions(subscription, now);
+        foreach (var (addOn, from, to) in reductions)
+        {
+            if (to == 0) Context.StorageAddOns.Remove(addOn);
+            await _events.AddAsync(subscription, BillingEventTypes.StorageReductionApplied,
+                new { addOn.Id, from, to }, actor: "system", token: token);
+        }
+        if (reductions.Count > 0)
+            await _notifier.PublishAsync(subscription.OwnerUserId, BillingEventTypes.StorageReductionApplied, token);
+
         var transitions = _stateMachine.Advance(subscription, now, _options);
         if (transitions.Count > 0)
         {
@@ -85,8 +102,60 @@ public class SubscriptionLifecycleService
         await _purge.RequestDueAsync(subscription, now, token);
 
         await SendDueEmailsAsync(subscription, now, token);
+        await SendStorageAlertsAsync(subscription, now, token);
         await _uow.CommitChangesAsync("", token);
         return transitions;
+    }
+
+    /// <summary>
+    /// Tells the owner when the account's storage reaches 95% of its limit -- once per billing period,
+    /// so the hourly run doesn't repeat it. Only for accounts still using the product; usage that
+    /// couldn't be measured (unknown, not zero) never alerts.
+    /// </summary>
+    private async Task SendStorageAlertsAsync(AccountSubscription subscription, DateTime now, CancellationToken token)
+    {
+        if (subscription.SubStatus is not (AccountSubscriptionStatus.Trialing or AccountSubscriptionStatus.Active or AccountSubscriptionStatus.PastDue))
+            return;
+
+        StorageSummary summary;
+        try
+        {
+            summary = await _storage.GetSummaryAsync(subscription.OwnerUserId, token);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.Logger.Warning(ex, "Subscription {SubscriptionId}: couldn't read storage usage", subscription.Id);
+            return;
+        }
+        if (summary.Level != StorageLevel.Critical || summary.UsedMb == null || summary.LimitMb == null) return;
+
+        // One email per account per billing period (storage is one pool for all its companies); only the owner.
+        var period = (subscription.CurrentPeriodEndUtc ?? subscription.TrialEndsAtUtc ?? now).ToString("yyyyMMdd");
+        var dedupeKey = $"email:{SubscriptionEmailTemplates.StorageAlmostFull}:{subscription.Id:N}:{period}";
+        if (await _events.ExistsAsync(dedupeKey, token)) return;
+
+        var recipient = await Context.Memberships.AsNoTracking()
+            .Where(m => m.UserId == subscription.OwnerUserId && m.IsHidden && m.InvitedEmail != null)
+            .Select(m => new { m.InvitedEmail, m.FullName })
+            .FirstOrDefaultAsync(token);
+        if (recipient?.InvitedEmail == null)
+        {
+            Log.Logger.Warning("Subscription {SubscriptionId}: no owner email on file, storage alert not sent", subscription.Id);
+            return;
+        }
+
+        await _publisher.Publish(new SubscriptionReminderEmail
+        {
+            Email = recipient.InvitedEmail,
+            FullName = recipient.FullName,
+            Template = SubscriptionEmailTemplates.StorageAlmostFull,
+            PlanName = subscription.Plan?.Name,
+            StoragePercent = summary.PercentUsed,
+            StorageUsedMb = summary.UsedMb,
+            StorageLimitMb = summary.LimitMb,
+        }, token);
+        await _events.AddAsync(subscription, BillingEventTypes.StorageThresholdCrossed,
+            new { percent = summary.PercentUsed }, actor: "system", dedupeKey: dedupeKey, token: token);
     }
 
     private async Task SendDueEmailsAsync(AccountSubscription subscription, DateTime now, CancellationToken token)

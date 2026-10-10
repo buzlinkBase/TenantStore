@@ -40,7 +40,8 @@ public sealed record PaymentDueView(
     string PlanName,
     BillingCycle BillingCycle,
     decimal Amount,
-    PaymentDueReason Reason);
+    PaymentDueReason Reason,
+    decimal AddOnsAmount = 0m);
 
 public sealed record CompanyUsageView(
     Guid TenantId,
@@ -219,7 +220,7 @@ public class SubscriptionViewService
                 p.Id, p.PaidAtUtc, p.Amount, p.Currency, p.Method, p.Reference,
                 planNames.GetValueOrDefault(p.PlanId), p.BillingCycle, p.PeriodStartUtc, p.PeriodEndUtc)).ToList(),
             RecommendedPlanCode = Recommend(subscription, plans, usage),
-            PaymentDue = due == null ? null : new PaymentDueView(due.Plan.Code, due.Plan.Name, due.BillingCycle, due.Amount, due.Reason),
+            PaymentDue = due == null ? null : new PaymentDueView(due.Plan.Code, due.Plan.Name, due.BillingCycle, due.Amount, due.Reason, due.AddOnsAmount),
             OnlinePaymentEnabled = _gateway.IsEnabled,
         };
     }
@@ -240,8 +241,12 @@ public class SubscriptionViewService
             var hasFeatures = featuresUsed.All(key => key == EntitlementKeys.CompaniesMax
                 ? Fits(view.Limits[key], usage.Count)
                 : view.Features.GetValueOrDefault(key));
-            var fitsLimits = usage.All(company => company.Limits.All(kv =>
-                kv.Value is not { } used || Fits(view.Limits.GetValueOrDefault(kv.Key), used)));
+            var fitsLimits = usage.All(company => company.Limits
+                .Where(kv => kv.Key != EntitlementKeys.StorageMaxMb)
+                .All(kv => kv.Value is not { } used || Fits(view.Limits.GetValueOrDefault(kv.Key), used)));
+            // Storage is one pool for the account: all companies' files together.
+            fitsLimits &= Fits(view.Limits.GetValueOrDefault(EntitlementKeys.StorageMaxMb),
+                usage.Sum(c => c.Used.GetValueOrDefault(EntitlementKeys.StorageMaxMb) ?? 0));
             if (hasFeatures && fitsLimits) return plan.Code;
         }
 

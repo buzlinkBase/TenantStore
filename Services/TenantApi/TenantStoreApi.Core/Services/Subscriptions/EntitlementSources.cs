@@ -35,6 +35,29 @@ public sealed class PlanEntitlementSource(Plan? plan) : IEntitlementSource
     }
 }
 
+/// <summary>Adds the storage blocks an account bought to the plan's base storage. An unlimited
+/// plan stays unlimited; an account without blocks is untouched.</summary>
+public sealed class StorageAddOnEntitlementDecorator(
+    IEntitlementSource inner,
+    IEnumerable<StorageAddOn> addOns,
+    DateTime nowUtc) : IEntitlementSource
+{
+    public EntitlementSet Resolve()
+    {
+        var set = inner.Resolve();
+        var extraMb = addOns.Sum(a => (long)StorageAddOnPricing.BlocksAt(a, nowUtc) * a.BlockMb);
+        if (extraMb <= 0) return set;
+
+        var baseMb = set.Values.TryGetValue(EntitlementKeys.StorageMaxMb, out var current)
+            ? EntitlementSnapshotBuilder.ParseLimit(current.Value)
+            : 0;
+        if (baseMb == EntitlementKeys.Unlimited) return set;
+
+        set.Set(EntitlementKeys.StorageMaxMb, Math.Min(int.MaxValue, baseMb + extraMb).ToString(), EntitlementSources.StorageAddOn);
+        return set;
+    }
+}
+
 /// <summary>Applies one layer of overrides (account-wide, or one company's) over the source below.</summary>
 public sealed class OverrideEntitlementDecorator(
     IEntitlementSource inner,
@@ -75,6 +98,9 @@ public static class EntitlementSnapshotBuilder
             .ToList();
 
         IEntitlementSource source = new PlanEntitlementSource(plan);
+        // Storage blocks belong to the account (one pool for all its companies), so every view of it --
+        // a company's, or the account's own -- sees them.
+        source = new StorageAddOnEntitlementDecorator(source, subscription.StorageAddOns.Where(a => a.DeletedAt == null), nowUtc);
         source = new OverrideEntitlementDecorator(source, live.Where(o => o.TenantId == null), EntitlementSources.AccountOverride);
         if (tenantId != Guid.Empty)
             source = new OverrideEntitlementDecorator(source, live.Where(o => o.TenantId == tenantId), EntitlementSources.CompanyOverride);

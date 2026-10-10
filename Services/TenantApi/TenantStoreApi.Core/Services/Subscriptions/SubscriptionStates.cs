@@ -48,6 +48,19 @@ public static class BillingEventTypes
     public const string DiscountRemoved = "discount.removed";
     public const string EmailSent = "email.sent";
 
+    // Storage add-ons (StorageAddOnService, StorageOfferingCatalogService).
+    public const string StorageOfferingCreated = "storage.offering-created";
+    public const string StorageOfferingUpdated = "storage.offering-updated";
+    public const string StorageOffered = "storage.offered";
+    public const string StorageOfferRevoked = "storage.offer-revoked";
+    public const string StorageAddOnPurchased = "storage.addon-purchased";
+    public const string StorageAddOnGranted = "storage.addon-granted";
+    public const string StorageAddOnRemoved = "storage.addon-removed";
+    public const string StorageReductionRequested = "storage.reduction-requested";
+    public const string StorageReductionWithdrawn = "storage.reduction-withdrawn";
+    public const string StorageReductionApplied = "storage.reduction-applied";
+    public const string StorageThresholdCrossed = "storage.threshold-crossed";
+
     // Data removal (DataPurgeService). A year after the lock, the company's data is archived and
     // deleted from the live databases; five years after its last entry the archive is destroyed.
     public const string DataPurgeRequested = "data.purge-requested";

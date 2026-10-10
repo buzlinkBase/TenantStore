@@ -29,7 +29,9 @@ public enum PaymentDueReason
 
 /// <summary>What paying now buys: one period of <see cref="Plan"/> on <see cref="BillingCycle"/>,
 /// at this account's price.</summary>
-public sealed record PaymentDue(Plan Plan, BillingCycle BillingCycle, decimal Amount, PaymentDueReason Reason);
+/// <param name="Amount">The whole charge: the plan's price plus <paramref name="AddOnsAmount"/>.</param>
+/// <param name="AddOnsAmount">The part of it that renews the company's paid storage blocks.</param>
+public sealed record PaymentDue(Plan Plan, BillingCycle BillingCycle, decimal Amount, PaymentDueReason Reason, decimal AddOnsAmount = 0m);
 
 public sealed record RecordPaymentCommand
 {
@@ -113,6 +115,7 @@ public class AccountSubscriptionService
         Context.AccountSubscriptions
             .Include(s => s.Plan).ThenInclude(p => p.Entitlements)
             .Include(s => s.Overrides)
+            .Include(s => s.StorageAddOns)
             .FirstOrDefaultAsync(s => s.OwnerUserId == ownerUserId, token);
 
     private async Task<AccountSubscription> RequireAsync(Guid ownerUserId, CancellationToken token) =>
@@ -294,7 +297,9 @@ public class AccountSubscriptionService
             ? subscription.Plan
             : await Context.Plans.Include(p => p.Entitlements).FirstOrDefaultAsync(p => p.Id == planId, token);
         if (plan == null) return null;
-        return new PaymentDue(plan, cycle, await PriceForAsync(subscription, plan, cycle, token), reason);
+        // Storage blocks renew with the plan, so paying for a period pays for them too.
+        var addOns = StorageAddOnPricing.RenewalAmount(subscription, cycle);
+        return new PaymentDue(plan, cycle, await PriceForAsync(subscription, plan, cycle, token) + addOns, reason, addOns);
     }
 
     // ── Owner commands ───────────────────────────────────────────────────────────────────────
@@ -613,7 +618,7 @@ public class AccountSubscriptionService
             throw new SubscriptionRuleException($"'{value}' isn't a valid value for {key}.");
         if (command.TenantId is { } tenantId)
         {
-            if (key == EntitlementKeys.CompaniesMax)
+            if (key is EntitlementKeys.CompaniesMax or EntitlementKeys.StorageMaxMb)
                 throw new SubscriptionRuleException($"{key} applies to the whole account, not one company.");
             var owned = await Context.Tenants.AnyAsync(t => t.Id == tenantId && t.UserId == ownerUserId, token);
             if (!owned) throw new SubscriptionRuleException("That company isn't owned by this account.");
@@ -704,10 +709,22 @@ public class AccountSubscriptionService
         if (!account.Allows(EntitlementKeys.CompaniesMax, companies, adding: 0))
             violations.Add(new(EntitlementKeys.CompaniesMax, null, null, companies, account.LimitOf(EntitlementKeys.CompaniesMax)));
 
-        foreach (var company in await _usage.GetCompanyUsageAsync(subscription.OwnerUserId, token))
+        var usage = await _usage.GetCompanyUsageAsync(subscription.OwnerUserId, token);
+
+        // Storage is one pool for the whole account: what all its companies store, against the account's
+        // limit (plan plus blocks). Any company that couldn't be measured makes the total unknown.
+        if (account.LimitOf(EntitlementKeys.StorageMaxMb) is { } storageMax)
+        {
+            var parts = usage.Select(c => c.Used.GetValueOrDefault(EntitlementKeys.StorageMaxMb)).ToList();
+            if (parts.Any(p => p is null)) violations.Add(new(EntitlementKeys.StorageMaxMb, null, null, 0, null));
+            else if (parts.Sum(p => p!.Value) is var total && total > storageMax)
+                violations.Add(new(EntitlementKeys.StorageMaxMb, null, null, total, storageMax));
+        }
+
+        foreach (var company in usage)
         {
             var snapshot = _resolver.ResolveAgainstPlan(subscription, target, company.TenantId);
-            foreach (var (key, used) in company.Limits)
+            foreach (var (key, used) in company.Limits.Where(kv => kv.Key != EntitlementKeys.StorageMaxMb))
             {
                 var max = snapshot.LimitOf(key);
                 if (max == null) continue;

@@ -80,6 +80,8 @@ public static class PlanSeed
         (EntitlementKeys.EmployeesMax, "100", "2000", "-1"),
         (EntitlementKeys.AdminsMax, "2", "5", "-1"),
         (EntitlementKeys.BiometricDevicesMax, "1", "3", "-1"),
+        // Base storage in MB (placeholders: 5 / 20 / 100 GB) -- edit in the console's plan editor.
+        (EntitlementKeys.StorageMaxMb, "5120", "20480", "102400"),
         (EntitlementKeys.SupportTier, "email", "email", "priority"),
     ];
 

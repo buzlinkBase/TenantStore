@@ -811,6 +811,13 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("varchar(512)");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("varchar(16)")
+                        .HasDefaultValue("Plan");
+
                     b.Property<Guid>("OwnerUserId")
                         .HasColumnType("char(36)");
 
@@ -840,6 +847,15 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("longtext");
+
+                    b.Property<Guid?>("StorageAddOnPaymentId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int?>("StorageBlocks")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("StorageOfferingId")
+                        .HasColumnType("char(36)");
 
                     b.Property<Guid>("SubscriptionId")
                         .HasColumnType("char(36)");
@@ -1469,6 +1485,33 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         },
                         new
                         {
+                            Id = new Guid("f28f01be-7f41-7a21-a06b-85df12915e76"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "storage.max_mb",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e01"),
+                            Status = "Active",
+                            Value = "5120"
+                        },
+                        new
+                        {
+                            Id = new Guid("b1281ba5-d358-96ab-f7ce-206097e6a1b5"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "storage.max_mb",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e02"),
+                            Status = "Active",
+                            Value = "20480"
+                        },
+                        new
+                        {
+                            Id = new Guid("790d3739-0bf3-f39f-6126-92a8f112348d"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "storage.max_mb",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e03"),
+                            Status = "Active",
+                            Value = "102400"
+                        },
+                        new
+                        {
                             Id = new Guid("44c8a494-6392-d2a5-529d-c7271cc1191b"),
                             CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Key = "support.tier",
@@ -1535,6 +1578,267 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.HasIndex("PlanId", "OwnerUserId");
 
                     b.ToTable("PlanOffers");
+                });
+
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.StorageAddOn", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("BlockMb")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Blocks")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<bool>("IsComplimentary")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<Guid>("OfferingId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int?>("PendingBlocks")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("PendingEffectiveAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(512)
+                        .HasColumnType("varchar(512)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<Guid>("SubscriptionId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<decimal>("UnitAnnualPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OfferingId");
+
+                    b.HasIndex("SubscriptionId");
+
+                    b.ToTable("StorageAddOns");
+                });
+
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.StorageAddOnOffer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("ExpiresAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("OfferingId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerUserId");
+
+                    b.HasIndex("OfferingId", "OwnerUserId");
+
+                    b.ToTable("StorageAddOnOffers");
+                });
+
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.StorageAddOnOffering", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<decimal>("AnnualPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("BlockMb")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("varchar(8)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("varchar(512)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("IsPublic")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<decimal>("MonthlyPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<bool>("PricesIncludeVat")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("StorageAddOnOfferings");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("5a0e1c3d-2b4f-4a6c-8d7e-0f1a2b3c4d01"),
+                            AnnualPrice = 4000m,
+                            BlockMb = 51200,
+                            Code = "storage-50gb",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Currency = "PHP",
+                            Description = "Adds 50 GB of file storage to your account, shared by all your companies and billed with your plan.",
+                            IsActive = true,
+                            IsPublic = true,
+                            MonthlyPrice = 400m,
+                            Name = "50 GB storage block",
+                            PricesIncludeVat = true,
+                            SortOrder = 1,
+                            Status = "Active"
+                        });
+                });
+
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.StorageAddOnPayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("AddOnId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("Blocks")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("varchar(8)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<DateTime>("PaidAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("PeriodEndUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("PeriodStartUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("RecordedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<Guid>("SubscriptionId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SubscriptionId", "PaidAtUtc");
+
+                    b.ToTable("StorageAddOnPayments");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.SubscriptionDiscount", b =>
@@ -1938,6 +2242,36 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.Navigation("Plan");
                 });
 
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.StorageAddOn", b =>
+                {
+                    b.HasOne("TenantStoreApi.Domain.Entities.Subs.StorageAddOnOffering", "Offering")
+                        .WithMany()
+                        .HasForeignKey("OfferingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TenantStoreApi.Domain.Entities.Subs.AccountSubscription", "Subscription")
+                        .WithMany("StorageAddOns")
+                        .HasForeignKey("SubscriptionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Offering");
+
+                    b.Navigation("Subscription");
+                });
+
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.StorageAddOnOffer", b =>
+                {
+                    b.HasOne("TenantStoreApi.Domain.Entities.Subs.StorageAddOnOffering", "Offering")
+                        .WithMany()
+                        .HasForeignKey("OfferingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Offering");
+                });
+
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.SubscriptionDiscount", b =>
                 {
                     b.HasOne("TenantStoreApi.Domain.Entities.Subs.AccountSubscription", "Subscription")
@@ -1979,6 +2313,8 @@ namespace TenantStoreApi.Infrastructure.Migrations
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.AccountSubscription", b =>
                 {
                     b.Navigation("Overrides");
+
+                    b.Navigation("StorageAddOns");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.Plan", b =>

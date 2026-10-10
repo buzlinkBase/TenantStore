@@ -100,6 +100,7 @@ public class AccountSubscription : BaseEntity
     public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
 
     public virtual ICollection<SubscriptionOverride> Overrides { get; set; } = new List<SubscriptionOverride>();
+    public virtual ICollection<StorageAddOn> StorageAddOns { get; set; } = new List<StorageAddOn>();
 }
 
 /// <summary>

@@ -27,6 +27,7 @@ public class SubscriptionsController : ControllerBase
     private readonly SubscriptionViewService _views;
     private readonly AccountSubscriptionService _subscriptions;
     private readonly SubscriptionCheckoutService _checkouts;
+    private readonly StorageAddOnService _storage;
     private readonly UserMembershipService _members;
     private readonly TenantService _tenants;
     private readonly ITenantProvider _tenantProvider;
@@ -35,6 +36,7 @@ public class SubscriptionsController : ControllerBase
         SubscriptionViewService views,
         AccountSubscriptionService subscriptions,
         SubscriptionCheckoutService checkouts,
+        StorageAddOnService storage,
         UserMembershipService members,
         TenantService tenants,
         ITenantProvider tenantProvider)
@@ -42,6 +44,7 @@ public class SubscriptionsController : ControllerBase
         _views = views;
         _subscriptions = subscriptions;
         _checkouts = checkouts;
+        _storage = storage;
         _members = members;
         _tenants = tenants;
         _tenantProvider = tenantProvider;
@@ -128,6 +131,71 @@ public class SubscriptionsController : ControllerBase
         WithBillingAccess(ViewBilling, token, async tenantId =>
             Ok(await _checkouts.RefreshAsync(await OwnerOfAsync(tenantId, token), checkoutId, token)));
 
+    // ── Storage ──────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>The account's storage (one pool for all its companies): base plan capacity, blocks held,
+    /// usage, the offerings it may buy and what it all costs.</summary>
+    [HttpGet("storage")]
+    [ProducesResponseType(typeof(StorageSummary), StatusCodes.Status200OK)]
+    public Task<IActionResult> GetStorage(CancellationToken token) =>
+        WithBillingAccess(ViewBilling, token, async tenantId =>
+            Ok(await _storage.GetSummaryAsync(await OwnerOfAsync(tenantId, token), token)));
+
+    /// <summary>Capacity and usage only, for the warning banners: also open to the company's Admins,
+    /// who don't hold billing rights.</summary>
+    [HttpGet("storage/status")]
+    [ProducesResponseType(typeof(StorageStatus), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetStorageStatus(CancellationToken token)
+    {
+        var tenantId = _tenantProvider.TenantId;
+        if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
+
+        var member = await _members.GetMemberAsync(User.GetRequiredUserId(), tenantId, token);
+        var allowed = member is { Status: "Active" }
+            && (member.HasRole(TenantRoles.Owner) || member.HasRole(TenantRoles.Admin)
+                || member.EffectivePermissionCodes().Any(c => c is ViewBilling or ManageBilling));
+        if (!allowed) return Forbid();
+
+        return await SubscriptionResults.Run(async () =>
+            Ok(StorageStatus.From(await _storage.GetSummaryAsync(await OwnerOfAsync(tenantId, token), token))));
+    }
+
+    /// <summary>The prorated price of more blocks, for the checkout breakdown.</summary>
+    [HttpPost("storage/quote")]
+    [ProducesResponseType(typeof(StorageQuote), StatusCodes.Status200OK)]
+    public Task<IActionResult> QuoteStorage([FromBody] StoragePurchaseRequest request, CancellationToken token) =>
+        WithBillingAccess(ManageBilling, token, async tenantId =>
+            Ok(await _storage.QuoteAsync(await OwnerOfAsync(tenantId, token), request.OfferingCode, request.Blocks, token)));
+
+    /// <summary>Pay online for more blocks; the browser goes to CheckoutUrl and returns to /billing/payment?checkout={id}.</summary>
+    [HttpPost("storage/checkout")]
+    [ProducesResponseType(typeof(CheckoutStarted), StatusCodes.Status200OK)]
+    public Task<IActionResult> StartStorageCheckout([FromBody] StoragePurchaseRequest request, CancellationToken token) =>
+        WithBillingAccess(ManageBilling, token, async tenantId =>
+            Ok(await _checkouts.StartStorageAsync(
+                await OwnerOfAsync(tenantId, token), request.OfferingCode, request.Blocks, User.GetRequiredUserId(), token)));
+
+    /// <summary>Hold fewer blocks (0 cancels them) from the end of the paid period.</summary>
+    [HttpPost("storage/reduction")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public Task<IActionResult> RequestStorageReduction([FromBody] StorageReductionRequest request, CancellationToken token) =>
+        WithBillingAccess(ManageBilling, token, async tenantId =>
+        {
+            await _storage.RequestReductionAsync(await OwnerOfAsync(tenantId, token), request.AddOnId, request.Blocks, ActorId, token);
+            await _storage.CommitChangesAsync(token);
+            return Ok();
+        });
+
+    [HttpDelete("storage/reduction/{addOnId:guid}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public Task<IActionResult> WithdrawStorageReduction(Guid addOnId, CancellationToken token) =>
+        WithBillingAccess(ManageBilling, token, async tenantId =>
+        {
+            await _storage.WithdrawReductionAsync(await OwnerOfAsync(tenantId, token), addOnId, ActorId, token);
+            await _storage.CommitChangesAsync(token);
+            return Ok();
+        });
+
     private string ActorId => User.GetRequiredUserId().ToString();
 
     private async Task<Guid> OwnerOfAsync(Guid tenantId, CancellationToken token) =>
@@ -148,6 +216,19 @@ public class SubscriptionsController : ControllerBase
 
         return await SubscriptionResults.Run(() => action(tenantId));
     }
+}
+
+public record StoragePurchaseRequest
+{
+    public string OfferingCode { get; set; } = string.Empty;
+    public int Blocks { get; set; }
+}
+
+public record StorageReductionRequest
+{
+    public Guid AddOnId { get; set; }
+    /// <summary>Blocks to hold after the period ends; 0 cancels them.</summary>
+    public int Blocks { get; set; }
 }
 
 public record PlanChangeRequest
