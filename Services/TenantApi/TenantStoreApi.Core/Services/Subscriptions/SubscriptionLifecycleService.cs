@@ -79,7 +79,7 @@ public class SubscriptionLifecycleService
         {
             if (to == 0) Context.StorageAddOns.Remove(addOn);
             await _events.AddAsync(subscription, BillingEventTypes.StorageReductionApplied,
-                new { addOn.Id, addOn.TenantId, from, to }, actor: "system", token: token);
+                new { addOn.Id, from, to }, actor: "system", token: token);
         }
         if (reductions.Count > 0)
             await _notifier.PublishAsync(subscription.OwnerUserId, BillingEventTypes.StorageReductionApplied, token);
@@ -108,8 +108,8 @@ public class SubscriptionLifecycleService
     }
 
     /// <summary>
-    /// Tells the owner when a company's storage reaches 95% of its limit -- once per company per billing
-    /// period, so the hourly run doesn't repeat it. Only for accounts still using the product; usage that
+    /// Tells the owner when the account's storage reaches 95% of its limit -- once per billing period,
+    /// so the hourly run doesn't repeat it. Only for accounts still using the product; usage that
     /// couldn't be measured (unknown, not zero) never alerts.
     /// </summary>
     private async Task SendStorageAlertsAsync(AccountSubscription subscription, DateTime now, CancellationToken token)
@@ -117,51 +117,46 @@ public class SubscriptionLifecycleService
         if (subscription.SubStatus is not (AccountSubscriptionStatus.Trialing or AccountSubscriptionStatus.Active or AccountSubscriptionStatus.PastDue))
             return;
 
-        List<StorageSummary> summaries;
+        StorageSummary summary;
         try
         {
-            summaries = await _storage.GetAccountSummariesAsync(subscription.OwnerUserId, token);
+            summary = await _storage.GetSummaryAsync(subscription.OwnerUserId, token);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Log.Logger.Warning(ex, "Subscription {SubscriptionId}: couldn't read storage usage", subscription.Id);
             return;
         }
+        if (summary.Level != StorageLevel.Critical || summary.UsedMb == null || summary.LimitMb == null) return;
 
+        // One email per account per billing period (storage is one pool for all its companies); only the owner.
         var period = (subscription.CurrentPeriodEndUtc ?? subscription.TrialEndsAtUtc ?? now).ToString("yyyyMMdd");
-        var recipient = (StorageAlertRecipient?)null;
-        foreach (var company in summaries.Where(s => s.Level == StorageLevel.Critical && s.UsedMb != null && s.LimitMb != null))
+        var dedupeKey = $"email:{SubscriptionEmailTemplates.StorageAlmostFull}:{subscription.Id:N}:{period}";
+        if (await _events.ExistsAsync(dedupeKey, token)) return;
+
+        var recipient = await Context.Memberships.AsNoTracking()
+            .Where(m => m.UserId == subscription.OwnerUserId && m.IsHidden && m.InvitedEmail != null)
+            .Select(m => new { m.InvitedEmail, m.FullName })
+            .FirstOrDefaultAsync(token);
+        if (recipient?.InvitedEmail == null)
         {
-            var dedupeKey = $"email:{SubscriptionEmailTemplates.StorageAlmostFull}:{company.TenantId:N}:{period}";
-            if (await _events.ExistsAsync(dedupeKey, token)) continue;
-
-            recipient ??= await Context.Memberships.AsNoTracking()
-                .Where(m => m.UserId == subscription.OwnerUserId && m.IsHidden && m.InvitedEmail != null)
-                .Select(m => new StorageAlertRecipient(m.InvitedEmail!, m.FullName))
-                .FirstOrDefaultAsync(token);
-            if (recipient == null)
-            {
-                Log.Logger.Warning("Subscription {SubscriptionId}: no owner email on file, storage alert not sent", subscription.Id);
-                return;
-            }
-
-            await _publisher.Publish(new SubscriptionReminderEmail
-            {
-                Email = recipient.Email,
-                FullName = recipient.FullName,
-                Template = SubscriptionEmailTemplates.StorageAlmostFull,
-                PlanName = subscription.Plan?.Name,
-                CompanyName = company.CompanyName,
-                StoragePercent = company.PercentUsed,
-                StorageUsedMb = company.UsedMb,
-                StorageLimitMb = company.LimitMb,
-            }, token);
-            await _events.AddAsync(subscription, BillingEventTypes.StorageThresholdCrossed,
-                new { tenantId = company.TenantId, percent = company.PercentUsed }, actor: "system", dedupeKey: dedupeKey, token: token);
+            Log.Logger.Warning("Subscription {SubscriptionId}: no owner email on file, storage alert not sent", subscription.Id);
+            return;
         }
-    }
 
-    private sealed record StorageAlertRecipient(string Email, string? FullName);
+        await _publisher.Publish(new SubscriptionReminderEmail
+        {
+            Email = recipient.InvitedEmail,
+            FullName = recipient.FullName,
+            Template = SubscriptionEmailTemplates.StorageAlmostFull,
+            PlanName = subscription.Plan?.Name,
+            StoragePercent = summary.PercentUsed,
+            StorageUsedMb = summary.UsedMb,
+            StorageLimitMb = summary.LimitMb,
+        }, token);
+        await _events.AddAsync(subscription, BillingEventTypes.StorageThresholdCrossed,
+            new { percent = summary.PercentUsed }, actor: "system", dedupeKey: dedupeKey, token: token);
+    }
 
     private async Task SendDueEmailsAsync(AccountSubscription subscription, DateTime now, CancellationToken token)
     {

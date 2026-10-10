@@ -81,7 +81,14 @@ public class EntitlementResolverService
         if (subscription == null && company.ActivatedAtUtc == null)
             return EntitlementSnapshot.Unrestricted(tenantId) with { Status = ProvisioningStatus, OwnerUserId = company.UserId };
 
-        return EntitlementSnapshotBuilder.Build(subscription, subscription?.Plan, tenantId, _clock.GetUtcNow().UtcDateTime, _stateMachine, _options.LockedPunchRetentionDays);
+        var snapshot = EntitlementSnapshotBuilder.Build(subscription, subscription?.Plan, tenantId, _clock.GetUtcNow().UtcDateTime, _stateMachine, _options.LockedPunchRetentionDays);
+
+        // Storage is one pool for the account: tell the enforcing service which companies share it.
+        var accountTenantIds = await Context.Tenants.AsNoTracking()
+            .Where(t => t.UserId == company.UserId)
+            .Select(t => t.Id)
+            .ToListAsync(token);
+        return snapshot with { AccountTenantIds = accountTenantIds };
     }
 
     /// <summary>Account-level entitlements (e.g. companies.max), without any company's overrides.</summary>

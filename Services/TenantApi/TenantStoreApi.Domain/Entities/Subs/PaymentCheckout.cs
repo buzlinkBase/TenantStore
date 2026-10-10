@@ -17,7 +17,7 @@ public enum PaymentCheckoutKind
 {
     /// <summary>One period of a plan (<see cref="PaymentCheckout.PlanId"/> and cycle).</summary>
     Plan,
-    /// <summary>Extra storage blocks for one company; PlanId/BillingCycle are the plan running at the time.</summary>
+    /// <summary>Extra storage blocks for the account; PlanId/BillingCycle are the plan running at the time.</summary>
     StorageAddOn,
 }
 
@@ -31,10 +31,9 @@ public class PaymentCheckout : BaseEntity
 {
     /// <summary>What is being bought. Stored as text; existing rows are plan checkouts.</summary>
     public PaymentCheckoutKind Kind { get; set; } = PaymentCheckoutKind.Plan;
-    /// <summary>Storage checkouts: the offering, block count and company quoted.</summary>
+    /// <summary>Storage checkouts: the offering and block count quoted.</summary>
     public Guid? StorageOfferingId { get; set; }
     public int? StorageBlocks { get; set; }
-    public Guid? StorageTenantId { get; set; }
     /// <summary>Storage checkouts: the StorageAddOnPayment recorded when it was paid.</summary>
     public Guid? StorageAddOnPaymentId { get; set; }
 

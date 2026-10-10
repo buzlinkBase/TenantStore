@@ -618,7 +618,7 @@ public class AccountSubscriptionService
             throw new SubscriptionRuleException($"'{value}' isn't a valid value for {key}.");
         if (command.TenantId is { } tenantId)
         {
-            if (key == EntitlementKeys.CompaniesMax)
+            if (key is EntitlementKeys.CompaniesMax or EntitlementKeys.StorageMaxMb)
                 throw new SubscriptionRuleException($"{key} applies to the whole account, not one company.");
             var owned = await Context.Tenants.AnyAsync(t => t.Id == tenantId && t.UserId == ownerUserId, token);
             if (!owned) throw new SubscriptionRuleException("That company isn't owned by this account.");
@@ -709,10 +709,22 @@ public class AccountSubscriptionService
         if (!account.Allows(EntitlementKeys.CompaniesMax, companies, adding: 0))
             violations.Add(new(EntitlementKeys.CompaniesMax, null, null, companies, account.LimitOf(EntitlementKeys.CompaniesMax)));
 
-        foreach (var company in await _usage.GetCompanyUsageAsync(subscription.OwnerUserId, token))
+        var usage = await _usage.GetCompanyUsageAsync(subscription.OwnerUserId, token);
+
+        // Storage is one pool for the whole account: what all its companies store, against the account's
+        // limit (plan plus blocks). Any company that couldn't be measured makes the total unknown.
+        if (account.LimitOf(EntitlementKeys.StorageMaxMb) is { } storageMax)
+        {
+            var parts = usage.Select(c => c.Used.GetValueOrDefault(EntitlementKeys.StorageMaxMb)).ToList();
+            if (parts.Any(p => p is null)) violations.Add(new(EntitlementKeys.StorageMaxMb, null, null, 0, null));
+            else if (parts.Sum(p => p!.Value) is var total && total > storageMax)
+                violations.Add(new(EntitlementKeys.StorageMaxMb, null, null, total, storageMax));
+        }
+
+        foreach (var company in usage)
         {
             var snapshot = _resolver.ResolveAgainstPlan(subscription, target, company.TenantId);
-            foreach (var (key, used) in company.Limits)
+            foreach (var (key, used) in company.Limits.Where(kv => kv.Key != EntitlementKeys.StorageMaxMb))
             {
                 var max = snapshot.LimitOf(key);
                 if (max == null) continue;

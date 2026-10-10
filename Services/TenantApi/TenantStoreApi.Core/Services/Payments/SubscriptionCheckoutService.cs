@@ -138,17 +138,17 @@ public class SubscriptionCheckoutService
             actorUserId, token);
     }
 
-    /// <summary>Opens the hosted payment page for blocks of storage the owner chose for one company
+    /// <summary>Opens the hosted payment page for blocks of storage the owner chose for the account
     /// (priced by <see cref="StorageAddOnService.QuoteAsync"/>, prorated to the paid period's end).</summary>
     public async Task<CheckoutStarted> StartStorageAsync(
-        Guid ownerUserId, Guid tenantId, string offeringCode, int blocks, Guid actorUserId, CancellationToken token = default)
+        Guid ownerUserId, string offeringCode, int blocks, Guid actorUserId, CancellationToken token = default)
     {
         if (!_gateway.IsEnabled)
             throw new SubscriptionRuleException("Online payment isn't available yet -- please contact billing to add storage.");
 
         var subscription = await _subscriptions.FindAsync(ownerUserId, token)
             ?? throw new KeyNotFoundException("This account has no subscription.");
-        var quote = await _storage.QuoteAsync(ownerUserId, tenantId, offeringCode, blocks, token);
+        var quote = await _storage.QuoteAsync(ownerUserId, offeringCode, blocks, token);
         if (quote.AmountDue <= 0)
             throw new SubscriptionRuleException("There's nothing to pay online for this purchase -- please contact billing.");
         var offering = await Context.StorageAddOnOfferings.AsNoTracking().FirstAsync(o => o.Code == quote.OfferingCode, token);
@@ -161,7 +161,6 @@ public class SubscriptionCheckoutService
 
         var reusable = open.FirstOrDefault(c =>
             c.Provider == _gateway.Provider
-            && c.StorageTenantId == tenantId
             && c.StorageOfferingId == offering.Id
             && c.StorageBlocks == blocks
             && c.Amount == quote.AmountDue
@@ -182,7 +181,6 @@ public class SubscriptionCheckoutService
             BillingCycle = subscription.BillingCycle,
             StorageOfferingId = offering.Id,
             StorageBlocks = blocks,
-            StorageTenantId = tenantId,
             Amount = quote.AmountDue,
             Currency = quote.Currency,
             CreatedByUserId = actorUserId,
@@ -200,7 +198,7 @@ public class SubscriptionCheckoutService
             Metadata = CheckoutMetadata(checkout),
         };
         return await OpenSessionAsync(checkout, request, subscription,
-            new { kind = checkout.Kind, tenantId, offering = offering.Code, blocks, amount = quote.AmountDue },
+            new { kind = checkout.Kind, offering = offering.Code, blocks, amount = quote.AmountDue },
             actorUserId, token);
     }
 
@@ -383,7 +381,7 @@ public class SubscriptionCheckoutService
         return WebhookOutcome.Settled;
     }
 
-    /// <summary>A paid storage checkout: adds exactly the blocks and company that were quoted.</summary>
+    /// <summary>A paid storage checkout: adds exactly the blocks that were quoted.</summary>
     private async Task<WebhookOutcome> SettleStorageAsync(
         PaymentCheckout checkout, GatewaySessionState session, AccountSubscription? subscription, string settledKey, CancellationToken token)
     {
@@ -393,7 +391,7 @@ public class SubscriptionCheckoutService
             .Select(o => o.Code)
             .FirstAsync(token);
         var recorded = await _storage.ActivateAsync(
-            checkout.OwnerUserId, checkout.StorageTenantId!.Value, offeringCode, checkout.StorageBlocks!.Value,
+            checkout.OwnerUserId, offeringCode, checkout.StorageBlocks!.Value,
             payment.Amount, payment.Method, payment.PaymentId, checkout.Provider, token);
 
         checkout.CheckoutStatus = PaymentCheckoutStatus.Paid;

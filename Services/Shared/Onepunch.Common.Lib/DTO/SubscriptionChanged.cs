@@ -34,8 +34,7 @@ public record SubscriptionReminderEmail
     public DateTime? PurgeAfterUtc { get; set; }
     public int? EmployeeCount { get; set; }
     public int? CompanyCount { get; set; }
-    // Storage alerts (SubscriptionEmailTemplates.StorageAlmostFull): which company, and how full.
-    public string? CompanyName { get; set; }
+    // Storage alerts (SubscriptionEmailTemplates.StorageAlmostFull): how full the account's storage is.
     public int? StoragePercent { get; set; }
     public int? StorageUsedMb { get; set; }
     public int? StorageLimitMb { get; set; }
@@ -53,6 +52,6 @@ public static class SubscriptionEmailTemplates
     public const string Suspended = "suspended";
     public const string Canceled = "canceled";
     public const string PurgeWarning = "purge-warning";
-    /// <summary>A company's storage reached 95% of its limit.</summary>
+    /// <summary>The account's storage reached 95% of its limit.</summary>
     public const string StorageAlmostFull = "storage-almost-full";
 }

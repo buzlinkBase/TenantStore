@@ -13,7 +13,6 @@ public sealed record PlatformStorageOfferingView(StorageOfferingView Offering, i
 
 public record GrantStorageRequest
 {
-    public Guid TenantId { get; set; }
     public string OfferingCode { get; set; } = string.Empty;
     public int Blocks { get; set; }
     public string? Reason { get; set; }
@@ -127,21 +126,21 @@ public class PlatformStorageController : ControllerBase
 
     // ── One account's storage ────────────────────────────────────────────────────────────────
 
-    /// <summary>Each company of the account: base capacity, held blocks, usage.</summary>
+    /// <summary>The account's storage: base capacity, held blocks, usage across all its companies.</summary>
     [HttpGet("accounts/{ownerUserId:guid}")]
     [PlatformAuthorize(PlatformPermissions.AccountsRead)]
-    [ProducesResponseType(typeof(List<StorageSummary>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(StorageSummary), StatusCodes.Status200OK)]
     public Task<IActionResult> GetAccount(Guid ownerUserId, CancellationToken token) =>
-        SubscriptionResults.Run(async () => Ok(await _addOns.GetAccountSummariesAsync(ownerUserId, token)));
+        SubscriptionResults.Run(async () => Ok(await _addOns.GetSummaryAsync(ownerUserId, token)));
 
-    /// <summary>Give a company free blocks.</summary>
+    /// <summary>Give an account free blocks.</summary>
     [HttpPost("accounts/{ownerUserId:guid}/grants")]
     [PlatformAuthorize(PlatformPermissions.SubscriptionsManage)]
     [ProducesResponseType(typeof(Guid), StatusCodes.Status200OK)]
     public Task<IActionResult> Grant(Guid ownerUserId, [FromBody] GrantStorageRequest request, CancellationToken token) =>
         SubscriptionResults.Run(async () =>
         {
-            var addOn = await _addOns.GrantAsync(ownerUserId, request.TenantId, request.OfferingCode, request.Blocks, request.Reason, Actor, token);
+            var addOn = await _addOns.GrantAsync(ownerUserId, request.OfferingCode, request.Blocks, request.Reason, Actor, token);
             await _addOns.CommitChangesAsync(token);
             return Ok(addOn.Id);
         });

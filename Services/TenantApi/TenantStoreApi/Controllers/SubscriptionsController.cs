@@ -133,13 +133,13 @@ public class SubscriptionsController : ControllerBase
 
     // ── Storage ──────────────────────────────────────────────────────────────────────────────
 
-    /// <summary>This company's storage: base plan capacity, blocks held, usage, the offerings it may buy and
-    /// what it all costs.</summary>
+    /// <summary>The account's storage (one pool for all its companies): base plan capacity, blocks held,
+    /// usage, the offerings it may buy and what it all costs.</summary>
     [HttpGet("storage")]
     [ProducesResponseType(typeof(StorageSummary), StatusCodes.Status200OK)]
     public Task<IActionResult> GetStorage(CancellationToken token) =>
         WithBillingAccess(ViewBilling, token, async tenantId =>
-            Ok(await _storage.GetSummaryAsync(await OwnerOfAsync(tenantId, token), tenantId, token)));
+            Ok(await _storage.GetSummaryAsync(await OwnerOfAsync(tenantId, token), token)));
 
     /// <summary>Capacity and usage only, for the warning banners: also open to the company's Admins,
     /// who don't hold billing rights.</summary>
@@ -157,7 +157,7 @@ public class SubscriptionsController : ControllerBase
         if (!allowed) return Forbid();
 
         return await SubscriptionResults.Run(async () =>
-            Ok(StorageStatus.From(await _storage.GetSummaryAsync(await OwnerOfAsync(tenantId, token), tenantId, token))));
+            Ok(StorageStatus.From(await _storage.GetSummaryAsync(await OwnerOfAsync(tenantId, token), token))));
     }
 
     /// <summary>The prorated price of more blocks, for the checkout breakdown.</summary>
@@ -165,7 +165,7 @@ public class SubscriptionsController : ControllerBase
     [ProducesResponseType(typeof(StorageQuote), StatusCodes.Status200OK)]
     public Task<IActionResult> QuoteStorage([FromBody] StoragePurchaseRequest request, CancellationToken token) =>
         WithBillingAccess(ManageBilling, token, async tenantId =>
-            Ok(await _storage.QuoteAsync(await OwnerOfAsync(tenantId, token), tenantId, request.OfferingCode, request.Blocks, token)));
+            Ok(await _storage.QuoteAsync(await OwnerOfAsync(tenantId, token), request.OfferingCode, request.Blocks, token)));
 
     /// <summary>Pay online for more blocks; the browser goes to CheckoutUrl and returns to /billing/payment?checkout={id}.</summary>
     [HttpPost("storage/checkout")]
@@ -173,7 +173,7 @@ public class SubscriptionsController : ControllerBase
     public Task<IActionResult> StartStorageCheckout([FromBody] StoragePurchaseRequest request, CancellationToken token) =>
         WithBillingAccess(ManageBilling, token, async tenantId =>
             Ok(await _checkouts.StartStorageAsync(
-                await OwnerOfAsync(tenantId, token), tenantId, request.OfferingCode, request.Blocks, User.GetRequiredUserId(), token)));
+                await OwnerOfAsync(tenantId, token), request.OfferingCode, request.Blocks, User.GetRequiredUserId(), token)));
 
     /// <summary>Hold fewer blocks (0 cancels them) from the end of the paid period.</summary>
     [HttpPost("storage/reduction")]

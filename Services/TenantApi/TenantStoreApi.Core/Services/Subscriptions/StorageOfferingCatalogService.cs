@@ -12,6 +12,7 @@ public sealed record StorageOfferingView(
     int SortOrder,
     int BlockMb,
     decimal MonthlyPrice,
+    decimal AnnualPrice,
     string Currency,
     bool PricesIncludeVat,
     bool IsPublic,
@@ -25,6 +26,8 @@ public sealed record CreateStorageOfferingCommand
     public int? SortOrder { get; init; }
     public int BlockMb { get; init; }
     public decimal MonthlyPrice { get; init; }
+    /// <summary>Per block for a year (annual-cycle accounts). Unset: twelve months at the monthly price.</summary>
+    public decimal? AnnualPrice { get; init; }
     public bool PricesIncludeVat { get; init; } = true;
 }
 
@@ -36,6 +39,7 @@ public sealed record UpdateStorageOfferingCommand
     /// <summary>New purchases only -- blocks already held keep the size and price they were bought at.</summary>
     public int? BlockMb { get; init; }
     public decimal? MonthlyPrice { get; init; }
+    public decimal? AnnualPrice { get; init; }
     public bool? PricesIncludeVat { get; init; }
     /// <summary>True: every account sees it. False: only the owners it is offered to.</summary>
     public bool? IsPublic { get; init; }
@@ -77,7 +81,7 @@ public class StorageOfferingCatalogService
     public Task<bool> CommitChangesAsync(CancellationToken token = default) => _uow.CommitChangesAsync("", token);
 
     public static StorageOfferingView ToView(StorageAddOnOffering o) => new(
-        o.Code, o.Name, o.Description, o.SortOrder, o.BlockMb, o.MonthlyPrice, o.Currency,
+        o.Code, o.Name, o.Description, o.SortOrder, o.BlockMb, o.MonthlyPrice, o.AnnualPrice, o.Currency,
         o.PricesIncludeVat, o.IsPublic, o.IsActive);
 
     // ── Platform catalog ─────────────────────────────────────────────────────────────────────
@@ -108,7 +112,7 @@ public class StorageOfferingCatalogService
             throw new SubscriptionRuleException("An offering code is 2-40 lowercase letters, digits, '-' or '_', starting with a letter.");
         if (string.IsNullOrWhiteSpace(command.Name)) throw new SubscriptionRuleException("An offering needs a name.");
         if (command.BlockMb < 1) throw new SubscriptionRuleException("A block must add at least 1 MB.");
-        if (command.MonthlyPrice < 0) throw new SubscriptionRuleException("The price can't be negative.");
+        if (command.MonthlyPrice < 0 || command.AnnualPrice < 0) throw new SubscriptionRuleException("Prices can't be negative.");
         if (await Context.StorageAddOnOfferings.AnyAsync(o => o.Code == code, token)
             || Context.StorageAddOnOfferings.Local.Any(o => o.Code == code))
             throw new SubscriptionRuleException($"An offering with code '{code}' already exists.");
@@ -124,6 +128,7 @@ public class StorageOfferingCatalogService
             SortOrder = sortOrder,
             BlockMb = command.BlockMb,
             MonthlyPrice = command.MonthlyPrice,
+            AnnualPrice = command.AnnualPrice ?? command.MonthlyPrice * 12,
             PricesIncludeVat = command.PricesIncludeVat,
             Currency = "PHP",
             IsPublic = false,
@@ -139,13 +144,14 @@ public class StorageOfferingCatalogService
     {
         var offering = await RequireAsync(code, token);
         if (command.BlockMb is < 1) throw new SubscriptionRuleException("A block must add at least 1 MB.");
-        if (command.MonthlyPrice is < 0) throw new SubscriptionRuleException("The price can't be negative.");
+        if (command.MonthlyPrice is < 0 || command.AnnualPrice is < 0) throw new SubscriptionRuleException("Prices can't be negative.");
 
         if (command.Name is { } name && !string.IsNullOrWhiteSpace(name)) offering.Name = name.Trim();
         if (command.Description is { } description) offering.Description = description.Trim();
         if (command.SortOrder is { } order) offering.SortOrder = order;
         if (command.BlockMb is { } blockMb) offering.BlockMb = blockMb;
         if (command.MonthlyPrice is { } price) offering.MonthlyPrice = price;
+        if (command.AnnualPrice is { } annual) offering.AnnualPrice = annual;
         if (command.PricesIncludeVat is { } vat) offering.PricesIncludeVat = vat;
         if (command.IsPublic is { } isPublic) offering.IsPublic = isPublic;
         if (command.IsActive is { } isActive) offering.IsActive = isActive;

@@ -241,8 +241,12 @@ public class SubscriptionViewService
             var hasFeatures = featuresUsed.All(key => key == EntitlementKeys.CompaniesMax
                 ? Fits(view.Limits[key], usage.Count)
                 : view.Features.GetValueOrDefault(key));
-            var fitsLimits = usage.All(company => company.Limits.All(kv =>
-                kv.Value is not { } used || Fits(view.Limits.GetValueOrDefault(kv.Key), used)));
+            var fitsLimits = usage.All(company => company.Limits
+                .Where(kv => kv.Key != EntitlementKeys.StorageMaxMb)
+                .All(kv => kv.Value is not { } used || Fits(view.Limits.GetValueOrDefault(kv.Key), used)));
+            // Storage is one pool for the account: all companies' files together.
+            fitsLimits &= Fits(view.Limits.GetValueOrDefault(EntitlementKeys.StorageMaxMb),
+                usage.Sum(c => c.Used.GetValueOrDefault(EntitlementKeys.StorageMaxMb) ?? 0));
             if (hasFeatures && fitsLimits) return plan.Code;
         }
 

@@ -38,7 +38,8 @@ public static class EntitlementKeys
     /// <summary>Members holding any role beyond the portal-only ones (Employee, Client), excluding the owner.</summary>
     public const string AdminsMax = "admins.max";
     public const string BiometricDevicesMax = "biometric_devices.max";
-    /// <summary>File storage per company, in MB: the plan's base capacity plus purchased storage blocks.</summary>
+    /// <summary>File storage for the whole account, in MB: the plan's base capacity plus purchased storage
+    /// blocks, shared by every company the account owns. Account-wide like <see cref="CompaniesMax"/>.</summary>
     public const string StorageMaxMb = "storage.max_mb";
 
     // ── Display-only ────────────────────────────────────────────────────────────────────────

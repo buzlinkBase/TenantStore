@@ -17,10 +17,12 @@ public static class StorageAddOnSeed
             Id = Block50GbId,
             Code = "storage-50gb",
             Name = "50 GB storage block",
-            Description = "Adds 50 GB of file storage to a company, billed monthly with your plan.",
+            Description = "Adds 50 GB of file storage to your account, shared by all your companies and billed with your plan.",
             SortOrder = 1,
             BlockMb = 50 * 1024,
             MonthlyPrice = 400m,
+            // Placeholder: 10 months for 12, like the plans. Set the real annual price in the console.
+            AnnualPrice = 4000m,
             Currency = "PHP",
             PricesIncludeVat = true,
             IsPublic = true,
@@ -39,6 +41,7 @@ public class StorageAddOnOfferingConfig : IEntityTypeConfiguration<StorageAddOnO
         builder.Property(x => x.Description).HasMaxLength(512);
         builder.Property(x => x.Currency).HasMaxLength(8);
         builder.Property(x => x.MonthlyPrice).HasPrecision(18, 2);
+        builder.Property(x => x.AnnualPrice).HasPrecision(18, 2);
         builder.HasData(StorageAddOnSeed.Offerings);
     }
 }
@@ -63,6 +66,7 @@ public class StorageAddOnConfig : IEntityTypeConfiguration<StorageAddOn>
     public void Configure(EntityTypeBuilder<StorageAddOn> builder)
     {
         builder.Property(x => x.UnitPrice).HasPrecision(18, 2);
+        builder.Property(x => x.UnitAnnualPrice).HasPrecision(18, 2);
         builder.Property(x => x.Reason).HasMaxLength(512);
         builder.Property(x => x.CreatedBy).HasMaxLength(128);
         builder.HasOne(x => x.Subscription)
@@ -73,7 +77,7 @@ public class StorageAddOnConfig : IEntityTypeConfiguration<StorageAddOn>
             .WithMany()
             .HasForeignKey(x => x.OfferingId)
             .OnDelete(DeleteBehavior.Restrict);
-        builder.HasIndex(x => new { x.SubscriptionId, x.TenantId });
+        builder.HasIndex(x => x.SubscriptionId);
     }
 }
 

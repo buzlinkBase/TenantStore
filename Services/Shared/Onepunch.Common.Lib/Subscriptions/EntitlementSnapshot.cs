@@ -55,6 +55,13 @@ public sealed record EntitlementSnapshot
     /// </summary>
     public DateTime? PunchesAcceptedUntilUtc { get; init; }
 
+    /// <summary>
+    /// Every company the owner account has (this one included). Storage is one pool for the whole
+    /// account, so a service enforcing <see cref="EntitlementKeys.StorageMaxMb"/> adds up all of
+    /// these companies' files, not just the current company's.
+    /// </summary>
+    public List<Guid> AccountTenantIds { get; init; } = new();
+
     /// <summary>Status of a company that was deleted -- nothing about it is valid any more.</summary>
     public const string InvalidStatus = "Invalid";
 

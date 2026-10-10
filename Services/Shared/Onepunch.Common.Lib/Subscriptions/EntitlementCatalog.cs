@@ -50,7 +50,7 @@ public static class EntitlementCatalog
             "Members holding any role beyond the portal-only ones (Employee, Client), excluding the owner, per company."),
         new(EntitlementKeys.BiometricDevicesMax, EntitlementKind.Limit, "Biometric devices", "Biometric devices per company."),
         new(EntitlementKeys.StorageMaxMb, EntitlementKind.Limit, "Storage (MB)",
-            "File storage per company in MB: the plan's base capacity. Purchased storage blocks are added on top."),
+            "File storage in MB for the whole account, shared by all its companies: the plan's base capacity. Purchased storage blocks are added on top."),
 
         new(EntitlementKeys.SupportTier, EntitlementKind.Display, "Support tier", "Shown on the plan; not enforced."),
     ];

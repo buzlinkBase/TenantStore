@@ -61,7 +61,7 @@ public sealed class SubscriptionTestHost
         Uow.Context.StorageAddOnOfferings.AddRange(StorageAddOnSeed.Offerings.Select(o => new StorageAddOnOffering
         {
             Id = o.Id, Code = o.Code, Name = o.Name, Description = o.Description, SortOrder = o.SortOrder,
-            BlockMb = o.BlockMb, MonthlyPrice = o.MonthlyPrice, Currency = o.Currency,
+            BlockMb = o.BlockMb, MonthlyPrice = o.MonthlyPrice, AnnualPrice = o.AnnualPrice, Currency = o.Currency,
             PricesIncludeVat = o.PricesIncludeVat, IsPublic = o.IsPublic, IsActive = o.IsActive,
         }));
         Uow.Context.SaveChanges();

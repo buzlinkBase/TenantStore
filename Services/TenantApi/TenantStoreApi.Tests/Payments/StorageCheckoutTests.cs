@@ -8,7 +8,7 @@ using Xunit;
 
 namespace TenantStoreApi.Tests.Payments;
 
-/// <summary>Buying storage blocks online: the page is for the quoted blocks and company, and paying it adds exactly those.</summary>
+/// <summary>Buying storage blocks online: the page is for the quoted blocks, and paying it adds exactly those to the account's pool.</summary>
 public class StorageCheckoutTests
 {
     private const string Block = "storage-50gb";
@@ -27,10 +27,10 @@ public class StorageCheckoutTests
     [Fact]
     public async Task Start_OpensAPageForTheQuotedBlocks()
     {
-        var (host, owner, tenantId) = await PaidAccountAsync();
+        var (host, owner, _) = await PaidAccountAsync();
         host.Clock.Advance(TimeSpan.FromDays(15.5));
 
-        var started = await host.Checkouts.StartStorageAsync(owner, tenantId, Block, 2, owner);
+        var started = await host.Checkouts.StartStorageAsync(owner, Block, 2, owner);
 
         var request = host.Gateway.Created.Single();
         request.Amount.Should().Be(400m);
@@ -39,18 +39,32 @@ public class StorageCheckoutTests
         var checkout = host.Uow.Context.PaymentCheckouts.Single();
         checkout.Kind.Should().Be(PaymentCheckoutKind.StorageAddOn);
         checkout.StorageBlocks.Should().Be(2);
-        checkout.StorageTenantId.Should().Be(tenantId);
         checkout.CheckoutStatus.Should().Be(PaymentCheckoutStatus.Open);
         host.Uow.Context.StorageAddOns.Should().BeEmpty("nothing is added until it is paid");
     }
 
     [Fact]
+    public async Task Start_OnAnAnnualAccount_ChargesTheAnnualBlockPrice()
+    {
+        var host = new SubscriptionTestHost();
+        var (owner, _) = await host.TrialAccountAsync();
+        await host.Subscriptions.RequestPlanChangeAsync(owner, "payroll", BillingCycle.Annual, "owner");
+        await host.SaveAsync();
+        await host.Subscriptions.RecordPaymentAsync(owner, new RecordPaymentCommand { Amount = 49990m, Method = PaymentMethod.BankTransfer }, "platform");
+        await host.SaveAsync();
+
+        await host.Checkouts.StartStorageAsync(owner, Block, 1, owner);
+
+        host.Gateway.Created.Single().Amount.Should().Be(4000m);
+    }
+
+    [Fact]
     public async Task Start_TwiceForTheSameQuote_ReturnsTheSamePage()
     {
-        var (host, owner, tenantId) = await PaidAccountAsync();
+        var (host, owner, _) = await PaidAccountAsync();
 
-        var first = await host.Checkouts.StartStorageAsync(owner, tenantId, Block, 1, owner);
-        var second = await host.Checkouts.StartStorageAsync(owner, tenantId, Block, 1, owner);
+        var first = await host.Checkouts.StartStorageAsync(owner, Block, 1, owner);
+        var second = await host.Checkouts.StartStorageAsync(owner, Block, 1, owner);
 
         second.Should().Be(first);
         host.Gateway.Created.Should().ContainSingle();
@@ -59,12 +73,12 @@ public class StorageCheckoutTests
     [Fact]
     public async Task Start_ForAnotherQuantity_ClosesTheOldPage_ButNotAPlanPayment()
     {
-        var (host, owner, tenantId) = await PaidAccountAsync();
+        var (host, owner, _) = await PaidAccountAsync();
         host.Clock.Advance(TimeSpan.FromDays(26));
         var plan = await host.Checkouts.StartAsync(owner, owner);
-        var one = await host.Checkouts.StartStorageAsync(owner, tenantId, Block, 1, owner);
+        var one = await host.Checkouts.StartStorageAsync(owner, Block, 1, owner);
 
-        var two = await host.Checkouts.StartStorageAsync(owner, tenantId, Block, 2, owner);
+        var two = await host.Checkouts.StartStorageAsync(owner, Block, 2, owner);
 
         two.CheckoutId.Should().NotBe(one.CheckoutId);
         host.Uow.Context.PaymentCheckouts.Single(c => c.Id == one.CheckoutId).CheckoutStatus.Should().Be(PaymentCheckoutStatus.Expired);
@@ -75,8 +89,8 @@ public class StorageCheckoutTests
     [Fact]
     public async Task Start_StartingAPlanPayment_LeavesTheStoragePageOpen()
     {
-        var (host, owner, tenantId) = await PaidAccountAsync();
-        var storage = await host.Checkouts.StartStorageAsync(owner, tenantId, Block, 1, owner);
+        var (host, owner, _) = await PaidAccountAsync();
+        var storage = await host.Checkouts.StartStorageAsync(owner, Block, 1, owner);
         host.Clock.Advance(TimeSpan.FromDays(26));
 
         await host.Checkouts.StartAsync(owner, owner);
@@ -87,10 +101,10 @@ public class StorageCheckoutTests
     [Fact]
     public async Task Start_WhenOnlinePaymentIsOff_IsRefused()
     {
-        var (host, owner, tenantId) = await PaidAccountAsync();
+        var (host, owner, _) = await PaidAccountAsync();
         host.Gateway.IsEnabled = false;
 
-        var act = () => host.Checkouts.StartStorageAsync(owner, tenantId, Block, 1, owner);
+        var act = () => host.Checkouts.StartStorageAsync(owner, Block, 1, owner);
 
         await act.Should().ThrowAsync<SubscriptionRuleException>().WithMessage("*Online payment*");
     }
@@ -98,20 +112,21 @@ public class StorageCheckoutTests
     [Fact]
     public async Task Start_AtTheVeryEndOfThePeriod_NothingToPayOnline_IsRefused()
     {
-        var (host, owner, tenantId) = await PaidAccountAsync();
+        var (host, owner, _) = await PaidAccountAsync();
         host.Clock.UtcNow = host.SubscriptionOf(owner).CurrentPeriodEndUtc!.Value.AddSeconds(-1);
 
-        var act = () => host.Checkouts.StartStorageAsync(owner, tenantId, Block, 1, owner);
+        var act = () => host.Checkouts.StartStorageAsync(owner, Block, 1, owner);
 
         await act.Should().ThrowAsync<SubscriptionRuleException>().WithMessage("*nothing to pay*");
     }
 
     [Fact]
-    public async Task Paying_AddsTheBlocks_AndRaisesTheLimit()
+    public async Task Paying_AddsTheBlocks_AndRaisesTheLimitForEveryCompany()
     {
         var (host, owner, tenantId) = await PaidAccountAsync();
+        var second = host.AddCompany(owner, "Second");
         host.Clock.Advance(TimeSpan.FromDays(15.5));
-        var started = await host.Checkouts.StartStorageAsync(owner, tenantId, Block, 2, owner);
+        var started = await host.Checkouts.StartStorageAsync(owner, Block, 2, owner);
         host.Gateway.Pay("cs_1", 400m);
 
         var view = await host.Checkouts.RefreshAsync(owner, started.CheckoutId);
@@ -120,19 +135,19 @@ public class StorageCheckoutTests
         view.Kind.Should().Be(PaymentCheckoutKind.StorageAddOn);
         view.PaymentMethod.Should().Be(PaymentMethod.GCash);
         view.PlanName.Should().Be("2 x 50 GB storage block");
-        host.Uow.Context.StorageAddOns.Should().ContainSingle(a => a.TenantId == tenantId && a.Blocks == 2);
+        host.Uow.Context.StorageAddOns.Should().ContainSingle(a => a.Blocks == 2);
         host.Uow.Context.StorageAddOnPayments.Should().ContainSingle(p => p.Amount == 400m);
-        var snapshot = await host.Resolver.ResolveActualForTenantAsync(tenantId);
-        snapshot.LimitOf(EntitlementKeys.StorageMaxMb).Should().Be(20480 + 2 * 51200);
+        foreach (var company in new[] { tenantId, second })
+            (await host.Resolver.ResolveActualForTenantAsync(company)).LimitOf(EntitlementKeys.StorageMaxMb).Should().Be(20480 + 2 * 51200);
         host.Uow.Context.SubscriptionPayments.Should().ContainSingle("a storage payment never becomes a plan payment");
     }
 
     [Fact]
     public async Task APaymentThatIsNotTheQuotedAmount_IsFlagged_NotApplied()
     {
-        var (host, owner, tenantId) = await PaidAccountAsync();
+        var (host, owner, _) = await PaidAccountAsync();
         host.Clock.Advance(TimeSpan.FromDays(15.5));
-        var started = await host.Checkouts.StartStorageAsync(owner, tenantId, Block, 2, owner);
+        var started = await host.Checkouts.StartStorageAsync(owner, Block, 2, owner);
         host.Gateway.Pay("cs_1", 100m);
 
         await host.Checkouts.RefreshAsync(owner, started.CheckoutId);
@@ -142,11 +157,11 @@ public class StorageCheckoutTests
     }
 
     [Fact]
-    public async Task TheWebhookAndTheReturnScreenRacing_ApplyTheBlocksOnce()
+    public async Task TheWebhookDeliveredTwice_AppliesTheBlocksOnce()
     {
-        var (host, owner, tenantId) = await PaidAccountAsync();
+        var (host, owner, _) = await PaidAccountAsync();
         host.Clock.Advance(TimeSpan.FromDays(15.5));
-        var started = await host.Checkouts.StartStorageAsync(owner, tenantId, Block, 1, owner);
+        await host.Checkouts.StartStorageAsync(owner, Block, 1, owner);
         var session = host.Gateway.Pay("cs_1", 200m);
         var body = host.Gateway.Deliver(session);
 
@@ -156,6 +171,5 @@ public class StorageCheckoutTests
         first.Should().Be(WebhookOutcome.Settled);
         second.Should().Be(WebhookOutcome.Duplicate);
         host.Uow.Context.StorageAddOns.Single().Blocks.Should().Be(1);
-        started.CheckoutId.Should().NotBeEmpty();
     }
 }

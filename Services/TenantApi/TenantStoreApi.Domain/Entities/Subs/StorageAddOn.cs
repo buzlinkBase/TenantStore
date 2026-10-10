@@ -18,6 +18,9 @@ public class StorageAddOnOffering : BaseEntity
     /// <summary>Storage one block adds, in MB (51,200 = 50 GB).</summary>
     public int BlockMb { get; set; }
     public decimal MonthlyPrice { get; set; }
+    /// <summary>Per block for a year, billed up front by accounts on the annual cycle -- set below
+    /// 12 x <see cref="MonthlyPrice"/> to give annual accounts a discount.</summary>
+    public decimal AnnualPrice { get; set; }
     public string Currency { get; set; } = "PHP";
     public bool PricesIncludeVat { get; set; } = true;
     /// <summary>Offered to every account. Off: only to the owners it is offered to.</summary>
@@ -38,26 +41,26 @@ public class StorageAddOnOffer : BaseEntity
 }
 
 /// <summary>
-/// Blocks of extra storage one company holds. The blocks add <c>Blocks x BlockMb</c> to the
-/// company's <c>storage.max_mb</c> for as long as the account's plan is running, and renew with the
-/// plan's billing period. <see cref="BlockMb"/> and <see cref="UnitPrice"/> are fixed when bought, so
-/// a later catalog edit doesn't reprice what a customer already pays for. A reduction is scheduled
-/// (<see cref="PendingBlocks"/>) and applied at the end of the paid period.
+/// Blocks of extra storage an account holds. The blocks add <c>Blocks x BlockMb</c> to the account's
+/// <c>storage.max_mb</c> -- one pool shared by all its companies -- for as long as its plan is running,
+/// and renew with the plan's billing period. <see cref="BlockMb"/> and the unit prices are fixed when
+/// bought, so a later catalog edit doesn't reprice what a customer already pays for. A reduction is
+/// scheduled (<see cref="PendingBlocks"/>) and applied at the end of the paid period.
 /// </summary>
 [Audited]
 public class StorageAddOn : BaseEntity
 {
     public Guid SubscriptionId { get; set; }
     public virtual AccountSubscription Subscription { get; set; } = null!;
-    /// <summary>The company the storage belongs to.</summary>
-    public Guid TenantId { get; set; }
     public Guid OfferingId { get; set; }
     public virtual StorageAddOnOffering Offering { get; set; } = null!;
 
     public int Blocks { get; set; }
     public int BlockMb { get; set; }
-    /// <summary>Monthly price of one block.</summary>
+    /// <summary>Price of one block for a month (accounts on the monthly cycle).</summary>
     public decimal UnitPrice { get; set; }
+    /// <summary>Price of one block for a year (accounts on the annual cycle).</summary>
+    public decimal UnitAnnualPrice { get; set; }
     /// <summary>Granted by the platform at no charge.</summary>
     public bool IsComplimentary { get; set; }
 
@@ -74,7 +77,6 @@ public class StorageAddOn : BaseEntity
 public class StorageAddOnPayment : BaseEntity
 {
     public Guid SubscriptionId { get; set; }
-    public Guid TenantId { get; set; }
     public Guid AddOnId { get; set; }
     public int Blocks { get; set; }
     public decimal Amount { get; set; }
