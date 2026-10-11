@@ -166,6 +166,35 @@ public class PayMongoGatewayTests
     }
 
     [Fact]
+    public async Task Refund_SendsCentavos_ThePayment_AndPayMongosReasonName()
+    {
+        var (gateway, handler) = Build(HttpStatusCode.OK,
+            """{"data":{"id":"rf_1","type":"refund","attributes":{"amount":100050,"payment_id":"pay_9","status":"pending"}}}""");
+
+        var refund = await gateway.RefundPaymentAsync("pay_9", 1000.50m, GatewayRefundReason.RequestedByCustomer, " Paid twice ", CancellationToken.None);
+
+        refund.Should().Be(new GatewayRefund("rf_1", "pay_9", 1000.50m, "pending"));
+        handler.Request!.Method.Should().Be(HttpMethod.Post);
+        handler.Request.RequestUri!.ToString().Should().Be("https://api.paymongo.test/v1/refunds");
+        var attributes = JsonDocument.Parse(handler.RequestBody!).RootElement.GetProperty("data").GetProperty("attributes");
+        attributes.GetProperty("payment_id").GetString().Should().Be("pay_9");
+        attributes.GetProperty("amount").GetInt64().Should().Be(100050);
+        attributes.GetProperty("reason").GetString().Should().Be("requested_by_customer");
+        attributes.GetProperty("notes").GetString().Should().Be("Paid twice");
+    }
+
+    [Fact]
+    public async Task Refund_Refused_ThrowsWithPayMongosDetail()
+    {
+        var (gateway, _) = Build(HttpStatusCode.BadRequest,
+            """{"errors":[{"code":"parameter_invalid","detail":"amount cannot exceed the refundable balance."}]}""");
+
+        var act = () => gateway.RefundPaymentAsync("pay_9", 99999m, GatewayRefundReason.Others, null, CancellationToken.None);
+
+        (await act.Should().ThrowAsync<PaymentGatewayException>()).Which.Message.Should().Contain("refundable balance");
+    }
+
+    [Fact]
     public async Task GetCheckout_ReadsThePaidPayment()
     {
         var eventData = JsonDocument.Parse(PaidEvent()).RootElement.GetProperty("data").GetProperty("attributes").GetProperty("data");

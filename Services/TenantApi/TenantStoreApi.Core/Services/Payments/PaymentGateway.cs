@@ -41,6 +41,18 @@ public sealed record GatewaySessionState(
 /// <summary>A payment as the gateway reports it now: how much of it has been given back.</summary>
 public sealed record GatewayPaymentState(string PaymentId, decimal Amount, decimal RefundedAmount);
 
+/// <summary>Why a refund is issued -- the reasons a gateway accepts (PayMongo's own list).</summary>
+public enum GatewayRefundReason
+{
+    RequestedByCustomer,
+    Duplicate,
+    Fraudulent,
+    Others,
+}
+
+/// <summary>A refund the gateway accepted: its id, the payment it came off, and how much.</summary>
+public sealed record GatewayRefund(string RefundId, string PaymentId, decimal Amount, string Status);
+
 public enum GatewayEventKind
 {
     CheckoutPaid,
@@ -84,6 +96,10 @@ public interface IPaymentGateway
     /// <summary>One payment as the gateway holds it, including what has been refunded -- how a refund
     /// whose webhook never arrived is found.</summary>
     Task<GatewayPaymentState> GetPaymentAsync(string paymentId, CancellationToken token);
+    /// <summary>Gives <paramref name="amount"/> of a payment back to the payer. Throws
+    /// <see cref="PaymentGatewayException"/> when the gateway refuses (over the balance, a method that
+    /// can't be refunded, ...).</summary>
+    Task<GatewayRefund> RefundPaymentAsync(string paymentId, decimal amount, GatewayRefundReason reason, string? notes, CancellationToken token);
 
     /// <summary>The event in <paramref name="rawBody"/>, or null when its signature doesn't check
     /// out (or it can't be read) -- then it didn't come from the gateway.</summary>
@@ -114,6 +130,9 @@ public sealed class DisabledPaymentGateway : IPaymentGateway
         throw new PaymentGatewayException("Online payment isn't configured.");
 
     public Task<GatewayPaymentState> GetPaymentAsync(string paymentId, CancellationToken token) =>
+        throw new PaymentGatewayException("Online payment isn't configured.");
+
+    public Task<GatewayRefund> RefundPaymentAsync(string paymentId, decimal amount, GatewayRefundReason reason, string? notes, CancellationToken token) =>
         throw new PaymentGatewayException("Online payment isn't configured.");
 
     public GatewayWebhookEvent? ReadWebhook(string rawBody, string? signatureHeader) => null;

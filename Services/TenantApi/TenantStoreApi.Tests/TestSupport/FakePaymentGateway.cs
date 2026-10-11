@@ -45,12 +45,29 @@ public sealed class FakePaymentGateway : IPaymentGateway
 
     /// <summary>What has been refunded per gateway payment id, as the gateway would report it.</summary>
     public Dictionary<string, decimal> Refunds { get; } = new();
+    /// <summary>What each gateway payment was for, as the gateway would report it.</summary>
+    public Dictionary<string, decimal> Amounts { get; } = new();
     public bool FailPaymentLookup { get; set; }
 
     public Task<GatewayPaymentState> GetPaymentAsync(string paymentId, CancellationToken token)
     {
         if (FailPaymentLookup) throw new PaymentGatewayException("PayMongo couldn't be reached.");
-        return Task.FromResult(new GatewayPaymentState(paymentId, 0m, Refunds.GetValueOrDefault(paymentId)));
+        return Task.FromResult(new GatewayPaymentState(paymentId, Amounts.GetValueOrDefault(paymentId), Refunds.GetValueOrDefault(paymentId)));
+    }
+
+    public List<(string PaymentId, decimal Amount, GatewayRefundReason Reason, string? Notes)> RefundRequests { get; } = [];
+    public bool FailNextRefund { get; set; }
+
+    public Task<GatewayRefund> RefundPaymentAsync(string paymentId, decimal amount, GatewayRefundReason reason, string? notes, CancellationToken token)
+    {
+        if (FailNextRefund)
+        {
+            FailNextRefund = false;
+            throw new PaymentGatewayException("PayMongo refused POST refunds (400): this payment method can't be refunded");
+        }
+        RefundRequests.Add((paymentId, amount, reason, notes));
+        Refunds[paymentId] = Refunds.GetValueOrDefault(paymentId) + amount;
+        return Task.FromResult(new GatewayRefund($"rf_{RefundRequests.Count}", paymentId, amount, "pending"));
     }
 
     public GatewayWebhookEvent? ReadWebhook(string rawBody, string? signatureHeader) =>
@@ -64,6 +81,7 @@ public sealed class FakePaymentGateway : IPaymentGateway
             Payment = new GatewayPayment($"pay_{sessionId}", amount, "PHP", method, methodName, new DateTime(2026, 10, 1, 8, 0, 0, DateTimeKind.Utc)),
         };
         Sessions[sessionId] = session;
+        Amounts[$"pay_{sessionId}"] = amount;
         return session;
     }
 
