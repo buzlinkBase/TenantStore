@@ -262,5 +262,7 @@ public class PlatformDirectoryServiceTests
         var second = await directory.ListPaymentsAsync(new PaymentQuery(Page: 2, PageSize: 1));
         second.Items.Should().ContainSingle(p => p.Kind == "Plan");
         (await directory.ListPaymentsAsync(new PaymentQuery(Voided: true))).Items.Should().BeEmpty("storage payments are never void");
+        (await directory.ListPaymentsAsync(new PaymentQuery(Voided: false))).Items.Select(p => p.Kind)
+            .Should().Equal("Storage", "Plan");
     }
 }

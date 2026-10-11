@@ -169,7 +169,7 @@ public class PlatformAccountActionsService
     /// (or to nothing: the trial if it's still running, otherwise Expired), and whatever time-driven
     /// transition is then due is applied. The plan is not rolled back: use Set plan if it also changed.
     /// </summary>
-    public async Task VoidPaymentAsync(Guid paymentId, string? reason, string? actor, CancellationToken token = default)
+    public async Task VoidPaymentAsync(Guid paymentId, string? reason, string? actor, VoidKind kind = VoidKind.EntryError, CancellationToken token = default)
     {
         reason = RequireReason(reason);
         var payment = await Context.SubscriptionPayments.FirstOrDefaultAsync(p => p.Id == paymentId, token)
@@ -185,6 +185,7 @@ public class PlatformAccountActionsService
         payment.VoidedAtUtc = now;
         payment.VoidedBy = actor;
         payment.VoidReason = reason;
+        payment.VoidKind = kind;
 
         var transitions = new List<SubscriptionTransition>();
         var definedCurrentPeriod = subscription.CurrentPeriodEndUtc == payment.PeriodEndUtc;
@@ -216,7 +217,7 @@ public class PlatformAccountActionsService
         Touch(subscription);
 
         await _events.AddAsync(subscription, BillingEventTypes.PaymentVoided,
-            new { payment.Id, payment.Amount, reason, periodWasReverted = definedCurrentPeriod, status = subscription.SubStatus },
+            new { payment.Id, payment.Amount, reason, kind = kind.ToString(), periodWasReverted = definedCurrentPeriod, status = subscription.SubStatus },
             actor, token: token);
         foreach (var transition in transitions)
             await _events.AddAsync(subscription, transition.EventType, new { transition.From, transition.To, cause = "payment voided" }, actor, token: token);

@@ -2007,6 +2007,10 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<string>("VoidKind")
+                        .HasMaxLength(16)
+                        .HasColumnType("varchar(16)");
+
                     b.Property<string>("VoidReason")
                         .HasColumnType("longtext");
 

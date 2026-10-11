@@ -63,7 +63,14 @@ public sealed record PaymentView(
     /// <summary>"Plan" for a plan period, "Storage" for storage blocks bought mid-period.</summary>
     string Kind = PaymentKinds.Plan,
     /// <summary>Storage payments: what was bought, e.g. "2 x 50 GB Storage".</summary>
-    string? Description = null);
+    string? Description = null,
+    /// <summary>"Paid", or "Refunded" / "Cancelled" for a voided payment the owner still sees.</summary>
+    string Status = PaymentStatuses.Paid);
+
+public static class PaymentStatuses
+{
+    public const string Paid = "Paid";
+}
 
 /// <summary>The kinds of payment a payments list mixes.</summary>
 public static class PaymentKinds
@@ -245,7 +252,8 @@ public class SubscriptionViewService
         var paymentViews = payments
             .Select(p => new PaymentView(
                 p.Id, p.PaidAtUtc, p.Amount, p.Currency, p.Method, p.Reference,
-                planNames.GetValueOrDefault(p.PlanId), p.BillingCycle, p.PeriodStartUtc, p.PeriodEndUtc))
+                planNames.GetValueOrDefault(p.PlanId), p.BillingCycle, p.PeriodStartUtc, p.PeriodEndUtc,
+                Status: p.VoidedAtUtc == null ? PaymentStatuses.Paid : p.VoidKind.ToString()!))
             .Concat(storagePayments.Select(s => new PaymentView(
                 s.Payment.Id, s.Payment.PaidAtUtc, s.Payment.Amount, s.Payment.Currency, s.Payment.Method,
                 s.Payment.Reference, subscription.Plan.Name, subscription.BillingCycle,

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Onepunch.Common.Lib.Platform;
 using TenantStoreApi.Core.Services.Payments;
 using TenantStoreApi.Core.Services.Platform;
+using TenantStoreApi.Domain.Entities.Subs;
 using TenantStoreApi.Security;
 
 namespace TenantStoreApi.Controllers;
@@ -11,6 +12,13 @@ namespace TenantStoreApi.Controllers;
 public record ReasonRequest
 {
     public string? Reason { get; set; }
+}
+
+public record VoidPaymentRequest
+{
+    public string? Reason { get; set; }
+    /// <summary>Refunded, Cancelled or EntryError: decides whether the owner still sees the payment.</summary>
+    public VoidKind Kind { get; set; } = VoidKind.EntryError;
 }
 
 public record ExtendPeriodRequest
@@ -168,10 +176,10 @@ public class PlatformPaymentsController : ControllerBase
 
     [HttpPost("{paymentId:guid}/void")]
     [PlatformAuthorize(PlatformPermissions.PaymentsRecord)]
-    public Task<IActionResult> Void(Guid paymentId, [FromBody] ReasonRequest request, CancellationToken token) =>
+    public Task<IActionResult> Void(Guid paymentId, [FromBody] VoidPaymentRequest request, CancellationToken token) =>
         SubscriptionResults.Run(async () =>
         {
-            await _actions.VoidPaymentAsync(paymentId, request.Reason, PlatformActor.From(User), token);
+            await _actions.VoidPaymentAsync(paymentId, request.Reason, PlatformActor.From(User), request.Kind, token);
             await _actions.CommitChangesAsync(token);
             return Ok();
         });

@@ -181,6 +181,23 @@ public class SubscriptionPayment : BaseEntity
     public DateTime? VoidedAtUtc { get; set; }
     public string? VoidedBy { get; set; }
     public string? VoidReason { get; set; }
+
+    /// <summary>Why it was voided. Null on payments voided before kinds existed, which count as
+    /// <see cref="Subs.VoidKind.EntryError"/>: the owner never sees those.</summary>
+    public VoidKind? VoidKind { get; set; }
+}
+
+/// <summary>Stored as text. Decides whether the owner still sees a voided payment: only
+/// <see cref="EntryError"/> (recorded by mistake) is hidden from them; the others stay in their
+/// billing history marked with what happened, because the money really moved.</summary>
+public enum VoidKind
+{
+    /// <summary>The money was returned to the owner.</summary>
+    Refunded,
+    /// <summary>The payment fell through: cancelled, failed, bounced or charged back.</summary>
+    Cancelled,
+    /// <summary>Recorded by mistake (duplicate, wrong amount): it never happened as far as the owner is concerned.</summary>
+    EntryError,
 }
 
 /// <summary>

@@ -83,6 +83,7 @@ public class SubscriptionPaymentConfig: IEntityTypeConfiguration<SubscriptionPay
         builder.Property(x => x.Currency).HasMaxLength(8);
         builder.Property(x => x.BillingCycle).HasConversion<string>().HasMaxLength(16);
         builder.Property(x => x.Method).HasConversion<string>().HasMaxLength(32);
+        builder.Property(x => x.VoidKind).HasConversion<string>().HasMaxLength(16);
         builder.Property(x => x.Reference).HasMaxLength(128);
         builder.Property(x => x.RecordedBy).HasMaxLength(128);
         builder.Property(x => x.Notes).HasMaxLength(1024);
