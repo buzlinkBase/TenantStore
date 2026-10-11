@@ -191,6 +191,29 @@ public class StorageAddOnService
     private static bool IsPaidAndRunning(AccountSubscription s, DateTime now) =>
         s.SubStatus == AccountSubscriptionStatus.Active && s.CurrentPeriodEndUtc > now;
 
+    /// <summary>What a storage payment shows in a payments list, e.g. "2 x 50 GB Storage". The block
+    /// may have been removed since, so the offering name can be missing.</summary>
+    public static string DescribePayment(int blocks, string? offeringName) =>
+        $"{blocks} x {(string.IsNullOrWhiteSpace(offeringName) ? "Storage add-on" : offeringName)}";
+
+    /// <summary>The storage payments of one subscription, newest first, each with a readable description.</summary>
+    public async Task<IReadOnlyList<(StorageAddOnPayment Payment, string Description)>> GetPaymentsAsync(
+        Guid subscriptionId, CancellationToken token = default)
+    {
+        var payments = await Context.StorageAddOnPayments.AsNoTracking()
+            .Where(p => p.SubscriptionId == subscriptionId)
+            .OrderByDescending(p => p.PaidAtUtc)
+            .ToListAsync(token);
+        var addOnIds = payments.Select(p => p.AddOnId).Distinct().ToList();
+        var names = await Context.StorageAddOns.AsNoTracking()
+            .Where(a => addOnIds.Contains(a.Id))
+            .Select(a => new { a.Id, a.Offering.Name })
+            .ToDictionaryAsync(a => a.Id, a => a.Name, token);
+        return payments
+            .Select(p => (p, DescribePayment(p.Blocks, names.GetValueOrDefault(p.AddOnId))))
+            .ToList();
+    }
+
     // ── Quote and purchase ───────────────────────────────────────────────────────────────────
 
     /// <summary>The prorated price of <paramref name="blocks"/> more blocks for the rest of the paid period.</summary>

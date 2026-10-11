@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Onepunch.Common.Lib.Platform;
+using TenantStoreApi.Core.Services.Payments;
 using TenantStoreApi.Core.Services.Platform;
 using TenantStoreApi.Security;
 
@@ -142,12 +143,22 @@ public class PlatformPaymentsController : ControllerBase
 {
     private readonly PlatformDirectoryService _directory;
     private readonly PlatformAccountActionsService _actions;
+    private readonly PaymentReconcileService _reconcile;
 
-    public PlatformPaymentsController(PlatformDirectoryService directory, PlatformAccountActionsService actions)
+    public PlatformPaymentsController(PlatformDirectoryService directory, PlatformAccountActionsService actions, PaymentReconcileService reconcile)
     {
         _directory = directory;
         _actions = actions;
+        _reconcile = reconcile;
     }
+
+    /// <summary>Asks the payment gateway now about checkouts whose webhook may have been missed (an
+    /// unpaid one that was paid, a paid one that was refunded) -- all accounts, or one.</summary>
+    [HttpPost("recheck")]
+    [PlatformAuthorize(PlatformPermissions.PaymentsRecord)]
+    [ProducesResponseType(typeof(ReconcileSummary), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Recheck([FromQuery] Guid? ownerUserId, CancellationToken token) =>
+        Ok(await _reconcile.RunAsync(ownerUserId, token));
 
     [HttpGet]
     [PlatformAuthorize(PlatformPermissions.AccountsRead)]

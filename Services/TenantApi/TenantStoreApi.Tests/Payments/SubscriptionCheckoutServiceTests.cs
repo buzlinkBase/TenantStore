@@ -180,6 +180,114 @@ public class SubscriptionCheckoutServiceTests
         host.SubscriptionOf(owner).CurrentPeriodEndUtc.Should().Be(host.Clock.UtcNow.AddMonths(1));
     }
 
+    [Theory]
+    [InlineData(GatewayEventKind.PaymentRefunded, BillingEventTypes.PaymentRefunded)]
+    [InlineData(GatewayEventKind.PaymentDisputed, BillingEventTypes.PaymentDisputed)]
+    public async Task RefundOrDispute_OfAPaidCheckout_IsFlaggedOnce_AndChangesNothing(GatewayEventKind kind, string eventType)
+    {
+        var (host, owner) = await ChosePayrollAsync();
+        await host.Checkouts.StartAsync(owner, owner);
+        await host.Checkouts.HandleWebhookAsync(host.Gateway.Deliver(host.Gateway.Pay("cs_1", 4999m)), FakePaymentGateway.ValidSignature);
+        var body = host.Gateway.DeliverIssue("pay_cs_1", kind, 4999m);
+
+        var outcome = await host.Checkouts.HandleWebhookAsync(body, FakePaymentGateway.ValidSignature);
+        var again = await host.Checkouts.HandleWebhookAsync(body, FakePaymentGateway.ValidSignature);
+
+        outcome.Should().Be(WebhookOutcome.Flagged);
+        again.Should().Be(WebhookOutcome.Duplicate);
+        host.Uow.Context.BillingEvents.Should().ContainSingle(e => e.Type == eventType && e.OwnerUserId == owner);
+        host.SubscriptionOf(owner).SubStatus.Should().Be(AccountSubscriptionStatus.Active, "an operator decides what follows");
+        host.Uow.Context.SubscriptionPayments.Single().VoidedAtUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Refund_OfAPaymentWeNeverTook_IsFlaggedWithoutAnOwner()
+    {
+        var host = new SubscriptionTestHost();
+        var body = host.Gateway.DeliverIssue("pay_stranger", GatewayEventKind.PaymentRefunded, 100m);
+
+        var outcome = await host.Checkouts.HandleWebhookAsync(body, FakePaymentGateway.ValidSignature);
+
+        outcome.Should().Be(WebhookOutcome.Flagged);
+        host.Uow.Context.BillingEvents.Should().ContainSingle(e => e.Type == BillingEventTypes.PaymentRefunded && e.OwnerUserId == null);
+    }
+
+    // ── Reconciliation (a webhook that never arrived) ────────────────────────────────────────
+
+    [Fact]
+    public async Task Reconcile_AnUnpaidCheckoutTheGatewayCallsPaid_IsSettledOnce()
+    {
+        var (host, owner) = await ChosePayrollAsync();
+        var started = await host.Checkouts.StartAsync(owner, owner);
+        host.Gateway.Pay("cs_1", 4999m);
+
+        var first = await host.Checkouts.ReconcileAsync(started.CheckoutId);
+        var second = await host.Checkouts.ReconcileAsync(started.CheckoutId);
+
+        first.Should().Be(ReconcileResult.Settled);
+        second.Should().Be(ReconcileResult.Unchanged);
+        host.SubscriptionOf(owner).SubStatus.Should().Be(AccountSubscriptionStatus.Active);
+        host.Uow.Context.SubscriptionPayments.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Reconcile_APaidCheckoutTheGatewayCallsRefunded_IsFlaggedOnce()
+    {
+        var (host, owner) = await ChosePayrollAsync();
+        var started = await host.Checkouts.StartAsync(owner, owner);
+        await host.Checkouts.HandleWebhookAsync(host.Gateway.Deliver(host.Gateway.Pay("cs_1", 4999m)), FakePaymentGateway.ValidSignature);
+        host.Gateway.Refunds["pay_cs_1"] = 4999m;
+
+        var first = await host.Checkouts.ReconcileAsync(started.CheckoutId);
+        var second = await host.Checkouts.ReconcileAsync(started.CheckoutId);
+
+        first.Should().Be(ReconcileResult.RefundFlagged);
+        second.Should().Be(ReconcileResult.Unchanged);
+        host.Uow.Context.BillingEvents.Should().ContainSingle(e => e.Type == BillingEventTypes.PaymentRefunded && e.OwnerUserId == owner);
+    }
+
+    [Fact]
+    public async Task Reconcile_ARefundTheWebhookAlreadyRecorded_IsNotRecordedAgain()
+    {
+        var (host, owner) = await ChosePayrollAsync();
+        var started = await host.Checkouts.StartAsync(owner, owner);
+        await host.Checkouts.HandleWebhookAsync(host.Gateway.Deliver(host.Gateway.Pay("cs_1", 4999m)), FakePaymentGateway.ValidSignature);
+        await host.Checkouts.HandleWebhookAsync(
+            host.Gateway.DeliverIssue("pay_cs_1", GatewayEventKind.PaymentRefunded, 4999m), FakePaymentGateway.ValidSignature);
+        host.Gateway.Refunds["pay_cs_1"] = 4999m;
+
+        var result = await host.Checkouts.ReconcileAsync(started.CheckoutId);
+
+        result.Should().Be(ReconcileResult.Unchanged);
+        host.Uow.Context.BillingEvents.Should().ContainSingle(e => e.Type == BillingEventTypes.PaymentRefunded);
+    }
+
+    [Fact]
+    public async Task Reconcile_WhenTheGatewayCantBeReached_ChangesNothing_AndDoesNotThrow()
+    {
+        var (host, owner) = await ChosePayrollAsync();
+        var started = await host.Checkouts.StartAsync(owner, owner);
+        await host.Checkouts.HandleWebhookAsync(host.Gateway.Deliver(host.Gateway.Pay("cs_1", 4999m)), FakePaymentGateway.ValidSignature);
+        host.Gateway.FailPaymentLookup = true;
+
+        var result = await host.Checkouts.ReconcileAsync(started.CheckoutId);
+
+        result.Should().Be(ReconcileResult.Unchanged);
+    }
+
+    [Fact]
+    public async Task ListReconcilable_IncludesRecentUnpaidAndPaidCheckouts_NotOldUnpaidOnes()
+    {
+        var (host, owner) = await ChosePayrollAsync();
+        var started = await host.Checkouts.StartAsync(owner, owner);
+
+        (await host.Checkouts.ListReconcilableAsync(null)).Should().Equal(started.CheckoutId);
+        (await host.Checkouts.ListReconcilableAsync(Guid.NewGuid())).Should().BeEmpty("another owner's checkouts aren't asked about");
+
+        host.Clock.Advance(SubscriptionCheckoutService.ReconcileOpenWindow + TimeSpan.FromHours(1));
+        (await host.Checkouts.ListReconcilableAsync(null)).Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Webhook_WithoutAValidSignature_IsRejected()
     {

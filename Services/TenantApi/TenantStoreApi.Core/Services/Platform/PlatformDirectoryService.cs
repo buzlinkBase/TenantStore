@@ -98,6 +98,30 @@ public sealed record AccountDetail(
     bool LegalHold = false,
     string? LegalHoldReason = null);
 
+/// <summary>One row of the combined payments list: a plan payment or a storage-block payment.</summary>
+internal sealed class PaymentRow
+{
+    public Guid Id { get; set; }
+    public Guid OwnerUserId { get; set; }
+    public string Kind { get; set; } = PaymentKinds.Plan;
+    public DateTime PaidAtUtc { get; set; }
+    public decimal Amount { get; set; }
+    public string Currency { get; set; } = "PHP";
+    public PaymentMethod Method { get; set; }
+    public string? Reference { get; set; }
+    public Guid PlanId { get; set; }
+    public BillingCycle BillingCycle { get; set; }
+    public DateTime PeriodStartUtc { get; set; }
+    public DateTime PeriodEndUtc { get; set; }
+    public string? RecordedBy { get; set; }
+    public string? Notes { get; set; }
+    public DateTime? VoidedAtUtc { get; set; }
+    public string? VoidedBy { get; set; }
+    public string? VoidReason { get; set; }
+    public Guid? AddOnId { get; set; }
+    public int Blocks { get; set; }
+}
+
 public sealed record PlatformPaymentView(
     Guid Id,
     Guid OwnerUserId,
@@ -115,7 +139,14 @@ public sealed record PlatformPaymentView(
     string? Notes,
     DateTime? VoidedAtUtc,
     string? VoidedBy,
-    string? VoidReason);
+    string? VoidReason,
+    /// <summary>"Plan" or "Storage" (<see cref="PaymentKinds"/>): storage blocks bought mid-period are listed too.</summary>
+    string Kind = PaymentKinds.Plan,
+    /// <summary>Storage payments: what was bought, e.g. "2 x 50 GB Storage".</summary>
+    string? Description = null,
+    /// <summary>"Refunded" or "Disputed" when the gateway reported one against this payment; nothing is
+    /// changed by it -- it is for the operator to act on.</summary>
+    string? GatewayIssue = null);
 
 /// <summary>
 /// The platform console's cross-account read side: owner accounts, companies and payments,
@@ -313,39 +344,93 @@ public class PlatformDirectoryService
 
     public async Task<PagedResult<PlatformPaymentView>> ListPaymentsAsync(PaymentQuery query, CancellationToken token = default)
     {
-        var payments = from p in Context.SubscriptionPayments.AsNoTracking()
-                       join s in Context.AccountSubscriptions.AsNoTracking() on p.SubscriptionId equals s.Id
-                       select new { Payment = p, s.OwnerUserId };
+        // Plan payments and storage-block payments live in separate tables; one list shows both.
+        var planPayments = from p in Context.SubscriptionPayments.AsNoTracking()
+                           join s in Context.AccountSubscriptions.AsNoTracking() on p.SubscriptionId equals s.Id
+                           select new PaymentRow
+                           {
+                               Id = p.Id, OwnerUserId = s.OwnerUserId, Kind = PaymentKinds.Plan,
+                               PaidAtUtc = p.PaidAtUtc, Amount = p.Amount, Currency = p.Currency, Method = p.Method,
+                               Reference = p.Reference, PlanId = p.PlanId, BillingCycle = p.BillingCycle,
+                               PeriodStartUtc = p.PeriodStartUtc, PeriodEndUtc = p.PeriodEndUtc,
+                               RecordedBy = p.RecordedBy, Notes = p.Notes,
+                               VoidedAtUtc = p.VoidedAtUtc, VoidedBy = p.VoidedBy, VoidReason = p.VoidReason,
+                           };
+        var storagePayments = from p in Context.StorageAddOnPayments.AsNoTracking()
+                              join s in Context.AccountSubscriptions.AsNoTracking() on p.SubscriptionId equals s.Id
+                              select new PaymentRow
+                              {
+                                  Id = p.Id, OwnerUserId = s.OwnerUserId, Kind = PaymentKinds.Storage,
+                                  PaidAtUtc = p.PaidAtUtc, Amount = p.Amount, Currency = p.Currency, Method = p.Method,
+                                  Reference = p.Reference, PlanId = s.PlanId, BillingCycle = s.BillingCycle,
+                                  PeriodStartUtc = p.PeriodStartUtc, PeriodEndUtc = p.PeriodEndUtc,
+                                  RecordedBy = p.RecordedBy, AddOnId = p.AddOnId, Blocks = p.Blocks,
+                              };
 
-        if (query.OwnerUserId is { } owner) payments = payments.Where(x => x.OwnerUserId == owner);
-        if (query.Method is { } method) payments = payments.Where(x => x.Payment.Method == method);
-        if (query.FromUtc is { } from) payments = payments.Where(x => x.Payment.PaidAtUtc >= from);
-        if (query.ToUtc is { } to) payments = payments.Where(x => x.Payment.PaidAtUtc <= to);
-        if (query.Voided is { } voided)
-            payments = voided ? payments.Where(x => x.Payment.VoidedAtUtc != null) : payments.Where(x => x.Payment.VoidedAtUtc == null);
+        IQueryable<PaymentRow> Filtered(IQueryable<PaymentRow> payments)
+        {
+            if (query.OwnerUserId is { } owner) payments = payments.Where(x => x.OwnerUserId == owner);
+            if (query.Method is { } method) payments = payments.Where(x => x.Method == method);
+            if (query.FromUtc is { } from) payments = payments.Where(x => x.PaidAtUtc >= from);
+            if (query.ToUtc is { } to) payments = payments.Where(x => x.PaidAtUtc <= to);
+            if (query.Voided is { } voided)
+                payments = voided ? payments.Where(x => x.VoidedAtUtc != null) : payments.Where(x => x.VoidedAtUtc == null);
+            return payments;
+        }
 
-        var total = await payments.CountAsync(token);
+        // Two tables, merged here rather than in SQL: each side contributes its newest (skip + take)
+        // rows, and the requested page is cut from those, which is exactly what a combined sort would give.
+        var plan = Filtered(planPayments);
+        var storage = Filtered(storagePayments);
+        var total = await plan.CountAsync(token) + await storage.CountAsync(token);
         var paging = query.Paging;
-        var page = await payments
-            .OrderByDescending(x => x.Payment.PaidAtUtc).ThenBy(x => x.Payment.Id)
+        var window = paging.Skip + paging.SafePageSize;
+        var fromPlan = await plan.OrderByDescending(x => x.PaidAtUtc).ThenBy(x => x.Id).Take(window).ToListAsync(token);
+        var fromStorage = await storage.OrderByDescending(x => x.PaidAtUtc).ThenBy(x => x.Id).Take(window).ToListAsync(token);
+        var page = fromPlan.Concat(fromStorage)
+            .OrderByDescending(x => x.PaidAtUtc).ThenBy(x => x.Id)
             .Skip(paging.Skip).Take(paging.SafePageSize)
-            .ToListAsync(token);
+            .ToList();
 
         var ownerIds = page.Select(x => x.OwnerUserId).Distinct().ToList();
         var identities = await OwnerIdentitiesAsync(ownerIds, token);
-        var planIds = page.Select(x => x.Payment.PlanId).Distinct().ToList();
+        var planIds = page.Select(x => x.PlanId).Distinct().ToList();
         var planNames = await Context.Plans.AsNoTracking()
             .Where(p => planIds.Contains(p.Id))
             .ToDictionaryAsync(p => p.Id, p => p.Name, token);
+        var addOnIds = page.Where(x => x.AddOnId != null).Select(x => x.AddOnId!.Value).Distinct().ToList();
+        var offeringNames = await Context.StorageAddOns.AsNoTracking()
+            .Where(a => addOnIds.Contains(a.Id))
+            .Select(a => new { a.Id, a.Offering.Name })
+            .ToDictionaryAsync(a => a.Id, a => a.Name, token);
+
+        // Refunds and disputes are billing events keyed "{provider}:payment:{gatewayPaymentId}:{type}".
+        var issueTypes = new[] { BillingEventTypes.PaymentRefunded, BillingEventTypes.PaymentDisputed };
+        var issueEvents = await Context.BillingEvents.AsNoTracking()
+            .Where(e => issueTypes.Contains(e.Type) && e.OwnerUserId != null && ownerIds.Contains(e.OwnerUserId.Value))
+            .Select(e => new { e.Type, e.DedupeKey })
+            .ToListAsync(token);
+        var issues = new Dictionary<string, string>();
+        foreach (var e in issueEvents)
+        {
+            var parts = e.DedupeKey?.Split(':');
+            if (parts is not { Length: >= 4 }) continue;
+            var label = e.Type == BillingEventTypes.PaymentDisputed ? "Disputed" : "Refunded";
+            // A dispute outranks a refund when both were reported.
+            if (!issues.TryGetValue(parts[2], out var existing) || label == "Disputed" || existing != "Disputed") issues[parts[2]] = label;
+        }
 
         var items = page.Select(x =>
         {
             identities.TryGetValue(x.OwnerUserId, out var identity);
-            var p = x.Payment;
+            var issue = x.Reference != null ? issues.GetValueOrDefault(x.Reference) : null;
+            var description = x.Kind == PaymentKinds.Storage
+                ? StorageAddOnService.DescribePayment(x.Blocks, x.AddOnId is { } id ? offeringNames.GetValueOrDefault(id) : null)
+                : null;
             return new PlatformPaymentView(
-                p.Id, x.OwnerUserId, identity.Email, p.PaidAtUtc, p.Amount, p.Currency, p.Method, p.Reference,
-                planNames.GetValueOrDefault(p.PlanId), p.BillingCycle, p.PeriodStartUtc, p.PeriodEndUtc,
-                p.RecordedBy, p.Notes, p.VoidedAtUtc, p.VoidedBy, p.VoidReason);
+                x.Id, x.OwnerUserId, identity.Email, x.PaidAtUtc, x.Amount, x.Currency, x.Method, x.Reference,
+                planNames.GetValueOrDefault(x.PlanId), x.BillingCycle, x.PeriodStartUtc, x.PeriodEndUtc,
+                x.RecordedBy, x.Notes, x.VoidedAtUtc, x.VoidedBy, x.VoidReason, x.Kind, description, issue);
         }).ToList();
         return new PagedResult<PlatformPaymentView>(items, total, paging.SafePage, paging.SafePageSize);
     }

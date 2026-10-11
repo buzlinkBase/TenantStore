@@ -206,6 +206,28 @@ public class PayMongoGatewayTests
         received.Session.Payment!.PaymentId.Should().Be("pay_123");
     }
 
+    [Theory]
+    [InlineData("payment.refunded", "payment", "pay_123", GatewayEventKind.PaymentRefunded)]
+    [InlineData("payment.refund.updated", "refund", "pay_123", GatewayEventKind.PaymentRefunded)]
+    [InlineData("payment.dispute.opened", "dispute", "pay_123", GatewayEventKind.PaymentDisputed)]
+    public void ReadWebhook_RefundOrDispute_NamesThePaymentItIsAbout(string eventType, string resourceType, string paymentId, GatewayEventKind kind)
+    {
+        var (gateway, _) = Build(HttpStatusCode.OK, "{}");
+        // A payment resource carries its own id; a refund or dispute names the payment in payment_id.
+        var resource = resourceType == "payment"
+            ? """{ "id": "pay_123", "type": "payment", "attributes": { "amount": 250000 } }"""
+            : $$"""{ "id": "x_1", "type": "{{resourceType}}", "attributes": { "payment_id": "pay_123", "amount": 250000 } }""";
+        var body = $$"""
+            { "data": { "id": "evt_r1", "type": "event", "attributes": { "type": "{{eventType}}", "livemode": false, "data": {{resource}} } } }
+            """;
+
+        var received = gateway.ReadWebhook(body, Sign(body, live: false));
+
+        received!.Kind.Should().Be(kind);
+        received.Issue.Should().Be(new GatewayPaymentIssue(paymentId, 2500m));
+        received.Session.Should().BeNull();
+    }
+
     [Fact]
     public void ReadWebhook_LiveEvent_NeedsTheLiveSignature()
     {

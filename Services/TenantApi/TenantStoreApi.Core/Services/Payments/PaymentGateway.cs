@@ -38,19 +38,31 @@ public sealed record GatewaySessionState(
     public bool IsPaid => Payment != null;
 }
 
+/// <summary>A payment as the gateway reports it now: how much of it has been given back.</summary>
+public sealed record GatewayPaymentState(string PaymentId, decimal Amount, decimal RefundedAmount);
+
 public enum GatewayEventKind
 {
     CheckoutPaid,
+    /// <summary>Money was given back to the payer (done in the gateway's dashboard).</summary>
+    PaymentRefunded,
+    /// <summary>The payer disputed the payment with their bank or wallet.</summary>
+    PaymentDisputed,
     Other,
 }
 
-/// <summary>An authentic webhook delivery. <see cref="Session"/> is set for checkout events.</summary>
+/// <summary>A refund or dispute against a payment we took: which gateway payment, and for how much.</summary>
+public sealed record GatewayPaymentIssue(string PaymentId, decimal? Amount);
+
+/// <summary>An authentic webhook delivery. <see cref="Session"/> is set for checkout events,
+/// <see cref="Issue"/> for refunds and disputes.</summary>
 public sealed record GatewayWebhookEvent(
     string EventId,
     string Type,
     GatewayEventKind Kind,
     bool LiveMode,
-    GatewaySessionState? Session);
+    GatewaySessionState? Session,
+    GatewayPaymentIssue? Issue = null);
 
 /// <summary>
 /// A payment provider's hosted checkout. Strategy/Adapter: the checkout flow
@@ -69,6 +81,9 @@ public interface IPaymentGateway
     Task<GatewaySessionState> GetCheckoutAsync(string sessionId, CancellationToken token);
     /// <summary>Closes a session so it can no longer be paid.</summary>
     Task ExpireCheckoutAsync(string sessionId, CancellationToken token);
+    /// <summary>One payment as the gateway holds it, including what has been refunded -- how a refund
+    /// whose webhook never arrived is found.</summary>
+    Task<GatewayPaymentState> GetPaymentAsync(string paymentId, CancellationToken token);
 
     /// <summary>The event in <paramref name="rawBody"/>, or null when its signature doesn't check
     /// out (or it can't be read) -- then it didn't come from the gateway.</summary>
@@ -96,6 +111,9 @@ public sealed class DisabledPaymentGateway : IPaymentGateway
         throw new PaymentGatewayException("Online payment isn't configured.");
 
     public Task ExpireCheckoutAsync(string sessionId, CancellationToken token) =>
+        throw new PaymentGatewayException("Online payment isn't configured.");
+
+    public Task<GatewayPaymentState> GetPaymentAsync(string paymentId, CancellationToken token) =>
         throw new PaymentGatewayException("Online payment isn't configured.");
 
     public GatewayWebhookEvent? ReadWebhook(string rawBody, string? signatureHeader) => null;

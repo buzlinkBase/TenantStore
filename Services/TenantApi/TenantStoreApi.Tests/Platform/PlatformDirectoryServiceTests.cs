@@ -217,4 +217,50 @@ public class PlatformDirectoryServiceTests
         (await directory.ListPaymentsAsync(new PaymentQuery(Voided: true))).Items.Should().ContainSingle(p => p.Amount == 100);
         (await directory.ListPaymentsAsync(new PaymentQuery(Voided: false))).Items.Should().ContainSingle(p => p.Amount == 200);
     }
+
+    [Fact]
+    public async Task ListPayments_MarksAPaymentTheGatewayRefundedOrDisputed()
+    {
+        var host = new SubscriptionTestHost();
+        var owner = await PaidAccountAsync(host, "a@acme.ph", "A");
+        await host.Subscriptions.RecordPaymentAsync(owner, new RecordPaymentCommand { Amount = 100, Method = PaymentMethod.GCash, Reference = "pay_1" }, "platform");
+        await host.Subscriptions.RecordPaymentAsync(owner, new RecordPaymentCommand { Amount = 200, Method = PaymentMethod.GCash, Reference = "pay_2" }, "platform");
+        await host.Subscriptions.RecordPaymentAsync(owner, new RecordPaymentCommand { Amount = 300, Method = PaymentMethod.GCash, Reference = "pay_3" }, "platform");
+        await host.SaveAsync();
+        // The keys the checkout service writes: "{provider}:payment:{gatewayPaymentId}:{event type}".
+        await host.Events.AddAsync(null, BillingEventTypes.PaymentRefunded, new { }, "paymongo", "paymongo:payment:pay_1:payment.refunded", owner);
+        await host.Events.AddAsync(null, BillingEventTypes.PaymentDisputed, new { }, "paymongo", "paymongo:payment:pay_2:payment.disputed", owner);
+        await host.SaveAsync();
+
+        var items = (await Directory(host).ListPaymentsAsync(new PaymentQuery())).Items;
+
+        items.Single(p => p.Reference == "pay_1").GatewayIssue.Should().Be("Refunded");
+        items.Single(p => p.Reference == "pay_2").GatewayIssue.Should().Be("Disputed");
+        items.Single(p => p.Reference == "pay_3").GatewayIssue.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ListPayments_IncludesStorageBlockPayments_NewestFirst_AndPagesAcrossBoth()
+    {
+        var host = new SubscriptionTestHost();
+        var owner = await PaidAccountAsync(host, "a@acme.ph", "A");
+        await host.Subscriptions.RecordPaymentAsync(owner, new RecordPaymentCommand { Amount = 100, Method = PaymentMethod.GCash }, "platform");
+        await host.SaveAsync();
+        host.Clock.Advance(TimeSpan.FromDays(1));
+        var offering = host.Uow.Context.StorageAddOnOfferings.First();
+        await host.Storage.ActivateAsync(owner, offering.Code, 2, 300m, PaymentMethod.GCash, "R2", "platform");
+        await host.SaveAsync();
+        var directory = Directory(host);
+
+        var all = await directory.ListPaymentsAsync(new PaymentQuery());
+
+        all.Total.Should().Be(2);
+        all.Items.Select(p => p.Kind).Should().Equal("Storage", "Plan");
+        all.Items[0].Description.Should().Contain("2 x");
+        all.Items[0].Amount.Should().Be(300m);
+
+        var second = await directory.ListPaymentsAsync(new PaymentQuery(Page: 2, PageSize: 1));
+        second.Items.Should().ContainSingle(p => p.Kind == "Plan");
+        (await directory.ListPaymentsAsync(new PaymentQuery(Voided: true))).Items.Should().BeEmpty("storage payments are never void");
+    }
 }

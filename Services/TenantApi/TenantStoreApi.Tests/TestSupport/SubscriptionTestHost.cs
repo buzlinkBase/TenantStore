@@ -91,7 +91,7 @@ public sealed class SubscriptionTestHost
 
     public StorageAddOnService Storage => new(Uow, Subscriptions, StorageCatalog, Resolver, Usage, Events, Notifier, Clock);
 
-    public SubscriptionViewService Views => new(Subscriptions, Resolver, Usage, WrappedOptions, Clock, Gateway);
+    public SubscriptionViewService Views => new(Subscriptions, Resolver, Usage, WrappedOptions, Clock, Gateway, Storage);
 
     /// <summary>A fresh unit of work over the same database each time, as each request gets one: the
     /// checkout service commits, and BuzlinkRepository's unit of work commits only once.</summary>

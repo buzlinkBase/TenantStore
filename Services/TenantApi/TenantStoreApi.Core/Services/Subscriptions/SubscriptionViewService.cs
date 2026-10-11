@@ -59,7 +59,18 @@ public sealed record PaymentView(
     string? PlanName,
     BillingCycle BillingCycle,
     DateTime PeriodStartUtc,
-    DateTime PeriodEndUtc);
+    DateTime PeriodEndUtc,
+    /// <summary>"Plan" for a plan period, "Storage" for storage blocks bought mid-period.</summary>
+    string Kind = PaymentKinds.Plan,
+    /// <summary>Storage payments: what was bought, e.g. "2 x 50 GB Storage".</summary>
+    string? Description = null);
+
+/// <summary>The kinds of payment a payments list mixes.</summary>
+public static class PaymentKinds
+{
+    public const string Plan = "Plan";
+    public const string Storage = "Storage";
+}
 
 /// <summary>The billing screen: plan, status, usage against limits, payments.</summary>
 public sealed record BillingView
@@ -108,6 +119,7 @@ public class SubscriptionViewService
     private readonly SubscriptionOptions _options;
     private readonly TimeProvider _clock;
     private readonly IPaymentGateway _gateway;
+    private readonly StorageAddOnService _storage;
 
     public SubscriptionViewService(
         AccountSubscriptionService subscriptions,
@@ -115,8 +127,10 @@ public class SubscriptionViewService
         SubscriptionUsageService usage,
         IOptions<SubscriptionOptions> options,
         TimeProvider clock,
-        IPaymentGateway gateway)
+        IPaymentGateway gateway,
+        StorageAddOnService storage)
     {
+        _storage = storage;
         _subscriptions = subscriptions;
         _resolver = resolver;
         _usage = usage;
@@ -227,6 +241,17 @@ public class SubscriptionViewService
         var planNames = plans.ToDictionary(p => p.Id, p => p.Name);
         planNames.TryAdd(subscription.PlanId, subscription.Plan.Name);
         var due = await _subscriptions.GetPaymentDueAsync(subscription, token);
+        var storagePayments = await _storage.GetPaymentsAsync(subscription.Id, token);
+        var paymentViews = payments
+            .Select(p => new PaymentView(
+                p.Id, p.PaidAtUtc, p.Amount, p.Currency, p.Method, p.Reference,
+                planNames.GetValueOrDefault(p.PlanId), p.BillingCycle, p.PeriodStartUtc, p.PeriodEndUtc))
+            .Concat(storagePayments.Select(s => new PaymentView(
+                s.Payment.Id, s.Payment.PaidAtUtc, s.Payment.Amount, s.Payment.Currency, s.Payment.Method,
+                s.Payment.Reference, subscription.Plan.Name, subscription.BillingCycle,
+                s.Payment.PeriodStartUtc, s.Payment.PeriodEndUtc, PaymentKinds.Storage, s.Description)))
+            .OrderByDescending(p => p.PaidAtUtc)
+            .ToList();
 
         return view with
         {
@@ -242,9 +267,7 @@ public class SubscriptionViewService
             Currency = subscription.Plan.Currency,
             CompaniesUsed = await _usage.CountOwnedCompaniesAsync(owner, token),
             CompaniesMax = _resolver.ResolveAgainstPlan(subscription, subscription.Plan, Guid.Empty).LimitOf(EntitlementKeys.CompaniesMax),
-            Payments = payments.Select(p => new PaymentView(
-                p.Id, p.PaidAtUtc, p.Amount, p.Currency, p.Method, p.Reference,
-                planNames.GetValueOrDefault(p.PlanId), p.BillingCycle, p.PeriodStartUtc, p.PeriodEndUtc)).ToList(),
+            Payments = paymentViews,
             PaymentDue = due == null ? null : new PaymentDueView(due.Plan.Code, due.Plan.Name, due.BillingCycle, due.Amount, due.Reason, due.AddOnsAmount),
             OnlinePaymentEnabled = _gateway.IsEnabled,
         };

@@ -49,6 +49,30 @@ public static class PayMongoDocuments
         return new GatewaySessionState(id, paid, ReadMetadata(attributes), IsTrue(attributes, "livemode"));
     }
 
+    /// <summary>A payment resource: its amount, and the sum of its refunds that haven't failed
+    /// (<c>attributes.refunds</c>, each with an <c>attributes.amount</c> and <c>status</c>).</summary>
+    public static GatewayPaymentState ReadPayment(JsonElement resource)
+    {
+        var id = Text(resource, "id") ?? string.Empty;
+        if (!resource.TryGetProperty("attributes", out var attributes) || attributes.ValueKind != JsonValueKind.Object)
+            return new GatewayPaymentState(id, 0m, 0m);
+
+        var amount = attributes.TryGetProperty("amount", out var value) && value.ValueKind == JsonValueKind.Number
+            ? FromCentavos(value.GetInt64())
+            : 0m;
+        var refunded = 0m;
+        if (attributes.TryGetProperty("refunds", out var refunds) && refunds.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var refund in refunds.EnumerateArray())
+            {
+                if (!refund.TryGetProperty("attributes", out var r) || Text(r, "status") == "failed") continue;
+                if (r.TryGetProperty("amount", out var refundAmount) && refundAmount.ValueKind == JsonValueKind.Number)
+                    refunded += FromCentavos(refundAmount.GetInt64());
+            }
+        }
+        return new GatewayPaymentState(id, amount, refunded);
+    }
+
     /// <summary>A webhook delivery's body, or null when it isn't a PayMongo event.</summary>
     public static GatewayWebhookEvent? ReadEvent(JsonElement root)
     {
@@ -72,8 +96,37 @@ public static class PayMongoDocuments
             session = ReadSession(resource);
         }
 
-        var kind = type == CheckoutPaidEvent ? GatewayEventKind.CheckoutPaid : GatewayEventKind.Other;
-        return new GatewayWebhookEvent(eventId, type, kind, IsTrue(attributes, "livemode"), session);
+        var kind = KindOf(type);
+        GatewayPaymentIssue? issue = null;
+        if (kind is GatewayEventKind.PaymentRefunded or GatewayEventKind.PaymentDisputed
+            && attributes.TryGetProperty("data", out var issueResource))
+        {
+            issue = ReadIssue(issueResource);
+        }
+        return new GatewayWebhookEvent(eventId, type, kind, IsTrue(attributes, "livemode"), session, issue);
+    }
+
+    private static GatewayEventKind KindOf(string type)
+    {
+        if (type == CheckoutPaidEvent) return GatewayEventKind.CheckoutPaid;
+        if (type.StartsWith("payment.refund", StringComparison.Ordinal)) return GatewayEventKind.PaymentRefunded;
+        if (type.Contains("dispute", StringComparison.Ordinal)) return GatewayEventKind.PaymentDisputed;
+        return GatewayEventKind.Other;
+    }
+
+    /// <summary>The payment a refund or dispute event is about: the resource is the payment itself
+    /// (<c>payment.refunded</c>) or a refund/dispute that names it in <c>payment_id</c>.</summary>
+    private static GatewayPaymentIssue? ReadIssue(JsonElement resource)
+    {
+        if (resource.ValueKind != JsonValueKind.Object) return null;
+        resource.TryGetProperty("attributes", out var attributes);
+        var paymentId = Text(resource, "type") == "payment" ? Text(resource, "id") : Text(attributes, "payment_id");
+        if (string.IsNullOrEmpty(paymentId)) return null;
+        decimal? amount = attributes.ValueKind == JsonValueKind.Object
+            && attributes.TryGetProperty("amount", out var value) && value.ValueKind == JsonValueKind.Number
+                ? FromCentavos(value.GetInt64())
+                : null;
+        return new GatewayPaymentIssue(paymentId, amount);
     }
 
     /// <summary>Whether a webhook body says it's a live-mode event -- which signature to check.</summary>

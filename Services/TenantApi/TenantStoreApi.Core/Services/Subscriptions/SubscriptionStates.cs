@@ -85,6 +85,10 @@ public static class BillingEventTypes
     public const string CheckoutUnmatched = "checkout.unmatched";
     /// <summary>Paid, but not the amount quoted -- not applied, for an operator to reconcile.</summary>
     public const string CheckoutAmountMismatch = "checkout.amount-mismatch";
+    /// <summary>The gateway refunded an online payment. Recorded only: an operator decides what follows.</summary>
+    public const string PaymentRefunded = "payment.refunded";
+    /// <summary>The payer disputed an online payment. Recorded only: an operator decides what follows.</summary>
+    public const string PaymentDisputed = "payment.disputed";
 }
 
 public sealed class TrialingState : ISubscriptionState

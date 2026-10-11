@@ -87,6 +87,10 @@ public sealed class PayMongoGateway : IPaymentGateway
     public Task ExpireCheckoutAsync(string sessionId, CancellationToken token) =>
         SendAsync(HttpMethod.Post, $"checkout_sessions/{Uri.EscapeDataString(sessionId)}/expire", null, token);
 
+    public async Task<GatewayPaymentState> GetPaymentAsync(string paymentId, CancellationToken token) =>
+        PayMongoDocuments.ReadPayment(RequireResource(
+            await SendAsync(HttpMethod.Get, $"payments/{Uri.EscapeDataString(paymentId)}", null, token)));
+
     public GatewayWebhookEvent? ReadWebhook(string rawBody, string? signatureHeader)
     {
         try

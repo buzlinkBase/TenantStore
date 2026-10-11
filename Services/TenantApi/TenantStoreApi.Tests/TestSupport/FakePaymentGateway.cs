@@ -43,6 +43,16 @@ public sealed class FakePaymentGateway : IPaymentGateway
         return Task.CompletedTask;
     }
 
+    /// <summary>What has been refunded per gateway payment id, as the gateway would report it.</summary>
+    public Dictionary<string, decimal> Refunds { get; } = new();
+    public bool FailPaymentLookup { get; set; }
+
+    public Task<GatewayPaymentState> GetPaymentAsync(string paymentId, CancellationToken token)
+    {
+        if (FailPaymentLookup) throw new PaymentGatewayException("PayMongo couldn't be reached.");
+        return Task.FromResult(new GatewayPaymentState(paymentId, 0m, Refunds.GetValueOrDefault(paymentId)));
+    }
+
     public GatewayWebhookEvent? ReadWebhook(string rawBody, string? signatureHeader) =>
         signatureHeader == ValidSignature ? Deliveries.GetValueOrDefault(rawBody) : null;
 
@@ -55,6 +65,15 @@ public sealed class FakePaymentGateway : IPaymentGateway
         };
         Sessions[sessionId] = session;
         return session;
+    }
+
+    /// <summary>A refund or dispute delivery against gateway payment <paramref name="paymentId"/>; returns its body.</summary>
+    public string DeliverIssue(string paymentId, GatewayEventKind kind, decimal? amount = null, string eventId = "evt_issue")
+    {
+        Deliveries[eventId] = new GatewayWebhookEvent(
+            eventId, kind == GatewayEventKind.PaymentRefunded ? "payment.refunded" : "payment.dispute.opened", kind, LiveMode, null,
+            new GatewayPaymentIssue(paymentId, amount));
+        return eventId;
     }
 
     /// <summary>A checkout_session.payment.paid delivery for <paramref name="session"/>; returns its body.</summary>

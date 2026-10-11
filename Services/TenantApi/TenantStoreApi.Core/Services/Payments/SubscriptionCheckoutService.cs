@@ -35,6 +35,15 @@ public enum WebhookOutcome
     Settled,
 }
 
+public enum ReconcileResult
+{
+    Unchanged,
+    /// <summary>A payment the webhook missed was applied.</summary>
+    Settled,
+    /// <summary>A refund the webhook missed was recorded.</summary>
+    RefundFlagged,
+}
+
 /// <summary>
 /// Paying for a subscription online. <see cref="StartAsync"/> quotes what's due
 /// (<see cref="AccountSubscriptionService.GetPaymentDueAsync"/>), saves it as a
@@ -52,6 +61,10 @@ public class SubscriptionCheckoutService
 {
     /// <summary>A double click or second tab gets the page already open for the same quote.</summary>
     public static readonly TimeSpan ReuseWindow = TimeSpan.FromHours(1);
+    /// <summary>How long after opening an unpaid checkout is still asked about by reconciliation.</summary>
+    public static readonly TimeSpan ReconcileOpenWindow = TimeSpan.FromHours(48);
+    /// <summary>How long after paying a checkout is still checked for a refund by reconciliation.</summary>
+    public static readonly TimeSpan ReconcileRefundWindow = TimeSpan.FromDays(30);
 
     private const string ReturnPath = "/billing/payment";
 
@@ -313,12 +326,111 @@ public class SubscriptionCheckoutService
                 received.EventId, received.Type, received.LiveMode);
             return WebhookOutcome.Ignored;
         }
+        if (received.Kind is GatewayEventKind.PaymentRefunded or GatewayEventKind.PaymentDisputed)
+        {
+            if (received.Issue is not { } issue) return WebhookOutcome.Ignored;
+            var flagged = await FlagPaymentIssueAsync(received.Kind, received.Type, issue, token);
+            await _uow.CommitChangesAsync("", token);
+            return flagged;
+        }
         if (received.Kind != GatewayEventKind.CheckoutPaid || received.Session is not { IsPaid: true } session)
             return WebhookOutcome.Ignored;
 
         var outcome = await SettleAsync(session, token);
         await _uow.CommitChangesAsync("", token);
         return outcome;
+    }
+
+    /// <summary>
+    /// A refund or dispute against a payment taken here. Recorded as a billing event for the operator --
+    /// access, plan and blocks are left alone. Once per gateway payment and kind; an event naming a
+    /// payment this system never took is recorded too, with no owner.
+    /// </summary>
+    private async Task<WebhookOutcome> FlagPaymentIssueAsync(
+        GatewayEventKind kind, string gatewayEvent, GatewayPaymentIssue issue, CancellationToken token)
+    {
+        var type = kind == GatewayEventKind.PaymentRefunded
+            ? BillingEventTypes.PaymentRefunded
+            : BillingEventTypes.PaymentDisputed;
+        var key = $"{_gateway.Provider}:payment:{issue.PaymentId}:{type}";
+        if (await _events.ExistsAsync(key, token)) return WebhookOutcome.Duplicate;
+
+        var checkout = await Context.PaymentCheckouts.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Provider == _gateway.Provider && c.ProviderPaymentId == issue.PaymentId, token);
+        var subscription = checkout == null ? null : await _subscriptions.FindAsync(checkout.OwnerUserId, token);
+
+        Log.Logger.Warning("Payment {PaymentId}: {Type} ({Amount}) -- needs an operator", issue.PaymentId, type, issue.Amount);
+        await _events.AddAsync(subscription, type,
+            new
+            {
+                gatewayPaymentId = issue.PaymentId, issue.Amount, gatewayEvent,
+                checkoutId = checkout?.Id, kind = checkout?.Kind.ToString(), matched = checkout != null,
+                subscriptionPaymentId = checkout?.SubscriptionPaymentId, storageAddOnPaymentId = checkout?.StorageAddOnPaymentId,
+            },
+            _gateway.Provider, key, checkout?.OwnerUserId, token);
+        return WebhookOutcome.Flagged;
+    }
+
+    // ── Reconciliation ───────────────────────────────────────────────────────────────────────
+
+    /// <summary>Checkouts still unpaid (or paid but not yet checked for a refund) recently enough to be worth
+    /// asking the gateway about -- what a missed webhook leaves behind. Empty while online payment is off.</summary>
+    public async Task<IReadOnlyList<Guid>> ListReconcilableAsync(Guid? ownerUserId, CancellationToken token = default)
+    {
+        if (!_gateway.IsEnabled) return [];
+        var now = Now;
+        var openSince = now - ReconcileOpenWindow;
+        var paidSince = now - ReconcileRefundWindow;
+        var checkouts = Context.PaymentCheckouts.AsNoTracking()
+            .Where(c => c.Provider == _gateway.Provider && c.ProviderSessionId != null
+                && (((c.CheckoutStatus == PaymentCheckoutStatus.Open || c.CheckoutStatus == PaymentCheckoutStatus.Expired) && c.CreatedAtUtc >= openSince)
+                    || (c.CheckoutStatus == PaymentCheckoutStatus.Paid && c.PaidAtUtc >= paidSince && c.ProviderPaymentId != null)));
+        if (ownerUserId is { } owner) checkouts = checkouts.Where(c => c.OwnerUserId == owner);
+        return await checkouts.OrderBy(c => c.CreatedAtUtc).Select(c => c.Id).ToListAsync(token);
+    }
+
+    /// <summary>
+    /// Catches up on one checkout whose webhook may never have arrived: an unpaid one the gateway says is
+    /// paid is settled (as the webhook would have); a paid one the gateway says was refunded is flagged
+    /// (the same event, keyed the same way, so a webhook that did arrive isn't recorded twice). Commits
+    /// once, so call it with a unit of work of its own per checkout.
+    /// </summary>
+    public async Task<ReconcileResult> ReconcileAsync(Guid checkoutId, CancellationToken token = default)
+    {
+        var checkout = await Context.PaymentCheckouts.FirstOrDefaultAsync(c => c.Id == checkoutId, token);
+        if (checkout == null || !_gateway.IsEnabled || checkout.Provider != _gateway.Provider) return ReconcileResult.Unchanged;
+
+        try
+        {
+            if (checkout.CheckoutStatus is PaymentCheckoutStatus.Open or PaymentCheckoutStatus.Expired
+                && checkout.ProviderSessionId is { } sessionId)
+            {
+                var session = await _gateway.GetCheckoutAsync(sessionId, token);
+                if (session.IsPaid)
+                {
+                    var outcome = await SettleAsync(session, token);
+                    // Flagged (an amount mismatch, say) is saved too: it's what an operator is shown.
+                    if (outcome != WebhookOutcome.Duplicate) await _uow.CommitChangesAsync("", token);
+                    return outcome == WebhookOutcome.Settled ? ReconcileResult.Settled : ReconcileResult.Unchanged;
+                }
+            }
+            else if (checkout.CheckoutStatus == PaymentCheckoutStatus.Paid && checkout.ProviderPaymentId is { } paymentId)
+            {
+                var payment = await _gateway.GetPaymentAsync(paymentId, token);
+                if (payment.RefundedAmount > 0m
+                    && await FlagPaymentIssueAsync(GatewayEventKind.PaymentRefunded, "reconciled",
+                        new GatewayPaymentIssue(paymentId, payment.RefundedAmount), token) == WebhookOutcome.Flagged)
+                {
+                    await _uow.CommitChangesAsync("", token);
+                    return ReconcileResult.RefundFlagged;
+                }
+            }
+        }
+        catch (PaymentGatewayException ex)
+        {
+            Log.Logger.Warning(ex, "Checkout {CheckoutId}: couldn't reconcile with the gateway", checkoutId);
+        }
+        return ReconcileResult.Unchanged;
     }
 
     // ── Settlement ───────────────────────────────────────────────────────────────────────────

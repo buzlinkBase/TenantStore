@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Onepunch.Common.Lib.Subscriptions;
 using Quartz;
 using Refit;
+using TenantStoreApi.Core.Services.Payments;
 using TenantStoreApi.Core.Services.Platform;
 using TenantStoreApi.Core.Services.Subscriptions;
 
@@ -86,6 +87,15 @@ public static class SubscriptionRegistrations
                 .ForJob(SubscriptionLifecycleJob.Key)
                 .WithIdentity(SubscriptionLifecycleJob.TriggerKey)
                 .WithCronSchedule(cron, schedule => schedule
+                    .InTimeZone(TimeZoneInfo.Utc)
+                    .WithMisfireHandlingInstructionFireAndProceed()));
+
+            // Payments the gateway's webhook never told us about (paid, or refunded): asked about directly.
+            q.AddJob<PaymentReconcileJob>(PaymentReconcileJob.Key, job => job.StoreDurably());
+            q.AddTrigger(trigger => trigger
+                .ForJob(PaymentReconcileJob.Key)
+                .WithIdentity(PaymentReconcileJob.TriggerKey)
+                .WithCronSchedule(PaymentReconcileJob.DefaultCron, schedule => schedule
                     .InTimeZone(TimeZoneInfo.Utc)
                     .WithMisfireHandlingInstructionFireAndProceed()));
         });

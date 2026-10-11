@@ -6,6 +6,7 @@ using Moq;
 using Quartz;
 using Quartz.Impl.Triggers;
 using TenantStoreApi.Core.Extensions;
+using TenantStoreApi.Core.Services.Payments;
 using TenantStoreApi.Core.Services.Subscriptions;
 using TenantStoreApi.Domain.Entities.Subs;
 using TenantStoreApi.Tests.TestSupport;
@@ -97,7 +98,8 @@ public class SubscriptionSchedulerRegistrationTests
         var options = QuartzOptionsOf(Register(new()));
 
         options.JobDetails.Should().ContainSingle(j => j.Key.Equals(SubscriptionLifecycleJob.Key) && j.Durable);
-        var trigger = options.Triggers.Should().ContainSingle().Which.Should().BeOfType<CronTriggerImpl>().Subject;
+        var trigger = options.Triggers.Should().ContainSingle(t => t.Key.Equals(SubscriptionLifecycleJob.TriggerKey))
+            .Which.Should().BeOfType<CronTriggerImpl>().Subject;
         trigger.Key.Should().Be(SubscriptionLifecycleJob.TriggerKey);
         trigger.JobKey.Should().Be(SubscriptionLifecycleJob.Key);
         trigger.CronExpressionString.Should().Be("0 0 * * * ?");
@@ -110,7 +112,18 @@ public class SubscriptionSchedulerRegistrationTests
     {
         var options = QuartzOptionsOf(Register(new() { ["Subscriptions:LifecycleCron"] = "0 30 * * * ?" }));
 
-        options.Triggers.OfType<CronTriggerImpl>().Single().CronExpressionString.Should().Be("0 30 * * * ?");
+        options.Triggers.OfType<CronTriggerImpl>().Single(t => t.Key.Equals(SubscriptionLifecycleJob.TriggerKey))
+            .CronExpressionString.Should().Be("0 30 * * * ?");
+    }
+
+    [Fact]
+    public void TheMissedPaymentReconcileJob_RunsEveryFifteenMinutes()
+    {
+        var options = QuartzOptionsOf(Register(new()));
+
+        options.JobDetails.Should().ContainSingle(j => j.Key.Equals(PaymentReconcileJob.Key) && j.Durable);
+        options.Triggers.OfType<CronTriggerImpl>().Single(t => t.Key.Equals(PaymentReconcileJob.TriggerKey))
+            .CronExpressionString.Should().Be("0 0/15 * * * ?");
     }
 
     [Fact]
