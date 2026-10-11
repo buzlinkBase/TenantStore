@@ -181,6 +181,10 @@ public class AccountSubscriptionService
             && (o.ExpiresAtUtc == null || o.ExpiresAtUtc > now), token);
     }
 
+    /// <summary>What the gateway and operators have said about this owner's online payments (refunds, disputes).</summary>
+    internal Task<Platform.GatewayIssueLedger> LoadGatewayIssuesAsync(Guid ownerUserId, CancellationToken token = default) =>
+        Platform.GatewayIssueLedger.LoadAsync(Context, [ownerUserId], token);
+
     // ── Private plan offers (platform) ───────────────────────────────────────────────────────
 
     public Task<List<PlanOffer>> GetOffersAsync(string planCode, CancellationToken token = default) =>

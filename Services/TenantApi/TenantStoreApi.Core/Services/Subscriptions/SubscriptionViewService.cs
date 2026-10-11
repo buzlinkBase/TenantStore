@@ -65,11 +65,23 @@ public sealed record PaymentView(
     /// <summary>Storage payments: what was bought, e.g. "2 x 50 GB Storage".</summary>
     string? Description = null,
     /// <summary>"Paid", or "Refunded" / "Cancelled" for a voided payment the owner still sees.</summary>
-    string Status = PaymentStatuses.Paid);
+    string Status = PaymentStatuses.Paid,
+    /// <summary>How much of it has gone back to the payer (a refund sent from the console or made in the gateway).</summary>
+    decimal RefundedAmount = 0m);
 
 public static class PaymentStatuses
 {
     public const string Paid = "Paid";
+    /// <summary>Some of the payment was refunded; it still counts, so the plan period is unchanged.</summary>
+    public const string PartiallyRefunded = "PartiallyRefunded";
+    public const string Refunded = "Refunded";
+
+    /// <summary>A voided payment shows why it was voided; otherwise how much of it was refunded decides.</summary>
+    public static string Of(string? voidKind, decimal amount, decimal refunded) =>
+        voidKind != null ? voidKind
+        : refunded <= 0m ? Paid
+        : refunded >= amount ? Refunded
+        : PartiallyRefunded;
 }
 
 /// <summary>The kinds of payment a payments list mixes.</summary>
@@ -249,15 +261,27 @@ public class SubscriptionViewService
         planNames.TryAdd(subscription.PlanId, subscription.Plan.Name);
         var due = await _subscriptions.GetPaymentDueAsync(subscription, token);
         var storagePayments = await _storage.GetPaymentsAsync(subscription.Id, token);
+        // Refunds -- sent from the console or made in the gateway -- show here as soon as they happen, voided or not.
+        var gatewayIssues = await _subscriptions.LoadGatewayIssuesAsync(owner, token);
         var paymentViews = payments
-            .Select(p => new PaymentView(
-                p.Id, p.PaidAtUtc, p.Amount, p.Currency, p.Method, p.Reference,
-                planNames.GetValueOrDefault(p.PlanId), p.BillingCycle, p.PeriodStartUtc, p.PeriodEndUtc,
-                Status: p.VoidedAtUtc == null ? PaymentStatuses.Paid : p.VoidKind.ToString()!))
-            .Concat(storagePayments.Select(s => new PaymentView(
-                s.Payment.Id, s.Payment.PaidAtUtc, s.Payment.Amount, s.Payment.Currency, s.Payment.Method,
-                s.Payment.Reference, subscription.Plan.Name, subscription.BillingCycle,
-                s.Payment.PeriodStartUtc, s.Payment.PeriodEndUtc, PaymentKinds.Storage, s.Description)))
+            .Select(p =>
+            {
+                var refunded = gatewayIssues.RefundedOf(p.Reference);
+                return new PaymentView(
+                    p.Id, p.PaidAtUtc, p.Amount, p.Currency, p.Method, p.Reference,
+                    planNames.GetValueOrDefault(p.PlanId), p.BillingCycle, p.PeriodStartUtc, p.PeriodEndUtc,
+                    Status: PaymentStatuses.Of(p.VoidedAtUtc == null ? null : p.VoidKind.ToString(), p.Amount, refunded),
+                    RefundedAmount: refunded);
+            })
+            .Concat(storagePayments.Select(s =>
+            {
+                var refunded = gatewayIssues.RefundedOf(s.Payment.Reference);
+                return new PaymentView(
+                    s.Payment.Id, s.Payment.PaidAtUtc, s.Payment.Amount, s.Payment.Currency, s.Payment.Method,
+                    s.Payment.Reference, subscription.Plan.Name, subscription.BillingCycle,
+                    s.Payment.PeriodStartUtc, s.Payment.PeriodEndUtc, PaymentKinds.Storage, s.Description,
+                    Status: PaymentStatuses.Of(null, s.Payment.Amount, refunded), RefundedAmount: refunded);
+            }))
             .OrderByDescending(p => p.PaidAtUtc)
             .ToList();
 
