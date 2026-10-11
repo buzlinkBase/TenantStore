@@ -342,6 +342,36 @@ public class PlatformAccountActionsService
         await _events.AddAsync(subscription, BillingEventTypes.LegalHoldReleased, new { reason }, actor, token: token);
     }
 
+    /// <summary>
+    /// Shows or hides the public plans and storage offerings for one account -- for a client on a custom
+    /// plan who should see only what was offered to them. Hiding is refused unless the account has a
+    /// private plan to renew with (an unexpired offer, or the plan it holds / is moving to that was
+    /// offered to it), otherwise it would be left with nothing to pick.
+    /// </summary>
+    public async Task SetPublicOfferingVisibilityAsync(Guid ownerUserId, bool show, string? reason, string? actor, CancellationToken token = default)
+    {
+        reason = RequireReason(reason);
+        var subscription = await RequireAsync(ownerUserId, token);
+        if (subscription.ShowPublicOffering == show)
+            throw new SubscriptionRuleException(show ? "This account already sees the public plans." : "The public plans are already hidden for this account.");
+
+        if (!show)
+        {
+            var now = Now;
+            var heldIds = new[] { subscription.PlanId, subscription.PendingPlanId }.OfType<Guid>().ToList();
+            var hasPrivatePlan = await Context.PlanOffers.AsNoTracking().AnyAsync(o => o.OwnerUserId == ownerUserId
+                && ((o.ExpiresAtUtc == null || o.ExpiresAtUtc > now) || heldIds.Contains(o.PlanId)), token);
+            if (!hasPrivatePlan)
+                throw new SubscriptionRuleException("Offer this account a plan first, otherwise it would have nothing to renew with.");
+        }
+
+        subscription.ShowPublicOffering = show;
+        Touch(subscription);
+
+        await _events.AddAsync(subscription, BillingEventTypes.PublicOfferingVisibilityChanged, new { show, reason }, actor, token: token);
+        await _notifier.PublishAsync(ownerUserId, BillingEventTypes.PublicOfferingVisibilityChanged, token);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private async Task<AccountSubscription> RequireAsync(Guid ownerUserId, CancellationToken token) =>

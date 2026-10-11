@@ -136,8 +136,10 @@ public class AccountSubscriptionService
             .ToListAsync(token);
         var held = await Context.AccountSubscriptions.AsNoTracking()
             .Where(s => s.OwnerUserId == owner)
-            .Select(s => new { s.PlanId, s.PendingPlanId })
+            .Select(s => new { s.PlanId, s.PendingPlanId, s.ShowPublicOffering })
             .FirstOrDefaultAsync(token);
+        // No subscription yet (or no owner): the public catalog, as ever.
+        var showPublic = held?.ShowPublicOffering ?? true;
 
         // A held plan is shown only when it was offered to them: a retired plan nobody offered
         // (e.g. the legacy trial) never becomes a card.
@@ -147,7 +149,7 @@ public class AccountSubscriptionService
 
         return await Context.Plans.AsNoTracking()
             .Include(p => p.Entitlements)
-            .Where(p => p.IsPublic || visibleIds.Contains(p.Id))
+            .Where(p => (showPublic && p.IsPublic) || visibleIds.Contains(p.Id))
             .OrderBy(p => p.SortOrder)
             .ToListAsync(token);
     }
@@ -168,7 +170,11 @@ public class AccountSubscriptionService
 
     private async Task<bool> IsVisibleToAsync(Plan plan, Guid ownerUserId, CancellationToken token)
     {
-        if (plan.IsPublic) return true;
+        if (plan.IsPublic)
+            return await Context.AccountSubscriptions.AsNoTracking()
+                .Where(s => s.OwnerUserId == ownerUserId)
+                .Select(s => (bool?)s.ShowPublicOffering)
+                .FirstOrDefaultAsync(token) is not false;
         var now = Now;
         return await Context.PlanOffers.AnyAsync(o => o.PlanId == plan.Id
             && o.OwnerUserId == ownerUserId

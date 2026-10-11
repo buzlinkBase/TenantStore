@@ -678,6 +678,11 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .HasColumnType("varchar(16)")
                         .HasDefaultValue("None");
 
+                    b.Property<bool>("ShowPublicOffering")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(true);
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -1371,6 +1376,60 @@ namespace TenantStoreApi.Infrastructure.Migrations
                             Id = new Guid("491512dc-11ec-e81f-e6ac-e9af0c478bd8"),
                             CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Key = "clients.agency",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e03"),
+                            Status = "Active",
+                            Value = "true"
+                        },
+                        new
+                        {
+                            Id = new Guid("bf9ccf43-0286-bde1-b35b-7d6a649d3122"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "timekeeping.mobile",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e01"),
+                            Status = "Active",
+                            Value = "false"
+                        },
+                        new
+                        {
+                            Id = new Guid("9ab8414c-585b-bc2b-ea82-09cf0a5937e2"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "timekeeping.mobile",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e02"),
+                            Status = "Active",
+                            Value = "false"
+                        },
+                        new
+                        {
+                            Id = new Guid("0b748695-57c2-8d9e-83e8-cf19ae016274"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "timekeeping.mobile",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e03"),
+                            Status = "Active",
+                            Value = "true"
+                        },
+                        new
+                        {
+                            Id = new Guid("ec76c76b-2986-af18-72b3-e74d83764b7d"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "patrol.app",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e01"),
+                            Status = "Active",
+                            Value = "false"
+                        },
+                        new
+                        {
+                            Id = new Guid("434f9566-3b0e-0947-d1e8-e6e6c9114e70"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "patrol.app",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e02"),
+                            Status = "Active",
+                            Value = "false"
+                        },
+                        new
+                        {
+                            Id = new Guid("df0c2e61-d9ad-c76c-a2c7-6780931a1658"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "patrol.app",
                             PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e03"),
                             Status = "Active",
                             Value = "true"

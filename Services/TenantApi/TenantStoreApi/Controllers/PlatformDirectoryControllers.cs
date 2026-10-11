@@ -30,6 +30,12 @@ public record RefundPaymentRequest
     public string? Notes { get; set; }
 }
 
+public record PublicOfferingRequest
+{
+    public bool Show { get; set; }
+    public string? Reason { get; set; }
+}
+
 public record ExtendPeriodRequest
 {
     public int Days { get; set; }
@@ -87,6 +93,17 @@ public class PlatformAccountsController : ControllerBase
         SubscriptionResults.Run(async () =>
         {
             await _actions.ReinstateAsync(ownerUserId, request.Reason, Actor, token);
+            await _actions.CommitChangesAsync(token);
+            return Ok();
+        });
+
+    /// <summary>Shows or hides the public plans and storage offerings for this account (a client on a custom plan).</summary>
+    [HttpPost("{ownerUserId:guid}/public-offering")]
+    [PlatformAuthorize(PlatformPermissions.SubscriptionsManage)]
+    public Task<IActionResult> SetPublicOffering(Guid ownerUserId, [FromBody] PublicOfferingRequest request, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            await _actions.SetPublicOfferingVisibilityAsync(ownerUserId, request.Show, request.Reason, Actor, token);
             await _actions.CommitChangesAsync(token);
             return Ok();
         });

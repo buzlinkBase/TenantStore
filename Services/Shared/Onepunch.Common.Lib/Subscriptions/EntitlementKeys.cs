@@ -13,9 +13,9 @@ public static class EntitlementKeys
     public const string TimekeepingCore = "timekeeping.core";
     /// <summary>Biometric (ADMS) devices, enrollment and automatic sync of their punches.</summary>
     public const string TimekeepingBiometric = "timekeeping.biometric";
-    /// <summary>The Onepunch Mobile Attendance app.</summary>
+    /// <summary>Mobile Attendance (Geofencing): clocking in and out from the mobile app within geofenced sites.</summary>
     public const string TimekeepingMobile = "timekeeping.mobile";
-    /// <summary>The One Patrol App.</summary>
+    /// <summary>The Patrol &amp; Incident Report App.</summary>
     public const string PatrolApp = "patrol.app";
     /// <summary>Leave/OT/OB/Pass Slip/Profile Update applications with a single-step approval.</summary>
     public const string ApplicationsCore = "applications.core";

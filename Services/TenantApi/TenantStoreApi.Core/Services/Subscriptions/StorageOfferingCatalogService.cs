@@ -168,13 +168,17 @@ public class StorageOfferingCatalogService
     {
         var owner = ownerUserId ?? Guid.Empty;
         var now = Now;
+        var showPublic = await Context.AccountSubscriptions.AsNoTracking()
+            .Where(s => s.OwnerUserId == owner)
+            .Select(s => (bool?)s.ShowPublicOffering)
+            .FirstOrDefaultAsync(token) is not false;
         var offeredIds = await Context.StorageAddOnOffers.AsNoTracking()
             .Where(o => o.OwnerUserId == owner && (o.ExpiresAtUtc == null || o.ExpiresAtUtc > now))
             .Select(o => o.OfferingId)
             .ToListAsync(token);
 
         return await Context.StorageAddOnOfferings.AsNoTracking()
-            .Where(o => o.IsActive && (o.IsPublic || offeredIds.Contains(o.Id)))
+            .Where(o => o.IsActive && ((showPublic && o.IsPublic) || offeredIds.Contains(o.Id)))
             .OrderBy(o => o.SortOrder)
             .ToListAsync(token);
     }

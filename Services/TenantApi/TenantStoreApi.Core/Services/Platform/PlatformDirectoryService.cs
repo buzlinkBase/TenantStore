@@ -98,7 +98,9 @@ public sealed record AccountDetail(
     DateTime? DataPurgedAtUtc = null,
     DateTime? ArchiveRetainUntilUtc = null,
     bool LegalHold = false,
-    string? LegalHoldReason = null);
+    string? LegalHoldReason = null,
+    /// <summary>False when the account is shown only the plans and storage offered to it, not the public ones.</summary>
+    bool ShowPublicOffering = true);
 
 /// <summary>One row of the combined payments list: a plan payment or a storage-block payment.</summary>
 internal sealed class PaymentRow
@@ -253,7 +255,8 @@ public class PlatformDirectoryService
             subscription?.DataPurgedAtUtc,
             subscription?.ArchiveRetainUntilUtc,
             subscription?.LegalHold ?? false,
-            subscription?.LegalHoldReason);
+            subscription?.LegalHoldReason,
+            subscription?.ShowPublicOffering ?? true);
     }
 
     private async Task<List<AccountListItem>> BuildAccountItemsAsync(List<Guid> ownerIds, CancellationToken token)

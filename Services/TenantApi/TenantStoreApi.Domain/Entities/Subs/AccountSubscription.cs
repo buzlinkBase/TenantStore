@@ -90,6 +90,11 @@ public class AccountSubscription : BaseEntity
     /// against. Kept separately because paying the next period moves CurrentPeriodEndUtc on.</summary>
     public DateTime? PendingChangeEffectiveAtUtc { get; set; }
 
+    /// <summary>Whether this account is shown the public plans and storage offerings. Off for a client on a
+    /// custom plan: they then see only what was offered to them (and the plan they hold), never the public
+    /// catalog. On for everyone by default.</summary>
+    public bool ShowPublicOffering { get; set; } = true;
+
     /// <summary>The prices this account pays, fixed when it subscribed -- a plan price change
     /// doesn't reach existing subscribers until a platform admin migrates them.</summary>
     public decimal? LockedMonthlyPrice { get; set; }
