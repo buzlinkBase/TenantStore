@@ -76,6 +76,8 @@ public static class PlanSeed
         (EntitlementKeys.Announcements, Off, Off, On),
         (EntitlementKeys.AuditTrail, Off, Off, On),
         (EntitlementKeys.ClientsAgency, Off, Off, On),
+        (EntitlementKeys.TimekeepingMobile, Off, Off, On),
+        (EntitlementKeys.PatrolApp, Off, Off, On),
         (EntitlementKeys.CompaniesMax, "1", "1", "5"),
         (EntitlementKeys.EmployeesMax, "100", "2000", "-1"),
         (EntitlementKeys.AdminsMax, "2", "5", "-1"),

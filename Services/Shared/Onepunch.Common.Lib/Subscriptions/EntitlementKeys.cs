@@ -11,8 +11,12 @@ public static class EntitlementKeys
     // ── Features (value "true"/"false") ─────────────────────────────────────────────────────
     /// <summary>Attendance upload/manual entry, logs, shifts, rotation plans, schedule changes, DTR generation.</summary>
     public const string TimekeepingCore = "timekeeping.core";
-    /// <summary>Biometric (ADMS) devices and enrollment.</summary>
+    /// <summary>Biometric (ADMS) devices, enrollment and automatic sync of their punches.</summary>
     public const string TimekeepingBiometric = "timekeeping.biometric";
+    /// <summary>The Onepunch Mobile Attendance app.</summary>
+    public const string TimekeepingMobile = "timekeeping.mobile";
+    /// <summary>The One Patrol App.</summary>
+    public const string PatrolApp = "patrol.app";
     /// <summary>Leave/OT/OB/Pass Slip/Profile Update applications with a single-step approval.</summary>
     public const string ApplicationsCore = "applications.core";
     /// <summary>Employee self-service portal.</summary>
@@ -53,7 +57,7 @@ public static class EntitlementKeys
     [
         TimekeepingCore, TimekeepingBiometric, ApplicationsCore, PortalSelfService, PayrollCore,
         PayrollLoansIncome, ReportsStatutory, ApprovalsMultilevel, Analytics, Announcements,
-        AuditTrail, ClientsAgency,
+        AuditTrail, ClientsAgency, TimekeepingMobile, PatrolApp,
     ];
 
     public static readonly IReadOnlyList<string> Limits =

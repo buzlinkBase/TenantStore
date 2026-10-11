@@ -23,8 +23,11 @@ public static class EntitlementCatalog
     [
         new(EntitlementKeys.TimekeepingCore, EntitlementKind.Feature, "Timekeeping",
             "Attendance upload and manual entry, logs, shifts, rotation plans, schedule changes, DTR generation."),
-        new(EntitlementKeys.TimekeepingBiometric, EntitlementKind.Feature, "Biometric devices",
-            "Biometric (ADMS) devices and enrollment."),
+        new(EntitlementKeys.TimekeepingBiometric, EntitlementKind.Feature, "Biometric auto sync",
+            "Biometric (ADMS) devices, enrollment and automatic sync of their punches."),
+        new(EntitlementKeys.TimekeepingMobile, EntitlementKind.Feature, "Onepunch Mobile Attendance",
+            "The Onepunch Mobile Attendance app."),
+        new(EntitlementKeys.PatrolApp, EntitlementKind.Feature, "One Patrol App", "The One Patrol App."),
         new(EntitlementKeys.ApplicationsCore, EntitlementKind.Feature, "Applications",
             "Leave, OT, OB, pass slip and profile-update applications with a single-step approval."),
         new(EntitlementKeys.PortalSelfService, EntitlementKind.Feature, "Employee portal",
