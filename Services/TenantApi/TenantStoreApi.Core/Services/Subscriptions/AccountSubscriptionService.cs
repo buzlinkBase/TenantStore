@@ -218,11 +218,13 @@ public class AccountSubscriptionService
         await _notifier.PublishAsync(ownerUserId, BillingEventTypes.PlanOfferRevoked, token);
     }
 
-    /// <summary>The account's payments, newest first. Voided ones are left out unless asked for: to the
-    /// owner a voided payment never happened.</summary>
+    /// <summary>The account's payments, newest first. Payments voided as an entry error (and ones voided
+    /// before kinds existed) are left out unless asked for: to the owner they never happened. Refunded
+    /// and cancelled ones stay, since the money really moved.</summary>
     public Task<List<SubscriptionPayment>> GetPaymentsAsync(Guid subscriptionId, bool includeVoided = false, CancellationToken token = default) =>
         Context.SubscriptionPayments.AsNoTracking()
-            .Where(p => p.SubscriptionId == subscriptionId && (includeVoided || p.VoidedAtUtc == null))
+            .Where(p => p.SubscriptionId == subscriptionId
+                && (includeVoided || p.VoidedAtUtc == null || (p.VoidKind != null && p.VoidKind != VoidKind.EntryError)))
             .OrderByDescending(p => p.PaidAtUtc)
             .ToListAsync(token);
 

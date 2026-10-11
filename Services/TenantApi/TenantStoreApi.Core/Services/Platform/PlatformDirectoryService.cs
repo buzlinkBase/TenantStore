@@ -118,6 +118,7 @@ internal sealed class PaymentRow
     public DateTime? VoidedAtUtc { get; set; }
     public string? VoidedBy { get; set; }
     public string? VoidReason { get; set; }
+    public VoidKind? VoidKind { get; set; }
     public Guid? AddOnId { get; set; }
     public int Blocks { get; set; }
 }
@@ -146,7 +147,9 @@ public sealed record PlatformPaymentView(
     string? Description = null,
     /// <summary>"Refunded" or "Disputed" when the gateway reported one against this payment; nothing is
     /// changed by it -- it is for the operator to act on.</summary>
-    string? GatewayIssue = null);
+    string? GatewayIssue = null,
+    /// <summary>Refunded, Cancelled or EntryError for a voided plan payment (null for legacy voids and live payments).</summary>
+    string? VoidKind = null);
 
 /// <summary>
 /// The platform console's cross-account read side: owner accounts, companies and payments,
@@ -355,6 +358,7 @@ public class PlatformDirectoryService
                                PeriodStartUtc = p.PeriodStartUtc, PeriodEndUtc = p.PeriodEndUtc,
                                RecordedBy = p.RecordedBy, Notes = p.Notes,
                                VoidedAtUtc = p.VoidedAtUtc, VoidedBy = p.VoidedBy, VoidReason = p.VoidReason,
+                               VoidKind = p.VoidKind,
                            };
         var storagePayments = from p in Context.StorageAddOnPayments.AsNoTracking()
                               join s in Context.AccountSubscriptions.AsNoTracking() on p.SubscriptionId equals s.Id
@@ -373,15 +377,19 @@ public class PlatformDirectoryService
             if (query.Method is { } method) payments = payments.Where(x => x.Method == method);
             if (query.FromUtc is { } from) payments = payments.Where(x => x.PaidAtUtc >= from);
             if (query.ToUtc is { } to) payments = payments.Where(x => x.PaidAtUtc <= to);
-            if (query.Voided is { } voided)
-                payments = voided ? payments.Where(x => x.VoidedAtUtc != null) : payments.Where(x => x.VoidedAtUtc == null);
             return payments;
         }
 
+        // Only plan payments can be voided; storage payments have no void columns, so the void filter
+        // is applied to the plan side alone (a storage payment is never void).
+        var plan = Filtered(planPayments);
+        if (query.Voided is { } voided)
+            plan = voided ? plan.Where(x => x.VoidedAtUtc != null) : plan.Where(x => x.VoidedAtUtc == null);
+        var storage = Filtered(storagePayments);
+        if (query.Voided == true) storage = storage.Where(_ => false);
+
         // Two tables, merged here rather than in SQL: each side contributes its newest (skip + take)
         // rows, and the requested page is cut from those, which is exactly what a combined sort would give.
-        var plan = Filtered(planPayments);
-        var storage = Filtered(storagePayments);
         var total = await plan.CountAsync(token) + await storage.CountAsync(token);
         var paging = query.Paging;
         var window = paging.Skip + paging.SafePageSize;
@@ -430,7 +438,7 @@ public class PlatformDirectoryService
             return new PlatformPaymentView(
                 x.Id, x.OwnerUserId, identity.Email, x.PaidAtUtc, x.Amount, x.Currency, x.Method, x.Reference,
                 planNames.GetValueOrDefault(x.PlanId), x.BillingCycle, x.PeriodStartUtc, x.PeriodEndUtc,
-                x.RecordedBy, x.Notes, x.VoidedAtUtc, x.VoidedBy, x.VoidReason, x.Kind, description, issue);
+                x.RecordedBy, x.Notes, x.VoidedAtUtc, x.VoidedBy, x.VoidReason, x.Kind, description, issue, x.VoidKind?.ToString());
         }).ToList();
         return new PagedResult<PlatformPaymentView>(items, total, paging.SafePage, paging.SafePageSize);
     }

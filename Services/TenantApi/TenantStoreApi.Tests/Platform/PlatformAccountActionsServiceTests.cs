@@ -361,4 +361,19 @@ public class PlatformAccountActionsServiceTests
         (await host.Subscriptions.GetPaymentsAsync(subscription.Id, includeVoided: true)).Should().Contain(p => p.Id == first.Id);
         (await host.Views.GetBillingForAccountAsync(owner)).Payments.Should().NotContain(p => p.Id == first.Id);
     }
+
+    [Theory]
+    [InlineData(VoidKind.Refunded)]
+    [InlineData(VoidKind.Cancelled)]
+    public async Task RefundedOrCancelledPayments_StayInTheOwnersBillingHistory_MarkedWithTheirStatus(VoidKind kind)
+    {
+        var host = new SubscriptionTestHost();
+        var (owner, first, _) = await TwoPaymentsAsync(host);
+        await Actions(host).VoidPaymentAsync(first.Id, "Customer asked", Operator, kind);
+        await host.SaveAsync();
+
+        (await host.Views.GetBillingForAccountAsync(owner)).Payments
+            .Should().ContainSingle(p => p.Id == first.Id && p.Status == kind.ToString());
+        host.Uow.Context.SubscriptionPayments.Single(p => p.Id == first.Id).VoidKind.Should().Be(kind);
+    }
 }
