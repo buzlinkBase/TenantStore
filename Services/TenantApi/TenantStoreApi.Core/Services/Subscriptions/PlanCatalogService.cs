@@ -16,6 +16,8 @@ public sealed record UpdatePlanCommand
     public decimal? MonthlyPrice { get; init; }
     public decimal? AnnualPrice { get; init; }
     public bool? PricesIncludeVat { get; init; }
+    /// <summary>Internal note, console only. Unset: unchanged. Blank: cleared.</summary>
+    public string? Remarks { get; init; }
 }
 
 public sealed record CreatePlanCommand
@@ -27,6 +29,8 @@ public sealed record CreatePlanCommand
     public decimal MonthlyPrice { get; init; }
     public decimal AnnualPrice { get; init; }
     public bool PricesIncludeVat { get; init; } = true;
+    /// <summary>Internal note for operators (what the plan is for), console only.</summary>
+    public string? Remarks { get; init; }
     /// <summary>Start from another plan's entitlements. Unset: every feature off and every limit 0.</summary>
     public string? CopyEntitlementsFromCode { get; init; }
 }
@@ -72,6 +76,7 @@ public class PlanCatalogService
         if (command.MonthlyPrice is { } monthly) plan.MonthlyPrice = monthly;
         if (command.AnnualPrice is { } annual) plan.AnnualPrice = annual;
         if (command.PricesIncludeVat is { } includesVat) plan.PricesIncludeVat = includesVat;
+        if (command.Remarks != null) plan.Remarks = NormalizeRemarks(command.Remarks);
 
         await _events.AddAsync(null, "plan.updated", new { plan.Code, command }, actor, token: token);
         return plan;
@@ -114,6 +119,18 @@ public class PlanCatalogService
 
     // ── Console operations ───────────────────────────────────────────────────────────────────
 
+    public const int MaxRemarksLength = 1000;
+
+    /// <summary>Trimmed; blank means none.</summary>
+    private static string? NormalizeRemarks(string? remarks)
+    {
+        var trimmed = remarks?.Trim();
+        if (string.IsNullOrEmpty(trimmed)) return null;
+        if (trimmed.Length > MaxRemarksLength)
+            throw new SubscriptionRuleException($"Remarks can be at most {MaxRemarksLength} characters.");
+        return trimmed;
+    }
+
     private static readonly System.Text.RegularExpressions.Regex CodePattern = new("^[a-z][a-z0-9_-]{1,39}$");
 
     /// <summary>
@@ -149,6 +166,7 @@ public class PlanCatalogService
             AnnualPrice = command.AnnualPrice,
             Currency = "PHP",
             PricesIncludeVat = command.PricesIncludeVat,
+            Remarks = NormalizeRemarks(command.Remarks),
         };
         await Context.Plans.AddAsync(plan, token);
 

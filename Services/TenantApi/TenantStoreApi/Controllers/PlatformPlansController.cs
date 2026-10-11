@@ -14,7 +14,9 @@ public record SetEntitlementsRequest
 }
 
 /// <summary>A plan as the console lists it: its definition plus how many accounts are on it.</summary>
-public sealed record PlatformPlanView(PlanView Plan, int Subscribers);
+/// <param name="Remarks">The operators' internal note for the plan; deliberately not on <see cref="PlanView"/>,
+/// which customers receive.</param>
+public sealed record PlatformPlanView(PlanView Plan, int Subscribers, string? Remarks = null);
 
 /// <summary>
 /// The plan catalog for the Platform Admin Console: list, create, edit, and set a plan's
@@ -41,7 +43,7 @@ public class PlatformPlansController : ControllerBase
     {
         var plans = await _plans.GetAllAsync(token);
         var subscribers = await _plans.GetSubscriberCountsAsync(token);
-        return Ok(plans.Select(p => new PlatformPlanView(SubscriptionViewService.ToView(p), subscribers.GetValueOrDefault(p.Id))).ToList());
+        return Ok(plans.Select(p => new PlatformPlanView(SubscriptionViewService.ToView(p), subscribers.GetValueOrDefault(p.Id), p.Remarks)).ToList());
     }
 
     /// <summary>What every entitlement is called and what it controls, for rendering a plan's entitlements.</summary>
@@ -66,7 +68,7 @@ public class PlatformPlansController : ControllerBase
         {
             var plan = await _plans.CreateAsync(command, Actor, token);
             await _plans.CommitChangesAsync(token);
-            return Ok(new PlatformPlanView(SubscriptionViewService.ToView(plan), 0));
+            return Ok(new PlatformPlanView(SubscriptionViewService.ToView(plan), 0, plan.Remarks));
         });
 
     [HttpPatch("{code}")]

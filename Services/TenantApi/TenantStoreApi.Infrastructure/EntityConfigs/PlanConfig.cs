@@ -115,6 +115,7 @@ public class PlanConfig : IEntityTypeConfiguration<Plan>
         builder.HasIndex(x => x.Code).IsUnique();
         builder.Property(x => x.Name).HasMaxLength(128);
         builder.Property(x => x.Description).HasMaxLength(512);
+        builder.Property(x => x.Remarks).HasMaxLength(1000);
         builder.Property(x => x.Currency).HasMaxLength(8);
         builder.Property(x => x.MonthlyPrice).HasPrecision(18, 2);
         builder.Property(x => x.AnnualPrice).HasPrecision(18, 2);

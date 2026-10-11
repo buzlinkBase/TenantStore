@@ -189,6 +189,15 @@ public class AccountSubscriptionService
             .OrderBy(o => o.CreatedAt)
             .ToListAsync(token);
 
+    /// <summary>Every private plan offered to one owner (expired offers included), newest first -- the
+    /// account side of <see cref="GetOffersAsync"/>.</summary>
+    public Task<List<PlanOffer>> GetOffersForOwnerAsync(Guid ownerUserId, CancellationToken token = default) =>
+        Context.PlanOffers.AsNoTracking()
+            .Include(o => o.Plan)
+            .Where(o => o.OwnerUserId == ownerUserId)
+            .OrderByDescending(o => o.CreatedAt)
+            .ToListAsync(token);
+
     /// <summary>Offers a plan to one owner, or changes when an existing offer expires. Idempotent.</summary>
     public async Task<PlanOffer> OfferPlanAsync(
         string planCode, Guid ownerUserId, DateTime? expiresAtUtc, string? actor, CancellationToken token = default)

@@ -89,6 +89,19 @@ public class PlatformBillingController : ControllerBase
             return Ok(offers.Select(o => ToView(o, identities)).ToList());
         });
 
+    /// <summary>The private plans offered to one account (the account side of <c>plans/{code}/offers</c>).</summary>
+    [PlatformAuthorize(PlatformPermissions.AccountsRead)]
+    [HttpGet("accounts/{ownerUserId:guid}/plan-offers")]
+    [ProducesResponseType(typeof(List<AccountPlanOfferView>), StatusCodes.Status200OK)]
+    public Task<IActionResult> GetAccountPlanOffers(Guid ownerUserId, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            var offers = await _subscriptions.GetOffersForOwnerAsync(ownerUserId, token);
+            return Ok(offers.Select(o => new AccountPlanOfferView(
+                o.Plan.Code, o.Plan.Name, o.Plan.Remarks, o.Plan.IsPublic, o.Plan.MonthlyPrice, o.Plan.AnnualPrice,
+                o.Plan.Currency, o.ExpiresAtUtc, o.CreatedBy, o.CreatedAt)).ToList());
+        });
+
     /// <summary>Offer a plan to one account, or change when its offer expires.</summary>
     [PlatformAuthorize(PlatformPermissions.PlansManage)]
     [HttpPut("plans/{code}/offers/{ownerUserId:guid}")]
@@ -242,6 +255,10 @@ public record OfferPlanRequest
 
 public record PlanOfferView(
     Guid Id, Guid OwnerUserId, string? OwnerEmail, string? OwnerName, DateTime? ExpiresAtUtc, string? CreatedBy, DateTime CreatedAt);
+
+public record AccountPlanOfferView(
+    string PlanCode, string PlanName, string? Remarks, bool IsPublic, decimal MonthlyPrice, decimal AnnualPrice,
+    string Currency, DateTime? ExpiresAtUtc, string? CreatedBy, DateTime CreatedAt);
 
 public record ExtendTrialRequest
 {

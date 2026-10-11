@@ -930,6 +930,10 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.Property<bool>("PricesIncludeVat")
                         .HasColumnType("tinyint(1)");
 
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
                     b.Property<int>("SortOrder")
                         .HasColumnType("int");
 

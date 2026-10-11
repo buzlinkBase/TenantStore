@@ -22,6 +22,9 @@ public class Plan : BaseEntity
     public string Currency { get; set; } = "PHP";
     /// <summary>Whether the prices above already include 12% VAT -- shown on the plan screen.</summary>
     public bool PricesIncludeVat { get; set; } = true;
+    /// <summary>An internal note for operators (what a custom plan is for). Shown only in the platform
+    /// console -- never part of <c>PlanView</c>, so it never reaches a customer.</summary>
+    public string? Remarks { get; set; }
 
     public virtual ICollection<PlanEntitlement> Entitlements { get; set; } = new List<PlanEntitlement>();
 }
