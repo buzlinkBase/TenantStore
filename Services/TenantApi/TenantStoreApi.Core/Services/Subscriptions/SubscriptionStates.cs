@@ -77,6 +77,8 @@ public static class BillingEventTypes
     public const string CanceledByAdmin = "subscription.canceled-by-admin";
     public const string PeriodExtended = "subscription.period-extended";
     public const string PaymentVoided = "payment.voided";
+    /// <summary>An operator refunded (part of) an online payment through the gateway. Changes nothing else: voiding is a separate step.</summary>
+    public const string PaymentRefundIssued = "payment.refund-issued";
 
     // Online checkout (SubscriptionCheckoutService).
     public const string CheckoutStarted = "checkout.started";

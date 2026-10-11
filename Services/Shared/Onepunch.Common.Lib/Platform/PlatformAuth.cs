@@ -53,6 +53,8 @@ public static class PlatformPermissions
     public const string AccountsRead = "platform.accounts.read";
     public const string SubscriptionsManage = "platform.subscriptions.manage";
     public const string PaymentsRecord = "platform.payments.record";
+    /// <summary>Sending money back to a payer through the payment gateway -- apart from recording or voiding one.</summary>
+    public const string PaymentsRefund = "platform.payments.refund";
     public const string PlansManage = "platform.plans.manage";
     public const string SettingsManage = "platform.settings.manage";
     public const string AuditRead = "platform.audit.read";
@@ -60,7 +62,7 @@ public static class PlatformPermissions
 
     public static readonly IReadOnlyList<string> All =
     [
-        AccountsRead, SubscriptionsManage, PaymentsRecord, PlansManage, SettingsManage, AuditRead, AdminsManage,
+        AccountsRead, SubscriptionsManage, PaymentsRecord, PaymentsRefund, PlansManage, SettingsManage, AuditRead, AdminsManage,
     ];
 }
 
@@ -79,6 +81,7 @@ public static class PlatformRolePermissions
                 PlatformPermissions.AccountsRead,
                 PlatformPermissions.SubscriptionsManage,
                 PlatformPermissions.PaymentsRecord,
+                PlatformPermissions.PaymentsRefund,
                 PlatformPermissions.PlansManage,
             ],
             [PlatformRoles.Support] =

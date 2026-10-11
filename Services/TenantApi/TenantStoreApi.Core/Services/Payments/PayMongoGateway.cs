@@ -91,6 +91,25 @@ public sealed class PayMongoGateway : IPaymentGateway
         PayMongoDocuments.ReadPayment(RequireResource(
             await SendAsync(HttpMethod.Get, $"payments/{Uri.EscapeDataString(paymentId)}", null, token)));
 
+    public async Task<GatewayRefund> RefundPaymentAsync(
+        string paymentId, decimal amount, GatewayRefundReason reason, string? notes, CancellationToken token)
+    {
+        var body = new
+        {
+            data = new
+            {
+                attributes = new
+                {
+                    payment_id = paymentId,
+                    amount = PayMongoDocuments.ToCentavos(amount),
+                    reason = PayMongoDocuments.RefundReason(reason),
+                    notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim(),
+                },
+            },
+        };
+        return PayMongoDocuments.ReadRefund(RequireResource(await SendAsync(HttpMethod.Post, "refunds", body, token)));
+    }
+
     public GatewayWebhookEvent? ReadWebhook(string rawBody, string? signatureHeader)
     {
         try

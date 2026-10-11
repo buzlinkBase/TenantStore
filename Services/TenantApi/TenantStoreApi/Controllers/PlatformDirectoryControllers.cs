@@ -19,6 +19,15 @@ public record VoidPaymentRequest
     public string? Reason { get; set; }
     /// <summary>Refunded, Cancelled or EntryError: decides whether the owner still sees the payment.</summary>
     public VoidKind Kind { get; set; } = VoidKind.EntryError;
+    /// <summary>Also put the plan back on what the previous live payment was for.</summary>
+    public bool RevertPlan { get; set; }
+}
+
+public record RefundPaymentRequest
+{
+    public decimal Amount { get; set; }
+    public GatewayRefundReason Reason { get; set; } = GatewayRefundReason.RequestedByCustomer;
+    public string? Notes { get; set; }
 }
 
 public record ExtendPeriodRequest
@@ -142,7 +151,7 @@ public class PlatformCompaniesController : ControllerBase
         Ok(await _directory.ListCompaniesAsync(query, token));
 }
 
-/// <summary>Recorded payments across all accounts, and voiding one recorded in error.</summary>
+/// <summary>Recorded payments across all accounts, voiding one recorded in error, and refunding an online one.</summary>
 [Route("api/v{version:apiVersion}/platform/payments")]
 [ApiVersion("1.0")]
 [EnableRateLimiting(PlatformRateLimiting.PolicyName)]
@@ -179,8 +188,20 @@ public class PlatformPaymentsController : ControllerBase
     public Task<IActionResult> Void(Guid paymentId, [FromBody] VoidPaymentRequest request, CancellationToken token) =>
         SubscriptionResults.Run(async () =>
         {
-            await _actions.VoidPaymentAsync(paymentId, request.Reason, PlatformActor.From(User), request.Kind, token);
+            await _actions.VoidPaymentAsync(paymentId, request.Reason, PlatformActor.From(User), request.Kind, request.RevertPlan, token);
             await _actions.CommitChangesAsync(token);
             return Ok();
+        });
+
+    /// <summary>Sends a refund of the given amount to the payment gateway. Does not void the payment or touch the plan.</summary>
+    [HttpPost("{paymentId:guid}/refund")]
+    [PlatformAuthorize(PlatformPermissions.PaymentsRefund)]
+    [ProducesResponseType(typeof(GatewayRefund), StatusCodes.Status200OK)]
+    public Task<IActionResult> Refund(Guid paymentId, [FromBody] RefundPaymentRequest request, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            var refund = await _actions.RefundPaymentAsync(paymentId, request.Amount, request.Reason, request.Notes, PlatformActor.From(User), token);
+            await _actions.CommitChangesAsync(token);
+            return Ok(refund);
         });
 }

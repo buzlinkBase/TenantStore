@@ -73,6 +73,27 @@ public static class PayMongoDocuments
         return new GatewayPaymentState(id, amount, refunded);
     }
 
+    /// <summary>PayMongo's wire name for a refund reason.</summary>
+    public static string RefundReason(GatewayRefundReason reason) => reason switch
+    {
+        GatewayRefundReason.RequestedByCustomer => "requested_by_customer",
+        GatewayRefundReason.Duplicate => "duplicate",
+        GatewayRefundReason.Fraudulent => "fraudulent",
+        _ => "others",
+    };
+
+    /// <summary>A refund resource (the "data" of POST /refunds).</summary>
+    public static GatewayRefund ReadRefund(JsonElement resource)
+    {
+        var id = Text(resource, "id") ?? string.Empty;
+        resource.TryGetProperty("attributes", out var attributes);
+        var amount = attributes.ValueKind == JsonValueKind.Object
+            && attributes.TryGetProperty("amount", out var value) && value.ValueKind == JsonValueKind.Number
+                ? FromCentavos(value.GetInt64())
+                : 0m;
+        return new GatewayRefund(id, Text(attributes, "payment_id") ?? string.Empty, amount, Text(attributes, "status") ?? "pending");
+    }
+
     /// <summary>A webhook delivery's body, or null when it isn't a PayMongo event.</summary>
     public static GatewayWebhookEvent? ReadEvent(JsonElement root)
     {

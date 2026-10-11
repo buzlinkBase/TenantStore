@@ -14,7 +14,7 @@ public class LegalHoldTests
 
     private static PlatformAccountActionsService Actions(SubscriptionTestHost host) => new(
         host.Uow, host.Subscriptions, host.Events, host.Notifier, host.StateMachine,
-        Microsoft.Extensions.Options.Options.Create(host.Options), host.Clock);
+        Microsoft.Extensions.Options.Options.Create(host.Options), host.Gateway, host.Clock);
 
     private static async Task<AccountSubscription> ExpiredAccountAsync(SubscriptionTestHost host)
     {

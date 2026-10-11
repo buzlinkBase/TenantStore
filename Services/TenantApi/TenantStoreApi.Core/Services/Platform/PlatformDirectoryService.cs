@@ -45,7 +45,9 @@ public sealed record PaymentQuery(
     /// <summary>Null: every payment. True: only voided ones. False: only live ones.</summary>
     bool? Voided = null,
     int Page = 1,
-    int PageSize = 25)
+    int PageSize = 25,
+    /// <summary>True: only live payments the gateway refunded or disputed that nobody has dealt with yet.</summary>
+    bool? NeedsReview = null)
 {
     public PageRequest Paging => new(Page, PageSize);
 }
@@ -149,7 +151,13 @@ public sealed record PlatformPaymentView(
     /// changed by it -- it is for the operator to act on.</summary>
     string? GatewayIssue = null,
     /// <summary>Refunded, Cancelled or EntryError for a voided plan payment (null for legacy voids and live payments).</summary>
-    string? VoidKind = null);
+    string? VoidKind = null,
+    /// <summary>How much of it has gone back to the payer (reported by the gateway or issued from the console).</summary>
+    decimal RefundedAmount = 0m,
+    /// <summary>Taken through the payment gateway, so a refund can be sent back through it.</summary>
+    bool CanRefund = false,
+    /// <summary>A live payment with a dispute, or a refund nobody here issued: for an operator to look at.</summary>
+    bool NeedsReview = false);
 
 /// <summary>
 /// The platform console's cross-account read side: owner accounts, companies and payments,
@@ -387,6 +395,13 @@ public class PlatformDirectoryService
             plan = voided ? plan.Where(x => x.VoidedAtUtc != null) : plan.Where(x => x.VoidedAtUtc == null);
         var storage = Filtered(storagePayments);
         if (query.Voided == true) storage = storage.Where(_ => false);
+        if (query.NeedsReview == true)
+        {
+            var allIssues = await GatewayIssueLedger.LoadAsync(Context, null, token);
+            var review = allIssues.NeedingReview().ToList();
+            plan = plan.Where(x => x.VoidedAtUtc == null && x.Reference != null && review.Contains(x.Reference));
+            storage = storage.Where(x => x.Reference != null && review.Contains(x.Reference));
+        }
 
         // Two tables, merged here rather than in SQL: each side contributes its newest (skip + take)
         // rows, and the requested page is cut from those, which is exactly what a combined sort would give.
@@ -412,33 +427,33 @@ public class PlatformDirectoryService
             .Select(a => new { a.Id, a.Offering.Name })
             .ToDictionaryAsync(a => a.Id, a => a.Name, token);
 
-        // Refunds and disputes are billing events keyed "{provider}:payment:{gatewayPaymentId}:{type}".
-        var issueTypes = new[] { BillingEventTypes.PaymentRefunded, BillingEventTypes.PaymentDisputed };
-        var issueEvents = await Context.BillingEvents.AsNoTracking()
-            .Where(e => issueTypes.Contains(e.Type) && e.OwnerUserId != null && ownerIds.Contains(e.OwnerUserId.Value))
-            .Select(e => new { e.Type, e.DedupeKey })
+        var ledger = await GatewayIssueLedger.LoadAsync(Context, ownerIds, token);
+
+        // Taken through the gateway = it has a checkout that holds the gateway's payment id.
+        var pageIds = page.Select(x => x.Id).ToList();
+        var online = await Context.PaymentCheckouts.AsNoTracking()
+            .Where(c => c.ProviderPaymentId != null
+                && ((c.SubscriptionPaymentId != null && pageIds.Contains(c.SubscriptionPaymentId.Value))
+                    || (c.StorageAddOnPaymentId != null && pageIds.Contains(c.StorageAddOnPaymentId.Value))))
+            .Select(c => new { c.SubscriptionPaymentId, c.StorageAddOnPaymentId })
             .ToListAsync(token);
-        var issues = new Dictionary<string, string>();
-        foreach (var e in issueEvents)
-        {
-            var parts = e.DedupeKey?.Split(':');
-            if (parts is not { Length: >= 4 }) continue;
-            var label = e.Type == BillingEventTypes.PaymentDisputed ? "Disputed" : "Refunded";
-            // A dispute outranks a refund when both were reported.
-            if (!issues.TryGetValue(parts[2], out var existing) || label == "Disputed" || existing != "Disputed") issues[parts[2]] = label;
-        }
+        var onlineIds = online.SelectMany(c => new[] { c.SubscriptionPaymentId, c.StorageAddOnPaymentId })
+            .OfType<Guid>().ToHashSet();
 
         var items = page.Select(x =>
         {
             identities.TryGetValue(x.OwnerUserId, out var identity);
-            var issue = x.Reference != null ? issues.GetValueOrDefault(x.Reference) : null;
             var description = x.Kind == PaymentKinds.Storage
                 ? StorageAddOnService.DescribePayment(x.Blocks, x.AddOnId is { } id ? offeringNames.GetValueOrDefault(id) : null)
                 : null;
+            var refunded = ledger.RefundedOf(x.Reference);
             return new PlatformPaymentView(
                 x.Id, x.OwnerUserId, identity.Email, x.PaidAtUtc, x.Amount, x.Currency, x.Method, x.Reference,
                 planNames.GetValueOrDefault(x.PlanId), x.BillingCycle, x.PeriodStartUtc, x.PeriodEndUtc,
-                x.RecordedBy, x.Notes, x.VoidedAtUtc, x.VoidedBy, x.VoidReason, x.Kind, description, issue, x.VoidKind?.ToString());
+                x.RecordedBy, x.Notes, x.VoidedAtUtc, x.VoidedBy, x.VoidReason, x.Kind, description,
+                ledger.IssueOf(x.Reference), x.VoidKind?.ToString(),
+                refunded, onlineIds.Contains(x.Id) && refunded < x.Amount,
+                x.VoidedAtUtc == null && ledger.NeedsReview(x.Reference));
         }).ToList();
         return new PagedResult<PlatformPaymentView>(items, total, paging.SafePage, paging.SafePageSize);
     }

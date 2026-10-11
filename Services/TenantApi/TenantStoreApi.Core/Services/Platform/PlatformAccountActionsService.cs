@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using TenantStoreApi.Core.Services.Payments;
 using TenantStoreApi.Core.Services.Subscriptions;
 using TenantStoreApi.Domain.Entities.Subs;
 using TenantStoreApi.Infrastructure;
@@ -24,6 +25,7 @@ public class PlatformAccountActionsService
     private readonly SubscriptionChangeNotifierService _notifier;
     private readonly SubscriptionStateMachine _states;
     private readonly SubscriptionOptions _options;
+    private readonly IPaymentGateway _gateway;
     private readonly TimeProvider _clock;
 
     public PlatformAccountActionsService(
@@ -33,6 +35,7 @@ public class PlatformAccountActionsService
         SubscriptionChangeNotifierService notifier,
         SubscriptionStateMachine states,
         IOptions<SubscriptionOptions> options,
+        IPaymentGateway gateway,
         TimeProvider clock)
     {
         _uow = uow;
@@ -41,6 +44,7 @@ public class PlatformAccountActionsService
         _notifier = notifier;
         _states = states;
         _options = options.Value;
+        _gateway = gateway;
         _clock = clock;
     }
 
@@ -167,9 +171,11 @@ public class PlatformAccountActionsService
     /// Marks a payment recorded in error as void -- never deleted, the money trail stays. If it is the
     /// payment that set the current paid period, that period falls back to the previous live payment's
     /// (or to nothing: the trial if it's still running, otherwise Expired), and whatever time-driven
-    /// transition is then due is applied. The plan is not rolled back: use Set plan if it also changed.
+    /// transition is then due is applied. The plan is left alone unless <paramref name="revertPlan"/>: then
+    /// the plan and billing cycle go back to the previous live payment's, when they differ.
     /// </summary>
-    public async Task VoidPaymentAsync(Guid paymentId, string? reason, string? actor, VoidKind kind = VoidKind.EntryError, CancellationToken token = default)
+    public async Task VoidPaymentAsync(
+        Guid paymentId, string? reason, string? actor, VoidKind kind = VoidKind.EntryError, bool revertPlan = false, CancellationToken token = default)
     {
         reason = RequireReason(reason);
         var payment = await Context.SubscriptionPayments.FirstOrDefaultAsync(p => p.Id == paymentId, token)
@@ -188,6 +194,7 @@ public class PlatformAccountActionsService
         payment.VoidKind = kind;
 
         var transitions = new List<SubscriptionTransition>();
+        object? planReverted = null;
         var definedCurrentPeriod = subscription.CurrentPeriodEndUtc == payment.PeriodEndUtc;
         if (definedCurrentPeriod)
         {
@@ -202,6 +209,7 @@ public class PlatformAccountActionsService
             {
                 subscription.CurrentPeriodStartUtc = previous.PeriodStartUtc;
                 subscription.CurrentPeriodEndUtc = previous.PeriodEndUtc;
+                if (revertPlan) planReverted = await RevertPlanAsync(subscription, previous, token);
                 transitions = _states.Advance(subscription, now, _options);
             }
             else
@@ -217,11 +225,72 @@ public class PlatformAccountActionsService
         Touch(subscription);
 
         await _events.AddAsync(subscription, BillingEventTypes.PaymentVoided,
-            new { payment.Id, payment.Amount, reason, kind = kind.ToString(), periodWasReverted = definedCurrentPeriod, status = subscription.SubStatus },
+            new { payment.Id, payment.Amount, reason, kind = kind.ToString(), periodWasReverted = definedCurrentPeriod, planReverted, status = subscription.SubStatus },
             actor, token: token);
         foreach (var transition in transitions)
             await _events.AddAsync(subscription, transition.EventType, new { transition.From, transition.To, cause = "payment voided" }, actor, token: token);
         await _notifier.PublishAsync(subscription.OwnerUserId, BillingEventTypes.PaymentVoided, token);
+    }
+
+    /// <summary>Puts the account back on the plan and cycle <paramref name="previous"/> was paid for. Returns
+    /// the plan codes it went from and to, or null when they already match (nothing to revert).</summary>
+    private async Task<object?> RevertPlanAsync(AccountSubscription subscription, SubscriptionPayment previous, CancellationToken token)
+    {
+        if (previous.PlanId == subscription.PlanId && previous.BillingCycle == subscription.BillingCycle) return null;
+
+        var from = subscription.Plan.Code;
+        var plan = await Context.Plans.Include(p => p.Entitlements).FirstAsync(p => p.Id == previous.PlanId, token);
+        subscription.PlanId = plan.Id;
+        subscription.Plan = plan;
+        subscription.BillingCycle = previous.BillingCycle;
+        subscription.LockedMonthlyPrice = plan.MonthlyPrice;
+        subscription.LockedAnnualPrice = plan.AnnualPrice;
+        ActiveState.ClearPendingChange(subscription);
+        return new { from, to = plan.Code };
+    }
+
+    /// <summary>
+    /// Gives <paramref name="amount"/> of an online payment back to the payer through the gateway, and
+    /// records it in the billing history. That is all it does: the payment stays live and the plan and
+    /// period are untouched -- voiding is a separate decision. Only a payment taken through the gateway
+    /// can be refunded (a hand-recorded one has no gateway payment), and never more than is left of it;
+    /// the gateway is asked for that balance just before, so a double click can't refund twice.
+    /// </summary>
+    public async Task<GatewayRefund> RefundPaymentAsync(
+        Guid paymentId, decimal amount, GatewayRefundReason reason, string? notes, string? actor, CancellationToken token = default)
+    {
+        if (!_gateway.IsEnabled) throw new SubscriptionRuleException("Online payment isn't configured, so nothing can be refunded.");
+        amount = decimal.Round(amount, 2, MidpointRounding.AwayFromZero);
+        if (amount <= 0m) throw new SubscriptionRuleException("The amount to refund must be more than zero.");
+        notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+        if (notes is { Length: > MaxReasonLength }) throw new SubscriptionRuleException($"Notes can be at most {MaxReasonLength} characters.");
+
+        var checkout = await Context.PaymentCheckouts.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Provider == _gateway.Provider && c.ProviderPaymentId != null
+                && (c.SubscriptionPaymentId == paymentId || c.StorageAddOnPaymentId == paymentId), token)
+            ?? throw new SubscriptionRuleException("This payment wasn't taken through the payment gateway, so it can't be refunded here.");
+        var gatewayPaymentId = checkout.ProviderPaymentId!;
+
+        var state = await _gateway.GetPaymentAsync(gatewayPaymentId, token);
+        var refundable = state.Amount - state.RefundedAmount;
+        if (amount > refundable)
+        {
+            throw new SubscriptionRuleException(refundable <= 0m
+                ? "This payment has already been fully refunded."
+                : $"Only {refundable:0.00} of this payment is left to refund.");
+        }
+
+        var refund = await _gateway.RefundPaymentAsync(gatewayPaymentId, amount, reason, notes, token);
+
+        var subscription = await Context.AccountSubscriptions.FirstAsync(s => s.Id == checkout.SubscriptionId, token);
+        await _events.AddAsync(subscription, BillingEventTypes.PaymentRefundIssued,
+            new
+            {
+                paymentId, gatewayPaymentId, refundId = refund.RefundId, amount = refund.Amount, status = refund.Status,
+                reason = reason.ToString(), notes, kind = checkout.Kind.ToString(),
+            },
+            actor, $"{_gateway.Provider}:refund:{refund.RefundId}", token: token);
+        return refund;
     }
 
     /// <summary>
