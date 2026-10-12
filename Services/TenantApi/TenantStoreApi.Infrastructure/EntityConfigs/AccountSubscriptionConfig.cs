@@ -88,6 +88,7 @@ public class SubscriptionPaymentConfig: IEntityTypeConfiguration<SubscriptionPay
         builder.Property(x => x.Reference).HasMaxLength(128);
         builder.Property(x => x.RecordedBy).HasMaxLength(128);
         builder.Property(x => x.Notes).HasMaxLength(1024);
+        builder.Property(x => x.LineItemsJson).HasColumnType("longtext");
         builder.HasOne(x => x.Subscription)
             .WithMany()
             .HasForeignKey(x => x.SubscriptionId)

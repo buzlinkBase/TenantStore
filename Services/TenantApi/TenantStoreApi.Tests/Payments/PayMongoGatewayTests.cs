@@ -124,6 +124,35 @@ public class PayMongoGatewayTests
         attributes.TryGetProperty("statement_descriptor", out _).Should().BeFalse("unset values aren't sent");
     }
 
+    [Fact]
+    public async Task CreateCheckout_SendsEachItemizedLineAndTheirSeparateAmounts()
+    {
+        var (gateway, handler) = Build(HttpStatusCode.OK,
+            """{"data":{"id":"cs_new","type":"checkout_session","attributes":{"checkout_url":"https://checkout.paymongo.com/cs_new"}}}""");
+        var request = Request(Guid.NewGuid()) with
+        {
+            Amount = 5799.50m,
+            LineItems =
+            [
+                new GatewayCheckoutLineItem("Timekeeping plan (monthly)", 4999.50m),
+                new GatewayCheckoutLineItem("Storage add-ons", 800m, "Storage add-ons for the next monthly billing period"),
+            ],
+        };
+
+        await gateway.CreateCheckoutAsync(request, CancellationToken.None);
+
+        var items = JsonDocument.Parse(handler.RequestBody!).RootElement
+            .GetProperty("data").GetProperty("attributes").GetProperty("line_items");
+        items.GetArrayLength().Should().Be(2);
+        items[0].GetProperty("name").GetString().Should().Be("Timekeeping plan (monthly)");
+        items[0].GetProperty("amount").GetInt64().Should().Be(499950);
+        items[1].GetProperty("name").GetString().Should().Be("Storage add-ons");
+        items[1].GetProperty("amount").GetInt64().Should().Be(80000);
+        items[1].GetProperty("description").GetString().Should().Contain("monthly billing period");
+        items.EnumerateArray().Sum(item => item.GetProperty("amount").GetInt64())
+            .Should().Be(PayMongoDocuments.ToCentavos(request.Amount));
+    }
+
     // appsettings.json's "StatementDescriptor": null binds as "" -- sending that made PayMongo refuse
     // every checkout with "The value for statement_descriptor cannot be blank".
     [Theory]

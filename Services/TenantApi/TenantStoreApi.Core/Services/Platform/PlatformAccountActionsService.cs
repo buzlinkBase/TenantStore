@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TenantStoreApi.Core.Services.Payments;
@@ -52,6 +54,36 @@ public class PlatformAccountActionsService
     private DateTime Now => _clock.GetUtcNow().UtcDateTime;
 
     public Task<bool> CommitChangesAsync(CancellationToken token = default) => _uow.CommitChangesAsync("", token);
+
+    /// <summary>Acknowledges the gateway issue currently awaiting review without changing payment state.</summary>
+    public async Task MarkPaymentIssueReviewedAsync(Guid paymentId, string? actor, CancellationToken token = default)
+    {
+        var checkout = await Context.PaymentCheckouts.AsNoTracking()
+            .Where(c => c.SubscriptionPaymentId == paymentId || c.StorageAddOnPaymentId == paymentId)
+            .Select(c => new { c.SubscriptionId, c.ProviderPaymentId })
+            .FirstOrDefaultAsync(token)
+            ?? throw new SubscriptionRuleException("This payment has no associated gateway checkout.");
+        if (string.IsNullOrWhiteSpace(checkout.ProviderPaymentId))
+            throw new SubscriptionRuleException("This payment has no gateway payment to review.");
+
+        var subscription = await Context.AccountSubscriptions.FirstOrDefaultAsync(s => s.Id == checkout.SubscriptionId, token)
+            ?? throw new SubscriptionRuleException("This payment's account subscription could not be found.");
+        var ledger = await GatewayIssueLedger.LoadAsync(Context, [subscription.OwnerUserId], token);
+        var issueKeys = ledger.UnreviewedIssueKeys(checkout.ProviderPaymentId);
+        if (issueKeys.Count == 0)
+            throw new SubscriptionRuleException("This payment no longer has an issue awaiting review.");
+
+        foreach (var issueKey in issueKeys)
+        {
+            var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(issueKey)));
+            var dedupeKey = $"platform:payment-issue-reviewed:{hash}";
+            if (await _events.ExistsAsync(dedupeKey, token)) continue;
+
+            await _events.AddAsync(subscription, BillingEventTypes.PaymentIssueReviewed,
+                new { gatewayPaymentId = checkout.ProviderPaymentId, issueKey },
+                actor, dedupeKey, token: token);
+        }
+    }
 
     /// <summary>Read-only from now on (the same access a lapsed account has) until reinstated or paid.</summary>
     public async Task SuspendAsync(Guid ownerUserId, string? reason, string? actor, CancellationToken token = default)

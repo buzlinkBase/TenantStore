@@ -1,4 +1,5 @@
 using FluentAssertions;
+using System.Text.Json;
 using TenantStoreApi.Core.Services.Payments;
 using TenantStoreApi.Core.Services.Subscriptions;
 using TenantStoreApi.Domain.Entities.Subs;
@@ -46,6 +47,8 @@ public class SubscriptionCheckoutServiceTests
         var checkout = CheckoutOf(host, started.CheckoutId);
         checkout.CheckoutStatus.Should().Be(PaymentCheckoutStatus.Open);
         checkout.ProviderSessionId.Should().Be("cs_1");
+        JsonSerializer.Deserialize<List<PaymentLineItemSnapshot>>(checkout.LineItemsJson!)
+            .Should().Equal(new PaymentLineItemSnapshot("Payroll plan (monthly)", 4999m));
         checkout.CreatedByUserId.Should().Be(actor);
         host.Uow.Context.BillingEvents.Should().ContainSingle(e => e.Type == BillingEventTypes.CheckoutStarted && e.OwnerUserId == owner);
         host.SubscriptionOf(owner).SubStatus.Should().Be(AccountSubscriptionStatus.Trialing, "nothing changes until it's paid");
@@ -64,6 +67,51 @@ public class SubscriptionCheckoutServiceTests
     }
 
     [Fact]
+    public async Task Start_WithRecurringStorage_AddsSeparatePlanAndStorageLines()
+    {
+        var (host, owner) = await ChosePayrollAsync();
+        var initialPayment = await host.Subscriptions.RecordPaymentAsync(owner, new RecordPaymentCommand
+        {
+            Amount = 4999m,
+            Method = PaymentMethod.BankTransfer,
+        }, "platform");
+        JsonSerializer.Deserialize<List<PaymentLineItemSnapshot>>(initialPayment.LineItemsJson!)
+            .Should().Equal(new PaymentLineItemSnapshot("Payroll plan (monthly)", 4999m));
+        var quote = await host.Storage.QuoteAsync(owner, "storage-50gb", 2);
+        await host.Storage.ActivateAsync(owner, "storage-50gb", 2, quote.AmountDue,
+            PaymentMethod.GCash, "pay_storage", "owner");
+        await host.SaveAsync();
+        host.Clock.Advance(TimeSpan.FromDays(26));
+
+        var started = await host.Checkouts.StartAsync(owner, owner);
+
+        var request = host.Gateway.Created.Single();
+        request.Amount.Should().Be(5799m);
+        request.LineItems.Should().Equal(
+            new GatewayCheckoutLineItem("Payroll plan (monthly)", 4999m),
+            new GatewayCheckoutLineItem(
+                "Storage add-ons", 800m, "Storage add-ons for the next monthly billing period"));
+
+        var checkout = CheckoutOf(host, started.CheckoutId);
+        var checkoutLines = JsonSerializer.Deserialize<List<PaymentLineItemSnapshot>>(checkout.LineItemsJson!);
+        checkoutLines.Should().Equal(
+            new PaymentLineItemSnapshot("Payroll plan (monthly)", 4999m),
+            new PaymentLineItemSnapshot(
+                "Storage add-ons", 800m, "Storage add-ons for the next monthly billing period"));
+
+        await host.Checkouts.HandleWebhookAsync(
+            host.Gateway.Deliver(host.Gateway.Pay("cs_1", 5799m)),
+            FakePaymentGateway.ValidSignature);
+
+        var payment = host.Uow.Context.SubscriptionPayments.Single(item => item.Reference == "pay_cs_1");
+        var paymentLines = JsonSerializer.Deserialize<List<PaymentLineItemSnapshot>>(payment.LineItemsJson!);
+        paymentLines.Should().Equal(checkoutLines);
+        var billing = await host.Views.GetBillingForAccountAsync(owner);
+        billing.Payments.Single(item => item.Id == payment.Id)
+            .LineItems.Should().Equal(checkoutLines);
+    }
+
+    [Fact]
     public async Task Start_AfterTheReuseWindow_OpensANewPage_AndClosesTheOld()
     {
         var (host, owner) = await ChosePayrollAsync();
@@ -75,6 +123,29 @@ public class SubscriptionCheckoutServiceTests
         second.CheckoutId.Should().NotBe(first.CheckoutId);
         host.Gateway.Expired.Should().Equal("cs_1");
         CheckoutOf(host, first.CheckoutId).CheckoutStatus.Should().Be(PaymentCheckoutStatus.Expired);
+    }
+
+    [Fact]
+    public async Task Start_ExpiresAnOpenCheckoutCreatedBeforeTheCurrentCheckoutFormat()
+    {
+        var (host, owner) = await ChosePayrollAsync();
+        var first = await host.Checkouts.StartAsync(owner, owner);
+        var oldSession = host.Gateway.Sessions["cs_1"];
+        host.Gateway.Sessions["cs_1"] = oldSession with
+        {
+            Metadata = new Dictionary<string, string>
+            {
+                [SubscriptionCheckoutService.MetadataKeys.CheckoutId] = first.CheckoutId.ToString(),
+            },
+        };
+
+        var second = await host.Checkouts.StartAsync(owner, owner);
+
+        second.CheckoutId.Should().NotBe(first.CheckoutId);
+        host.Gateway.Expired.Should().Equal("cs_1");
+        host.Gateway.Created.Should().HaveCount(2);
+        host.Gateway.Created[1].Metadata[SubscriptionCheckoutService.MetadataKeys.CheckoutFormat]
+            .Should().Be(SubscriptionCheckoutService.MetadataKeys.CurrentCheckoutFormat);
     }
 
     [Fact]
@@ -153,6 +224,8 @@ public class SubscriptionCheckoutServiceTests
         payment.Method.Should().Be(PaymentMethod.GCash);
         payment.Reference.Should().Be("pay_cs_1");
         payment.RecordedBy.Should().Be("fake");
+        JsonSerializer.Deserialize<List<PaymentLineItemSnapshot>>(payment.LineItemsJson!)
+            .Should().Equal(new PaymentLineItemSnapshot("Payroll plan (monthly)", 4999m));
 
         var checkout = CheckoutOf(host, started.CheckoutId);
         checkout.CheckoutStatus.Should().Be(PaymentCheckoutStatus.Paid);

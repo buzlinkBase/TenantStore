@@ -200,6 +200,17 @@ public class PlatformPaymentsController : ControllerBase
     public async Task<IActionResult> List([FromQuery] PaymentQuery query, CancellationToken token) =>
         Ok(await _directory.ListPaymentsAsync(query, token));
 
+    /// <summary>Acknowledges a reviewed gateway issue without changing the payment or its refund status.</summary>
+    [HttpPost("{paymentId:guid}/review")]
+    [PlatformAuthorize(PlatformPermissions.PaymentsRecord)]
+    public Task<IActionResult> MarkReviewed(Guid paymentId, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            await _actions.MarkPaymentIssueReviewedAsync(paymentId, PlatformActor.From(User), token);
+            await _actions.CommitChangesAsync(token);
+            return Ok();
+        });
+
     [HttpPost("{paymentId:guid}/void")]
     [PlatformAuthorize(PlatformPermissions.PaymentsRecord)]
     public Task<IActionResult> Void(Guid paymentId, [FromBody] VoidPaymentRequest request, CancellationToken token) =>

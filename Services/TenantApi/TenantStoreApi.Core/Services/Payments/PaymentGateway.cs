@@ -8,6 +8,8 @@ public sealed record GatewayCheckoutRequest
     public required Guid CheckoutId { get; init; }
     /// <summary>The line the payer sees, e.g. "Payroll plan (monthly)".</summary>
     public required string ItemName { get; init; }
+    /// <summary>Optional itemized lines. When absent, the gateway uses <see cref="ItemName"/> and <see cref="Amount"/>.</summary>
+    public IReadOnlyList<GatewayCheckoutLineItem>? LineItems { get; init; }
     public required string Description { get; init; }
     public required decimal Amount { get; init; }
     public required string Currency { get; init; }
@@ -16,6 +18,9 @@ public sealed record GatewayCheckoutRequest
     /// <summary>Echoed back on the session and its webhook -- how a payment finds its checkout.</summary>
     public IReadOnlyDictionary<string, string> Metadata { get; init; } = new Dictionary<string, string>();
 }
+
+/// <summary>One separately priced item shown on a hosted checkout page.</summary>
+public sealed record GatewayCheckoutLineItem(string Name, decimal Amount, string? Description = null);
 
 public sealed record GatewayCheckoutSession(string SessionId, string CheckoutUrl);
 

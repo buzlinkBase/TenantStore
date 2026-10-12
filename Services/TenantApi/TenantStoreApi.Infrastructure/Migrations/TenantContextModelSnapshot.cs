@@ -816,6 +816,9 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("varchar(512)");
 
+                    b.Property<string>("LineItemsJson")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("Kind")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -2039,6 +2042,9 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(1024)
                         .HasColumnType("varchar(1024)");
+
+                    b.Property<string>("LineItemsJson")
+                        .HasColumnType("longtext");
 
                     b.Property<DateTime>("PaidAtUtc")
                         .HasColumnType("datetime(6)");

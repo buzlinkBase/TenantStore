@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Onepunch.Common.Lib.Subscriptions;
 using TenantStoreApi.Core.Services.Subscriptions;
@@ -119,6 +120,7 @@ internal sealed class PaymentRow
     public DateTime PeriodEndUtc { get; set; }
     public string? RecordedBy { get; set; }
     public string? Notes { get; set; }
+    public string? LineItemsJson { get; set; }
     public DateTime? VoidedAtUtc { get; set; }
     public string? VoidedBy { get; set; }
     public string? VoidReason { get; set; }
@@ -159,7 +161,8 @@ public sealed record PlatformPaymentView(
     /// <summary>Taken through the payment gateway, so a refund can be sent back through it.</summary>
     bool CanRefund = false,
     /// <summary>A live payment with a dispute, or a refund nobody here issued: for an operator to look at.</summary>
-    bool NeedsReview = false);
+    bool NeedsReview = false,
+    IReadOnlyList<PaymentLineItemSnapshot>? LineItems = null);
 
 /// <summary>
 /// The platform console's cross-account read side: owner accounts, companies and payments,
@@ -368,6 +371,7 @@ public class PlatformDirectoryService
                                Reference = p.Reference, PlanId = p.PlanId, BillingCycle = p.BillingCycle,
                                PeriodStartUtc = p.PeriodStartUtc, PeriodEndUtc = p.PeriodEndUtc,
                                RecordedBy = p.RecordedBy, Notes = p.Notes,
+                               LineItemsJson = p.LineItemsJson,
                                VoidedAtUtc = p.VoidedAtUtc, VoidedBy = p.VoidedBy, VoidReason = p.VoidReason,
                                VoidKind = p.VoidKind,
                            };
@@ -456,7 +460,10 @@ public class PlatformDirectoryService
                 x.RecordedBy, x.Notes, x.VoidedAtUtc, x.VoidedBy, x.VoidReason, x.Kind, description,
                 ledger.IssueOf(x.Reference), x.VoidKind?.ToString(),
                 refunded, onlineIds.Contains(x.Id) && refunded < x.Amount,
-                x.VoidedAtUtc == null && ledger.NeedsReview(x.Reference));
+                x.VoidedAtUtc == null && ledger.NeedsReview(x.Reference),
+                x.LineItemsJson == null
+                    ? null
+                    : JsonSerializer.Deserialize<List<PaymentLineItemSnapshot>>(x.LineItemsJson));
         }).ToList();
         return new PagedResult<PlatformPaymentView>(items, total, paging.SafePage, paging.SafePageSize);
     }

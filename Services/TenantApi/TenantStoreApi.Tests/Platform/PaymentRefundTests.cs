@@ -191,6 +191,32 @@ public class PaymentRefundTests
     }
 
     [Fact]
+    public async Task MarkingGatewayIssueReviewed_ReleasesItsCountWithoutChangingPayment_AndNewIssuesAreCounted()
+    {
+        var host = new SubscriptionTestHost();
+        var (_, payment) = await PaidOnlineAsync(host);
+        var directory = Directory(host);
+        await host.Checkouts.HandleWebhookAsync(
+            host.Gateway.DeliverIssue("pay_cs_1", GatewayEventKind.PaymentRefunded, 500m), FakePaymentGateway.ValidSignature);
+        var actions = Actions(host);
+
+        await actions.MarkPaymentIssueReviewedAsync(payment.Id, Operator);
+        await host.SaveAsync();
+
+        var listedPayment = (await directory.ListPaymentsAsync(new PaymentQuery())).Items.Single();
+        listedPayment.NeedsReview.Should().BeFalse();
+        listedPayment.GatewayIssue.Should().Be("Refunded");
+        listedPayment.RefundedAmount.Should().Be(500m);
+        host.Uow.Context.SubscriptionPayments.Single().VoidedAtUtc.Should().BeNull();
+        EventsOf(host, BillingEventTypes.PaymentIssueReviewed).Should().ContainSingle().Which.Actor.Should().Be(Operator);
+        (await directory.ListPaymentsAsync(new PaymentQuery(NeedsReview: true))).Items.Should().BeEmpty();
+
+        await host.Checkouts.HandleWebhookAsync(
+            host.Gateway.DeliverIssue("pay_cs_1", GatewayEventKind.PaymentDisputed, 4999m), FakePaymentGateway.ValidSignature);
+        (await directory.ListPaymentsAsync(new PaymentQuery(NeedsReview: true))).Items.Should().ContainSingle();
+    }
+
+    [Fact]
     public async Task NeedsReview_IncludesADispute_AndDropsAPaymentOnceItIsVoided()
     {
         var host = new SubscriptionTestHost();

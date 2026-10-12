@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentAssertions;
 using Onepunch.Common.Lib.Subscriptions;
 using TenantStoreApi.Core.Services.Platform;
@@ -202,6 +203,8 @@ public class PlatformDirectoryServiceTests
         var a = await PaidAccountAsync(host, "a@acme.ph", "A");
         var b = await PaidAccountAsync(host, "b@acme.ph", "B");
         var first = await host.Subscriptions.RecordPaymentAsync(a, new RecordPaymentCommand { Amount = 100, Method = PaymentMethod.GCash, Reference = "R1" }, "platform");
+        host.Uow.Context.SubscriptionPayments.Local.Single(p => p.Id == first.Id).LineItemsJson =
+            JsonSerializer.Serialize(new[] { new PaymentLineItemSnapshot("Payroll plan (monthly)", 4999m) });
         await host.Subscriptions.RecordPaymentAsync(b, new RecordPaymentCommand { Amount = 200, Method = PaymentMethod.Cash }, "platform");
         await host.SaveAsync();
         host.Uow.Context.SubscriptionPayments.Single(p => p.Id == first.Id).VoidedAtUtc = host.Clock.UtcNow;
@@ -210,7 +213,12 @@ public class PlatformDirectoryServiceTests
 
         var all = await directory.ListPaymentsAsync(new PaymentQuery());
         all.Total.Should().Be(2);
-        all.Items.Should().ContainSingle(p => p.OwnerEmail == "a@acme.ph" && p.Reference == "R1" && p.VoidedAtUtc != null && p.PlanName == "Payroll");
+        var planPayment = all.Items.Should().ContainSingle(p =>
+            p.OwnerEmail == "a@acme.ph"
+            && p.Reference == "R1"
+            && p.VoidedAtUtc != null
+            && p.PlanName == "Payroll").Subject;
+        planPayment.LineItems.Should().Equal(new PaymentLineItemSnapshot("Payroll plan (monthly)", 4999m, null));
 
         (await directory.ListPaymentsAsync(new PaymentQuery(OwnerUserId: b))).Items.Should().ContainSingle(p => p.Amount == 200);
         (await directory.ListPaymentsAsync(new PaymentQuery(Method: PaymentMethod.GCash))).Items.Should().ContainSingle(p => p.Amount == 100);

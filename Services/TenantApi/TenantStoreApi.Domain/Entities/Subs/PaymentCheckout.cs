@@ -52,6 +52,8 @@ public class PaymentCheckout : BaseEntity
     public BillingCycle BillingCycle { get; set; }
     public decimal Amount { get; set; }
     public string Currency { get; set; } = "PHP";
+    /// <summary>The item amounts quoted to PayMongo, captured when this checkout was created.</summary>
+    public string? LineItemsJson { get; set; }
 
     /// <summary>The user who opened it (owner or billing admin).</summary>
     public Guid? CreatedByUserId { get; set; }

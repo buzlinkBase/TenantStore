@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Onepunch.Common.Lib.Subscriptions;
 using TenantStoreApi.Core.Services.Payments;
@@ -67,7 +68,9 @@ public sealed record PaymentView(
     /// <summary>"Paid", or "Refunded" / "Cancelled" for a voided payment the owner still sees.</summary>
     string Status = PaymentStatuses.Paid,
     /// <summary>How much of it has gone back to the payer (a refund sent from the console or made in the gateway).</summary>
-    decimal RefundedAmount = 0m);
+    decimal RefundedAmount = 0m,
+    /// <summary>Point-in-time plan and storage amounts; null for records made before line-item snapshots.</summary>
+    IReadOnlyList<PaymentLineItemSnapshot>? LineItems = null);
 
 public static class PaymentStatuses
 {
@@ -271,7 +274,10 @@ public class SubscriptionViewService
                     p.Id, p.PaidAtUtc, p.Amount, p.Currency, p.Method, p.Reference,
                     planNames.GetValueOrDefault(p.PlanId), p.BillingCycle, p.PeriodStartUtc, p.PeriodEndUtc,
                     Status: PaymentStatuses.Of(p.VoidedAtUtc == null ? null : p.VoidKind.ToString(), p.Amount, refunded),
-                    RefundedAmount: refunded);
+                    RefundedAmount: refunded,
+                    LineItems: p.LineItemsJson == null
+                        ? null
+                        : JsonSerializer.Deserialize<List<PaymentLineItemSnapshot>>(p.LineItemsJson));
             })
             .Concat(storagePayments.Select(s =>
             {

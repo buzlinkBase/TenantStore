@@ -35,23 +35,23 @@ public sealed class PayMongoGateway : IPaymentGateway
 
     public async Task<GatewayCheckoutSession> CreateCheckoutAsync(GatewayCheckoutRequest request, CancellationToken token)
     {
+        var lineItems = request.LineItems is { Count: > 0 }
+            ? request.LineItems
+            : [new GatewayCheckoutLineItem(request.ItemName, request.Amount, request.Description)];
         var body = new
         {
             data = new
             {
                 attributes = new
                 {
-                    line_items = new[]
-                    {
-                        new
+                    line_items = lineItems.Select(item => new
                         {
-                            name = request.ItemName,
-                            amount = PayMongoDocuments.ToCentavos(request.Amount),
+                            name = item.Name,
+                            amount = PayMongoDocuments.ToCentavos(item.Amount),
                             currency = request.Currency,
                             quantity = 1,
-                            description = request.Description,
-                        },
-                    },
+                            description = item.Description,
+                        }).ToArray(),
                     payment_method_types = _options.EffectivePaymentMethodTypes,
                     success_url = request.SuccessUrl,
                     cancel_url = request.CancelUrl,

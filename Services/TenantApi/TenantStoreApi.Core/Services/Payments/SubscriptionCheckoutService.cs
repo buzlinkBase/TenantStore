@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Serilog;
@@ -127,7 +128,15 @@ public class SubscriptionCheckoutService
             && c.Amount == due.Amount
             && c.CheckoutUrl != null
             && now - c.CreatedAtUtc < ReuseWindow);
-        if (reusable != null) return new CheckoutStarted(reusable.Id, reusable.CheckoutUrl!);
+        if (reusable?.ProviderSessionId is { } reusableSessionId)
+        {
+            var session = await _gateway.GetCheckoutAsync(reusableSessionId, token);
+            if (session.Metadata.TryGetValue(MetadataKeys.CheckoutFormat, out var format)
+                && format == MetadataKeys.CurrentCheckoutFormat)
+            {
+                return new CheckoutStarted(reusable.Id, reusable.CheckoutUrl!);
+            }
+        }
 
         // Any other open page is for a quote that no longer applies: close it so it can't be paid too.
         foreach (var stale in open) await ExpireAsync(stale, token);
@@ -142,6 +151,7 @@ public class SubscriptionCheckoutService
             BillingCycle = due.BillingCycle,
             Amount = due.Amount,
             Currency = due.Plan.Currency,
+            LineItemsJson = JsonSerializer.Serialize(BuildLineItems(due)),
             CreatedByUserId = actorUserId,
             CreatedAtUtc = now,
         };
@@ -475,6 +485,9 @@ public class SubscriptionCheckoutService
             PlanCode = planCode,
             BillingCycle = checkout.BillingCycle,
             Notes = $"Paid online ({checkout.Provider} checkout {session.SessionId})",
+            LineItems = checkout.LineItemsJson == null
+                ? null
+                : JsonSerializer.Deserialize<List<PaymentLineItemSnapshot>>(checkout.LineItemsJson),
         }, checkout.Provider, token);
 
         checkout.CheckoutStatus = PaymentCheckoutStatus.Paid;
@@ -555,10 +568,13 @@ public class SubscriptionCheckoutService
     {
         var cycle = due.BillingCycle == BillingCycle.Annual ? "annual" : "monthly";
         var returnUrl = ReturnUrl(checkout);
+        var lineItems = BuildLineItems(due);
         return new GatewayCheckoutRequest
         {
             CheckoutId = checkout.Id,
             ItemName = $"{due.Plan.Name} plan ({cycle})",
+            LineItems = lineItems.Select(item =>
+                new GatewayCheckoutLineItem(item.Name, item.Amount, item.Description)).ToList(),
             Description = due.Reason switch
             {
                 PaymentDueReason.Renewal => $"{_options.ProductName} subscription renewal",
@@ -573,6 +589,23 @@ public class SubscriptionCheckoutService
         };
     }
 
+    private static List<PaymentLineItemSnapshot> BuildLineItems(PaymentDue due)
+    {
+        var cycle = due.BillingCycle == BillingCycle.Annual ? "annual" : "monthly";
+        var items = new List<PaymentLineItemSnapshot>
+        {
+            new($"{due.Plan.Name} plan ({cycle})", due.Amount - due.AddOnsAmount),
+        };
+        if (due.AddOnsAmount > 0)
+        {
+            items.Add(new(
+                "Storage add-ons",
+                due.AddOnsAmount,
+                $"Storage add-ons for the next {cycle} billing period"));
+        }
+        return items;
+    }
+
     private string ReturnUrl(PaymentCheckout checkout) =>
         $"{_options.ReturnBaseUrl.TrimEnd('/')}{ReturnPath}?checkout={checkout.Id}";
 
@@ -581,6 +614,7 @@ public class SubscriptionCheckoutService
         [MetadataKeys.CheckoutId] = checkout.Id.ToString(),
         [MetadataKeys.SubscriptionId] = checkout.SubscriptionId.ToString(),
         [MetadataKeys.OwnerUserId] = checkout.OwnerUserId.ToString(),
+        [MetadataKeys.CheckoutFormat] = MetadataKeys.CurrentCheckoutFormat,
     };
 
     /// <summary>Closes a superseded page. Best effort: if it was paid after all, it's still settled.</summary>
@@ -606,5 +640,7 @@ public class SubscriptionCheckoutService
         public const string CheckoutId = "checkout_id";
         public const string SubscriptionId = "subscription_id";
         public const string OwnerUserId = "owner_user_id";
+        public const string CheckoutFormat = "checkout_format";
+        public const string CurrentCheckoutFormat = "itemized-plan-storage-v1";
     }
 }

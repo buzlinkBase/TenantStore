@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Onepunch.Common.Lib.Subscriptions;
@@ -43,6 +44,7 @@ public sealed record RecordPaymentCommand
     public string? PlanCode { get; init; }
     public BillingCycle? BillingCycle { get; init; }
     public string? Notes { get; init; }
+    public IReadOnlyList<PaymentLineItemSnapshot>? LineItems { get; init; }
 }
 
 public sealed record SetPlanCommand
@@ -494,6 +496,28 @@ public class AccountSubscriptionService
         var cycle = command.BillingCycle
             ?? (awaitingPayment ? subscription.PendingBillingCycle : null)
             ?? subscription.BillingCycle;
+        var lineItems = command.LineItems;
+        if (lineItems == null)
+        {
+            var planAmount = await PriceForAsync(subscription, target, cycle, token);
+            var addOnsAmount = StorageAddOnPricing.RenewalAmount(subscription, cycle);
+            if (planAmount + addOnsAmount == command.Amount)
+            {
+                var cycleLabel = cycle == BillingCycle.Annual ? "annual" : "monthly";
+                var snapshot = new List<PaymentLineItemSnapshot>
+                {
+                    new($"{target.Name} plan ({cycleLabel})", planAmount),
+                };
+                if (addOnsAmount > 0)
+                {
+                    snapshot.Add(new(
+                        "Storage add-ons",
+                        addOnsAmount,
+                        $"Storage add-ons for the next {cycleLabel} billing period"));
+                }
+                lineItems = snapshot;
+            }
+        }
 
         var now = Now;
         var periodRunning = subscription.SubStatus == AccountSubscriptionStatus.Active
@@ -551,6 +575,7 @@ public class AccountSubscriptionService
             PeriodEndUtc = periodEnd,
             RecordedBy = actor,
             Notes = command.Notes,
+            LineItemsJson = lineItems == null ? null : JsonSerializer.Serialize(lineItems),
         };
         await Context.SubscriptionPayments.AddAsync(payment, token);
         await _events.AddAsync(subscription, BillingEventTypes.PaymentRecorded,

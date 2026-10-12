@@ -77,6 +77,8 @@ public static class BillingEventTypes
     public const string CanceledByAdmin = "subscription.canceled-by-admin";
     public const string PeriodExtended = "subscription.period-extended";
     public const string PaymentVoided = "payment.voided";
+    /// <summary>An operator reviewed a gateway refund or dispute without changing the payment.</summary>
+    public const string PaymentIssueReviewed = "payment.issue-reviewed";
     /// <summary>An operator hid or showed the public plans and storage offerings for one account.</summary>
     public const string PublicOfferingVisibilityChanged = "subscription.public-offering-visibility-changed";
     /// <summary>An operator refunded (part of) an online payment through the gateway. Changes nothing else: voiding is a separate step.</summary>

@@ -177,6 +177,8 @@ public class SubscriptionPayment : BaseEntity
     public DateTime PeriodEndUtc { get; set; }
     public string? RecordedBy { get; set; }
     public string? Notes { get; set; }
+    /// <summary>Item amounts captured when the payment was made; null for older or non-itemized records.</summary>
+    public string? LineItemsJson { get; set; }
 
     /// <summary>
     /// Set when a platform admin voids a payment recorded by mistake (never deleted: the money trail
@@ -191,6 +193,9 @@ public class SubscriptionPayment : BaseEntity
     /// <see cref="Subs.VoidKind.EntryError"/>: the owner never sees those.</summary>
     public VoidKind? VoidKind { get; set; }
 }
+
+/// <summary>A payment line item saved as a point-in-time billing snapshot.</summary>
+public sealed record PaymentLineItemSnapshot(string Name, decimal Amount, string? Description = null);
 
 /// <summary>Stored as text. Decides whether the owner still sees a voided payment: only
 /// <see cref="EntryError"/> (recorded by mistake) is hidden from them; the others stay in their
