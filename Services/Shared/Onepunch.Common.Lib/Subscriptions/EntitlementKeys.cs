@@ -1,3 +1,5 @@
+using Onepunch.Common.Lib.Security;
+
 namespace Onepunch.Common.Lib.Subscriptions;
 
 /// <summary>
@@ -9,6 +11,10 @@ namespace Onepunch.Common.Lib.Subscriptions;
 public static class EntitlementKeys
 {
     // ── Features (value "true"/"false") ─────────────────────────────────────────────────────
+    /// <summary>The HRMS system itself (timekeeping, payroll, applications, ...), so it can be switched per
+    /// account like the other systems. On in every standard plan. Not enforced yet: the feature flags
+    /// below still gate HRMS's own modules.</summary>
+    public const string HrmsCore = "hrms.core";
     /// <summary>Attendance upload/manual entry, logs, shifts, rotation plans, schedule changes, DTR generation.</summary>
     public const string TimekeepingCore = "timekeeping.core";
     /// <summary>Biometric (ADMS) devices, enrollment and automatic sync of their punches.</summary>
@@ -66,12 +72,24 @@ public static class EntitlementKeys
         TimekeepingCore, TimekeepingBiometric, ApplicationsCore, PortalSelfService, PayrollCore,
         PayrollLoansIncome, ReportsStatutory, ApprovalsMultilevel, Analytics, Announcements,
         AuditTrail, ClientsAgency, TimekeepingMobile, PatrolApp,
-        ProcurementCore, AccountingCore, BillingCore, ClientPortalCore,
+        ProcurementCore, AccountingCore, BillingCore, ClientPortalCore, HrmsCore,
     ];
 
     /// <summary>The features that are separate products rather than part of the HRMS tiers: off in every
     /// standard plan (a trial included) and switched on per account through the console.</summary>
     public static readonly IReadOnlyList<string> SeparateSystems = [ProcurementCore, AccountingCore, BillingCore, ClientPortalCore];
+
+    /// <summary>The plan feature that switches a system on (a <see cref="PermissionProducts"/> value), or null for a
+    /// product that has none. A system's API gates itself on this so an account that hasn't bought it is refused.</summary>
+    public static string? ForProduct(string product) => product switch
+    {
+        PermissionProducts.Hrms => HrmsCore,
+        PermissionProducts.Procurement => ProcurementCore,
+        PermissionProducts.Accounting => AccountingCore,
+        PermissionProducts.Billing => BillingCore,
+        PermissionProducts.ClientPortal => ClientPortalCore,
+        _ => null,
+    };
 
     public static readonly IReadOnlyList<string> Limits =
     [

@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Moq;
 using Onepunch.Common.Lib.DTO;
+using Onepunch.Common.Lib.Security;
 using Onepunch.Common.Lib.Subscriptions;
 using TenantStoreApi.Core.Services.Subscriptions;
 using TenantStoreApi.Domain.Entities.Subs;
@@ -31,6 +32,24 @@ public class PlanCatalogConsoleTests
         EntitlementCatalog.Find(EntitlementKeys.SupportTier)!.Kind.Should().Be(EntitlementKind.Display);
         EntitlementCatalog.All.Select(e => e.Key).Should().OnlyHaveUniqueItems();
         EntitlementCatalog.All.Should().OnlyContain(e => EntitlementKeys.IsKnown(e.Key), "the catalog must not invent keys");
+    }
+
+    [Fact]
+    public void EveryEntitlement_IsGroupedUnderTheSystemItBelongsTo()
+    {
+        foreach (var key in EntitlementKeys.SeparateSystems)
+            EntitlementCatalog.Find(key)!.Product.Should().NotBe(PermissionProducts.Hrms, $"{key} is its own system");
+        EntitlementCatalog.Find(EntitlementKeys.ProcurementCore)!.Product.Should().Be(PermissionProducts.Procurement);
+        EntitlementCatalog.Find(EntitlementKeys.AccountingCore)!.Product.Should().Be(PermissionProducts.Accounting);
+        EntitlementCatalog.Find(EntitlementKeys.BillingCore)!.Product.Should().Be(PermissionProducts.Billing);
+        EntitlementCatalog.Find(EntitlementKeys.ClientPortalCore)!.Product.Should().Be(PermissionProducts.ClientPortal);
+
+        EntitlementCatalog.Find(EntitlementKeys.PayrollCore)!.Product.Should().Be(PermissionProducts.Hrms);
+        // Every limit and the support tier are plan-wide, not part of one system.
+        foreach (var key in EntitlementKeys.Limits.Append(EntitlementKeys.SupportTier))
+            EntitlementCatalog.Find(key)!.Product.Should().Be(EntitlementCatalog.AccountWide, key);
+        EntitlementCatalog.All.Where(e => e.Kind == EntitlementKind.Feature)
+            .Should().OnlyContain(e => e.Product != EntitlementCatalog.AccountWide, "features belong to a system");
     }
 
     // ── Create ───────────────────────────────────────────────────────────────

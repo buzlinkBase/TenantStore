@@ -149,6 +149,24 @@ public class PermissionCatalogProductTests
     }
 
     [Fact]
+    public async Task EnsureSeededAsync_GivesPermissionsWithABlankProduct_TheProductTheirCodeBelongsTo()
+    {
+        // What the migration leaves behind: the column's database default is blank.
+        var sut = CreateSut(out var uow, new HrmsPermissionCatalog(), new FakeProcurementCatalog());
+        await sut.EnsureSeededAsync(CancellationToken.None);
+        var all = await uow.Context.Permissions.ToListAsync();
+        all.ForEach(x => x.Product = "");
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        var permissions = await uow.Context.Permissions.ToListAsync();
+        permissions.Where(x => x.Code == "Payroll Run:Approve").Should().OnlyContain(x => x.Product == "hrms");
+        permissions.Where(x => x.Code.StartsWith("procurement:")).Should().OnlyContain(x => x.Product == "procurement");
+        permissions.Should().NotContain(x => x.Product == "");
+    }
+
+    [Fact]
     public void Constructor_RejectsTheSameProductRegisteredTwice()
     {
         var uow = TenantTestContextFactory.CreateUnitOfWork();

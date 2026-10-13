@@ -7,6 +7,10 @@ namespace Onepunch.Common.Lib.Security;
 public static class PermissionProducts
 {
     public const string Hrms = "hrms";
+    public const string Procurement = "procurement";
+    public const string Accounting = "accounting";
+    public const string Billing = "billing";
+    public const string ClientPortal = "clientportal";
 
     public static string BuildCode(string product, string feature, string action)
     {

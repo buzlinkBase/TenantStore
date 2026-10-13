@@ -21,6 +21,13 @@ public class PlanSeedTests
         ValueOf(PlanSeed.TimekeepingId, key).Should().Be("false");
     }
 
+    [Fact]
+    public void Hrms_IsOnInEveryStandardPlan()
+    {
+        foreach (var plan in new[] { PlanSeed.TimekeepingId, PlanSeed.PayrollId, PlanSeed.PremiumId })
+            ValueOf(plan, EntitlementKeys.HrmsCore).Should().Be("true");
+    }
+
     [Theory]
     [InlineData(EntitlementKeys.ProcurementCore)]
     [InlineData(EntitlementKeys.AccountingCore)]

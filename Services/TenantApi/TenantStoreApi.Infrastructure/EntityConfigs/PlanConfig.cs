@@ -64,6 +64,7 @@ public static class PlanSeed
     // Key -> (Timekeeping, Payroll, Premium).
     private static readonly (string Key, string Timekeeping, string Payroll, string Premium)[] Matrix =
     [
+        (EntitlementKeys.HrmsCore, On, On, On),
         (EntitlementKeys.TimekeepingCore, On, On, On),
         (EntitlementKeys.TimekeepingBiometric, On, On, On),
         (EntitlementKeys.ApplicationsCore, On, On, On),

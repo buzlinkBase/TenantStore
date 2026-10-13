@@ -315,6 +315,11 @@ public class PermissionCatalogSeederService
         // insert to be flushed -- reads-your-own-writes works fine within the same open
         // transaction), but without a final _uow.CommitChangesAsync, everything above gets rolled
         // back the moment the DbContext/scope is disposed, silently, with no exception.
+        if (await BackfillPermissionProductsAsync(token))
+        {
+            await Context.SaveChangesAsync(token);
+        }
+
         if (await SeedPermissionsAsync(token))
         {
             await Context.SaveChangesAsync(token);
@@ -346,6 +351,19 @@ public class PermissionCatalogSeederService
         await BackfillMembershipRolesAsync(token);
 
         await _uow.CommitChangesAsync("", token);
+    }
+
+    // Rows that existed before Permission.Product was added come out of the migration with a blank
+    // product (the column's database default); give each the product its code says it belongs to.
+    private async Task<bool> BackfillPermissionProductsAsync(CancellationToken token)
+    {
+        var blank = await Context.Permissions.Where(x => x.Product == "").ToListAsync(token);
+        foreach (var permission in blank)
+        {
+            permission.Product = PermissionProducts.ProductOf(permission.Code);
+        }
+
+        return blank.Count > 0;
     }
 
     // Incremental, not "only if the table is empty" -- Catalog gets new entries over time (e.g.
