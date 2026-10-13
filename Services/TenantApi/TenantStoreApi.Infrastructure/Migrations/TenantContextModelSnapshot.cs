@@ -415,6 +415,11 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<string>("Product")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -426,6 +431,8 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasIndex("Code")
                         .IsUnique();
+
+                    b.HasIndex("Product");
 
                     b.ToTable("Permissions");
                 });
@@ -493,6 +500,10 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("varchar(255)");
+
+                    b.Property<string>("Product")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1444,6 +1455,114 @@ namespace TenantStoreApi.Infrastructure.Migrations
                             PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e03"),
                             Status = "Active",
                             Value = "true"
+                        },
+                        new
+                        {
+                            Id = new Guid("39234f97-ab2c-7cd5-bf4f-63f79ae05985"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "procurement.core",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e01"),
+                            Status = "Active",
+                            Value = "false"
+                        },
+                        new
+                        {
+                            Id = new Guid("68b0c1cb-39e6-de26-1923-344252e3740c"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "procurement.core",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e02"),
+                            Status = "Active",
+                            Value = "false"
+                        },
+                        new
+                        {
+                            Id = new Guid("f59ba6d7-0c06-4299-f709-41932839ff12"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "procurement.core",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e03"),
+                            Status = "Active",
+                            Value = "false"
+                        },
+                        new
+                        {
+                            Id = new Guid("c06d1022-45cc-d10c-107d-261cb0e3d1b1"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "accounting.core",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e01"),
+                            Status = "Active",
+                            Value = "false"
+                        },
+                        new
+                        {
+                            Id = new Guid("50699d44-f46f-dad3-211d-f28fc42fc0a1"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "accounting.core",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e02"),
+                            Status = "Active",
+                            Value = "false"
+                        },
+                        new
+                        {
+                            Id = new Guid("3cfca504-a7af-4c34-6a1a-00cb3498b892"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "accounting.core",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e03"),
+                            Status = "Active",
+                            Value = "false"
+                        },
+                        new
+                        {
+                            Id = new Guid("6c5a4763-72e4-7472-81b6-404812d6aea7"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "billing.core",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e01"),
+                            Status = "Active",
+                            Value = "false"
+                        },
+                        new
+                        {
+                            Id = new Guid("a936e203-573d-00c7-7bfb-f42ad8996ccc"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "billing.core",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e02"),
+                            Status = "Active",
+                            Value = "false"
+                        },
+                        new
+                        {
+                            Id = new Guid("5879d012-6b21-3c30-37a8-3c3bbb2685d4"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "billing.core",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e03"),
+                            Status = "Active",
+                            Value = "false"
+                        },
+                        new
+                        {
+                            Id = new Guid("bd1d1ebf-b040-b2f6-28c7-6a3c01953561"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "clientportal.core",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e01"),
+                            Status = "Active",
+                            Value = "false"
+                        },
+                        new
+                        {
+                            Id = new Guid("9097a18a-166d-c350-2d3e-dabb3ce28874"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "clientportal.core",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e02"),
+                            Status = "Active",
+                            Value = "false"
+                        },
+                        new
+                        {
+                            Id = new Guid("a919429c-92cd-c8de-cb62-e06e21f792d1"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "clientportal.core",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e03"),
+                            Status = "Active",
+                            Value = "false"
                         },
                         new
                         {
