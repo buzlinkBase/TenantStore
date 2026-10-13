@@ -78,6 +78,12 @@ public static class PlanSeed
         (EntitlementKeys.ClientsAgency, Off, Off, On),
         (EntitlementKeys.TimekeepingMobile, Off, Off, On),
         (EntitlementKeys.PatrolApp, Off, Off, On),
+        // Separate systems sold on top of an HRMS plan, so off in every standard plan: switch them on
+        // for an account through the console (a private plan or an account override).
+        (EntitlementKeys.ProcurementCore, Off, Off, Off),
+        (EntitlementKeys.AccountingCore, Off, Off, Off),
+        (EntitlementKeys.BillingCore, Off, Off, Off),
+        (EntitlementKeys.ClientPortalCore, Off, Off, Off),
         (EntitlementKeys.CompaniesMax, "1", "1", "5"),
         (EntitlementKeys.EmployeesMax, "100", "2000", "-1"),
         (EntitlementKeys.AdminsMax, "2", "5", "-1"),

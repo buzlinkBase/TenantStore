@@ -1,4 +1,5 @@
 using Onepunch.AuditEngine;
+using Onepunch.Common.Lib.Security;
 
 namespace TenantStoreApi.Domain.Entities;
 
@@ -8,6 +9,8 @@ namespace TenantStoreApi.Domain.Entities;
 // Action="Approve", Code="Payroll Runs:Approve".
 public class Permission : BaseEntity
 {
+    // Which system the permission belongs to. Module stays the UI grouping inside a product.
+    public string Product { get; set; } = PermissionProducts.Hrms;
     public string Module { get; set; } = string.Empty;
     public string Feature { get; set; } = string.Empty;
     public string Action { get; set; } = string.Empty;
@@ -25,6 +28,10 @@ public class Role : BaseEntity
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public bool IsSystemRole { get; set; }
+    // Label for the role editor's product filter. Null = spans products (Owner/Admin/Member/
+    // Employee/Client, and custom roles created before products existed). Name stays unique per
+    // company regardless of product because membership rows and JWT role claims reference it by name.
+    public string? Product { get; set; }
     public virtual ICollection<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();
 }
 

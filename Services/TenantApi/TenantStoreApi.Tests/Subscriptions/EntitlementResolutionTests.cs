@@ -24,9 +24,27 @@ public class EntitlementResolutionTests
         snapshot.Status.Should().Be(nameof(AccountSubscriptionStatus.Trialing));
         snapshot.AccessMode.Should().Be(SubscriptionAccessMode.Full);
         snapshot.PlanCode.Should().Be("premium");
-        snapshot.Features.Values.Should().AllBeEquivalentTo(true);
+        snapshot.Features.Where(f => !EntitlementKeys.SeparateSystems.Contains(f.Key)).Select(f => f.Value)
+            .Should().AllBeEquivalentTo(true);
+        snapshot.Features.Where(f => EntitlementKeys.SeparateSystems.Contains(f.Key)).Select(f => f.Value)
+            .Should().AllBeEquivalentTo(false, "the separate systems are sold on top of a plan, a trial included");
         snapshot.LimitOf(EntitlementKeys.EmployeesMax).Should().BeNull("Premium has no employee limit");
         snapshot.LimitOf(EntitlementKeys.CompaniesMax).Should().Be(5);
+    }
+
+    [Fact]
+    public async Task AccountOverride_CanSwitchOn_ASeparateSystem_ForOneAccount()
+    {
+        var host = new SubscriptionTestHost();
+        var (owner, tenantId) = await host.TrialAccountAsync();
+
+        await host.Subscriptions.AddOverrideAsync(owner, new AddOverrideCommand { Key = EntitlementKeys.ProcurementCore, Value = "true" }, "platform");
+        await host.SaveAsync();
+
+        var snapshot = await host.Resolver.ResolveForTenantAsync(tenantId);
+        snapshot.Features[EntitlementKeys.ProcurementCore].Should().BeTrue();
+        snapshot.Features[EntitlementKeys.AccountingCore].Should().BeFalse();
+        snapshot.Features[EntitlementKeys.BillingCore].Should().BeFalse();
     }
 
     [Fact]

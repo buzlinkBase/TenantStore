@@ -21,6 +21,17 @@ public class PlanSeedTests
         ValueOf(PlanSeed.TimekeepingId, key).Should().Be("false");
     }
 
+    [Theory]
+    [InlineData(EntitlementKeys.ProcurementCore)]
+    [InlineData(EntitlementKeys.AccountingCore)]
+    [InlineData(EntitlementKeys.BillingCore)]
+    [InlineData(EntitlementKeys.ClientPortalCore)]
+    public void TheSeparateSystems_AreOffInEveryStandardPlan(string key)
+    {
+        foreach (var plan in new[] { PlanSeed.TimekeepingId, PlanSeed.PayrollId, PlanSeed.PremiumId })
+            ValueOf(plan, key).Should().Be("false", $"{key} is sold on top of a plan, not inside one");
+    }
+
     [Fact]
     public void EveryFeature_HasASeededValueForEachPlan()
     {

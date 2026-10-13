@@ -1,5 +1,6 @@
 using BuzlinkRepository;
 using Onepunch.AuditEngine;
+using Onepunch.Common.Lib.Security;
 
 namespace TenantStoreApi.Domain.Entities;
 
@@ -64,8 +65,13 @@ public static class UserMembershipExtensions
     // answer the permission lookup would eventually give, sooner -- and it's what every caller
     // (UserMembershipService's "Only Owner or Admin can..." error messages, RolesController) was
     // already assuming happened.
+    //
+    // That guarantee covers HRMS codes only: Owner holds every permission of every product, but
+    // Admin is granted just the HRMS ones, so Admin's fallback applies to unprefixed codes alone
+    // (same rule as PermissionClaims.HasPermission on the API side).
     public static bool HasPermission(this UserMembership membership, string code) =>
-        membership.HasAnyRole("Owner", "Admin") ||
+        membership.HasRole("Owner") ||
+        (membership.HasRole("Admin") && PermissionProducts.ProductOf(code) == PermissionProducts.Hrms) ||
         membership.Roles.Any(r => r.RoleRef?.RolePermissions.Any(rp => rp.Permission.Code == code) == true);
 
     public static bool HasAnyPermission(this UserMembership membership, params string[] codes) =>

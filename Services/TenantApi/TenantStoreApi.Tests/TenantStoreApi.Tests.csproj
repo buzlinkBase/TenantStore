@@ -29,6 +29,7 @@
 		<ProjectReference Include="..\TenantStoreApi.Core\TenantStoreApi.Core.csproj" />
 		<ProjectReference Include="..\TenantStoreApi.Domain\TenantStoreApi.Domain.csproj" />
 		<ProjectReference Include="..\TenantStoreApi\TenantStoreApi.csproj" />
+		<ProjectReference Include="..\..\Shared\Onepunch.Common.Web\Onepunch.Common.Web.csproj" />
 	</ItemGroup>
 
 </Project>

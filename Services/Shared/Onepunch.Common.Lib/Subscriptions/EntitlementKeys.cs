@@ -34,6 +34,14 @@ public static class EntitlementKeys
     public const string AuditTrail = "audit.trail";
     /// <summary>Client setup, client billing and the Cost Summary report (agency use).</summary>
     public const string ClientsAgency = "clients.agency";
+    /// <summary>The Procurement system (a separate product sharing this account, login and company list).</summary>
+    public const string ProcurementCore = "procurement.core";
+    /// <summary>The Accounting system (a separate product sharing this account, login and company list).</summary>
+    public const string AccountingCore = "accounting.core";
+    /// <summary>The Billing (invoicing) system. Not the subscription billing screens, which every plan includes.</summary>
+    public const string BillingCore = "billing.core";
+    /// <summary>The Client Portal system: the client-facing counterpart of the employee self-service portal (a separate product).</summary>
+    public const string ClientPortalCore = "clientportal.core";
 
     // ── Limits (integer value; -1 = unlimited) ──────────────────────────────────────────────
     /// <summary>Companies the account may own. Account-wide.</summary>
@@ -58,7 +66,12 @@ public static class EntitlementKeys
         TimekeepingCore, TimekeepingBiometric, ApplicationsCore, PortalSelfService, PayrollCore,
         PayrollLoansIncome, ReportsStatutory, ApprovalsMultilevel, Analytics, Announcements,
         AuditTrail, ClientsAgency, TimekeepingMobile, PatrolApp,
+        ProcurementCore, AccountingCore, BillingCore, ClientPortalCore,
     ];
+
+    /// <summary>The features that are separate products rather than part of the HRMS tiers: off in every
+    /// standard plan (a trial included) and switched on per account through the console.</summary>
+    public static readonly IReadOnlyList<string> SeparateSystems = [ProcurementCore, AccountingCore, BillingCore, ClientPortalCore];
 
     public static readonly IReadOnlyList<string> Limits =
     [

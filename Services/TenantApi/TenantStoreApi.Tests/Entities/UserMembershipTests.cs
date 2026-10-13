@@ -38,6 +38,18 @@ public class UserMembershipTests
     }
 
     [Fact]
+    public void HasPermission_OwnerPassesAnotherProductsCode_ButAdminNeedsTheGrant()
+    {
+        const string code = "procurement:Purchase Order:Approve";
+
+        WithRole("Owner").HasPermission(code).Should().BeTrue();
+        WithRole("Admin").HasPermission(code).Should().BeFalse("an HRMS admin gets no other system by default");
+
+        var granted = WithRole("Admin", [new RolePermission { Permission = new Permission { Code = code } }]);
+        granted.HasPermission(code).Should().BeTrue();
+    }
+
+    [Fact]
     public void HasPermission_ReturnsFalse_ForOtherRoles_WhenRoleRefIsNotLoaded()
     {
         WithRole("Member").HasPermission("Tenant Members:Manage").Should().BeFalse();

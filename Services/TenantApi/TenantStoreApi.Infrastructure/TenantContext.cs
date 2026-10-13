@@ -75,6 +75,9 @@ public class TenantContext : DbContext
         modelBuilder.Entity<Role>().HasIndex(x => x.TenantId);
         modelBuilder.Entity<Role>().HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
         modelBuilder.Entity<Permission>().HasIndex(x => x.Code).IsUnique();
+        modelBuilder.Entity<Permission>().Property(x => x.Product).HasMaxLength(50);
+        modelBuilder.Entity<Permission>().HasIndex(x => x.Product);
+        modelBuilder.Entity<Role>().Property(x => x.Product).HasMaxLength(50);
 
         modelBuilder.Entity<RolePermission>()
             .HasOne(x => x.Role)
