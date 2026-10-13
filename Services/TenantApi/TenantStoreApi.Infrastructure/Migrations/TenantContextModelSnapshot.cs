@@ -1080,6 +1080,33 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.HasData(
                         new
                         {
+                            Id = new Guid("c930cadc-6b65-f7d4-f770-37283cc4452a"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "hrms.core",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e01"),
+                            Status = "Active",
+                            Value = "true"
+                        },
+                        new
+                        {
+                            Id = new Guid("849db7e2-8ecf-2777-e12e-faac06162d64"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "hrms.core",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e02"),
+                            Status = "Active",
+                            Value = "true"
+                        },
+                        new
+                        {
+                            Id = new Guid("14589e8f-5668-12a4-3081-d87e183398e5"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Key = "hrms.core",
+                            PlanId = new Guid("4e0b7a52-7c1d-4f3a-9c61-1a2b3c4d5e03"),
+                            Status = "Active",
+                            Value = "true"
+                        },
+                        new
+                        {
                             Id = new Guid("a8a3f74b-9139-5543-0644-4620b342d2da"),
                             CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Key = "timekeeping.core",
