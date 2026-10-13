@@ -176,9 +176,12 @@ public class SubscriptionViewService
     public async Task<List<PlanView>> GetVisiblePlansAsync(Guid ownerUserId, CancellationToken token = default) =>
         (await _subscriptions.GetVisiblePlansAsync(ownerUserId, token)).Select(ToView).ToList();
 
-    public async Task<EntitlementsView> GetEntitlementsAsync(Guid tenantId, CancellationToken token = default)
+    /// <param name="isBillingUser">Whether the caller is the owner or a billing admin: only they are
+    /// told why an operator stopped the account; other members just learn that it is stopped.</param>
+    public async Task<EntitlementsView> GetEntitlementsAsync(Guid tenantId, bool isBillingUser, CancellationToken token = default)
     {
         var snapshot = await _resolver.ResolveForTenantAsync(tenantId, token);
+        snapshot = snapshot with { Restriction = snapshot.Restriction?.ForViewer(isBillingUser) };
         var plans = await _subscriptions.GetVisiblePlansAsync(snapshot.OwnerUserId, token);
         var availableOn = EntitlementKeys.Features
             .Select(key => (key, plan: plans.FirstOrDefault(p => ToView(p).Features[key])))

@@ -81,6 +81,11 @@ public class AccountSubscription : BaseEntity
     public bool LegalHold { get; set; }
     public string? LegalHoldReason { get; set; }
 
+    /// <summary>Set when an operator suspends the account (as opposed to a lapse for non-payment): the
+    /// reason the owner is shown, and the sign that the suspension is the operator's to lift. Cleared on
+    /// reinstatement and whenever the lifecycle itself suspends the account.</summary>
+    public string? SuspensionReason { get; set; }
+
     /// <summary>The owner canceled: access continues to the end of the paid period.</summary>
     public bool CancelAtPeriodEnd { get; set; }
     public Guid? PendingPlanId { get; set; }

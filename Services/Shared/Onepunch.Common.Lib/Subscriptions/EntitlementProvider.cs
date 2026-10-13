@@ -27,7 +27,8 @@ public interface IEntitlementProvider
 }
 
 /// <summary>
-/// Redis-cached for up to five minutes (and memoized per request scope), evicted on SubscriptionChanged.
+/// Redis-cached for up to five minutes -- one minute while the company is closed (read-only or
+/// blocked) -- and memoized per request scope, evicted on SubscriptionChanged.
 /// A snapshot that is still full-access is never cached past the moment the subscription's dates
 /// turn it read-only (trial end, grace end) -- that flip raises no event, so without this a company
 /// could keep saving for minutes after it lapsed.
@@ -40,6 +41,9 @@ public sealed class CachedEntitlementProvider(
 {
     private static readonly TimeSpan CacheFor = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan FailOpenFor = TimeSpan.FromSeconds(30);
+    // A closed company is cached briefly: paying (or an operator lifting a block) reopens it, and
+    // the eviction message that says so can be late or lost -- a minute is the longest it may wait.
+    private static readonly TimeSpan ClosedFor = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan Margin = TimeSpan.FromSeconds(1);
 
     private readonly TimeProvider _clock = clock ?? TimeProvider.System;
@@ -49,7 +53,7 @@ public sealed class CachedEntitlementProvider(
     /// can become read-only.</summary>
     public static TimeSpan ExpiryFor(EntitlementSnapshot snapshot, DateTime nowUtc)
     {
-        if (snapshot.IsReadOnly) return CacheFor;
+        if (snapshot.IsReadOnly || snapshot.IsBlocked) return ClosedFor;
 
         var next = new[] { snapshot.TrialEndsAtUtc, snapshot.CurrentPeriodEndUtc, snapshot.GraceEndsAtUtc }
             .Where(date => date > nowUtc)

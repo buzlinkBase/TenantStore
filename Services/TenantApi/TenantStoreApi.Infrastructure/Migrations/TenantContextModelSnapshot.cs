@@ -692,6 +692,10 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("varchar(16)");
 
+                    b.Property<string>("SuspensionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
                     b.Property<DateTime?>("TrialEndsAtUtc")
                         .HasColumnType("datetime(6)");
 
@@ -816,15 +820,15 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("varchar(512)");
 
-                    b.Property<string>("LineItemsJson")
-                        .HasColumnType("longtext");
-
                     b.Property<string>("Kind")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(16)
                         .HasColumnType("varchar(16)")
                         .HasDefaultValue("Plan");
+
+                    b.Property<string>("LineItemsJson")
+                        .HasColumnType("longtext");
 
                     b.Property<Guid>("OwnerUserId")
                         .HasColumnType("char(36)");
@@ -2034,6 +2038,9 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<string>("LineItemsJson")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("Method")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -2042,9 +2049,6 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(1024)
                         .HasColumnType("varchar(1024)");
-
-                    b.Property<string>("LineItemsJson")
-                        .HasColumnType("longtext");
 
                     b.Property<DateTime>("PaidAtUtc")
                         .HasColumnType("datetime(6)");

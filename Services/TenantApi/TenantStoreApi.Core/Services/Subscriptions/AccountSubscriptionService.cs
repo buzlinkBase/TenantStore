@@ -274,6 +274,10 @@ public class AccountSubscriptionService
         return Math.Max(0, price);
     }
 
+    /// <summary>Whether an operator suspended the account (as opposed to a lapse for non-payment, which paying lifts).</summary>
+    public static bool IsSuspendedByOperator(AccountSubscription subscription) =>
+        subscription.SubStatus == AccountSubscriptionStatus.Suspended && subscription.SuspensionReason != null;
+
     /// <summary>
     /// What the owner can pay for right now, or null when nothing is due: a chosen plan waiting for
     /// payment; the next period once the renewal window opens (on the plan a scheduled downgrade
@@ -282,6 +286,9 @@ public class AccountSubscriptionService
     /// </summary>
     public async Task<PaymentDue?> GetPaymentDueAsync(AccountSubscription subscription, CancellationToken token = default)
     {
+        // An operator's suspension isn't lifted by paying -- only by reinstating -- so nothing is "due".
+        if (IsSuspendedByOperator(subscription)) return null;
+
         var now = Now;
         var pendingCycle = subscription.PendingBillingCycle ?? subscription.BillingCycle;
         Guid planId;
@@ -536,6 +543,17 @@ public class AccountSubscriptionService
         if (renewal || prepaysScheduledChange)
         {
             subscription.CurrentPeriodEndUtc = periodEnd;
+        }
+        else if (IsSuspendedByOperator(subscription))
+        {
+            // Recorded and the period paid for, but the suspension is the operator's to lift (Reinstate).
+            subscription.PlanId = target.Id;
+            subscription.Plan = target;
+            subscription.BillingCycle = cycle;
+            subscription.CurrentPeriodStartUtc = periodStart;
+            subscription.CurrentPeriodEndUtc = periodEnd;
+            subscription.GraceEndsAtUtc = null;
+            ActiveState.ClearPendingChange(subscription);
         }
         else
         {

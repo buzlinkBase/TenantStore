@@ -130,10 +130,22 @@ public static class EntitlementSnapshotBuilder
             GraceEndsAtUtc = subscription.GraceEndsAtUtc,
             CancelAtPeriodEnd = subscription.CancelAtPeriodEnd,
             ReadOnlySinceUtc = readOnlySince,
+            Restriction = RestrictionOf(subscription),
             PunchesAcceptedUntilUtc = readOnlySince is { } since
                 ? Earliest(since.AddDays(Math.Max(0, lockedPunchRetentionDays)), subscription.PurgeAfterUtc)
                 : null,
         };
+    }
+
+    // An operator's suspension outranks a legal hold: it is what the owner can act on. A lapse for
+    // non-payment is no restriction -- the owner can still pay their way out of it.
+    private static AccessRestriction? RestrictionOf(AccountSubscription subscription)
+    {
+        if (subscription.SubStatus == AccountSubscriptionStatus.Suspended && subscription.SuspensionReason is { } suspension)
+            return new AccessRestriction(AccessRestrictionKinds.Suspended, suspension);
+        if (subscription.LegalHold)
+            return new AccessRestriction(AccessRestrictionKinds.LegalHold, subscription.LegalHoldReason);
+        return null;
     }
 
     // The moment the state that made it read-only began.

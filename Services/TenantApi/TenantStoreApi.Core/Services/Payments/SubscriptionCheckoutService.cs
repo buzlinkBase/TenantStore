@@ -110,6 +110,8 @@ public class SubscriptionCheckoutService
 
         var subscription = await _subscriptions.FindAsync(ownerUserId, token)
             ?? throw new KeyNotFoundException("This account has no subscription.");
+        if (AccountSubscriptionService.IsSuspendedByOperator(subscription))
+            throw new SubscriptionRuleException("This account was suspended by Onepunch support, so it can't be reactivated by paying. Please contact support.");
         var due = await _subscriptions.GetPaymentDueAsync(subscription, token)
             ?? throw new SubscriptionRuleException("There's nothing to pay right now.");
         if (due.Amount <= 0)

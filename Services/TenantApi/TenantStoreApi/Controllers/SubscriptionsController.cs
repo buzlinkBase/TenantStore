@@ -2,6 +2,7 @@ using TenantStoreApi.Core.Filters;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Onepunch.Common.Lib.Subscriptions;
 using TenantStoreApi.Core.Services.Payments;
 using TenantStoreApi.Core.Services.Subscriptions;
 using TenantStoreApi.Domain.Entities.Subs;
@@ -59,7 +60,7 @@ public class SubscriptionsController : ControllerBase
         if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
         if (await _members.GetMemberAsync(User.GetRequiredUserId(), tenantId, token) == null) return Forbid();
 
-        return Ok(await _views.GetEntitlementsAsync(tenantId, token));
+        return Ok(await _views.GetEntitlementsAsync(tenantId, BillingAccess.IsBillingUser(User), token));
     }
 
     [HttpGet("current")]

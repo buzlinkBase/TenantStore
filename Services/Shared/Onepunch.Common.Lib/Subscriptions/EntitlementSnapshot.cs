@@ -19,6 +19,23 @@ public static class EntitlementSources
     public const string CompanyOverride = "company-override";
 }
 
+/// <summary>Why an operator stopped the account.</summary>
+public static class AccessRestrictionKinds
+{
+    public const string Suspended = "Suspended";
+    public const string LegalHold = "LegalHold";
+}
+
+/// <summary>
+/// An operator's block on the whole account (suspension or legal hold): nobody can use its
+/// companies, the owner included. <see cref="Reason"/> is for the owner and billing admins only --
+/// other members are only told the account is unavailable (see <see cref="ForViewer"/>).
+/// </summary>
+public sealed record AccessRestriction(string Kind, string? Reason)
+{
+    public AccessRestriction ForViewer(bool isBillingUser) => isBillingUser ? this : this with { Reason = null };
+}
+
 /// <summary>
 /// One company's effective entitlements at a moment in time: its owner account's plan, then that
 /// account's overrides, then the company's own overrides, then the subscription's access mode.
@@ -65,7 +82,13 @@ public sealed record EntitlementSnapshot
     /// <summary>Status of a company that was deleted -- nothing about it is valid any more.</summary>
     public const string InvalidStatus = "Invalid";
 
+    /// <summary>Set while an operator has suspended the account or placed it on legal hold; null otherwise.</summary>
+    public AccessRestriction? Restriction { get; init; }
+
     public bool IsReadOnly => AccessMode == SubscriptionAccessMode.ReadOnly;
+
+    /// <summary>Whether an operator has stopped the account for everyone (see <see cref="Restriction"/>).</summary>
+    public bool IsBlocked => Restriction != null;
 
     /// <summary>Whether device punches for this company are still stored at <paramref name="nowUtc"/>.</summary>
     public bool AcceptsPunches(DateTime nowUtc) =>

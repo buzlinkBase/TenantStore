@@ -20,6 +20,8 @@ public static class SubscriptionAccessPolicy
 {
     public static SubscriptionAccessDecision Decide(EntitlementSnapshot snapshot, string httpMethod, bool isBillingUser)
     {
+        // An operator's suspension or legal hold stops everyone, the owner and billing admins too.
+        if (snapshot.IsBlocked) return SubscriptionAccessDecision.Locked;
         if (!snapshot.IsReadOnly) return SubscriptionAccessDecision.Allow;
         if (!isBillingUser) return SubscriptionAccessDecision.Locked;
         return IsRead(httpMethod) ? SubscriptionAccessDecision.Allow : SubscriptionAccessDecision.ReadOnly;

@@ -57,9 +57,16 @@ public class EntitlementCacheTests
     public void DatesAlreadyPassed_AreIgnored() =>
         CachedEntitlementProvider.ExpiryFor(Full(trialEnds: Now.AddDays(-1)), Now).Should().Be(FiveMinutes);
 
+    // Paying reopens a closed company; the eviction message can be late or lost, so don't wait five minutes.
     [Fact]
-    public void ReadOnly_UsesTheUsualFiveMinutes() =>
+    public void ReadOnly_IsCachedForOnlyAMinute() =>
         CachedEntitlementProvider.ExpiryFor(
             new EntitlementSnapshot { AccessMode = SubscriptionAccessMode.ReadOnly, GraceEndsAtUtc = Now.AddSeconds(10) }, Now)
-            .Should().Be(FiveMinutes);
+            .Should().Be(TimeSpan.FromMinutes(1));
+
+    [Fact]
+    public void Blocked_IsCachedForOnlyAMinute() =>
+        CachedEntitlementProvider.ExpiryFor(
+            Full(periodEnds: Now.AddDays(20)) with { Restriction = new AccessRestriction(AccessRestrictionKinds.LegalHold, null) }, Now)
+            .Should().Be(TimeSpan.FromMinutes(1));
 }

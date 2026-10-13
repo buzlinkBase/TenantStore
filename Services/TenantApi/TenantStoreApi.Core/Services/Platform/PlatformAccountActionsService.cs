@@ -95,6 +95,7 @@ public class PlatformAccountActionsService
 
         var from = subscription.SubStatus;
         subscription.SubStatus = AccountSubscriptionStatus.Suspended;
+        subscription.SuspensionReason = reason;
         Touch(subscription);
 
         await _events.AddAsync(subscription, BillingEventTypes.SuspendedByAdmin, new { from, reason }, actor, token: token);
@@ -115,6 +116,7 @@ public class PlatformAccountActionsService
 
         var now = Now;
         var from = subscription.SubStatus;
+        subscription.SuspensionReason = null;
         if (subscription.CurrentPeriodEndUtc is { } periodEnd && periodEnd > now)
         {
             subscription.SubStatus = AccountSubscriptionStatus.Active;
@@ -344,6 +346,8 @@ public class PlatformAccountActionsService
         Touch(subscription);
 
         await _events.AddAsync(subscription, BillingEventTypes.LegalHoldSet, new { reason }, actor, token: token);
+        // A hold stops the account's use, so every service must re-read its access.
+        await _notifier.PublishAsync(ownerUserId, BillingEventTypes.LegalHoldSet, token);
     }
 
     /// <summary>
@@ -372,6 +376,7 @@ public class PlatformAccountActionsService
         Touch(subscription);
 
         await _events.AddAsync(subscription, BillingEventTypes.LegalHoldReleased, new { reason }, actor, token: token);
+        await _notifier.PublishAsync(ownerUserId, BillingEventTypes.LegalHoldReleased, token);
     }
 
     /// <summary>

@@ -174,6 +174,8 @@ public sealed class PastDueState : ISubscriptionState
         if (nowUtc < subscription.GraceEndsAtUtc) return null;
 
         subscription.SubStatus = AccountSubscriptionStatus.Suspended;
+        // A lapse, not an operator's suspension: the owner can pay their way out of it.
+        subscription.SuspensionReason = null;
         return new(Status, AccountSubscriptionStatus.Suspended, BillingEventTypes.Suspended);
     }
 }
