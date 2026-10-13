@@ -112,30 +112,25 @@ public class RoleService : BaseService<Role>
 
         var distinctIds = permissionIds.Distinct().ToHashSet();
 
-        // Reconcile against every row for this role -- soft-deleted ones included. Plain
-        // RemoveRange()+re-Add would route the removal through the shared SoftDeleteInterceptor,
-        // which turns a Deleted entity into an UPDATE (sets DeletedAt) rather than physically
-        // removing the row. Inserting a brand-new row for a permission that already has a
-        // soft-deleted row on this role then collides on IX_RolePermissions_RoleId_PermissionId
-        // the moment it's re-granted, so a previously-revoked permission being re-checked must
-        // reactivate its existing row instead of getting a new one.
+        // Reconcile against every row for this role. A revoked grant is physically deleted
+        // (RolePermission opts out of soft delete). Rows soft-deleted before that change may still
+        // exist; they're loaded too (IgnoreQueryFilters) because one for a permission being
+        // re-granted would collide on IX_RolePermissions_RoleId_PermissionId if a new row were
+        // inserted next to it -- so that one is reactivated, and any not being re-granted is purged.
         var existing = await Context.RolePermissions.IgnoreQueryFilters()
             .Where(x => x.RoleId == roleId)
             .ToListAsync(token);
 
         foreach (var row in existing)
         {
-            if (distinctIds.Contains(row.PermissionId))
-            {
-                if (row.DeletedAt != null)
-                {
-                    row.DeletedAt = null;
-                    row.Status = "Active";
-                }
-            }
-            else if (row.DeletedAt == null)
+            if (!distinctIds.Contains(row.PermissionId))
             {
                 Context.RolePermissions.Remove(row);
+            }
+            else if (row.DeletedAt != null)
+            {
+                row.DeletedAt = null;
+                row.Status = "Active";
             }
         }
 
@@ -315,6 +310,11 @@ public class PermissionCatalogSeederService
         // insert to be flushed -- reads-your-own-writes works fine within the same open
         // transaction), but without a final _uow.CommitChangesAsync, everything above gets rolled
         // back the moment the DbContext/scope is disposed, silently, with no exception.
+        if (await PurgeSoftDeletedRolePermissionsAsync(token))
+        {
+            await Context.SaveChangesAsync(token);
+        }
+
         if (await BackfillPermissionProductsAsync(token))
         {
             await Context.SaveChangesAsync(token);
@@ -351,6 +351,17 @@ public class PermissionCatalogSeederService
         await BackfillMembershipRolesAsync(token);
 
         await _uow.CommitChangesAsync("", token);
+    }
+
+    // Revoked grants used to be soft-deleted; they're hard-deleted now, so clear out the ones left
+    // behind. Harmless to repeat: once they're gone there's nothing to find.
+    private async Task<bool> PurgeSoftDeletedRolePermissionsAsync(CancellationToken token)
+    {
+        var stale = await Context.RolePermissions.IgnoreQueryFilters()
+            .Where(x => x.DeletedAt != null)
+            .ToListAsync(token);
+        Context.RolePermissions.RemoveRange(stale);
+        return stale.Count > 0;
     }
 
     // Rows that existed before Permission.Product was added come out of the migration with a blank

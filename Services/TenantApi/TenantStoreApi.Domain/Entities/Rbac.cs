@@ -1,3 +1,4 @@
+using BuzlinkRepository;
 using Onepunch.AuditEngine;
 using Onepunch.Common.Lib.Security;
 
@@ -38,6 +39,11 @@ public class Role : BaseEntity
 // Not [Audited]: a row holds only ids, so capturing it recorded "Delete"/"Create" with nothing
 // readable. RoleService.SetPermissionsAsync records one event per save on the Role instead,
 // naming each permission granted or removed.
+//
+// [DisableSoftDelete]: revoking a grant deletes the row. A role's permissions are a plain set --
+// there's nothing to recover, and a lingering soft-deleted row only invites confusion about what a
+// role actually holds.
+[DisableSoftDelete]
 public class RolePermission : BaseEntity
 {
     public Guid RoleId { get; set; }

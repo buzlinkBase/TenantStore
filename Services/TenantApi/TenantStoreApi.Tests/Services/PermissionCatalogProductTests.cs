@@ -167,6 +167,22 @@ public class PermissionCatalogProductTests
     }
 
     [Fact]
+    public async Task EnsureSeededAsync_PurgesRoleGrantsThatWereSoftDeletedBefore()
+    {
+        var sut = CreateSut(out var uow, new HrmsPermissionCatalog());
+        await sut.EnsureSeededAsync(CancellationToken.None);
+        var role = new Role { Name = "Custom", TenantId = Guid.NewGuid() };
+        var permission = await uow.Context.Permissions.FirstAsync();
+        uow.Context.Roles.Add(role);
+        uow.Context.RolePermissions.Add(new RolePermission { RoleId = role.Id, PermissionId = permission.Id, DeletedAt = DateTime.UtcNow });
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        await sut.EnsureSeededAsync(CancellationToken.None);
+
+        (await uow.Context.RolePermissions.IgnoreQueryFilters().CountAsync(x => x.DeletedAt != null)).Should().Be(0);
+    }
+
+    [Fact]
     public void Constructor_RejectsTheSameProductRegisteredTwice()
     {
         var uow = TenantTestContextFactory.CreateUnitOfWork();

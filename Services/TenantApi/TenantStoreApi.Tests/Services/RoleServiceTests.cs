@@ -91,6 +91,92 @@ public class RoleServiceTests
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
+    private static async Task<(Role Role, Permission View, Permission Edit)> RoleWithTwoPermissionsAsync(RoleService sut, IUnitOfWorkService uow)
+    {
+        var role = await sut.AddCustomRoleAsync(Guid.NewGuid(), "Custom", "", CancellationToken.None);
+        var view = new Permission { Module = "Security", Feature = "Users", Action = "View", Code = "Users:View" };
+        var edit = new Permission { Module = "Security", Feature = "Users", Action = "Edit", Code = "Users:Edit" };
+        uow.Context.Permissions.AddRange(view, edit);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+        await sut.SetPermissionsAsync(role.Id, [view.Id, edit.Id], CancellationToken.None);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+        return (role, view, edit);
+    }
+
+    [Fact]
+    public async Task SetPermissionsAsync_HardDeletesARevokedPermission_LeavingNoRowBehind()
+    {
+        var sut = CreateSut(out var uow);
+        var (role, view, edit) = await RoleWithTwoPermissionsAsync(sut, uow);
+
+        await sut.SetPermissionsAsync(role.Id, [view.Id], CancellationToken.None);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        var rows = await uow.Context.RolePermissions.IgnoreQueryFilters().Where(x => x.RoleId == role.Id).ToListAsync();
+        rows.Should().ContainSingle().Which.PermissionId.Should().Be(view.Id);
+        rows.Should().NotContain(x => x.PermissionId == edit.Id, "a revoked grant is deleted, not soft-deleted");
+    }
+
+    [Fact]
+    public async Task SetPermissionsAsync_RemovingEverything_LeavesTheRoleWithNoRows()
+    {
+        var sut = CreateSut(out var uow);
+        var (role, _, _) = await RoleWithTwoPermissionsAsync(sut, uow);
+
+        await sut.SetPermissionsAsync(role.Id, [], CancellationToken.None);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        (await uow.Context.RolePermissions.IgnoreQueryFilters().CountAsync(x => x.RoleId == role.Id)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task SetPermissionsAsync_ReGrantingARevokedPermission_Works()
+    {
+        var sut = CreateSut(out var uow);
+        var (role, view, edit) = await RoleWithTwoPermissionsAsync(sut, uow);
+        await sut.SetPermissionsAsync(role.Id, [view.Id], CancellationToken.None);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        await sut.SetPermissionsAsync(role.Id, [view.Id, edit.Id], CancellationToken.None);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        var rows = await uow.Context.RolePermissions.Where(x => x.RoleId == role.Id).ToListAsync();
+        rows.Select(x => x.PermissionId).Should().BeEquivalentTo([view.Id, edit.Id]);
+    }
+
+    [Fact]
+    public async Task SetPermissionsAsync_ClearsRowsSoftDeletedBeforeTheChange()
+    {
+        var sut = CreateSut(out var uow);
+        var (role, view, edit) = await RoleWithTwoPermissionsAsync(sut, uow);
+        // What older versions left behind for a revoked grant.
+        var legacy = await uow.Context.RolePermissions.SingleAsync(x => x.RoleId == role.Id && x.PermissionId == edit.Id);
+        legacy.DeletedAt = DateTime.UtcNow;
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        await sut.SetPermissionsAsync(role.Id, [view.Id], CancellationToken.None);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        (await uow.Context.RolePermissions.IgnoreQueryFilters().AnyAsync(x => x.PermissionId == edit.Id && x.RoleId == role.Id))
+            .Should().BeFalse("the leftover soft-deleted row is purged when it isn't granted");
+    }
+
+    [Fact]
+    public async Task SetPermissionsAsync_ReGrantingALegacySoftDeletedRow_ReactivatesIt()
+    {
+        var sut = CreateSut(out var uow);
+        var (role, view, edit) = await RoleWithTwoPermissionsAsync(sut, uow);
+        var legacy = await uow.Context.RolePermissions.SingleAsync(x => x.RoleId == role.Id && x.PermissionId == edit.Id);
+        legacy.DeletedAt = DateTime.UtcNow;
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        await sut.SetPermissionsAsync(role.Id, [view.Id, edit.Id], CancellationToken.None);
+        await uow.Context.SaveChangesAsync(CancellationToken.None);
+
+        (await uow.Context.RolePermissions.Where(x => x.RoleId == role.Id).Select(x => x.PermissionId).ToListAsync())
+            .Should().BeEquivalentTo([view.Id, edit.Id]);
+    }
+
     [Fact]
     public async Task SetPermissionsAsync_ReplacesExistingSetOnACustomRole()
     {
