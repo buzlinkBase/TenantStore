@@ -19,6 +19,87 @@ service GetTenantService {
   // AuthApi creates a workspace, "admins.max" for a company (tenant_id) before it invites
   // `requested` more admins.
   rpc CheckPlanAllowance (PlanAllowanceRequest) returns (PlanAllowanceResponse);
+  // Client-portal access (Category=ClientUser memberships). Never mixed into the HRIS membership
+  // calls above: a client user has no HRIS tenant, roles or token claims.
+  // What a user may do within one client; found=false when they have no standing there.
+  rpc ResolveClientMembership (ClientMembershipRequest) returns (ClientMembershipResponse);
+  // Every client a user belongs to, across companies (the portal's client picker).
+  rpc ListClientMemberships (UserMembershipsRequest) returns (ClientMembershipsResponse);
+  // The client portal tells Tenant Service about a client it created or changed.
+  rpc UpsertClientEntity (UpsertClientEntityRequest) returns (UpsertClientEntityResponse);
+  // AuthApi asks before sending a client-user invitation: may this person invite this email to this
+  // client with these roles? Nothing is written.
+  rpc CheckClientInvite (CheckClientInviteRequest) returns (CheckClientInviteResponse);
+  // Invitation acceptance: makes the user a client user of that client with the invited roles.
+  // Idempotent.
+  rpc GrantClientAccess (GrantClientAccessRequest) returns (GrantClientAccessResponse);
+}
+
+message CheckClientInviteRequest {
+  string inviter_user_id = 1;
+  string client_entity_id = 2;
+  string email = 3;
+  repeated string role_ids = 4;
+}
+
+message CheckClientInviteResponse {
+  bool allowed = 1;
+  string error = 2;
+  string tenant_id = 3;
+  string tenant_name = 4;
+  string client_name = 5;
+}
+
+message GrantClientAccessRequest {
+  string user_id = 1;
+  string client_entity_id = 2;
+  string email = 3;
+  string full_name = 4;
+  repeated string role_ids = 5;
+}
+
+message GrantClientAccessResponse {
+  bool ok = 1;
+  string error = 2;
+}
+
+message ClientMembershipRequest {
+  string user_id = 1;
+  string client_entity_id = 2;
+}
+
+message ClientMembershipResponse {
+  bool found = 1;
+  ClientMembershipEntry membership = 2;
+}
+
+message ClientMembershipsResponse {
+  repeated ClientMembershipEntry memberships = 1;
+}
+
+message ClientMembershipEntry {
+  string client_entity_id = 1;
+  string client_name = 2;
+  string tenant_id = 3;
+  string tenant_name = 4;
+  // Active only when the person, their company link and the client are all on; permissions are
+  // empty otherwise.
+  string status = 5;
+  repeated string roles = 6;
+  repeated string permissions = 7;
+}
+
+message UpsertClientEntityRequest {
+  string tenant_id = 1;
+  string client_entity_id = 2;
+  // The HRIS client id, empty for a client created in the portal.
+  string external_id = 3;
+  string name = 4;
+  bool active = 5;
+}
+
+message UpsertClientEntityResponse {
+  bool ok = 1;
 }
 
 message PlanAllowanceRequest {

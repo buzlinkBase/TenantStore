@@ -28,6 +28,9 @@ public static class ServiceRegistrations
         builder.Services.Configure<CryptoSetting>(builder.Configuration.GetSection("Crypto"));
         builder.Services.Configure<Domains>(builder.Configuration.GetSection("Domains"));
         builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
+        builder.Services.Configure<Onepunch.Auth.Core.Portal.PortalAuthSettings>(
+            builder.Configuration.GetSection(Onepunch.Auth.Core.Portal.PortalAuthSettings.SectionName));
+        builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.Configure<RabbitMqSettings>(builder.Configuration.GetSection("RabbitMqSettings"));
         builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
         ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));

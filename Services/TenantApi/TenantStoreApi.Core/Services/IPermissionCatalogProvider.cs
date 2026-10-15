@@ -2,7 +2,7 @@ using Onepunch.Common.Lib.Security;
 
 namespace TenantStoreApi.Core.Services;
 
-public record SystemRoleDefinition(string Name, string Description, string? Product = null);
+public record SystemRoleDefinition(string Name, string Description, string? Product = null, string Audience = RoleAudience.Staff);
 
 // One product's slice of the global permission catalog (HRMS today; procurement, accounting and
 // billing later). PermissionCatalogSeederService seeds every registered provider, so adding a

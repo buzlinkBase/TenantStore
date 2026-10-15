@@ -19,6 +19,15 @@ public class Permission : BaseEntity
     public string Description { get; set; } = string.Empty;
 }
 
+/// <summary>Who a role is for. Staff roles go on company members (Tenant_Member_Roles); Client roles
+/// go on client-portal users (Client_Membership_Roles). Each side's lists and grants only ever see
+/// its own audience, so a client role can't be handed to staff or the other way round.</summary>
+public static class RoleAudience
+{
+    public const string Staff = "Staff";
+    public const string Client = "Client";
+}
+
 // TenantId null = System Role (Owner/Admin/Member/Employee -- ships with the product, seeded
 // once, non-deletable, permissions fixed). TenantId set = a Custom Role an org's admin defined
 // for themselves only.
@@ -26,6 +35,12 @@ public class Permission : BaseEntity
 public class Role : BaseEntity
 {
     public Guid? TenantId { get; set; }
+    // Staff or Client -- see RoleAudience. Existing roles are Staff.
+    public string Audience { get; set; } = RoleAudience.Staff;
+    // Set only on a custom role a client defined for its own users (TenantId is then the agency
+    // that owns the client, Audience is Client). Null on every system role and on the agency's own
+    // custom roles.
+    public Guid? ClientEntityId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public bool IsSystemRole { get; set; }

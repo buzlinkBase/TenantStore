@@ -83,6 +83,7 @@ public class SubscriptionChangeNotifierService
             .ToListAsync(token);
 
         var memberUserIds = await context.Memberships.AsNoTracking()
+            .InternalOnly()
             .Where(m => tenantIds.Contains(m.TenantId) && m.UserId != Guid.Empty && m.Status == "Active")
             .Select(m => m.UserId)
             .Distinct()

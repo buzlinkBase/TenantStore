@@ -55,6 +55,30 @@ public class TenantsController : ControllerBase
         catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
     }
 
+    // Updates the console-facing contact details (address, contact number) of the caller's current
+    // company. Same caller rules as RenameCurrent; the tenant always comes from the token.
+    [HttpPut("current/profile")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateCurrentProfile([FromBody] UpdateTenantProfile payload, CancellationToken token)
+    {
+        var tenantId = _tenantProvider.TenantId;
+        if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
+
+        if (!await _membershipService.CanManageCompanyAsync(User.GetRequiredUserId(), tenantId, token))
+            return Forbid();
+
+        try
+        {
+            await _service.UpdateProfileAsync(tenantId, payload.Address, payload.Contact, token);
+            await _service.CommitChangesAsync(token);
+            return Ok();
+        }
+        catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
+    }
+
     [HttpPut("{id}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> Put(Guid id, [FromBody] UpdateTenant payload, CancellationToken token)

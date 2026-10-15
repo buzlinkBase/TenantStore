@@ -16,6 +16,7 @@ public static class LibServicesRegistrations
         // One provider per product that shares this authorization store; the seeder seeds them all.
         // A new system (procurement, accounting, billing) registers its provider here.
         builder.Services.AddSingleton<Services.IPermissionCatalogProvider, Services.HrmsPermissionCatalog>();
+        builder.Services.AddSingleton<Services.IPermissionCatalogProvider, Services.ClientPortalPermissionCatalog>();
     }
 
     public static void AddLibraryAssemblyDependencies(IServiceCollection services, string assemblyName)

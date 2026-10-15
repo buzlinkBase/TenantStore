@@ -78,6 +78,7 @@ public sealed class AdminSeatUsageProvider(IUnitOfWorkService uow) : ICompanyUsa
     public static async Task<Dictionary<Guid, int>> CountAsync(TenantContext context, IReadOnlyCollection<Guid> tenantIds, CancellationToken token) =>
         await context.Memberships
             .AsNoTracking()
+            .InternalOnly()
             .Where(m => tenantIds.Contains(m.TenantId)
                 && !m.IsHidden
                 && SeatStatuses.Contains(m.Status)

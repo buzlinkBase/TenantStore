@@ -2,8 +2,30 @@
 
 namespace Onepunch.Auth.Domain.Entities;
 
+/// <summary>What an invitation is for. HRIS accept/preview/login flows only ever see Staff ones.</summary>
+public static class InvitationCategory
+{
+    /// <summary>Joins a company's HRIS (employees, admins, client contacts' HRIS logins).</summary>
+    public const string Staff = "Staff";
+
+    /// <summary>Gives a person access to one client in the client portal; never an HRIS membership.</summary>
+    public const string ClientUser = "ClientUser";
+}
+
 public class Invitation : BaseEntity
 {
+    /// <summary>Staff or ClientUser -- see <see cref="InvitationCategory"/>. Existing rows are Staff.</summary>
+    public string Category { get; set; } = InvitationCategory.Staff;
+
+    /// <summary>The client a ClientUser invitation is for (Tenant Service's client entity id).</summary>
+    public Guid? ClientEntityId { get; set; }
+
+    /// <summary>The client's name when the invitation was sent, for the accept page and the email.</summary>
+    public string? ClientName { get; set; }
+
+    /// <summary>The roles (Tenant Service role ids) a ClientUser invitation grants within the client.</summary>
+    public List<Guid> ClientRoleIds { get; set; } = new();
+
     public Guid UserId { get; set; }//sending the invites
     public Guid TenantId { get; set; }
     public string TenantName { get; set; }

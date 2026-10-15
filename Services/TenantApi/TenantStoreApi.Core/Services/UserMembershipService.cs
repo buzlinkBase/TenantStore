@@ -53,13 +53,16 @@ public class UserMembershipService : BaseService<UserMembership>
     public async Task<List<UserMembership>> GetMembersAsync(Guid tenantId, CancellationToken token = default)
     {
         return await GetQueryable(x => x.TenantId == tenantId && !x.IsHidden)
+            .InternalOnly()
             .Include(x => x.Roles)
             .ToListAsync(token);
     }
 
     public async Task<List<AccountMemberShipQuery>> GetUserMembersAsync(Guid userId, CancellationToken token = default)
     {
+        // Client-portal memberships never become HRIS tenants or HRIS token claims.
         var memberships = await GetQueryable(x => x.UserId == userId)
+            .InternalOnly()
             .Include(x => x.Roles)
             .ThenInclude(x => x.RoleRef)
             .ThenInclude(x => x!.RolePermissions)
@@ -95,6 +98,7 @@ public class UserMembershipService : BaseService<UserMembership>
     public async Task<UserMembership?> GetMemberAsync(Guid userId, Guid tenantId, CancellationToken token = default)
     {
         return await Context.Memberships
+            .InternalOnly()
             .Include(x => x.Roles)
             .ThenInclude(x => x.RoleRef)
             .ThenInclude(x => x!.RolePermissions)
@@ -113,6 +117,7 @@ public class UserMembershipService : BaseService<UserMembership>
     public async Task<UserMembership?> GetMemberByIdAsync(Guid membershipId, Guid tenantId, CancellationToken token = default)
     {
         return await Context.Memberships
+            .InternalOnly()
             .Include(x => x.Roles)
             .ThenInclude(x => x.RoleRef)
             .ThenInclude(x => x!.RolePermissions)
@@ -130,6 +135,7 @@ public class UserMembershipService : BaseService<UserMembership>
             x.TenantId == tenantId &&
             x.InvitedEmail == email &&
             x.Status == "Invited")
+            .InternalOnly()
             .FirstOrDefaultAsync(token);
         if (existing != null) return;
 
@@ -150,6 +156,7 @@ public class UserMembershipService : BaseService<UserMembership>
             x.TenantId == tenantId &&
             x.InvitedEmail == email &&
             x.Status == "Invited")
+            .InternalOnly()
             .Include(x => x.Roles)
             .FirstOrDefaultAsync(token);
     }

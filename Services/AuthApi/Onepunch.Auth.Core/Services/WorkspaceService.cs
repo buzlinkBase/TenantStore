@@ -66,6 +66,7 @@ public class WorkspaceService : BaseService<User>
             FullName = user.FullName ?? "Account Owner",
             UserId = user.Id,
             TenantName = payload.TenantName ?? user.FullName ?? string.Concat(user.Email?.Split('@')[0] ?? "My", " Workspace"),
+            Profile = CompanyProfile.Normalize(ToProfile(payload)),
         };
         //store request
         var request = new TenantCreationRequestStatus
@@ -115,6 +116,20 @@ public class WorkspaceService : BaseService<User>
 
         return loginRequest;
     }
+
+    internal static CompanyProfile ToProfile(CreateWorkspaceRequest payload) => new()
+    {
+        Address = payload.Address,
+        Contact = payload.Contact,
+        Email = payload.Email,
+        Tin = payload.Tin,
+        RdoCode = payload.RdoCode,
+        SssNumber = payload.SssNumber,
+        PhilHealthNumber = payload.PhilHealthNumber,
+        PagIbigNumber = payload.PagIbigNumber,
+        AuthorizedSignatoryName = payload.AuthorizedSignatoryName,
+        AuthorizedSignatoryTitle = payload.AuthorizedSignatoryTitle,
+    };
 
     /// <summary>
     /// Mints a session scoped to an already-in-flight tenant creation request instead of firing

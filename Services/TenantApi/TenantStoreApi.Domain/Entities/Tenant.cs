@@ -8,6 +8,11 @@ public class Tenant : BaseEntity, IUserId
     public string? TenantName { get; set; }
     public Guid UserId { get; set; }
 
+    // The only company details Tenant Service keeps besides the name -- shown in the platform
+    // console. The rest of the profile (TIN, gov't numbers, ...) lives in HRIS's Company record.
+    public string? Address { get; set; }
+    public string? Contact { get; set; }
+
     /// <summary>
     /// When the company finished setting up (hrms-api's HrisOrgProvisioned with a success status --
     /// TenantActivatedWorker). Null while provisioning, or when setup failed or was abandoned. Only

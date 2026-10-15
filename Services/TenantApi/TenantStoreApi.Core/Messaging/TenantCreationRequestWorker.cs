@@ -42,7 +42,8 @@ public class TenantCreationRequestWorker : IConsumer<TenantCreationRequested>
             TenantId = tenant.Id,
             UserId = tenant.UserId,
             TenantName = tenant.TenantName,
-            Roles = [role]
+            Roles = [role],
+            Profile = CompanyProfile.Normalize(message.Profile)
         });
         await _uow.CommitChangesAsync();
     }

@@ -134,6 +134,7 @@ namespace Onepunch.Auth.Core.Services
             var now = DateTime.UtcNow;
             var pending = (await GetQueryable(x =>
                     valid.Contains(x.Email) &&
+                    x.Category == InvitationCategory.Staff &&
                     x.TenantId == tenantId &&
                     x.Status == InvitationStatus.Pending &&
                     x.Expiry > now)
@@ -302,6 +303,7 @@ namespace Onepunch.Auth.Core.Services
             // is mutated directly below, so the entities must be tracked for it to persist.
             var priorPending = await GetQueryable(x =>
                 x.Email == recipient.Email &&
+                x.Category == InvitationCategory.Staff &&
                 x.TenantId == tenantId &&
                 x.Status == InvitationStatus.Pending &&
                 x.Expiry > DateTime.UtcNow, false)
@@ -369,7 +371,7 @@ namespace Onepunch.Auth.Core.Services
             // noTracking: false — Status gets mutated directly below (FinalizeAcceptanceAsync /
             // the idempotent-replay branch) rather than going through Repository.AddOrUpdate, so
             // the entity must be tracked for that mutation to actually persist on commit.
-            var invitation = await GetQueryable(x => x.Token == invitationToken, false).FirstOrDefaultAsync(ct);
+            var invitation = await GetQueryable(x => x.Token == invitationToken && x.Category == InvitationCategory.Staff, false).FirstOrDefaultAsync(ct);
             if (invitation == null)
                 throw new GuardException("This invitation link is invalid.", "INVITATION_INVALID");
 
@@ -401,7 +403,7 @@ namespace Onepunch.Auth.Core.Services
         /// </summary>
         public async Task<InvitationPreviewResponse?> GetPreviewAsync(string invitationToken, CancellationToken ct = default)
         {
-            var invitation = await GetQueryable(x => x.Token == invitationToken)
+            var invitation = await GetQueryable(x => x.Token == invitationToken && x.Category == InvitationCategory.Staff)
                 .FirstOrDefaultAsync(ct);
             if (invitation == null) return null;
 
@@ -436,7 +438,7 @@ namespace Onepunch.Auth.Core.Services
             CancellationToken ct)
         {
             // noTracking: false — see the matching comment in Accept().
-            var invitation = await GetQueryable(x => x.Token == invitationToken, false).FirstOrDefaultAsync(ct);
+            var invitation = await GetQueryable(x => x.Token == invitationToken && x.Category == InvitationCategory.Staff, false).FirstOrDefaultAsync(ct);
             if (invitation == null)
                 throw new GuardException("This invitation link is invalid.", "INVITATION_INVALID");
 
@@ -645,6 +647,7 @@ namespace Onepunch.Auth.Core.Services
         {
             var result = await GetQueryable(x =>
                 x.Token == invitationToken &&
+                x.Category == InvitationCategory.Staff &&
                 x.Status == InvitationStatus.Pending &&
                 x.Expiry > DateTime.UtcNow)
                 .FirstOrDefaultAsync(token);
@@ -655,6 +658,7 @@ namespace Onepunch.Auth.Core.Services
         {
             return await GetQueryable(x =>
                 x.Email == email &&
+                x.Category == InvitationCategory.Staff &&
                 x.Status == InvitationStatus.Pending &&
                 x.Expiry > DateTime.UtcNow)
                 .ToListAsync(token);

@@ -91,6 +91,7 @@ public class PlanAllowanceService
         Guid tenantId, Guid membershipId, IEnumerable<string>? newRoles, string? newStatus, CancellationToken token = default)
     {
         var member = await Context.Memberships.AsNoTracking()
+            .InternalOnly()
             .Include(m => m.Roles)
             .FirstOrDefaultAsync(m => m.Id == membershipId && m.TenantId == tenantId, token);
         if (member == null || member.IsHidden) return;

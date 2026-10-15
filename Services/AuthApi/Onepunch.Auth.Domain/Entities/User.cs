@@ -18,6 +18,14 @@ public class User : IdentityUser<Guid>, IEntity
     /// </summary>
     public List<string> DefaultTenantRoles { get; set; } = new();
     public string Status { get; set; } = "Active";
+
+    /// <summary>
+    /// Created by the Client Portal for a client's own staff: they sign in to the portal only. The
+    /// HRIS sign-in (password, Google, password reset) treats such an account as if it did not exist,
+    /// so a client login never becomes a way to open a workspace here.
+    /// </summary>
+    public bool PortalOnly { get; set; }
+
     [NotMapped]
     public string EntityType { get; set; } = string.Empty;
 }

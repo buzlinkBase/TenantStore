@@ -8,6 +8,52 @@ public record TenantCreationRequested
     public Guid UserId { get; set; }
     public string Email { get; set; }
     public string FullName { get; set; }
+    /// <summary>Optional company details the owner entered when creating the company.</summary>
+    public CompanyProfile? Profile { get; set; }
+}
+
+/// <summary>
+/// Optional company details captured at company creation. Tenant Service keeps only the
+/// console-facing ones (Address, Contact); HRIS seeds its Company record from the full set.
+/// Every member is optional -- blank values are normalized to null by <see cref="Normalize"/>.
+/// </summary>
+public record CompanyProfile
+{
+    public string? Address { get; set; }
+    public string? Contact { get; set; }
+    public string? Email { get; set; }
+    public string? Tin { get; set; }
+    public string? RdoCode { get; set; }
+    public string? SssNumber { get; set; }
+    public string? PhilHealthNumber { get; set; }
+    public string? PagIbigNumber { get; set; }
+    public string? AuthorizedSignatoryName { get; set; }
+    public string? AuthorizedSignatoryTitle { get; set; }
+
+    /// <summary>Trims every value and turns blanks into null; null when nothing was entered.</summary>
+    public static CompanyProfile? Normalize(CompanyProfile? profile)
+    {
+        if (profile == null) return null;
+
+        static string? Clean(string? value) =>
+            string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+        var cleaned = new CompanyProfile
+        {
+            Address = Clean(profile.Address),
+            Contact = Clean(profile.Contact),
+            Email = Clean(profile.Email),
+            Tin = Clean(profile.Tin),
+            RdoCode = Clean(profile.RdoCode),
+            SssNumber = Clean(profile.SssNumber),
+            PhilHealthNumber = Clean(profile.PhilHealthNumber),
+            PagIbigNumber = Clean(profile.PagIbigNumber),
+            AuthorizedSignatoryName = Clean(profile.AuthorizedSignatoryName),
+            AuthorizedSignatoryTitle = Clean(profile.AuthorizedSignatoryTitle),
+        };
+
+        return cleaned == new CompanyProfile() ? null : cleaned;
+    }
 }
 
 public record UserJoin

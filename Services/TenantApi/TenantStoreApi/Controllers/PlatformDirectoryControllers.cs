@@ -166,6 +166,13 @@ public class PlatformCompaniesController : ControllerBase
     [ProducesResponseType(typeof(PagedResult<CompanyListItem>), StatusCodes.Status200OK)]
     public async Task<IActionResult> List([FromQuery] CompanyQuery query, CancellationToken token) =>
         Ok(await _directory.ListCompaniesAsync(query, token));
+
+    [HttpGet("{tenantId:guid}")]
+    [PlatformAuthorize(PlatformPermissions.AccountsRead)]
+    [ProducesResponseType(typeof(CompanyListItem), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Get(Guid tenantId, CancellationToken token) =>
+        await _directory.GetCompanyAsync(tenantId, token) is { } company ? Ok(company) : NotFound();
 }
 
 /// <summary>Recorded payments across all accounts, voiding one recorded in error, and refunding an online one.</summary>

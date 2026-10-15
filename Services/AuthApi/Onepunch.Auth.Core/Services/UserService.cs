@@ -278,7 +278,8 @@ public class UserService : BaseService<User>
     {
         if (string.IsNullOrEmpty(email)) return;
         var userInfo = await _manager.FindByEmailAsync(email);
-        if (userInfo == null)
+        // A Client Portal account resets its password through the portal, not here.
+        if (userInfo == null || userInfo.PortalOnly)
         {
             Log.Logger.Warning("Password reset requested for unknown email {Email}", email);
             return;
@@ -379,7 +380,8 @@ public class UserService : BaseService<User>
     {
         const string method = AuthAuditRecorder.PasswordMethod;
         var user = await GetByEmailAsync(payload.Email);
-        if (user == null)
+        // A Client Portal login is not an HRIS account: same answer as for an unknown email.
+        if (user == null || user.PortalOnly)
             return await SignInFailedAsync(payload.Email, null, "Unknown account", "Invalid email or password.", method, token);
 
         if (await _manager.IsLockedOutAsync(user))
@@ -517,7 +519,7 @@ public class UserService : BaseService<User>
 
             const string method = AuthAuditRecorder.GoogleMethod;
             var user = await _manager.FindByEmailAsync(payload.Email);
-            if (user == null)
+            if (user == null || user.PortalOnly)
                 return await SignInFailedAsync(payload.Email, null, "Unknown account",
                     "No account found for this Google email. Please sign up first.", method, ct);
 
@@ -644,6 +646,8 @@ public class UserService : BaseService<User>
             if (user == null)
             {
                 user = await _manager.FindByEmailAsync(email);
+                if (user is { PortalOnly: true })
+                    return new LoginResponse { ErrorMessage = "No account found for this Google email. Please sign up first." };
                 if (user != null)
                 {
                     var linkResult = await _manager.AddLoginAsync(user, info);
@@ -694,7 +698,8 @@ public class UserService : BaseService<User>
         var tokenEntity = await Context.RefreshTokens
             .FirstOrDefaultAsync(t => t.RefreshTokenHash == refreshTokenHash);
 
-        if (tokenEntity == null || tokenEntity.Revoked || tokenEntity.Expiry <= DateTime.UtcNow)
+        // A Client Portal session's token is not valid here (see RefreshToken.Audience).
+        if (tokenEntity == null || tokenEntity.Revoked || tokenEntity.Expiry <= DateTime.UtcNow || tokenEntity.Audience != null)
             return new LoginResponse { ErrorMessage = "Invalid or expired refresh token." };
 
         var user = await Context.Users.FindAsync(tokenEntity.UserId);

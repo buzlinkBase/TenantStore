@@ -8,6 +8,8 @@ public record TenantCreationCompleted
     public string? TenantName { get; set; } = "My Workspace";
     public Guid UserId { get; set; }
     public List<string> Roles { get; set; } = new();
+    /// <summary>Company details entered at creation, for HRIS to seed its Company record.</summary>
+    public CompanyProfile? Profile { get; set; }
 }
 
 public class TenantSetInitData

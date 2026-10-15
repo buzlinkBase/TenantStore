@@ -47,6 +47,22 @@ public class AuthContext : IdentityDbContext<User, Role, Guid>
         modelBuilder.Entity<Invitation>()
             .Property(x => x.Roles)
             .HasConversion(stringListConverter, stringListComparer);
+
+        var guidListConverter = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<List<Guid>, string>(
+            v => string.Join(',', v),
+            v => string.IsNullOrEmpty(v)
+                ? new List<Guid>()
+                : v.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(Guid.Parse).ToList());
+        var guidListComparer = new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<List<Guid>>(
+            (a, b) => (a ?? new()).SequenceEqual(b ?? new()),
+            v => v.Aggregate(0, (hash, g) => HashCode.Combine(hash, g.GetHashCode())),
+            v => v.ToList());
+        modelBuilder.Entity<Invitation>()
+            .Property(x => x.ClientRoleIds)
+            .HasConversion(guidListConverter, guidListComparer);
+        modelBuilder.Entity<Invitation>().Property(x => x.Category).HasMaxLength(16).HasDefaultValue(InvitationCategory.Staff);
+        modelBuilder.Entity<Invitation>().Property(x => x.ClientName).HasMaxLength(256);
+        modelBuilder.Entity<Invitation>().HasIndex(x => new { x.ClientEntityId, x.Status });
         modelBuilder.AddInboxStateEntity();
         modelBuilder.AddOutboxMessageEntity();
         modelBuilder.AddOutboxStateEntity();
