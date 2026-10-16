@@ -255,15 +255,30 @@ public class PortalAuthServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ForgotPassword_SaysNothingForAnUnknownEmailOrAnAccountWithoutAPassword()
+    public async Task ForgotPassword_SaysNothingForAnUnknownOrEmptyEmail()
     {
-        _manager.Setup(m => m.HasPasswordAsync(_ana)).ReturnsAsync(false);
-
         await Sut().ForgotPasswordAsync("ghost@client.com", CancellationToken.None);
-        await Sut().ForgotPasswordAsync("ana@client.com", CancellationToken.None);
         await Sut().ForgotPasswordAsync("", CancellationToken.None);
+        await Sut().ForgotPasswordAsync("   ", CancellationToken.None);
+        await Sut().ForgotPasswordAsync(null, CancellationToken.None);
 
         _publisher.Verify(p => p.Publish(It.IsAny<ResetPasswordEmail>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_AnAccountWithoutAPasswordGetsTheLinkToCreateOne()
+    {
+        // Someone who signs in to the HRIS with Google has no password; the link is how they get the one the portal needs.
+        _manager.Setup(m => m.HasPasswordAsync(_ana)).ReturnsAsync(false);
+        _manager.Setup(m => m.GeneratePasswordResetTokenAsync(_ana)).ReturnsAsync("identity-reset-token");
+        ResetPasswordEmail? sent = null;
+        _publisher.Setup(p => p.Publish(It.IsAny<ResetPasswordEmail>(), It.IsAny<CancellationToken>()))
+            .Callback<ResetPasswordEmail, CancellationToken>((m, _) => sent = m).Returns(Task.CompletedTask);
+
+        await Sut().ForgotPasswordAsync("ana@client.com", CancellationToken.None);
+
+        sent.Should().NotBeNull();
+        sent!.ResetLink.Should().StartWith($"{PortalUrl}/reset-password?token=");
     }
 
     [Fact]

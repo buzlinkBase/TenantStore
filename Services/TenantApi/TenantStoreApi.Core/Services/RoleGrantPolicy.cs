@@ -23,4 +23,7 @@ public static class RoleGrantPolicy
 
     public static string DeniedMessage(string roleName) =>
         $"You can't grant the '{roleName}' role: it includes permissions you don't have.";
+
+    public static string DeniedManageMessage(string roleName) =>
+        $"You can't change this person: their '{roleName}' role includes permissions you don't have.";
 }

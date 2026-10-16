@@ -15,7 +15,10 @@ public sealed record ClientMemberView(
     string? FullName,
     string? Email,
     string Status,
-    IReadOnlyList<ClientRoleRef> Roles);
+    IReadOnlyList<ClientRoleRef> Roles,
+    // The person's OWN switch for this client, leaving out whether the client itself is on: while a client is suspended every member's
+    // Status is Inactive, and this is what tells someone revoked on their own apart from someone only blocked by the suspension.
+    string OwnStatus = ClientAccess.StatusActive);
 
 /// <summary>
 /// People of a client (Category=ClientUser memberships) and the roles they hold within it
@@ -61,7 +64,8 @@ public class ClientMembershipService : BaseService<UserMembership>
                     m.FullName,
                     m.InvitedEmail,
                     ClientAccessService.ToAccess(m, entity)?.Status ?? m.Status,
-                    links.Select(l => new ClientRoleRef(l.RoleId, l.Role.Name)).OrderBy(r => r.Name).ToList());
+                    links.Select(l => new ClientRoleRef(l.RoleId, l.Role.Name)).OrderBy(r => r.Name).ToList(),
+                    m.Status != Active ? m.Status : links.Select(l => l.Status).FirstOrDefault(s => s != Active) ?? Active);
             })
             .OrderBy(m => m.FullName)
             .ToList();
@@ -80,6 +84,7 @@ public class ClientMembershipService : BaseService<UserMembership>
 
         var roles = await AssignableRolesAsync(entity, ids, token);
         var links = LinksOf(target, clientEntityId);
+        EnsureMayManage(scope, links);
 
         // Only roles being added are checked: a person can keep a role the caller couldn't grant.
         var held = links.Select(l => l.RoleId).ToHashSet();
@@ -103,9 +108,10 @@ public class ClientMembershipService : BaseService<UserMembership>
         if (status != Active && status != Inactive) throw new ArgumentException("Status must be Active or Inactive.");
 
         var entity = await _access.GetEntityAsync(clientEntityId, token);
-        await _access.AuthorizeAsync(caller, entity, token, ClientPermissions.UsersManage);
+        var scope = await _access.AuthorizeAsync(caller, entity, token, ClientPermissions.UsersManage);
         var target = await LoadTargetAsync(entity, membershipId, token);
         var links = LinksOf(target, clientEntityId);
+        EnsureMayManage(scope, links);
 
         if (status == Inactive)
         {
@@ -122,11 +128,12 @@ public class ClientMembershipService : BaseService<UserMembership>
     public async Task RemoveFromClientAsync(ClientCaller caller, Guid clientEntityId, Guid membershipId, CancellationToken token = default)
     {
         var entity = await _access.GetEntityAsync(clientEntityId, token);
-        await _access.AuthorizeAsync(caller, entity, token, ClientPermissions.UsersManage);
+        var scope = await _access.AuthorizeAsync(caller, entity, token, ClientPermissions.UsersManage);
         var target = await LoadTargetAsync(entity, membershipId, token);
         if (caller.UserId == target.UserId) throw new InvalidOperationException("Cannot remove yourself.");
 
         var links = LinksOf(target, clientEntityId);
+        EnsureMayManage(scope, links);
         if (links.Any(l => IsAdminRole(l.Role)) && IsActive(target, links))
             await EnsureAnotherActiveAdminAsync(entity, target.Id, token);
 
@@ -177,7 +184,11 @@ public class ClientMembershipService : BaseService<UserMembership>
             membership.FullName ??= fullName;
         }
 
-        var held = membership.ClientRoles.Where(r => r.ClientEntityId == clientEntityId).Select(r => r.RoleId).ToHashSet();
+        var heldLinks = membership.ClientRoles.Where(r => r.ClientEntityId == clientEntityId).ToList();
+        var held = heldLinks.Select(r => r.RoleId).ToHashSet();
+        // Inviting someone again who was switched off for this client brings them back: the acceptance is the client saying yes.
+        foreach (var link in heldLinks.Where(l => l.Status != Active))
+            link.Status = Active;
         foreach (var role in roles.Where(r => !held.Contains(r.Id)))
             await AddLinkAsync(membership.Id, clientEntityId, role.Id, Active, token);
 
@@ -226,6 +237,19 @@ public class ClientMembershipService : BaseService<UserMembership>
             var codes = role.RolePermissions.Select(rp => rp.Permission.Code);
             if (!RoleGrantPolicy.CanGrant(scope.IsAgencyStaff, scope.Codes, role.Name, role.IsSystemRole, codes))
                 throw new InvalidOperationException(RoleGrantPolicy.DeniedMessage(role.Name));
+        }
+    }
+
+    // The same ceiling the other way round, for the one role that runs the client: nobody who lacks everything a Client Admin holds can switch
+    // one off, demote or remove them, so a user who can manage users can't lock the client's admins out. Agency staff and other Client Admins
+    // (who hold every permission) are unaffected; everyone else keeps managing the people below them as before.
+    private static void EnsureMayManage(ClientCallerScope scope, IEnumerable<ClientMembershipRole> targetLinks)
+    {
+        foreach (var link in targetLinks.Where(l => IsAdminRole(l.Role)))
+        {
+            var codes = link.Role.RolePermissions.Select(rp => rp.Permission.Code);
+            if (!RoleGrantPolicy.CanGrant(scope.IsAgencyStaff, scope.Codes, link.Role.Name, link.Role.IsSystemRole, codes))
+                throw new InvalidOperationException(RoleGrantPolicy.DeniedManageMessage(link.Role.Name));
         }
     }
 

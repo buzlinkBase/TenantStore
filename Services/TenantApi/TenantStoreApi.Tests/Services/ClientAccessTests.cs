@@ -423,6 +423,106 @@ public class ClientAccessTests
     }
 
     [Fact]
+    public async Task ManagingUsers_WithoutEverythingAClientAdminHolds_CannotLockAClientAdminOut()
+    {
+        var f = await Fixture.CreateAsync();
+        var admin = await f.GrantAsync(Guid.NewGuid(), f.ClientId, ClientRoles.Admin);
+        await f.GrantAsync(Guid.NewGuid(), f.ClientId, ClientRoles.Admin); // a second admin, so the last-admin rule isn't what refuses
+        var userManager = await CustomRoleAsync(f, "User Manager", "clientportal:Users:View", "clientportal:Users:Manage", "clientportal:Users:AssignRoles");
+        var manager = Guid.NewGuid();
+        await f.Members.GrantAccessAsync(manager, f.ClientId, null, null, [userManager]);
+        await f.SaveAsync();
+        var caller = ClientCaller.ClientMember(manager);
+
+        await ((Func<Task>)(() => f.Members.SetStatusAsync(caller, f.ClientId, admin.Id, "Inactive")))
+            .Should().ThrowAsync<InvalidOperationException>().WithMessage("*can't change*");
+        await ((Func<Task>)(() => f.Members.SetRolesAsync(caller, f.ClientId, admin.Id, [userManager])))
+            .Should().ThrowAsync<InvalidOperationException>().WithMessage("*can't change*");
+        await ((Func<Task>)(() => f.Members.RemoveFromClientAsync(caller, f.ClientId, admin.Id)))
+            .Should().ThrowAsync<InvalidOperationException>().WithMessage("*can't change*");
+        (await f.Access.ResolveAsync(admin.UserId, f.ClientId))!.IsActive.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AClientAdmin_CanRevokeAnotherAdminAndAnyoneBelow()
+    {
+        var f = await Fixture.CreateAsync();
+        var me = Guid.NewGuid();
+        await f.GrantAsync(me, f.ClientId, ClientRoles.Admin);
+        var otherAdmin = await f.GrantAsync(Guid.NewGuid(), f.ClientId, ClientRoles.Admin);
+        var exec = await f.GrantAsync(Guid.NewGuid(), f.ClientId, ClientRoles.Executive);
+        var caller = ClientCaller.ClientMember(me);
+
+        await f.Members.SetStatusAsync(caller, f.ClientId, exec.Id, "Inactive");
+        await f.Members.SetStatusAsync(caller, f.ClientId, otherAdmin.Id, "Inactive");
+        await f.SaveAsync();
+
+        (await f.Access.ResolveAsync(exec.UserId, f.ClientId))!.IsActive.Should().BeFalse();
+        (await f.Access.ResolveAsync(otherAdmin.UserId, f.ClientId))!.IsActive.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GrantAccess_InvitingSomeoneSwitchedOffAtThisClientBringsThemBack_ButNotAtAnotherClient()
+    {
+        var f = await Fixture.CreateAsync();
+        var clientB = await f.NewClientAsync("Client B");
+        var user = Guid.NewGuid();
+        var inA = await f.GrantAsync(user, f.ClientId, ClientRoles.Executive);
+        await f.GrantAsync(user, clientB, ClientRoles.Executive);
+        await f.Members.SetStatusAsync(f.Agency, f.ClientId, inA.Id, "Inactive");
+        await f.Members.SetStatusAsync(f.Agency, clientB, inA.Id, "Inactive");
+        await f.SaveAsync();
+
+        await f.GrantAsync(user, f.ClientId, ClientRoles.Executive);
+
+        (await f.Access.ResolveAsync(user, f.ClientId))!.IsActive.Should().BeTrue();
+        (await f.Access.ResolveAsync(user, clientB))!.IsActive.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SwitchingAClientOffTakesEveryUserOff_AndOnBringsBackAllButThoseRevokedOnTheirOwn()
+    {
+        var f = await Fixture.CreateAsync();
+        var admin = Guid.NewGuid();
+        await f.GrantAsync(admin, f.ClientId, ClientRoles.Admin);
+        var kept = Guid.NewGuid();
+        await f.GrantAsync(kept, f.ClientId, ClientRoles.Executive);
+        var revoked = Guid.NewGuid();
+        var revokedMembership = await f.GrantAsync(revoked, f.ClientId, ClientRoles.Executive);
+        await f.Members.SetStatusAsync(f.Agency, f.ClientId, revokedMembership.Id, "Inactive");
+        await f.SaveAsync();
+
+        await f.Entities.UpsertAsync(f.TenantId, f.ClientId, null, "Client A", active: false);
+        await f.SaveAsync();
+        foreach (var user in new[] { admin, kept, revoked })
+            (await f.Access.ResolveAsync(user, f.ClientId))!.IsActive.Should().BeFalse();
+
+        await f.Entities.UpsertAsync(f.TenantId, f.ClientId, null, "Client A", active: true);
+        await f.SaveAsync();
+        (await f.Access.ResolveAsync(admin, f.ClientId))!.IsActive.Should().BeTrue();
+        (await f.Access.ResolveAsync(kept, f.ClientId))!.IsActive.Should().BeTrue();
+        (await f.Access.ResolveAsync(revoked, f.ClientId))!.IsActive.Should().BeFalse("they were revoked on their own, not by the client being off");
+    }
+
+    [Fact]
+    public async Task ListMembers_WhileTheClientIsOff_TellsRevokedOnTheirOwnApartFromBlockedByTheClient()
+    {
+        var f = await Fixture.CreateAsync();
+        await f.GrantAsync(Guid.NewGuid(), f.ClientId, ClientRoles.Admin);
+        var kept = await f.GrantAsync(Guid.NewGuid(), f.ClientId, ClientRoles.Executive);
+        var revoked = await f.GrantAsync(Guid.NewGuid(), f.ClientId, ClientRoles.Executive);
+        await f.Members.SetStatusAsync(f.Agency, f.ClientId, revoked.Id, "Inactive");
+        await f.Entities.UpsertAsync(f.TenantId, f.ClientId, null, "Client A", active: false);
+        await f.SaveAsync();
+
+        var members = await f.Members.ListMembersAsync(f.Agency, f.ClientId);
+
+        members.Should().OnlyContain(m => m.Status == "Inactive", "the whole client is off");
+        members.Single(m => m.MembershipId == kept.Id).OwnStatus.Should().Be("Active");
+        members.Single(m => m.MembershipId == revoked.Id).OwnStatus.Should().Be("Inactive");
+    }
+
+    [Fact]
     public async Task ListMembers_ShowsOnlyThatClientsPeople_WithTheirRoles()
     {
         var f = await Fixture.CreateAsync();

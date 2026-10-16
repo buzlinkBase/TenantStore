@@ -3,6 +3,7 @@ using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using Onepunch.Common.Lib.DTO;
+using TenantStoreApi.Core;
 using TenantStoreApi.Core.Services;
 using TenantStoreApi.Domain.Entities;
 using TenantStoreApi.Tests.TestSupport;

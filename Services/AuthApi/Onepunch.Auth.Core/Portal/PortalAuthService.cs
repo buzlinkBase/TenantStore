@@ -136,12 +136,16 @@ public class PortalAuthService : BaseService<RefreshToken>
 
     // ── Password reset ───────────────────────────────────────────────────────
 
-    /// <summary>Emails a reset link pointing at the portal. Always looks successful: it never says whether the email exists.</summary>
+    /// <summary>
+    /// Emails a reset link pointing at the portal. Always looks successful: it never says whether the email exists. An account with no password
+    /// (someone who signs in to the HRIS with Google, invited to a client) gets the link too: following it is how they create the password the
+    /// portal needs, having shown they own the email.
+    /// </summary>
     public async Task ForgotPasswordAsync(string? email, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(email)) return;
         var user = await _manager.FindByEmailAsync(email.Trim());
-        if (user is null || user.Email is null || !await _manager.HasPasswordAsync(user)) return;
+        if (user is null || user.Email is null) return;
         if (string.IsNullOrWhiteSpace(_settings.PortalUrl))
         {
             _logger.LogWarning("Portal password reset requested but PortalAuth:PortalUrl is not set");
