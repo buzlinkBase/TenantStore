@@ -35,7 +35,7 @@ public class RoleService : BaseService<Role>
     public const string PermissionGranted = "Granted";
     public const string PermissionNotGranted = "Not granted";
 
-    // System Roles (Owner/Admin/Member/Employee/Client) + every Custom Role this tenant defined.
+    // System Roles (Owner/Admin/None/Employee) + every Custom Role this tenant defined.
     // Client roles (system ones like Client Admin, and the custom ones a client defined for its own
     // users) are not the agency's to list or grant -- they're managed per client.
     public Task<List<Role>> FindAllForTenantAsync(Guid tenantId, CancellationToken token)
@@ -275,7 +275,7 @@ public class RoleService : BaseService<Role>
     }
 }
 
-// Seeds the global Permission catalog and the System Roles (Owner/Admin/Member/Employee/Client),
+// Seeds the global Permission catalog and the System Roles (Owner/Admin/None/Employee),
 // then backfills existing MembershipRole rows (Migration A's nullable RoleId) to point at them.
 // Idempotent -- safe to run on every TenantApi startup.
 //
@@ -289,13 +289,8 @@ public class PermissionCatalogSeederService
     [
         new(OwnerRole, "Full access to everything."),
         new(TenantRoles.Admin, "Manages tenant members and roles."),
-        new(TenantRoles.Member, "Standard member."),
+        new(TenantRoles.None, "Standard member."),
         new(TenantRoles.Employee, "Employee-linked member."),
-        // Reserved for the upcoming client-facing portal (the client counterpart of the
-        // Employee Self-Service Portal). Deliberately granted nothing yet -- it gets its own
-        // portal permission(s) once that feature exists, the way Employee has
-        // EmployeeGrantedCodes.
-        new(TenantRoles.Client, "Client-linked member."),
     ];
 
     private readonly IUnitOfWorkService _uow;

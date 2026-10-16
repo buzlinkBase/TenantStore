@@ -9,7 +9,7 @@ namespace TenantStoreApi.Core.Services;
 public static class RoleGrantPolicy
 {
     public static readonly IReadOnlySet<string> BaselineRoles =
-        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Employee", "Client" };
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Employee" };
 
     public static bool CanGrant(
         bool callerIsOwner,

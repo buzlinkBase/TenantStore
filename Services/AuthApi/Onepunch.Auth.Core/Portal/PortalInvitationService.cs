@@ -165,7 +165,7 @@ public class PortalInvitationService : BaseService<Invitation>
             if (string.IsNullOrWhiteSpace(fullName)) throw new GuardException("A name is required.");
             if (string.IsNullOrEmpty(request.Password)) throw new GuardException("A password is required.");
 
-            var user = PortalAuthService.NewPortalUser(invitation.Email, fullName);
+            var user = PortalAuthService.NewPortalUser(invitation.Email, fullName, invitation.Id.ToString(), Now);
             var result = await _manager.CreateAsync(user, request.Password);
             if (!result.Succeeded)
                 throw new GuardException(string.Join(" ", result.Errors.Select(e => e.Description)));

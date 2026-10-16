@@ -109,6 +109,22 @@ public class PortalAuthServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Login_RecordsTheFirstPortalSignIn_OnceAndNeverMovesIt()
+    {
+        _ana.FirstPortalSignInAtUtc.Should().BeNull();
+
+        await Sut().LoginAsync("ana@client.com", "G00d!Passw0rd", CancellationToken.None);
+        var first = _ana.FirstPortalSignInAtUtc;
+        first.Should().NotBeNull();
+        _ana.FirstHrisSignInAtUtc.Should().BeNull("a portal sign-in is not an HRIS sign-in");
+
+        await Task.Delay(20);
+        await Sut().LoginAsync("ana@client.com", "G00d!Passw0rd", CancellationToken.None);
+
+        _ana.FirstPortalSignInAtUtc.Should().Be(first);
+    }
+
+    [Fact]
     public async Task Login_StoresOnlyTheRefreshTokensHash_TaggedForThePortal()
     {
         var session = await Sut().LoginAsync("ana@client.com", "G00d!Passw0rd", CancellationToken.None);
@@ -346,6 +362,8 @@ public class PortalAuthServiceTests : IDisposable
 
         result.Created.Should().BeTrue();
         result.AccountId.Should().Be(created!.Id);
+        created.Origin.Should().Be(AccountOrigins.ClientInvite);
+        created.CreatedAtUtc.Should().NotBeNull();
         created.PortalOnly.Should().BeTrue();
         created.EmailConfirmed.Should().BeTrue();
         created.Status.Should().Be("Active");
@@ -448,7 +466,7 @@ public class PortalAuthServiceTests : IDisposable
     public void ServiceKey_MatchesOnlyTheConfiguredSecret(string? presented, string expected, bool matches) =>
         PortalTokenValidation.KeyMatches(presented, expected).Should().Be(matches);
 
-    // ── The HRIS side doesn't take portal sessions or accounts ───────────────
+    // ── The HRIS side doesn't take portal sessions, but does take the same accounts ─────
 
     private UserService HrisUserService() => new(
         AuthTestContextFactory.CreateUnitOfWork(_context),
@@ -476,19 +494,33 @@ public class PortalAuthServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task HrisLogin_DoesNotKnowAPortalOnlyAccount()
+    public async Task HrisLogin_TreatsAnAccountMadeByAClientInvitationLikeAnyOther()
     {
-        var response = await HrisUserService().Login(new LoginPayload { Email = "ana@client.com", Password = "G00d!Passw0rd" }, CancellationToken.None);
+        // The mocked password hasher refuses every password. What matters is that the account is KNOWN: a wrong password is counted against it (it
+        // used to be answered as if the email didn't exist, with nothing counted), which is what lets the right password sign them in.
+        var response = await HrisUserService().Login(new LoginPayload { Email = "ana@client.com", Password = "wrong" }, CancellationToken.None);
 
         response.AccessToken.Should().BeNullOrEmpty();
         response.ErrorMessage.Should().Be("Invalid email or password.");
-        _manager.Verify(m => m.AccessFailedAsync(It.IsAny<User>()), Times.Never);
+        _manager.Verify(m => m.AccessFailedAsync(_ana), Times.Once);
     }
 
     [Fact]
-    public async Task HrisPasswordReset_IgnoresAPortalOnlyAccount()
+    public async Task HrisPasswordReset_IsOfferedToAnAccountMadeByAClientInvitation()
     {
-        await HrisUserService().ResetPasswordRequestAsync("ana@client.com", "https://hris.example.com", CancellationToken.None);
+        _manager.Setup(m => m.GeneratePasswordResetTokenAsync(_ana)).ReturnsAsync("identity-reset-token");
+
+        // The reset token is made; the mail step after it needs the notification service this test doesn't build, so it stops there.
+        await FluentActions.Awaiting(() => HrisUserService().ResetPasswordRequestAsync("ana@client.com", "https://hris.example.com", CancellationToken.None))
+            .Should().ThrowAsync<NullReferenceException>();
+
+        _manager.Verify(m => m.GeneratePasswordResetTokenAsync(_ana), Times.Once);
+    }
+
+    [Fact]
+    public async Task HrisPasswordReset_StillSaysNothingForAnUnknownEmail()
+    {
+        await HrisUserService().ResetPasswordRequestAsync("ghost@client.com", "https://hris.example.com", CancellationToken.None);
 
         _manager.Verify(m => m.GeneratePasswordResetTokenAsync(It.IsAny<User>()), Times.Never);
     }

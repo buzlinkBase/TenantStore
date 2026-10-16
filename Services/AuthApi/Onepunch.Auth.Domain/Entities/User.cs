@@ -20,11 +20,45 @@ public class User : IdentityUser<Guid>, IEntity
     public string Status { get; set; } = "Active";
 
     /// <summary>
-    /// Created by the Client Portal for a client's own staff: they sign in to the portal only. The
-    /// HRIS sign-in (password, Google, password reset) treats such an account as if it did not exist,
-    /// so a client login never becomes a way to open a workspace here.
+    /// How the account began: created by a client invitation (a client's own staff) rather than by signing up. It is only a record of that;
+    /// it limits nothing. The same login works in the HRIS (sign-in, Google, password reset), where a person who belongs to no company is
+    /// asked to set one up and gets a trial like any new user, since a client's staff may become customers.
     /// </summary>
     public bool PortalOnly { get; set; }
+
+    /// <summary>
+    /// Where the account came from (<see cref="AccountOrigins"/>), recorded when it is created. "Unknown" is an account from before this was
+    /// recorded that the backfill could not place; it is shown as such, never guessed.
+    /// </summary>
+    public string Origin { get; set; } = AccountOrigins.Unknown;
+
+    /// <summary>What the origin points at: the invitation id for an invited account (a staff or client invitation).</summary>
+    public string? OriginDetail { get; set; }
+
+    /// <summary>When the account was created. Null for an account whose date could not be recovered.</summary>
+    public DateTime? CreatedAtUtc { get; set; }
+
+    public DateTime? EmailConfirmedAtUtc { get; set; }
+
+    /// <summary>The first time the person signed in to the HRIS app (not the client portal).</summary>
+    public DateTime? FirstHrisSignInAtUtc { get; set; }
+
+    /// <summary>The first time the person signed in to the client portal.</summary>
+    public DateTime? FirstPortalSignInAtUtc { get; set; }
+
+    // "First" times are set once and never moved, so these only fill an empty value.
+    public void StampEmailConfirmed(DateTime now) => EmailConfirmedAtUtc ??= now;
+    public void StampFirstHrisSignIn(DateTime now) => FirstHrisSignInAtUtc ??= now;
+    public void StampFirstPortalSignIn(DateTime now) => FirstPortalSignInAtUtc ??= now;
+
+    /// <summary>Records how a new account began. Call it on the new <see cref="User"/> before it is saved.</summary>
+    public User BeganAs(string origin, DateTime now, string? detail = null)
+    {
+        Origin = origin;
+        OriginDetail = detail;
+        CreatedAtUtc = now;
+        return this;
+    }
 
     [NotMapped]
     public string EntityType { get; set; } = string.Empty;

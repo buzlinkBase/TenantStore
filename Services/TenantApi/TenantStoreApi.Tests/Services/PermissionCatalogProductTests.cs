@@ -126,8 +126,8 @@ public class PermissionCatalogProductTests
 
         await sut.EnsureSeededAsync(CancellationToken.None);
 
-        var core = await uow.Context.Roles.Where(x => new[] { "Owner", "Admin", "Member", "Employee", "Client" }.Contains(x.Name)).ToListAsync();
-        core.Should().HaveCount(5);
+        var core = await uow.Context.Roles.Where(x => new[] { "Owner", "Admin", "None", "Employee" }.Contains(x.Name)).ToListAsync();
+        core.Should().HaveCount(4);
         core.Should().OnlyContain(x => x.Product == null);
     }
 

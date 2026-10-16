@@ -97,7 +97,7 @@ public class ClientPortalPermissionCatalogTests
 
         var agencyRoles = await new RoleService(uow).FindAllForTenantAsync(Guid.NewGuid(), CancellationToken.None);
         agencyRoles.Select(r => r.Name).Should().NotContain(["Client Admin", "Client Executive", "Finance Manager", "Site Supervisor"]);
-        agencyRoles.Select(r => r.Name).Should().Contain(["Owner", "Admin", "Member", "Employee", "Client"]);
+        agencyRoles.Select(r => r.Name).Should().Contain(["Owner", "Admin", "None", "Employee"]);
         (await uow.Context.Roles.CountAsync(x => x.Name == "Client Admin")).Should().Be(1);
     }
 

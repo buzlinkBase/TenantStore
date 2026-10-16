@@ -19,7 +19,7 @@ public class RoleGrantPolicyTests
 
     [Fact]
     public void RoleWithNoPermissions_IsGrantable() =>
-        RoleGrantPolicy.CanGrant(false, Caller, "Member", true, []).Should().BeTrue();
+        RoleGrantPolicy.CanGrant(false, Caller, "None", true, []).Should().BeTrue();
 
     [Fact]
     public void Owner_MayGrantAnything() =>
@@ -27,7 +27,6 @@ public class RoleGrantPolicyTests
 
     [Theory]
     [InlineData("Employee")]
-    [InlineData("client")]
     public void BaselineSystemRoles_AreAlwaysGrantable(string role) =>
         RoleGrantPolicy.CanGrant(false, new HashSet<string>(), role, true, ["Employee Self-Service Portal:View"]).Should().BeTrue();
 

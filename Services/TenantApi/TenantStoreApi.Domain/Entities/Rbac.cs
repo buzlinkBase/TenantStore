@@ -28,7 +28,7 @@ public static class RoleAudience
     public const string Client = "Client";
 }
 
-// TenantId null = System Role (Owner/Admin/Member/Employee -- ships with the product, seeded
+// TenantId null = System Role (Owner/Admin/None/Employee -- ships with the product, seeded
 // once, non-deletable, permissions fixed). TenantId set = a Custom Role an org's admin defined
 // for themselves only.
 [Audited]

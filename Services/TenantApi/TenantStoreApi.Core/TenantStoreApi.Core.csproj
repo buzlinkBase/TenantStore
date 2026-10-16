@@ -26,6 +26,7 @@
 		<Protobuf Include="Protos\checkemail.proto" GrpcServices="Client" />
 		<Protobuf Include="Protos\userinfo.proto" GrpcServices="Client" />
 		<Protobuf Include="Protos\tenantprovisioning.proto" GrpcServices="Client" />
+		<Protobuf Include="Protos\accountorigins.proto" GrpcServices="Client" />
 		<Protobuf Include="Protos\tenant.proto" GrpcServices="Server" />
 		<PackageReference Include="Mapster" />
 		<PackageReference Include="Mapster.DependencyInjection" />

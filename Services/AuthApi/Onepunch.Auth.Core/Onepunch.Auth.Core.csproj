@@ -30,6 +30,7 @@
 		<Protobuf Include="Protos\checkemail.proto" GrpcServices="Server" />
 		<Protobuf Include="Protos\userinfo.proto" GrpcServices="Server" />
 		<Protobuf Include="Protos\tenantprovisioning.proto" GrpcServices="Server" />
+		<Protobuf Include="Protos\accountorigins.proto" GrpcServices="Server" />
 		<PackageReference Include="Google.Apis.Auth" /> 
 		<PackageReference Include="Google.Protobuf" /> 
 		<PackageReference Include="Grpc.AspNetCore" /> 

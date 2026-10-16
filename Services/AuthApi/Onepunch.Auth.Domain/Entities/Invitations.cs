@@ -33,7 +33,7 @@ public class Invitation : BaseEntity
     public string Token { get; set; }
     public DateTime Expiry { get; set; }
     public InvitationStatus Status { get; set; }
-    public List<string> Roles { get; set; } = new() { "Member" };
+    public List<string> Roles { get; set; } = new() { "None" };
     public Guid? EmployeeId { get; set; }
 
     /// <summary>The invitee's full name, when the inviter supplied one (typically from a linked

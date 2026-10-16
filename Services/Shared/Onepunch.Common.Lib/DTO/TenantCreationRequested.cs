@@ -62,7 +62,7 @@ public record UserJoin
     public Guid TenantId { get; set; }
     public string TenantName { get; set; } = string.Empty;
     public string FullName { get; set; }
-    public List<string> Roles { get; set; } = new() { "Member" };
+    public List<string> Roles { get; set; } = new() { "None" };
     /// <summary>
     /// The invited email address, used to match this acceptance against a placeholder
     /// UserMembership row (Status="Invited") created when the invite was sent (see
@@ -94,5 +94,5 @@ public record InvitationAccepted
     public Guid UserId { get; set; }
     public Guid TenantId { get; set; }
     public string Email { get; set; } = string.Empty;
-    public List<string> Roles { get; set; } = new() { "Member" };
+    public List<string> Roles { get; set; } = new() { "None" };
 }

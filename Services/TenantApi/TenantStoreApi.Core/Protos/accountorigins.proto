@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+option csharp_namespace = "Onepunch.Auth.Core";
+
+package tenant.core;
+
+// Where each account came from and when it reached each early step (signed up, confirmed email, first
+// sign-in), plus when it created a company of its own. Tenant Service's Acquisition report asks for it.
+// No emails or names leave AuthApi. Copied verbatim in TenantApi (TenantStoreApi.Core/Protos) -- keep the two identical.
+service AccountOriginsService {
+  rpc GetAccountOrigins (AccountOriginsRequest) returns (AccountOriginsResponse);
+}
+
+message AccountOriginsRequest {
+  // Either specific accounts...
+  repeated string user_ids = 1;
+  // ...or everyone who signed up in [created_from_utc, created_to_utc) (ISO 8601, UTC; either may be empty = open).
+  string created_from_utc = 2;
+  string created_to_utc = 3;
+}
+
+message AccountOriginRow {
+  string user_id = 1;
+  // EmailSignup | GoogleSignup | StaffInvite | ClientInvite | Unknown
+  string origin = 2;
+  // ISO 8601 UTC; empty when never recorded.
+  string created_at_utc = 3;
+  string email_confirmed_at_utc = 4;
+  string first_hris_sign_in_at_utc = 5;
+  string first_portal_sign_in_at_utc = 6;
+  // When the account first asked to create a company of its own.
+  string own_company_requested_at_utc = 7;
+}
+
+message AccountOriginsResponse {
+  repeated AccountOriginRow accounts = 1;
+  // Accounts with no recorded sign-up date (they can't be placed on a timeline).
+  int32 undated_count = 2;
+  // True when the range returned more accounts than one call carries.
+  bool truncated = 3;
+}

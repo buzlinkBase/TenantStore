@@ -202,7 +202,7 @@ public class ClientAccessTests
         var owner = Guid.NewGuid();
         var member = Guid.NewGuid();
         await f.Staff.AddAsync(new UserMembership { TenantId = f.TenantId, UserId = owner }, [TenantRoles.Owner], CancellationToken.None);
-        await f.Staff.AddAsync(new UserMembership { TenantId = f.TenantId, UserId = member }, [TenantRoles.Member], CancellationToken.None);
+        await f.Staff.AddAsync(new UserMembership { TenantId = f.TenantId, UserId = member }, [TenantRoles.None], CancellationToken.None);
         await f.SaveAsync();
 
         (await f.Access.AgencyCallerAsync(owner, f.TenantId, f.ClientId)).IsAgencyStaff.Should().BeTrue();

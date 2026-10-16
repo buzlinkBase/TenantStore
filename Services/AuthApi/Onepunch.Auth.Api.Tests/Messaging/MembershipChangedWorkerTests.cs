@@ -240,7 +240,7 @@ public class MembershipChangedWorkerTests
             Email = "test@onepunch.local",
             Status = "Active",
             DefaultTenantId = tenantId,
-            DefaultTenantRoles = ["Member"],
+            DefaultTenantRoles = ["None"],
         };
         userManager.Setup(m => m.FindByIdAsync(user.Id.ToString())).ReturnsAsync(user);
         userManager.Setup(m => m.UpdateAsync(user)).ReturnsAsync(IdentityResult.Success);

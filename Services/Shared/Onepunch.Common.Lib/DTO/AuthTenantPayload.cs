@@ -23,7 +23,7 @@ public record UserJoinToTenantPayload
     public Guid TenantId { get; set; }
     public string? TenantName { get; set; } = "My Workspace";
     public Guid UserId { get; set; }
-    public List<string> Roles { get; set; } = new() { "Member" };
+    public List<string> Roles { get; set; } = new() { "None" };
 }
 
 public class EmailCheckPayload

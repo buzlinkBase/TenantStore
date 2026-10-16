@@ -335,6 +335,9 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                         .IsConcurrencyToken()
                         .HasColumnType("longtext");
 
+                    b.Property<DateTime?>("CreatedAtUtc")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<Guid?>("DefaultTenantId")
                         .HasColumnType("char(36)");
 
@@ -352,6 +355,15 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("tinyint(1)");
 
+                    b.Property<DateTime?>("EmailConfirmedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("FirstHrisSignInAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("FirstPortalSignInAtUtc")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<string>("FullName")
                         .HasColumnType("longtext");
 
@@ -368,6 +380,17 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                     b.Property<string>("NormalizedUserName")
                         .HasMaxLength(256)
                         .HasColumnType("varchar(256)");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(24)
+                        .HasColumnType("varchar(24)")
+                        .HasDefaultValue("Unknown");
+
+                    b.Property<string>("OriginDetail")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
 
                     b.Property<string>("PasswordHash")
                         .HasColumnType("longtext");
@@ -396,6 +419,8 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                         .HasColumnType("varchar(256)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc");
 
                     b.HasIndex("Email")
                         .IsUnique();

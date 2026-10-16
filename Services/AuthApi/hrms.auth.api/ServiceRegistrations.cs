@@ -85,6 +85,9 @@ public static class ServiceRegistrations
             options.UseLazyLoadingProxies(true);
         });
         builder.Services.AddAuthAuditTrail(builder.Configuration);
+        // Where accounts came from: read by Tenant Service over gRPC, filled for old accounts by the operator-run backfill.
+        builder.Services.AddScoped<Onepunch.Auth.Core.Origins.AccountOriginReader>();
+        builder.Services.AddScoped<Onepunch.Auth.Core.Origins.AccountOriginBackfillService>();
 
         builder.Services.AddCors(options =>
         {

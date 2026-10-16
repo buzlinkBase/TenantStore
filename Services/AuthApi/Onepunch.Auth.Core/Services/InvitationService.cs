@@ -462,7 +462,10 @@ namespace Onepunch.Auth.Core.Services
                 FullName = string.IsNullOrWhiteSpace(name) ? invitation.Email.Split('@')[0] : name,
                 Status = "Active",
                 EmailConfirmed = true,
-            };
+            }.BeganAs(AccountOrigins.StaffInvite, DateTime.UtcNow, invitation.Id.ToString());
+            // The invitation email proved the address, and accepting signs them straight in.
+            user.StampEmailConfirmed(user.CreatedAtUtc!.Value);
+            user.StampFirstHrisSignIn(user.CreatedAtUtc.Value);
             var createResult = await _manager.CreateAsync(user, password);
             if (!createResult.Succeeded)
                 throw new GuardException(string.Join(" ", createResult.Errors.Select(e => e.Description)));

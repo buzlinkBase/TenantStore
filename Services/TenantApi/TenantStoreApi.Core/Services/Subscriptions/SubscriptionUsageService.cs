@@ -58,7 +58,7 @@ public sealed class RemoteCompanyUsageProvider(
 /// Pending invitations count too -- they hold a seat as soon as they're sent.</summary>
 public sealed class AdminSeatUsageProvider(IUnitOfWorkService uow) : ICompanyUsageProvider
 {
-    private static readonly string[] PortalOnlyRoles = [TenantRoles.Employee, TenantRoles.Client];
+    private static readonly string[] PortalOnlyRoles = [TenantRoles.Employee];
     private static readonly string[] SeatStatuses = ["Active", "Invited"];
 
     public IReadOnlyCollection<string> Keys { get; } = [EntitlementKeys.AdminsMax];

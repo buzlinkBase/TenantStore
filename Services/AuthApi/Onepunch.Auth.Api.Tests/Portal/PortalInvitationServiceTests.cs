@@ -311,6 +311,12 @@ public class PortalInvitationServiceTests
         created.EmailConfirmed.Should().BeTrue();
         created.Email.Should().Be("ana@client.com");
         created.FullName.Should().Be("Ana Cruz", "the name from the invitation is used when none is typed");
+        // How the account began is recorded, pointing at the invitation that made it.
+        created.Origin.Should().Be(AccountOrigins.ClientInvite);
+        created.OriginDetail.Should().Be((await f.Context.Invitations.SingleAsync()).Id.ToString());
+        created.CreatedAtUtc.Should().NotBeNull();
+        created.EmailConfirmedAtUtc.Should().Be(created.CreatedAtUtc);
+        created.FirstHrisSignInAtUtc.Should().BeNull("accepting a client invitation opens no HRIS session");
         f.Grpc.Verify(g => g.GrantClientAccessAsync(newId, ClientId, "ana@client.com", "Ana Cruz",
             It.Is<IEnumerable<Guid>>(r => r.SequenceEqual(new[] { FinanceRole })), It.IsAny<int>()), Times.Once);
         (await f.Context.Invitations.SingleAsync()).Status.Should().Be(InvitationStatus.Accepted);

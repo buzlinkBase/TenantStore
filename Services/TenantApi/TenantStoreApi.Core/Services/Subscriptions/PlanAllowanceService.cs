@@ -19,7 +19,7 @@ public sealed record PlanAllowance(bool Allowed, string? ProblemType, string? Er
 /// </summary>
 public class PlanAllowanceService
 {
-    private static readonly string[] PortalOnlyRoles = [TenantRoles.Employee, TenantRoles.Client];
+    private static readonly string[] PortalOnlyRoles = [TenantRoles.Employee];
 
     private readonly IUnitOfWorkService _uow;
     private readonly EntitlementResolverService _resolver;

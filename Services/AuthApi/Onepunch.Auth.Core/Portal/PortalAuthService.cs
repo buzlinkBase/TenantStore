@@ -227,22 +227,29 @@ public class PortalAuthService : BaseService<RefreshToken>
         return new PortalEnsureAccountResult(user.Id, true);
     }
 
-    /// <summary>A login for someone the portal verified an invitation for: confirmed (the invite email proved it) and hidden from HRIS sign-in.</summary>
-    public static User NewPortalUser(string email, string fullName) => new()
+    /// <summary>A login for someone the portal verified an invitation for: confirmed (the invite email proved it) and marked as created by a client invitation. It signs in to the HRIS too.</summary>
+    public static User NewPortalUser(string email, string fullName, string? invitationId = null, DateTime? now = null)
     {
-        UserName = email,
-        Email = email,
-        FullName = fullName.Trim(),
-        Status = "Active",
-        EmailConfirmed = true,
-        PortalOnly = true,
-    };
+        var created = now ?? DateTime.UtcNow;
+        var user = new User
+        {
+            UserName = email,
+            Email = email,
+            FullName = fullName.Trim(),
+            Status = "Active",
+            EmailConfirmed = true,
+            PortalOnly = true,
+        }.BeganAs(AccountOrigins.ClientInvite, created, invitationId);
+        user.StampEmailConfirmed(created);
+        return user;
+    }
 
     // ── Internals ────────────────────────────────────────────────────────────
 
     private async Task<PortalSession> OpenSessionAsync(User user, RefreshToken? replacing, CancellationToken ct)
     {
         var now = Now;
+        user.StampFirstPortalSignIn(now);
         var refresh = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
         var entry = new RefreshToken
         {

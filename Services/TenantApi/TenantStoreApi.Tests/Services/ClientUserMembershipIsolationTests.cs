@@ -45,8 +45,8 @@ public class ClientUserMembershipIsolationTests
         var (uow, sut) = await CreateSutAsync();
         var tenantId = Guid.NewGuid();
         var staffUser = Guid.NewGuid();
-        await sut.AddAsync(Staff(tenantId, staffUser), [TenantRoles.Member], CancellationToken.None);
-        await sut.AddAsync(ClientUser(tenantId, Guid.NewGuid()), [TenantRoles.Member], CancellationToken.None);
+        await sut.AddAsync(Staff(tenantId, staffUser), [TenantRoles.None], CancellationToken.None);
+        await sut.AddAsync(ClientUser(tenantId, Guid.NewGuid()), [TenantRoles.None], CancellationToken.None);
         await uow.Context.SaveChangesAsync();
 
         var members = await sut.GetMembersAsync(tenantId);
@@ -61,8 +61,8 @@ public class ClientUserMembershipIsolationTests
         var userId = Guid.NewGuid();
         var staffTenant = Guid.NewGuid();
         var clientTenant = Guid.NewGuid();
-        await sut.AddAsync(Staff(staffTenant, userId), [TenantRoles.Member], CancellationToken.None);
-        await sut.AddAsync(ClientUser(clientTenant, userId), [TenantRoles.Member], CancellationToken.None);
+        await sut.AddAsync(Staff(staffTenant, userId), [TenantRoles.None], CancellationToken.None);
+        await sut.AddAsync(ClientUser(clientTenant, userId), [TenantRoles.None], CancellationToken.None);
         await uow.Context.SaveChangesAsync();
 
         var memberships = await sut.GetUserMembersAsync(userId);
@@ -91,7 +91,7 @@ public class ClientUserMembershipIsolationTests
         var tenantId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var staff = Staff(tenantId, userId);
-        await sut.AddAsync(staff, [TenantRoles.Member], CancellationToken.None);
+        await sut.AddAsync(staff, [TenantRoles.None], CancellationToken.None);
         await sut.AddAsync(ClientUser(tenantId, userId), [TenantRoles.Admin], CancellationToken.None);
         await uow.Context.SaveChangesAsync();
 

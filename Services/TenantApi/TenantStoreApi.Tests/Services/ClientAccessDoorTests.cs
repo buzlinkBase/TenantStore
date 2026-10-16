@@ -235,7 +235,7 @@ public class ClientAccessDoorTests
         var owner = Guid.NewGuid();
         var plain = Guid.NewGuid();
         await f.Staff.AddAsync(new UserMembership { TenantId = f.TenantId, UserId = owner }, [TenantRoles.Owner], CancellationToken.None);
-        await f.Staff.AddAsync(new UserMembership { TenantId = f.TenantId, UserId = plain }, [TenantRoles.Member], CancellationToken.None);
+        await f.Staff.AddAsync(new UserMembership { TenantId = f.TenantId, UserId = plain }, [TenantRoles.None], CancellationToken.None);
         await f.SaveAsync();
         await GrantAsync(f, Guid.NewGuid(), ClientRoles.Admin);
 
