@@ -12,6 +12,8 @@ public static class LibServicesRegistrations
         builder.Services.AddScoped<PasswordCrypto>();
         builder.Services.AddScoped<IUnitOfWorkService, UnitOfWorkService>();
         builder.Services.AddScoped<IHMACService, HMACService>();
+        builder.Services.AddScoped<Services.Subscriptions.IAgencyStandingProvider, Services.Subscriptions.AgencyStandingProvider>();
+        builder.Services.AddScoped<Services.Subscriptions.IClientStandingPublisher, Services.Subscriptions.ClientStandingPublisher>();
 
         // One provider per product that shares this authorization store; the seeder seeds them all.
         // A new system (procurement, accounting, billing) registers its provider here.

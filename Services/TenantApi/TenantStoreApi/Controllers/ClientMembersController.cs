@@ -93,6 +93,45 @@ public class ClientMembersController : ClientMembersControllerBase
 }
 
 /// <summary>
+/// Every client user of the company at once (the Users page's Client tab). Company staff who run the portal only; changing one of them
+/// goes through the per-client door above.
+/// </summary>
+[Route("api/v{version:apiVersion}/clients/members")]
+[ApiVersion("1.0")]
+[Authorize]
+[ApiController]
+public class CompanyClientMembersController : ControllerBase
+{
+    private readonly ClientMembershipService _service;
+    private readonly ClientAccessService _access;
+    private readonly ITenantProvider _tenantProvider;
+
+    public CompanyClientMembersController(ClientMembershipService service, ClientAccessService access, ITenantProvider tenantProvider)
+    {
+        _service = service;
+        _access = access;
+        _tenantProvider = tenantProvider;
+    }
+
+    [HttpGet]
+    [ProducesResponseType(typeof(List<CompanyClientMemberView>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> List(CancellationToken token)
+    {
+        var tenantId = _tenantProvider.TenantId;
+        if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
+        try
+        {
+            await _access.AgencyStaffAsync(User.GetRequiredUserId(), tenantId, token);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        return Ok(await _service.ListAllForCompanyAsync(tenantId, token));
+    }
+}
+
+/// <summary>
 /// The client portal's server, acting for a person it has already authenticated (service-to-service: api-key
 /// protected, no user token). The person is named in <see cref="ClientCallerHeader.ActingUser"/>; Tenant
 /// Service decides what they may do from what they hold in the client.

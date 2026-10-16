@@ -5,6 +5,7 @@ using Moq;
 using Onepunch.Common.Lib.DTO;
 using TenantStoreApi.Core;
 using TenantStoreApi.Core.Services;
+using TenantStoreApi.Core.Services.Subscriptions;
 using TenantStoreApi.Domain.Entities;
 using TenantStoreApi.Tests.TestSupport;
 using Xunit;
@@ -63,7 +64,7 @@ public class ClientAccessTests
 
             var publisher = new Mock<IPublishEndpoint>();
             var staff = new UserMembershipService(uow, publisher.Object, new RoleService(uow), new MembershipRoleService(uow));
-            var access = new ClientAccessService(uow, staff);
+            var access = new ClientAccessService(uow, staff, new AgencyStandingProvider(uow));
             var members = new ClientMembershipService(uow, access, publisher.Object);
             var roles = new ClientRoleService(uow, access, publisher.Object);
             var fixture = new Fixture

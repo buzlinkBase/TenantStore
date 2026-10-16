@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TenantStoreApi.Core.Services.Subscriptions;
 using TenantStoreApi.Infrastructure;
 
 namespace TenantStoreApi.Core.Services;
@@ -39,6 +40,10 @@ public sealed record ClientAccess(
     public bool IsActive => Status == StatusActive;
 
     public const string StatusActive = "Active";
+
+    /// <summary>The agency that owns the client is suspended or under legal hold: nobody of its clients may use the portal.
+    /// One status for both, so a client never learns why.</summary>
+    public const string StatusAgencySuspended = "AgencySuspended";
 }
 
 /// <summary>
@@ -52,11 +57,13 @@ public class ClientAccessService
 
     private readonly IUnitOfWorkService _uow;
     private readonly UserMembershipService _staffMemberships;
+    private readonly IAgencyStandingProvider _standing;
 
-    public ClientAccessService(IUnitOfWorkService uow, UserMembershipService staffMemberships)
+    public ClientAccessService(IUnitOfWorkService uow, UserMembershipService staffMemberships, IAgencyStandingProvider standing)
     {
         _uow = uow;
         _staffMemberships = staffMemberships;
+        _standing = standing;
     }
 
     private TenantContext Context => _uow.Context;
@@ -79,7 +86,9 @@ public class ClientAccessService
 
         var membership = await ClientMembershipsWithRoles()
             .FirstOrDefaultAsync(m => m.UserId == userId && m.TenantId == entity.TenantId, token);
-        return membership == null ? null : ToAccess(membership, entity);
+        var access = membership == null ? null : ToAccess(membership, entity);
+        if (access == null) return null;
+        return ApplyStanding(access, await _standing.GetAsync([entity.TenantId], token));
     }
 
     /// <summary>Every client this user belongs to, across companies (the portal's client picker).</summary>
@@ -91,13 +100,21 @@ public class ClientAccessService
             .Where(e => clientIds.Contains(e.Id))
             .ToDictionaryAsync(e => e.Id, token);
 
+        var standing = await _standing.GetAsync(memberships.Select(m => m.TenantId).Distinct().ToList(), token);
         return memberships
             .SelectMany(m => m.ClientRoles.Select(r => r.ClientEntityId).Distinct()
                 .Where(entities.ContainsKey)
-                .Select(id => ToAccess(m, entities[id])!))
+                .Select(id => ApplyStanding(ToAccess(m, entities[id])!, standing)))
             .OrderBy(a => a.ClientName)
             .ToList();
     }
+
+    /// <summary>Fifth layer: an agency that is suspended or held switches every one of its clients' people off, whatever else they hold.
+    /// Only an otherwise-active person is relabelled, so someone already switched off keeps the reason that applies to them.</summary>
+    public static ClientAccess ApplyStanding(ClientAccess access, IReadOnlyDictionary<Guid, AgencyStanding> standing) =>
+        access.IsActive && standing.TryGetValue(access.TenantId, out var agency) && agency.BlocksClients()
+            ? access with { Status = ClientAccess.StatusAgencySuspended, Permissions = [] }
+            : access;
 
     internal static ClientAccess? ToAccess(UserMembership membership, ClientEntity entity)
     {
@@ -136,6 +153,17 @@ public class ClientAccessService
         if (staff == null || staff.Status != ClientAccess.StatusActive || !staff.HasPermission(AgencyManageCode))
             throw new UnauthorizedAccessException("You can't manage this client's users.");
         return ClientCaller.Agency(userId);
+    }
+
+    /// <summary>
+    /// Confirms an HRIS caller is company staff who run the Client Portal: an active member of <paramref name="tenantId"/> holding
+    /// clientportal:Client:Manage. For company-wide reads that are not about one client.
+    /// </summary>
+    public async Task AgencyStaffAsync(Guid userId, Guid tenantId, CancellationToken token = default)
+    {
+        var staff = await _staffMemberships.GetMemberAsync(userId, tenantId, token);
+        if (staff == null || staff.Status != ClientAccess.StatusActive || !staff.HasPermission(AgencyManageCode))
+            throw new UnauthorizedAccessException("You can't manage client users.");
     }
 
     /// <summary>

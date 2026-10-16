@@ -20,6 +20,18 @@ public sealed record ClientMemberView(
     // Status is Inactive, and this is what tells someone revoked on their own apart from someone only blocked by the suspension.
     string OwnStatus = ClientAccess.StatusActive);
 
+/// <summary>One person's place in one client, for the company-wide list company staff see on the Users page.</summary>
+public sealed record CompanyClientMemberView(
+    Guid ClientEntityId,
+    string ClientName,
+    Guid MembershipId,
+    Guid UserId,
+    string? FullName,
+    string? Email,
+    string Status,
+    string OwnStatus,
+    IReadOnlyList<ClientRoleRef> Roles);
+
 /// <summary>
 /// People of a client (Category=ClientUser memberships) and the roles they hold within it
 /// (Client_Membership_Roles). Ports the client portal's own safeguards: a client always keeps an
@@ -43,6 +55,42 @@ public class ClientMembershipService : BaseService<UserMembership>
     {
         _access = access;
         _publisher = publisher;
+    }
+
+    /// <summary>
+    /// Every client user of the company, one row per person per client, for its staff (already verified to run the portal).
+    /// Status is what ListMembersAsync reports for that client, so the two screens never disagree.
+    /// </summary>
+    public async Task<List<CompanyClientMemberView>> ListAllForCompanyAsync(Guid tenantId, CancellationToken token = default)
+    {
+        var members = await _access.ClientMembershipsWithRoles()
+            .Where(m => m.TenantId == tenantId && m.ClientRoles.Any())
+            .ToListAsync(token);
+        var clientIds = members.SelectMany(m => m.ClientRoles).Select(r => r.ClientEntityId).Distinct().ToList();
+        var clients = await Context.ClientEntities.AsNoTracking()
+            .Where(e => e.TenantId == tenantId && clientIds.Contains(e.Id))
+            .ToDictionaryAsync(e => e.Id, token);
+
+        return members
+            .SelectMany(m => m.ClientRoles.Select(r => r.ClientEntityId).Distinct()
+                .Where(clients.ContainsKey)
+                .Select(clientId =>
+                {
+                    var entity = clients[clientId];
+                    var links = m.ClientRoles.Where(r => r.ClientEntityId == clientId).ToList();
+                    return new CompanyClientMemberView(
+                        clientId,
+                        entity.Name,
+                        m.Id,
+                        m.UserId,
+                        m.FullName,
+                        m.InvitedEmail,
+                        ClientAccessService.ToAccess(m, entity)?.Status ?? m.Status,
+                        m.Status != Active ? m.Status : links.Select(l => l.Status).FirstOrDefault(s => s != Active) ?? Active,
+                        links.Select(l => new ClientRoleRef(l.RoleId, l.Role.Name)).OrderBy(r => r.Name).ToList());
+                }))
+            .OrderBy(v => v.ClientName).ThenBy(v => v.FullName)
+            .ToList();
     }
 
     public async Task<List<ClientMemberView>> ListMembersAsync(ClientCaller caller, Guid clientEntityId, CancellationToken token = default)

@@ -28,6 +28,8 @@ public class AuthContext : IdentityDbContext<User, Role, Guid>
         modelBuilder.ApplyConfigurationsFromAssembly(GetType().Assembly);
         modelBuilder.UseDateFilter();
         modelBuilder.Entity<RefreshToken>().HasIndex(x => x.RefreshTokenHash);
+        // "When was this company last signed in to" (Platform Console) groups sessions by company, newest first.
+        modelBuilder.Entity<RefreshToken>().HasIndex(x => new { x.TenantId, x.CreatedAt });
         modelBuilder.Entity<User>().HasIndex(x => x.Email).IsUnique();
         modelBuilder.Entity<User>().Property(x => x.Origin).HasMaxLength(24).HasDefaultValue(AccountOrigins.Unknown);
         modelBuilder.Entity<User>().Property(x => x.OriginDetail).HasMaxLength(128);
