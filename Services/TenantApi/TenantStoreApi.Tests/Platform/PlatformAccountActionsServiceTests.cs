@@ -44,7 +44,7 @@ public class PlatformAccountActionsServiceTests
         host.SubscriptionOf(owner).SubStatus.Should().Be(AccountSubscriptionStatus.Suspended);
         var recorded = EventsOf(host, owner, BillingEventTypes.SuspendedByAdmin).Should().ContainSingle().Subject;
         recorded.Actor.Should().Be(Operator);
-        recorded.PayloadJson.Should().Contain("Chargeback dispute");
+        recorded.PayloadJson.Should().Contain("Chargeback dispute").And.Contain("\"from\":\"Active\"");
         host.Publisher.Verify(p => p.Publish(It.Is<Onepunch.Common.Lib.DTO.SubscriptionChanged>(m => m.OwnerUserId == owner), It.IsAny<CancellationToken>()), Times.AtLeastOnce);
     }
 
@@ -100,7 +100,9 @@ public class PlatformAccountActionsServiceTests
         await host.SaveAsync();
 
         host.SubscriptionOf(owner).SubStatus.Should().Be(AccountSubscriptionStatus.Active);
-        EventsOf(host, owner, BillingEventTypes.Reinstated).Should().ContainSingle().Which.Actor.Should().Be(Operator);
+        var recorded = EventsOf(host, owner, BillingEventTypes.Reinstated).Should().ContainSingle().Subject;
+        recorded.Actor.Should().Be(Operator);
+        recorded.PayloadJson.Should().Contain("\"from\":\"Suspended\"").And.Contain("\"to\":\"Active\"");
     }
 
     [Fact]

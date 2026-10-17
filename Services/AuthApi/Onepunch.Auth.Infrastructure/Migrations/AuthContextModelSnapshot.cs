@@ -763,6 +763,8 @@ namespace Onepunch.Auth.Infrastructure.Migrations
 
                     b.HasIndex("RefreshTokenHash");
 
+                    b.HasIndex("TenantId", "CreatedAt");
+
                     b.ToTable("RefreshTokens");
                 });
 

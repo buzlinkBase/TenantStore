@@ -98,7 +98,7 @@ public class PlatformAccountActionsService
         subscription.SuspensionReason = reason;
         Touch(subscription);
 
-        await _events.AddAsync(subscription, BillingEventTypes.SuspendedByAdmin, new { from, reason }, actor, token: token);
+        await _events.AddAsync(subscription, BillingEventTypes.SuspendedByAdmin, new { from = from.ToString(), reason }, actor, token: token);
         await _notifier.PublishAsync(ownerUserId, BillingEventTypes.SuspendedByAdmin, token);
     }
 
@@ -138,7 +138,7 @@ public class PlatformAccountActionsService
         }
         Touch(subscription);
 
-        await _events.AddAsync(subscription, BillingEventTypes.Reinstated, new { from, to = subscription.SubStatus, reason }, actor, token: token);
+        await _events.AddAsync(subscription, BillingEventTypes.Reinstated, new { from = from.ToString(), to = subscription.SubStatus.ToString(), reason }, actor, token: token);
         await _notifier.PublishAsync(ownerUserId, BillingEventTypes.Reinstated, token);
     }
 
@@ -160,7 +160,7 @@ public class PlatformAccountActionsService
         ActiveState.ClearPendingChange(subscription);
         Touch(subscription);
 
-        await _events.AddAsync(subscription, BillingEventTypes.CanceledByAdmin, new { from, reason, subscription.PurgeAfterUtc }, actor, token: token);
+        await _events.AddAsync(subscription, BillingEventTypes.CanceledByAdmin, new { from = from.ToString(), reason, subscription.PurgeAfterUtc }, actor, token: token);
         await _notifier.PublishAsync(ownerUserId, BillingEventTypes.CanceledByAdmin, token);
     }
 
