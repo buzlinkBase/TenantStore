@@ -71,7 +71,7 @@ public sealed class SubscriptionTestHost
 
     public EntitlementResolverService Resolver => new(Uow, StateMachine, WrappedOptions, Clock);
     public BillingEventService Events => new(Uow, Clock);
-    public SubscriptionChangeNotifierService Notifier => new(Uow, Publisher.Object);
+    public SubscriptionChangeNotifierService Notifier => new(Uow, Publisher.Object, new ClientStandingPublisher(Uow, Publisher.Object));
     public SubscriptionUsageService Usage => new(Uow, [new AdminSeatUsageProvider(Uow), HrmsUsage, AdmsUsage]);
 
     public AccountSubscriptionService Subscriptions =>

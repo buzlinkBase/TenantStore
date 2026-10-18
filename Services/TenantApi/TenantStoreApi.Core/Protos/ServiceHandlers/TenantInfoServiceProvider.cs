@@ -23,13 +23,152 @@ public class TenantInfoServiceProvider : GetTenantService.GetTenantServiceBase
     private readonly RoleService _roleService;
 
     private readonly PlanAllowanceService _allowance;
+    private readonly ClientAccessService _clientAccess;
+    private readonly ClientEntityService _clientEntities;
+    private readonly ClientMembershipService _clientMembers;
 
-    public TenantInfoServiceProvider(TenantService service, UserMembershipService membershipService, RoleService roleService, PlanAllowanceService allowance)
+    public TenantInfoServiceProvider(
+        TenantService service,
+        UserMembershipService membershipService,
+        RoleService roleService,
+        PlanAllowanceService allowance,
+        ClientAccessService clientAccess,
+        ClientEntityService clientEntities,
+        ClientMembershipService clientMembers)
     {
+        _clientMembers = clientMembers;
         _service = service;
         _membershipService = membershipService;
         _roleService = roleService;
         _allowance = allowance;
+        _clientAccess = clientAccess;
+        _clientEntities = clientEntities;
+    }
+
+    public override async Task<ClientMembershipResponse> ResolveClientMembership(ClientMembershipRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId) || !Guid.TryParse(request.ClientEntityId, out var clientEntityId))
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid GUID format for UserId/ClientEntityId"));
+        }
+
+        var access = await _clientAccess.ResolveAsync(userId, clientEntityId, context.CancellationToken);
+        return access == null
+            ? new ClientMembershipResponse { Found = false }
+            : new ClientMembershipResponse { Found = true, Membership = ToEntry(access) };
+    }
+
+    public override async Task<ClientMembershipsResponse> ListClientMemberships(UserMembershipsRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid UserId format"));
+        }
+
+        var response = new ClientMembershipsResponse();
+        response.Memberships.AddRange((await _clientAccess.ListForUserAsync(userId, context.CancellationToken)).Select(ToEntry));
+        return response;
+    }
+
+    /// <summary>The portal reports a client it created or changed. Committed here: this is a whole call, not part of a larger unit of work.</summary>
+    public override async Task<UpsertClientEntityResponse> UpsertClientEntity(UpsertClientEntityRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.TenantId, out var tenantId) || !Guid.TryParse(request.ClientEntityId, out var clientEntityId))
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid GUID format for TenantId/ClientEntityId"));
+        }
+
+        try
+        {
+            await _clientEntities.UpsertAsync(
+                tenantId, clientEntityId,
+                string.IsNullOrWhiteSpace(request.ExternalId) ? null : request.ExternalId,
+                request.Name, request.Active, context.CancellationToken);
+            await _clientEntities.CommitChangesAsync(context.CancellationToken);
+        }
+        catch (ArgumentException ex)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new RpcException(new Status(StatusCode.FailedPrecondition, ex.Message));
+        }
+
+        return new UpsertClientEntityResponse { Ok = true };
+    }
+
+    public override async Task<CheckClientInviteResponse> CheckClientInvite(CheckClientInviteRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.InviterUserId, out var inviterId) || !Guid.TryParse(request.ClientEntityId, out var clientEntityId)
+            || !TryParseIds(request.RoleIds, out var roleIds))
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid GUID format for InviterUserId/ClientEntityId/RoleIds"));
+        }
+
+        try
+        {
+            var invite = await _clientMembers.AuthorizeInviteAsync(inviterId, clientEntityId, request.Email, roleIds, context.CancellationToken);
+            return new CheckClientInviteResponse
+            {
+                Allowed = true,
+                TenantId = invite.TenantId.ToString(),
+                TenantName = invite.TenantName,
+                ClientName = invite.ClientName,
+            };
+        }
+        // Every refusal is an answer, not a fault: AuthApi shows the message to the inviter.
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or UnauthorizedAccessException or KeyNotFoundException)
+        {
+            return new CheckClientInviteResponse { Allowed = false, Error = ex.Message };
+        }
+    }
+
+    /// <summary>Invitation acceptance. Committed here: this is a whole call, not part of a larger unit of work.</summary>
+    public override async Task<GrantClientAccessResponse> GrantClientAccess(GrantClientAccessRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId) || !Guid.TryParse(request.ClientEntityId, out var clientEntityId)
+            || !TryParseIds(request.RoleIds, out var roleIds))
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid GUID format for UserId/ClientEntityId/RoleIds"));
+        }
+
+        try
+        {
+            await _clientMembers.GrantAccessAsync(userId, clientEntityId, request.Email, request.FullName, roleIds, context.CancellationToken);
+            await _clientMembers.CommitChangesAsync(context.CancellationToken);
+            return new GrantClientAccessResponse { Ok = true };
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or KeyNotFoundException)
+        {
+            return new GrantClientAccessResponse { Ok = false, Error = ex.Message };
+        }
+    }
+
+    private static bool TryParseIds(IEnumerable<string> raw, out List<Guid> ids)
+    {
+        ids = [];
+        foreach (var value in raw)
+        {
+            if (!Guid.TryParse(value, out var id)) return false;
+            ids.Add(id);
+        }
+        return true;
+    }
+
+    private static ClientMembershipEntry ToEntry(ClientAccess access)
+    {
+        var entry = new ClientMembershipEntry
+        {
+            ClientEntityId = access.ClientEntityId.ToString(),
+            ClientName = access.ClientName,
+            TenantId = access.TenantId.ToString(),
+            TenantName = access.TenantName ?? string.Empty,
+            Status = access.Status,
+        };
+        entry.Roles.AddRange(access.Roles);
+        entry.Permissions.AddRange(access.Permissions);
+        return entry;
     }
 
     /// <summary>

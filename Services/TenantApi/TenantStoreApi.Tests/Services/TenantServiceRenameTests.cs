@@ -88,7 +88,7 @@ public class TenantServiceRenameTests
 
     // ── Endpoint gate (UserMembershipService.CanManageCompanyAsync) ──────────────────────────
     // HRIS forwards the caller's own token, so the rename endpoint itself must refuse
-    // portal-only members (Employee/Client) -- they never get onto Company Settings anyway.
+    // portal-only members (Employee) -- they never get onto Company Settings anyway.
 
     private static async Task<bool> CanManageAsync(string status, params string[] roles)
     {
@@ -105,10 +105,9 @@ public class TenantServiceRenameTests
 
     [Theory]
     [InlineData("Active", new[] { "Admin" }, true)]
-    [InlineData("Active", new[] { "Member" }, true)]
-    [InlineData("Active", new[] { "Employee", "Member" }, true)]
+    [InlineData("Active", new[] { "None" }, true)]
+    [InlineData("Active", new[] { "Employee", "None" }, true)]
     [InlineData("Active", new[] { "Employee" }, false)]
-    [InlineData("Active", new[] { "Client" }, false)]
     [InlineData("Revoked", new[] { "Admin" }, false)]
     public async Task CanManageCompanyAsync_OnlyActiveNonPortalMembers(string status, string[] roles, bool expected)
     {

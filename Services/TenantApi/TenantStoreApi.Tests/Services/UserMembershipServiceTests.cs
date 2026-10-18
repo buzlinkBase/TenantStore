@@ -96,13 +96,13 @@ public class UserMembershipServiceTests
         var (sut, _) = await CreateSutAsync();
         var tenantId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        var revoked = await AddMemberAsync(sut, tenantId, userId, "Member");
+        var revoked = await AddMemberAsync(sut, tenantId, userId, "None");
         revoked.Status = "Revoked";
         await sut.Context.SaveChangesAsync(CancellationToken.None);
-        await sut.CreateInvitePlaceholderAsync(tenantId, "Acme", "invitee@test.com", ["Member"], "Invitee", CancellationToken.None);
+        await sut.CreateInvitePlaceholderAsync(tenantId, "Acme", "invitee@test.com", ["None"], "Invitee", CancellationToken.None);
         await sut.Context.SaveChangesAsync(CancellationToken.None);
 
-        await sut.JoinAsync(userId, tenantId, "Acme", "invitee@test.com", "Invitee", ["Member"], CancellationToken.None);
+        await sut.JoinAsync(userId, tenantId, "Acme", "invitee@test.com", "Invitee", ["None"], CancellationToken.None);
         await sut.Context.SaveChangesAsync(CancellationToken.None);
 
         var membership = await sut.GetMemberAsync(userId, tenantId, CancellationToken.None);
@@ -136,7 +136,7 @@ public class UserMembershipServiceTests
         await sut.Context.SaveChangesAsync(CancellationToken.None);
 
         var membership = await sut.GetMemberAsync(userId, tenantId, CancellationToken.None);
-        membership!.RoleNames().Should().Equal("Member");
+        membership!.RoleNames().Should().Equal("None");
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public class UserMembershipServiceTests
         var ownerId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
         await AddMemberAsync(sut, tenantId, ownerId, "Owner");
-        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "Member");
+        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "None");
 
         await sut.ReplaceRolesAsync(ownerId, targetMembership.Id, tenantId, ["Admin"], CancellationToken.None);
 
@@ -163,13 +163,13 @@ public class UserMembershipServiceTests
         var ownerId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
         await AddMemberAsync(sut, tenantId, ownerId, "Owner");
-        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "Member", "Admin");
+        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "None", "Admin");
 
         await sut.ReplaceRolesAsync(ownerId, targetMembership.Id, tenantId, ["Admin"], CancellationToken.None);
 
         var target = await sut.GetMemberAsync(targetId, tenantId, CancellationToken.None);
         target!.HasRole("Admin").Should().BeTrue();
-        target!.HasRole("Member").Should().BeFalse();
+        target!.HasRole("None").Should().BeFalse();
         target!.Roles.Should().ContainSingle();
     }
 
@@ -194,7 +194,7 @@ public class UserMembershipServiceTests
         var ownerId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
         await AddMemberAsync(sut1, tenantId, ownerId, "Owner");
-        var targetMembership = await AddMemberAsync(sut1, tenantId, targetId, "Member");
+        var targetMembership = await AddMemberAsync(sut1, tenantId, targetId, "None");
 
         // A second, independent request-scoped service instance grants "Employee" and commits.
         var uow2 = TenantTestContextFactory.CreateUnitOfWork(TenantTestContextFactory.CreateContext(dbName));
@@ -202,7 +202,7 @@ public class UserMembershipServiceTests
         await sut2.AddRoleAsync(ownerId, targetMembership.Id, tenantId, "Employee", CancellationToken.None);
         await sut2.Context.SaveChangesAsync(CancellationToken.None);
 
-        var act = () => sut1.ReplaceRolesAsync(ownerId, targetMembership.Id, tenantId, ["Member", "Employee"], CancellationToken.None);
+        var act = () => sut1.ReplaceRolesAsync(ownerId, targetMembership.Id, tenantId, ["None", "Employee"], CancellationToken.None);
 
         await act.Should().NotThrowAsync();
     }
@@ -214,8 +214,8 @@ public class UserMembershipServiceTests
         var tenantId = Guid.NewGuid();
         var memberId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
-        await AddMemberAsync(sut, tenantId, memberId, "Member");
-        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "Member");
+        await AddMemberAsync(sut, tenantId, memberId, "None");
+        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "None");
 
         var act = () => sut.ReplaceRolesAsync(memberId, targetMembership.Id, tenantId, ["Admin"], CancellationToken.None);
 
@@ -232,7 +232,7 @@ public class UserMembershipServiceTests
         var adminId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
         await AddMemberAsync(sut, tenantId, adminId, "Admin");
-        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "Member");
+        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "None");
 
         await sut.ReplaceRolesAsync(adminId, targetMembership.Id, tenantId, ["Admin"], CancellationToken.None);
 
@@ -247,8 +247,8 @@ public class UserMembershipServiceTests
         var tenantId = Guid.NewGuid();
         var memberId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
-        await AddMemberAsync(sut, tenantId, memberId, "Member");
-        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "Member");
+        await AddMemberAsync(sut, tenantId, memberId, "None");
+        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "None");
 
         var act = () => sut.RemoveMemberAsync(memberId, targetMembership.Id, tenantId, CancellationToken.None);
 
@@ -268,7 +268,7 @@ public class UserMembershipServiceTests
         await roleService.SetPermissionsAsync(customRole.Id, [permission.Id], CancellationToken.None);
 
         var userId = Guid.NewGuid();
-        await AddMemberAsync(sut, tenantId, userId, "Member", "Payroll Approver");
+        await AddMemberAsync(sut, tenantId, userId, "None", "Payroll Approver");
 
         var membership = await sut.GetMemberAsync(userId, tenantId, CancellationToken.None);
 
@@ -281,7 +281,7 @@ public class UserMembershipServiceTests
         var (sut, _) = await CreateSutAsync();
         var tenantId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        await AddMemberAsync(sut, tenantId, userId, "Member");
+        await AddMemberAsync(sut, tenantId, userId, "None");
 
         var membership = await sut.GetMemberAsync(userId, tenantId, CancellationToken.None);
 
@@ -308,8 +308,8 @@ public class UserMembershipServiceTests
 
         var callerId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
-        await AddMemberAsync(sut, tenantId, callerId, "Member", "User Manager");
-        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "Member");
+        await AddMemberAsync(sut, tenantId, callerId, "None", "User Manager");
+        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "None");
 
         // Employee: a baseline role, grantable by anyone who may edit roles (RoleGrantPolicy).
         await sut.ReplaceRolesAsync(callerId, targetMembership.Id, tenantId, ["Employee"], CancellationToken.None);
@@ -328,7 +328,7 @@ public class UserMembershipServiceTests
         await roleService.SetPermissionsAsync(customRole.Id, [permission.Id], CancellationToken.None);
         await uow.Context.SaveChangesAsync(CancellationToken.None);
         var callerId = Guid.NewGuid();
-        await AddMemberAsync(sut, tenantId, callerId, "Member", "User Manager");
+        await AddMemberAsync(sut, tenantId, callerId, "None", "User Manager");
         return callerId;
     }
 
@@ -338,7 +338,7 @@ public class UserMembershipServiceTests
         var (sut, uow) = await CreateSutAsync();
         var tenantId = Guid.NewGuid();
         var callerId = await AddUserManagerAsync(sut, uow, tenantId);
-        var targetMembership = await AddMemberAsync(sut, tenantId, Guid.NewGuid(), "Member");
+        var targetMembership = await AddMemberAsync(sut, tenantId, Guid.NewGuid(), "None");
 
         var act = () => sut.ReplaceRolesAsync(callerId, targetMembership.Id, tenantId, ["Admin"], CancellationToken.None);
 
@@ -351,7 +351,7 @@ public class UserMembershipServiceTests
         var (sut, uow) = await CreateSutAsync();
         var tenantId = Guid.NewGuid();
         var callerId = await AddUserManagerAsync(sut, uow, tenantId);
-        var targetMembership = await AddMemberAsync(sut, tenantId, Guid.NewGuid(), "Member");
+        var targetMembership = await AddMemberAsync(sut, tenantId, Guid.NewGuid(), "None");
 
         var act = () => sut.AddRoleAsync(callerId, targetMembership.Id, tenantId, "Admin", CancellationToken.None);
 
@@ -365,7 +365,7 @@ public class UserMembershipServiceTests
         var tenantId = Guid.NewGuid();
         var callerId = await AddUserManagerAsync(sut, uow, tenantId);
         var targetId = Guid.NewGuid();
-        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "Admin", "Member");
+        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "Admin", "None");
 
         await sut.ReplaceRolesAsync(callerId, targetMembership.Id, tenantId, ["Admin", "Employee"], CancellationToken.None);
 
@@ -389,7 +389,7 @@ public class UserMembershipServiceTests
 
         var grantable = (await roleService.GrantableRolesAsync(admin!, tenantId, CancellationToken.None)).Select(r => r.Name).ToList();
 
-        grantable.Should().Contain(["Admin", "Member", "Employee", "Client"]);
+        grantable.Should().Contain(["Admin", "None", "Employee"]);
         grantable.Should().NotContain(["Owner", "Confidential HR"]);
     }
 
@@ -423,8 +423,8 @@ public class UserMembershipServiceTests
 
         var callerId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
-        await AddMemberAsync(sut, tenantId, callerId, "Member", "User Remover");
-        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "Member");
+        await AddMemberAsync(sut, tenantId, callerId, "None", "User Remover");
+        var targetMembership = await AddMemberAsync(sut, tenantId, targetId, "None");
 
         await sut.RemoveMemberAsync(callerId, targetMembership.Id, tenantId, CancellationToken.None);
         // RemoveMemberAsync itself only marks the entity removed (soft-delete interceptor) --

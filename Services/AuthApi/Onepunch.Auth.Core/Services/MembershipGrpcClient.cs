@@ -12,6 +12,9 @@ public class MembershipLookupResult
     public List<AccountMemberShipQuery> Memberships { get; set; } = new();
 }
 
+/// <summary>Tenant Service's answer to "may this person invite this email to this client?".</summary>
+public sealed record ClientInviteCheck(bool Allowed, string? Error, Guid TenantId, string TenantName, string ClientName);
+
 public class MembershipResolveResult
 {
     public bool Success { get; set; }
@@ -200,6 +203,62 @@ public class MembershipGrpcClient
                 ["max"] = response.Unlimited ? null : response.Max,
                 ["used"] = response.Used,
             });
+    }
+
+    /// <summary>
+    /// Whether this person may invite this email to a client with these roles (Tenant Service owns who
+    /// holds what in a client) -- and, if so, the company and client names to word the invitation with.
+    /// Fails closed. Virtual so tests can stub it.
+    /// </summary>
+    public virtual async Task<ClientInviteCheck> CheckClientInviteAsync(
+        Guid inviterUserId, Guid clientEntityId, string email, IEnumerable<Guid> roleIds, int deadlineMilliseconds = 2000)
+    {
+        try
+        {
+            var request = new CheckClientInviteRequest
+            {
+                InviterUserId = inviterUserId.ToString(),
+                ClientEntityId = clientEntityId.ToString(),
+                Email = email,
+            };
+            request.RoleIds.AddRange(roleIds.Select(r => r.ToString()));
+            var response = await _client.CheckClientInviteAsync(request, deadline: DateTime.UtcNow.AddMilliseconds(deadlineMilliseconds));
+            return response.Allowed
+                ? new ClientInviteCheck(true, null, Guid.Parse(response.TenantId), response.TenantName, response.ClientName)
+                : new ClientInviteCheck(false, response.Error, Guid.Empty, string.Empty, string.Empty);
+        }
+        catch (Exception ex)
+        {
+            Log.Logger.Warning(ex, "MembershipGrpcClient.CheckClientInviteAsync failed for user {UserId}/client {ClientId}", inviterUserId, clientEntityId);
+            return new ClientInviteCheck(false, "The invitation couldn't be checked right now. Please try again.", Guid.Empty, string.Empty, string.Empty);
+        }
+    }
+
+    /// <summary>
+    /// Makes the user a client user of the client with the invited roles (invitation acceptance).
+    /// Idempotent on Tenant Service's side, so a retry after a failure is safe. Virtual so tests can stub it.
+    /// </summary>
+    public virtual async Task<(bool Ok, string? Error)> GrantClientAccessAsync(
+        Guid userId, Guid clientEntityId, string? email, string? fullName, IEnumerable<Guid> roleIds, int deadlineMilliseconds = 5000)
+    {
+        try
+        {
+            var request = new GrantClientAccessRequest
+            {
+                UserId = userId.ToString(),
+                ClientEntityId = clientEntityId.ToString(),
+                Email = email ?? string.Empty,
+                FullName = fullName ?? string.Empty,
+            };
+            request.RoleIds.AddRange(roleIds.Select(r => r.ToString()));
+            var response = await _client.GrantClientAccessAsync(request, deadline: DateTime.UtcNow.AddMilliseconds(deadlineMilliseconds));
+            return (response.Ok, response.Ok ? null : response.Error);
+        }
+        catch (Exception ex)
+        {
+            Log.Logger.Warning(ex, "MembershipGrpcClient.GrantClientAccessAsync failed for user {UserId}/client {ClientId}", userId, clientEntityId);
+            return (false, "Access couldn't be granted right now. Please try again.");
+        }
     }
 
     public async Task<MembershipResolveResult> ResolveMembershipAsync(Guid userId, Guid tenantId, int deadlineMilliseconds = 200)

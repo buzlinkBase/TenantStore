@@ -82,7 +82,7 @@ public class RoleServiceTests
     public async Task SetPermissionsAsync_ThrowsInvalidOperation_WhenRoleIsSystemRole()
     {
         var sut = CreateSut(out var uow);
-        var systemRole = new Role { Name = "Member", IsSystemRole = true };
+        var systemRole = new Role { Name = "None", IsSystemRole = true };
         await uow.Repository.AddAsync(systemRole, CancellationToken.None);
         await uow.CommitChangesAsync("", CancellationToken.None);
 

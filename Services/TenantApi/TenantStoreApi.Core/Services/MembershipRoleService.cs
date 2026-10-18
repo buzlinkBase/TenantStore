@@ -10,6 +10,7 @@ public class MembershipRoleService : BaseService<MembershipRole>
     public async Task RemoveRoles(Guid userId)
     {
         var member = await Context.Memberships
+            .InternalOnly()
             .Include(x => x.Roles)
             .Where(x => x.UserId == userId)
             .FirstOrDefaultAsync()

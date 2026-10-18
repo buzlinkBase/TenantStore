@@ -99,7 +99,7 @@ public class UserService : BaseService<User>
             Email = payload.Email,
             FullName = payload.Name,
             Status = "Pending"
-        };
+        }.BeganAs(AccountOrigins.EmailSignup, DateTime.UtcNow);
 
         var createResult = await _manager.CreateAsync(user, payload.Password);
         if (!createResult.Succeeded)
@@ -124,6 +124,7 @@ public class UserService : BaseService<User>
 
         user.Status = "Active";
         user.EmailConfirmed = true;
+        user.StampEmailConfirmed(DateTime.UtcNow);
 
         var updateResult = await _manager.UpdateAsync(user);
         if (!updateResult.Succeeded)
@@ -379,6 +380,7 @@ public class UserService : BaseService<User>
     {
         const string method = AuthAuditRecorder.PasswordMethod;
         var user = await GetByEmailAsync(payload.Email);
+        // An account created through a client invitation signs in here like any other: the person may become an HRIS customer.
         if (user == null)
             return await SignInFailedAsync(payload.Email, null, "Unknown account", "Invalid email or password.", method, token);
 
@@ -411,6 +413,7 @@ public class UserService : BaseService<User>
         }
 
         await _manager.ResetAccessFailedCountAsync(user);
+        user.StampFirstHrisSignIn(DateTime.UtcNow);
         var accessToken = await _jwtService.CreateTokenAsync(user);
         var refreshToken = await _jwtService.GenerateRefreshToken();
         await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshToken), token);
@@ -530,6 +533,7 @@ public class UserService : BaseService<User>
             if (user.Status != "Active" || !user.EmailConfirmed)
                 return await SignInFailedAsync(payload.Email, user, "Account not active", "Account is not active.", method, ct);
 
+            user.StampFirstHrisSignIn(DateTime.UtcNow);
             var refreshTokenString = await _jwtService.GenerateRefreshToken();
             var accessToken = await _jwtService.CreateTokenAsync(user);
             await Context.RefreshTokens.AddAsync(CreateRefreshToken(user, refreshTokenString), ct);
@@ -569,7 +573,9 @@ public class UserService : BaseService<User>
                 FullName = payload.Name,
                 EmailConfirmed = true, // Google already verified the email
                 Status = "Active",
-            };
+            }.BeganAs(AccountOrigins.GoogleSignup, DateTime.UtcNow);
+            user.StampEmailConfirmed(user.CreatedAtUtc!.Value);
+            user.StampFirstHrisSignIn(user.CreatedAtUtc.Value);
 
             var createResult = await _manager.CreateAsync(user);
             if (!createResult.Succeeded)
@@ -659,7 +665,7 @@ public class UserService : BaseService<User>
                         EmailConfirmed = true,
                         FullName = info.Principal.FindFirstValue(ClaimTypes.Name) ?? email.Split('@')[0],
                         Status = "Active"
-                    };
+                    }.BeganAs(AccountOrigins.GoogleSignup, DateTime.UtcNow);
                     var createResult = await _manager.CreateAsync(user);
                     if (!createResult.Succeeded)
                     {
@@ -694,7 +700,8 @@ public class UserService : BaseService<User>
         var tokenEntity = await Context.RefreshTokens
             .FirstOrDefaultAsync(t => t.RefreshTokenHash == refreshTokenHash);
 
-        if (tokenEntity == null || tokenEntity.Revoked || tokenEntity.Expiry <= DateTime.UtcNow)
+        // A Client Portal session's token is not valid here (see RefreshToken.Audience).
+        if (tokenEntity == null || tokenEntity.Revoked || tokenEntity.Expiry <= DateTime.UtcNow || tokenEntity.Audience != null)
             return new LoginResponse { ErrorMessage = "Invalid or expired refresh token." };
 
         var user = await Context.Users.FindAsync(tokenEntity.UserId);

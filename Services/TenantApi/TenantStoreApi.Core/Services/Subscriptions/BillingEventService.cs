@@ -67,11 +67,13 @@ public class SubscriptionChangeNotifierService
 {
     private readonly IUnitOfWorkService _uow;
     private readonly IPublishEndpoint _publisher;
+    private readonly IClientStandingPublisher _clientStanding;
 
-    public SubscriptionChangeNotifierService(IUnitOfWorkService uow, IPublishEndpoint publisher)
+    public SubscriptionChangeNotifierService(IUnitOfWorkService uow, IPublishEndpoint publisher, IClientStandingPublisher clientStanding)
     {
         _uow = uow;
         _publisher = publisher;
+        _clientStanding = clientStanding;
     }
 
     public async Task PublishAsync(Guid ownerUserId, string reason, CancellationToken token = default)
@@ -83,6 +85,7 @@ public class SubscriptionChangeNotifierService
             .ToListAsync(token);
 
         var memberUserIds = await context.Memberships.AsNoTracking()
+            .InternalOnly()
             .Where(m => tenantIds.Contains(m.TenantId) && m.UserId != Guid.Empty && m.Status == "Active")
             .Select(m => m.UserId)
             .Distinct()
@@ -95,5 +98,8 @@ public class SubscriptionChangeNotifierService
             MemberUserIds = memberUserIds,
             Reason = reason,
         }, token);
+
+        // The agency's clients depend on its standing too (suspended or held = blocked), so the portal hears of it.
+        await _clientStanding.PublishAsync(tenantIds, reason, token);
     }
 }

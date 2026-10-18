@@ -4,10 +4,24 @@ using Onepunch.Common.Lib.Security;
 
 namespace TenantStoreApi.Domain.Entities;
 
+/// <summary>What kind of person a membership belongs to. Stored as a string like Status.</summary>
+public static class MembershipCategory
+{
+    /// <summary>Staff of the company itself -- signs in to HRIS, holds Tenant_Member_Roles.</summary>
+    public const string InternalEmployee = "InternalEmployee";
+
+    /// <summary>A person at one of the company's clients -- signs in to the client portal only,
+    /// holds roles per client entity (ClientMembershipRole), never an HRIS token.</summary>
+    public const string ClientUser = "ClientUser";
+}
+
 [Audited]
 public class UserMembership : BaseEntity, IEntityTenant
 {
     public Guid TenantId { get; set; }
+
+    /// <summary>InternalEmployee or ClientUser -- see <see cref="MembershipCategory"/>.</summary>
+    public string Category { get; set; } = MembershipCategory.InternalEmployee;
     public string? TenantName { get; set; }
     public string? FullName { get; set; }
     public Guid UserId { get; set; }
@@ -20,6 +34,9 @@ public class UserMembership : BaseEntity, IEntityTenant
 
     /// <summary>A user can hold multiple roles at once within the same tenant membership.</summary>
     public virtual ICollection<MembershipRole> Roles { get; set; } = new List<MembershipRole>();
+
+    /// <summary>Per-client role assignments; only used when Category is ClientUser.</summary>
+    public virtual ICollection<ClientMembershipRole> ClientRoles { get; set; } = new List<ClientMembershipRole>();
 }
 
 /// <summary>One role assignment within a UserMembership. Many-to-one: a membership can have
@@ -42,6 +59,15 @@ public class MembershipRole : BaseEntity
 
 public static class UserMembershipExtensions
 {
+    /// <summary>Restricts a query to company staff. Every HRIS-facing read goes through this so a
+    /// client-portal membership can never reach the tenant picker, an HRIS token, the Users screen
+    /// or a seat count.</summary>
+    public static IQueryable<UserMembership> InternalOnly(this IQueryable<UserMembership> query) =>
+        query.Where(m => m.Category == MembershipCategory.InternalEmployee);
+
+    public static bool IsClientUser(this UserMembership membership) =>
+        membership.Category == MembershipCategory.ClientUser;
+
     public static bool HasRole(this UserMembership membership, string role) =>
         membership.Roles.Any(r => r.Role == role);
 

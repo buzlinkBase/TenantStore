@@ -411,7 +411,7 @@ public class InvitationServiceTests
         {
             TenantId = tenantId,
             Name = "Acme",
-            Roles = ["Member"],
+            Roles = ["None"],
             Permissions = [],
             State = "Active",
             HrDbReady = true,

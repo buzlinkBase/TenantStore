@@ -27,54 +27,7 @@ public class PermissionCatalogSeederServiceTests
         permissionCount.Should().BeGreaterThan(0);
 
         var systemRoles = await uow.Context.Roles.Where(x => x.IsSystemRole).ToListAsync();
-        systemRoles.Select(x => x.Name).Should().BeEquivalentTo(["Owner", "Admin", "Member", "Employee", "Client"]);
-    }
-
-    [Fact]
-    public async Task EnsureSeededAsync_ClientGetsNoPermissions_UntilTheClientPortalExists()
-    {
-        var sut = CreateSut(out var uow);
-
-        await sut.EnsureSeededAsync(CancellationToken.None);
-
-        var client = await uow.Context.Roles.FirstAsync(x => x.Name == "Client");
-        (await uow.Context.RolePermissions.CountAsync(x => x.RoleId == client.Id)).Should().Be(0);
-    }
-
-    [Fact]
-    public async Task EnsureSeededAsync_AddsClientRole_ToAnAlreadySeededTenant()
-    {
-        // Simulates a tenant seeded before Client existed -- the other four System Roles are
-        // there, Client isn't. The next startup must add it without duplicating the others.
-        var sut = CreateSut(out var uow);
-        await sut.EnsureSeededAsync(CancellationToken.None);
-        uow.Context.Roles.Remove(await uow.Context.Roles.FirstAsync(x => x.Name == "Client"));
-        await uow.Context.SaveChangesAsync(CancellationToken.None);
-
-        await sut.EnsureSeededAsync(CancellationToken.None);
-
-        var systemRoleNames = await uow.Context.Roles
-            .Where(x => x.IsSystemRole)
-            .Select(x => x.Name)
-            .ToListAsync();
-        systemRoleNames.Should().BeEquivalentTo(["Owner", "Admin", "Member", "Employee", "Client"]);
-    }
-
-    [Fact]
-    public async Task EnsureSeededAsync_BackfillsLegacyClientMembershipRoles()
-    {
-        var sut = CreateSut(out var uow);
-        await sut.EnsureSeededAsync(CancellationToken.None);
-        var membership = new UserMembership { TenantId = Guid.NewGuid(), UserId = Guid.NewGuid() };
-        membership.Roles.Add(new MembershipRole { Role = "Client" });
-        uow.Context.Memberships.Add(membership);
-        await uow.Context.SaveChangesAsync(CancellationToken.None);
-
-        await sut.EnsureSeededAsync(CancellationToken.None);
-
-        var client = await uow.Context.Roles.FirstAsync(x => x.Name == "Client");
-        (await uow.Context.MembershipRoles.FirstAsync(x => x.Role == "Client"))
-            .RoleId.Should().Be(client.Id);
+        systemRoles.Select(x => x.Name).Should().BeEquivalentTo(["Owner", "Admin", "None", "Employee"]);
     }
 
     [Fact]
@@ -669,7 +622,7 @@ public class PermissionCatalogSeederServiceTests
 
         await sut.EnsureSeededAsync(CancellationToken.None);
 
-        var member = await uow.Context.Roles.FirstAsync(x => x.Name == "Member");
+        var member = await uow.Context.Roles.FirstAsync(x => x.Name == "None");
         var memberGrantCount = await uow.Context.RolePermissions.CountAsync(x => x.RoleId == member.Id);
 
         memberGrantCount.Should().Be(0);

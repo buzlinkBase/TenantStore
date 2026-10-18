@@ -205,6 +205,8 @@ internal class Program
         app.MapGrpcService<CheckEmailHandler>();
         app.MapGrpcService<UserInfoHandler>();
         app.MapGrpcService<TenantProvisioningHandler>();
+        app.MapGrpcService<AccountOriginsHandler>();
+        app.MapGrpcService<TenantActivityHandler>();
         app.MapControllers();
         app.MapHub<TenantHub>("/hubs/tenant");
         app.MapGet("/.well-known/jwks.json", (RsaKeyProvider rsaKeyProvider) =>

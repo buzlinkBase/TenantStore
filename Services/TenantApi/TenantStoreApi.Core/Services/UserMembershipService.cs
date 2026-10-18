@@ -8,9 +8,8 @@ public static class TenantRoles
 {
     public const string Owner = "Owner";
     public const string Admin = "Admin";
-    public const string Member = "Member";
+    public const string None = "None";
     public const string Employee = "Employee";
-    public const string Client = "Client";
 }
 
 public class UserMembershipService : BaseService<UserMembership>
@@ -53,13 +52,16 @@ public class UserMembershipService : BaseService<UserMembership>
     public async Task<List<UserMembership>> GetMembersAsync(Guid tenantId, CancellationToken token = default)
     {
         return await GetQueryable(x => x.TenantId == tenantId && !x.IsHidden)
+            .InternalOnly()
             .Include(x => x.Roles)
             .ToListAsync(token);
     }
 
     public async Task<List<AccountMemberShipQuery>> GetUserMembersAsync(Guid userId, CancellationToken token = default)
     {
+        // Client-portal memberships never become HRIS tenants or HRIS token claims.
         var memberships = await GetQueryable(x => x.UserId == userId)
+            .InternalOnly()
             .Include(x => x.Roles)
             .ThenInclude(x => x.RoleRef)
             .ThenInclude(x => x!.RolePermissions)
@@ -79,7 +81,7 @@ public class UserMembershipService : BaseService<UserMembership>
     // Eager-loads the full permission graph -- every mutating method below reads a caller's
     // permissions via this, so this is the one place that Include chain needs to live.
     // Portal-only roles -- a member holding nothing but these can't manage company details.
-    private static readonly string[] PortalOnlyRoles = ["Employee", "Client"];
+    private static readonly string[] PortalOnlyRoles = ["Employee"];
 
     /// <summary>Whether this user may change company-level details (e.g. the company name) --
     /// an active member with at least one role beyond the portal-only ones, the same audience
@@ -95,6 +97,7 @@ public class UserMembershipService : BaseService<UserMembership>
     public async Task<UserMembership?> GetMemberAsync(Guid userId, Guid tenantId, CancellationToken token = default)
     {
         return await Context.Memberships
+            .InternalOnly()
             .Include(x => x.Roles)
             .ThenInclude(x => x.RoleRef)
             .ThenInclude(x => x!.RolePermissions)
@@ -113,6 +116,7 @@ public class UserMembershipService : BaseService<UserMembership>
     public async Task<UserMembership?> GetMemberByIdAsync(Guid membershipId, Guid tenantId, CancellationToken token = default)
     {
         return await Context.Memberships
+            .InternalOnly()
             .Include(x => x.Roles)
             .ThenInclude(x => x.RoleRef)
             .ThenInclude(x => x!.RolePermissions)
@@ -130,6 +134,7 @@ public class UserMembershipService : BaseService<UserMembership>
             x.TenantId == tenantId &&
             x.InvitedEmail == email &&
             x.Status == "Invited")
+            .InternalOnly()
             .FirstOrDefaultAsync(token);
         if (existing != null) return;
 
@@ -150,6 +155,7 @@ public class UserMembershipService : BaseService<UserMembership>
             x.TenantId == tenantId &&
             x.InvitedEmail == email &&
             x.Status == "Invited")
+            .InternalOnly()
             .Include(x => x.Roles)
             .FirstOrDefaultAsync(token);
     }
@@ -219,7 +225,7 @@ public class UserMembershipService : BaseService<UserMembership>
             FullName = fullName,
             UserId = userId,
         };
-        await AddAsync(membership, roles.Count > 0 ? roles : [TenantRoles.Member], token);
+        await AddAsync(membership, roles.Count > 0 ? roles : [TenantRoles.None], token);
         return membership;
     }
 

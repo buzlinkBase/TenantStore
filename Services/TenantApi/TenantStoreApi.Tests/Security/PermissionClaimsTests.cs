@@ -69,7 +69,7 @@ public class PermissionClaimsTests
     [Fact]
     public void OtherRoles_NeedTheClaim()
     {
-        var member = User(["Member"], "Payroll Run:View");
+        var member = User(["None"], "Payroll Run:View");
 
         member.HasPermission("Payroll Run:View").Should().BeTrue();
         member.HasPermission("Payroll Run:Approve").Should().BeFalse();
@@ -78,7 +78,7 @@ public class PermissionClaimsTests
     [Fact]
     public void HasAnyPermission_IsAnyOf()
     {
-        var member = User(["Member"], "procurement:Purchase Order:View");
+        var member = User(["None"], "procurement:Purchase Order:View");
 
         member.HasAnyPermission("procurement:Purchase Order:Approve", "procurement:Purchase Order:View").Should().BeTrue();
         member.HasAnyPermission("procurement:Purchase Order:Approve").Should().BeFalse();
@@ -97,7 +97,7 @@ public class PermissionClaimsTests
     [Fact]
     public async Task RequirePermission_LetsACallerWithTheCodeThrough()
     {
-        var context = Context(User(["Member"], "procurement:Purchase Order:View"));
+        var context = Context(User(["None"], "procurement:Purchase Order:View"));
         var nextCalled = false;
 
         await new RequirePermissionAttribute("procurement:Purchase Order:View").OnActionExecutionAsync(context, () =>

@@ -335,6 +335,9 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                         .IsConcurrencyToken()
                         .HasColumnType("longtext");
 
+                    b.Property<DateTime?>("CreatedAtUtc")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<Guid?>("DefaultTenantId")
                         .HasColumnType("char(36)");
 
@@ -351,6 +354,15 @@ namespace Onepunch.Auth.Infrastructure.Migrations
 
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("EmailConfirmedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("FirstHrisSignInAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("FirstPortalSignInAtUtc")
+                        .HasColumnType("datetime(6)");
 
                     b.Property<string>("FullName")
                         .HasColumnType("longtext");
@@ -369,6 +381,17 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("varchar(256)");
 
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(24)
+                        .HasColumnType("varchar(24)")
+                        .HasDefaultValue("Unknown");
+
+                    b.Property<string>("OriginDetail")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
                     b.Property<string>("PasswordHash")
                         .HasColumnType("longtext");
 
@@ -376,6 +399,9 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                         .HasColumnType("longtext");
 
                     b.Property<bool>("PhoneNumberConfirmed")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("PortalOnly")
                         .HasColumnType("tinyint(1)");
 
                     b.Property<string>("SecurityStamp")
@@ -393,6 +419,8 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                         .HasColumnType("varchar(256)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc");
 
                     b.HasIndex("Email")
                         .IsUnique();
@@ -582,8 +610,26 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("varchar(16)")
+                        .HasDefaultValue("Staff");
+
+                    b.Property<Guid?>("ClientEntityId")
+                        .HasColumnType("char(36)");
+
                     b.Property<Guid?>("ClientId")
                         .HasColumnType("char(36)");
+
+                    b.Property<string>("ClientName")
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<string>("ClientRoleIds")
+                        .IsRequired()
+                        .HasColumnType("longtext");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
@@ -629,6 +675,8 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                         .HasColumnType("char(36)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ClientEntityId", "Status");
 
                     b.ToTable("Invitations");
                 });
@@ -677,6 +725,9 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
+                    b.Property<string>("Audience")
+                        .HasColumnType("longtext");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -711,6 +762,8 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("RefreshTokenHash");
+
+                    b.HasIndex("TenantId", "CreatedAt");
 
                     b.ToTable("RefreshTokens");
                 });

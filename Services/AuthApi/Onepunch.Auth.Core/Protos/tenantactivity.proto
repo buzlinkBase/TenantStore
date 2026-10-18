@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+option csharp_namespace = "Onepunch.Auth.Core";
+
+package tenant.core;
+
+// When each company last had someone sign in to the HRIS (the newest non-portal session start or refresh).
+// The Platform Console's account and company lists ask for it. No personal details leave AuthApi.
+// Copied verbatim in TenantApi (TenantStoreApi.Core/Protos) -- keep the two identical.
+service TenantActivityService {
+  rpc GetLastActive (TenantActivityRequest) returns (TenantActivityResponse);
+}
+
+message TenantActivityRequest {
+  repeated string tenant_ids = 1;
+}
+
+message TenantActivityRow {
+  string tenant_id = 1;
+  // ISO 8601 UTC.
+  string last_active_at_utc = 2;
+}
+
+message TenantActivityResponse {
+  // Companies nobody has signed in to are left out.
+  repeated TenantActivityRow tenants = 1;
+}

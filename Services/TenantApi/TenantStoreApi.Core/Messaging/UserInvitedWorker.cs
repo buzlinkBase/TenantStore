@@ -23,7 +23,7 @@ public class UserInvitedWorker : IConsumer<UserInvited>
             message.TenantId,
             message.TenantName,
             message.Email,
-            message.Roles.Count > 0 ? message.Roles : ["Member"],
+            message.Roles.Count > 0 ? message.Roles : ["None"],
             message.FullName, 
             context.CancellationToken);
         await _userMembershipService.CommitChangesAsync(context.CancellationToken);

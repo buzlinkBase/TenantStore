@@ -3,6 +3,7 @@
 		<TargetFramework>net9.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
+		<UserSecretsId>3a8a69b3-9434-49b3-987a-37f071eba3d6</UserSecretsId>
 	</PropertyGroup>
 	<ItemGroup>
 		<PackageReference Include="BuzlinkRepository" />

@@ -200,7 +200,7 @@ public class PlanAllowanceTests
         await host.Subscriptions.SetPlanAsync(owner, new SetPlanCommand { PlanCode = "timekeeping", PeriodEndUtc = host.Clock.UtcNow.AddMonths(1) }, "platform");
         await host.SaveAsync();
         host.AddMember(tenantId, "Admin");
-        host.AddMember(tenantId, "Member", status: "Invited");
+        host.AddMember(tenantId, "None", status: "Invited");
         host.AddMember(tenantId, "Employee");
         host.AddMember(tenantId, "Admin", status: "Revoked");
 
@@ -226,7 +226,7 @@ public class PlanAllowanceTests
         var promote = () => host.Allowance.EnsureAdminSeatForChangeAsync(tenantId, employee.Id, ["Admin"], null);
         await promote.Should().ThrowAsync<PlanAllowanceException>();
 
-        var keep = () => host.Allowance.EnsureAdminSeatForChangeAsync(tenantId, admin.Id, ["Member"], null);
+        var keep = () => host.Allowance.EnsureAdminSeatForChangeAsync(tenantId, admin.Id, ["None"], null);
         await keep.Should().NotThrowAsync();
     }
 }

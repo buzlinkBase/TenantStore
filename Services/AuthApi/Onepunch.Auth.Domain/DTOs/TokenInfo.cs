@@ -70,4 +70,26 @@ public class UsersTenant
 public class CreateWorkspaceRequest
 {
     public string TenantName { get; set; } = string.Empty;
+
+    // Everything below is optional company detail the owner may fill in at creation.
+    [System.ComponentModel.DataAnnotations.MaxLength(500)]
+    public string? Address { get; set; }
+    [System.ComponentModel.DataAnnotations.MaxLength(100)]
+    public string? Contact { get; set; }
+    [System.ComponentModel.DataAnnotations.MaxLength(200)]
+    public string? Email { get; set; }
+    [System.ComponentModel.DataAnnotations.MaxLength(50)]
+    public string? Tin { get; set; }
+    [System.ComponentModel.DataAnnotations.MaxLength(50)]
+    public string? RdoCode { get; set; }
+    [System.ComponentModel.DataAnnotations.MaxLength(50)]
+    public string? SssNumber { get; set; }
+    [System.ComponentModel.DataAnnotations.MaxLength(50)]
+    public string? PhilHealthNumber { get; set; }
+    [System.ComponentModel.DataAnnotations.MaxLength(50)]
+    public string? PagIbigNumber { get; set; }
+    [System.ComponentModel.DataAnnotations.MaxLength(200)]
+    public string? AuthorizedSignatoryName { get; set; }
+    [System.ComponentModel.DataAnnotations.MaxLength(200)]
+    public string? AuthorizedSignatoryTitle { get; set; }
 }

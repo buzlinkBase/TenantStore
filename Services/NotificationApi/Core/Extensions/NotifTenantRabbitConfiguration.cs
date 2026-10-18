@@ -27,6 +27,7 @@ public static class NotifTenantRabbitConfiguration
             x.AddConsumer<SignInGoogleWorker, SignInGoogleConsumerDefinition>();
             x.AddConsumer<ApprovalNotificationWorker, ApprovalNotificationConsumerDefinition>();
             x.AddConsumer<SubscriptionReminderWorker, SubscriptionReminderConsumerDefinition>();
+            x.AddConsumer<SendEmailWorker, SendEmailConsumerDefinition>();
 
             x.UsingRabbitMq((context, cfg) =>
             {
@@ -99,3 +100,12 @@ public class SubscriptionReminderConsumerDefinition : ConsumerDefinition<Subscri
         EndpointName = "notification-subscription-reminder-que";
     }
 }
+
+public class SendEmailConsumerDefinition : ConsumerDefinition<SendEmailWorker>
+{
+    public SendEmailConsumerDefinition()
+    {
+        EndpointName = "notification-send-email-que";
+    }
+}
+

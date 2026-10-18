@@ -33,6 +33,8 @@ public class TenantContext : DbContext
     public DbSet<Permission> Permissions { get; set; }
     public DbSet<Role> Roles { get; set; }
     public DbSet<RolePermission> RolePermissions { get; set; }
+    public DbSet<ClientEntity> ClientEntities { get; set; }
+    public DbSet<ClientMembershipRole> ClientMembershipRoles { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -55,6 +57,34 @@ public class TenantContext : DbContext
 
         modelBuilder.Entity<UserMembership>().HasIndex(x => x.TenantId);
         modelBuilder.Entity<UserMembership>().HasIndex(x => x.UserId);
+        modelBuilder.Entity<UserMembership>().Property(x => x.Category)
+            .HasMaxLength(32)
+            .HasDefaultValue(MembershipCategory.InternalEmployee);
+        modelBuilder.Entity<UserMembership>().HasIndex(x => new { x.TenantId, x.Category });
+
+        modelBuilder.Entity<ClientEntity>().Property(x => x.Name).HasMaxLength(256);
+        modelBuilder.Entity<ClientEntity>().Property(x => x.ExternalId).HasMaxLength(64);
+        modelBuilder.Entity<ClientEntity>().HasIndex(x => x.TenantId);
+        modelBuilder.Entity<ClientEntity>().HasIndex(x => new { x.TenantId, x.ExternalId });
+
+        modelBuilder.Entity<ClientMembershipRole>()
+            .HasOne(x => x.UserMembership)
+            .WithMany(x => x.ClientRoles)
+            .HasForeignKey(x => x.UserMembershipId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<ClientMembershipRole>()
+            .HasOne(x => x.ClientEntity)
+            .WithMany()
+            .HasForeignKey(x => x.ClientEntityId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<ClientMembershipRole>()
+            .HasOne(x => x.Role)
+            .WithMany()
+            .HasForeignKey(x => x.RoleId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<ClientMembershipRole>()
+            .HasIndex(x => new { x.UserMembershipId, x.ClientEntityId, x.RoleId }).IsUnique();
+        modelBuilder.Entity<ClientMembershipRole>().HasIndex(x => x.ClientEntityId);
 
         modelBuilder.Entity<MembershipRole>()
             .HasOne(x => x.UserMembership)
@@ -73,7 +103,13 @@ public class TenantContext : DbContext
             .IsRequired(false);
 
         modelBuilder.Entity<Role>().HasIndex(x => x.TenantId);
-        modelBuilder.Entity<Role>().HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
+        modelBuilder.Entity<Role>().Property(x => x.Audience)
+            .HasMaxLength(16)
+            .HasDefaultValue(RoleAudience.Staff);
+        modelBuilder.Entity<Role>().HasIndex(x => x.ClientEntityId);
+        // A client's custom roles live in their own namespace: "Finance" for one client doesn't
+        // collide with the agency's "Finance" or another client's.
+        modelBuilder.Entity<Role>().HasIndex(x => new { x.TenantId, x.ClientEntityId, x.Name }).IsUnique();
         modelBuilder.Entity<Permission>().HasIndex(x => x.Code).IsUnique();
         modelBuilder.Entity<Permission>().Property(x => x.Product).HasMaxLength(50);
         modelBuilder.Entity<Permission>().HasIndex(x => x.Product);

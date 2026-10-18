@@ -39,11 +39,14 @@ public class TenantService : BaseService<Tenant>
 
         tenant.TenantName = name;
 
+        // Every membership keeps the name in sync, but only staff get the live "renamed" push --
+        // client users have no HRIS session to refresh.
         var memberships = await Context.Memberships
             .Where(x => x.TenantId == tenantId)
             .ToListAsync(token);
         foreach (var membership in memberships)
             membership.TenantName = name;
+        var staff = memberships.Where(x => !x.IsClientUser()).ToList();
 
         var delegations = await Context.TenantDelegations
             .Where(x => x.GuestTenantId == tenantId)
@@ -55,12 +58,23 @@ public class TenantService : BaseService<Tenant>
         {
             TenantId = tenantId,
             TenantName = name,
-            MemberUserIds = memberships
+            MemberUserIds = staff
                 .Where(x => x.UserId != Guid.Empty)
                 .Select(x => x.UserId)
                 .Distinct()
                 .ToList(),
         }, token);
+    }
+
+    // Keeps the console-facing contact details in line with HRIS's Company Info screen. Blank
+    // clears the value. Doesn't commit; the caller owns the transaction.
+    public async Task UpdateProfileAsync(Guid tenantId, string? address, string? contact, CancellationToken token)
+    {
+        var tenant = await Context.Tenants.FirstOrDefaultAsync(x => x.Id == tenantId, token)
+            ?? throw new KeyNotFoundException("Company not found.");
+
+        tenant.Address = string.IsNullOrWhiteSpace(address) ? null : address.Trim();
+        tenant.Contact = string.IsNullOrWhiteSpace(contact) ? null : contact.Trim();
     }
 
     protected override async Task<EvaluationResult> CreateValidatorAsync(Tenant model, CancellationToken token)
@@ -74,6 +88,9 @@ public class TenantService : BaseService<Tenant>
     {
         var tenant = _mapper.Map<Tenant>(payload);
         tenant.Id = payload.TenantId;
+        var profile = CompanyProfile.Normalize(payload.Profile);
+        tenant.Address = profile?.Address;
+        tenant.Contact = profile?.Contact;
         await CreateAsync(tenant, token);
         await Uow.SaveChangesAsync(token);
         _tenantProvider.SetTenantId(tenant.Id);

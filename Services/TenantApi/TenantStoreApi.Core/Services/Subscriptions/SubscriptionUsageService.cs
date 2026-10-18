@@ -58,7 +58,7 @@ public sealed class RemoteCompanyUsageProvider(
 /// Pending invitations count too -- they hold a seat as soon as they're sent.</summary>
 public sealed class AdminSeatUsageProvider(IUnitOfWorkService uow) : ICompanyUsageProvider
 {
-    private static readonly string[] PortalOnlyRoles = [TenantRoles.Employee, TenantRoles.Client];
+    private static readonly string[] PortalOnlyRoles = [TenantRoles.Employee];
     private static readonly string[] SeatStatuses = ["Active", "Invited"];
 
     public IReadOnlyCollection<string> Keys { get; } = [EntitlementKeys.AdminsMax];
@@ -78,6 +78,7 @@ public sealed class AdminSeatUsageProvider(IUnitOfWorkService uow) : ICompanyUsa
     public static async Task<Dictionary<Guid, int>> CountAsync(TenantContext context, IReadOnlyCollection<Guid> tenantIds, CancellationToken token) =>
         await context.Memberships
             .AsNoTracking()
+            .InternalOnly()
             .Where(m => tenantIds.Contains(m.TenantId)
                 && !m.IsHidden
                 && SeatStatuses.Contains(m.Status)

@@ -1,7 +1,10 @@
 using System.Globalization;
+using System.Net;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
+using Onepunch.Auth.Core.Portal;
 using Onepunch.Common.Lib;
 
 namespace OnePunch.Auth.Api.RateLimiting;
@@ -13,6 +16,11 @@ public enum RateLimitKey
     User,
     /// <summary>The client IP -- for anonymous endpoints, where there's no user to go on.</summary>
     Ip,
+    /// <summary>
+    /// The end user's IP as told by the Client Portal's server (header <c>X-Portal-Client-Ip</c>, honoured only with the portal's service
+    /// key). Every portal sign-in arrives from that one server, so the connection IP would put all of its users in a single allowance.
+    /// </summary>
+    PortalClient,
 }
 
 public sealed record RateLimitRule(string Name, RateLimitKey Key, int PermitLimit, TimeSpan Window);
@@ -37,6 +45,10 @@ public static class RateLimitPolicies
     public const string PlatformMfa = "platform-mfa";
     public const string PlatformSession = "platform-session";
     public const string PlatformAdmin = "platform-admin";
+    public const string PortalLogin = "portal-login";
+    public const string PortalRefresh = "portal-refresh";
+    public const string PortalEmail = "portal-email";
+    public const string PortalPassword = "portal-password";
 
     public static readonly IReadOnlyList<RateLimitRule> Defaults =
     [
@@ -55,6 +67,11 @@ public static class RateLimitPolicies
         new(PlatformMfa, RateLimitKey.Ip, 10, TimeSpan.FromMinutes(1)),
         new(PlatformSession, RateLimitKey.User, 60, TimeSpan.FromMinutes(1)),
         new(PlatformAdmin, RateLimitKey.User, 30, TimeSpan.FromMinutes(1)),
+        // Client Portal users: the same limits as everyone else's, but counted per end user's address (see RateLimitKey.PortalClient).
+        new(PortalLogin, RateLimitKey.PortalClient, 30, TimeSpan.FromMinutes(1)),
+        new(PortalRefresh, RateLimitKey.PortalClient, 120, TimeSpan.FromMinutes(1)),
+        new(PortalEmail, RateLimitKey.PortalClient, 5, TimeSpan.FromMinutes(15)),
+        new(PortalPassword, RateLimitKey.PortalClient, 10, TimeSpan.FromMinutes(5)),
     ];
 
     public static IServiceCollection AddAppRateLimiting(this IServiceCollection services, IConfiguration configuration) =>
@@ -75,9 +92,23 @@ public static class RateLimitPolicies
     public static string PartitionKey(HttpContext context, RateLimitKey key)
     {
         var ip = $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
-        return key == RateLimitKey.User && context.User.FindFirst("sub")?.Value is { Length: > 0 } user
-            ? $"user:{user}"
-            : ip;
+        if (key == RateLimitKey.User && context.User.FindFirst("sub")?.Value is { Length: > 0 } user)
+            return $"user:{user}";
+        if (key == RateLimitKey.PortalClient && PortalClientAddress(context) is { } portalClient)
+            return $"portal:{portalClient}";
+        return ip;
+    }
+
+    /// <summary>
+    /// The end user's address as the Client Portal's server reports it -- but only when the request proves it is that server (its service key).
+    /// Anyone else naming an address gets their own connection's allowance, so the header cannot be used to dodge or to burn someone else's limit.
+    /// </summary>
+    private static string? PortalClientAddress(HttpContext context)
+    {
+        var settings = context.RequestServices?.GetService<IOptions<PortalAuthSettings>>()?.Value;
+        if (settings is null || !PortalTokenValidation.KeyMatches(context.Request.Headers[PortalAuthSettings.KeyHeader].ToString(), settings.ServiceKey))
+            return null;
+        return IPAddress.TryParse(context.Request.Headers[PortalAuthSettings.ClientIpHeader].ToString(), out var address) ? address.ToString() : null;
     }
 
     public static RateLimitPartition<string> PartitionFor(HttpContext context, RateLimitRule rule) =>

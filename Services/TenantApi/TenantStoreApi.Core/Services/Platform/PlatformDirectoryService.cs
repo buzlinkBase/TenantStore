@@ -68,7 +68,9 @@ public sealed record AccountListItem(
     DateTime? CurrentPeriodEndUtc,
     DateTime? GraceEndsAtUtc,
     bool CancelAtPeriodEnd,
-    DateTime? SubscribedAtUtc);
+    DateTime? SubscribedAtUtc,
+    /// <summary>The newest HRIS sign-in across the account's companies; null when none is known.</summary>
+    DateTime? LastActiveUtc = null);
 
 public sealed record CompanyListItem(
     Guid TenantId,
@@ -80,7 +82,11 @@ public sealed record CompanyListItem(
     DateTime CreatedAtUtc,
     string? PlanName,
     AccountSubscriptionStatus? Status,
-    SubscriptionAccessMode? AccessMode);
+    SubscriptionAccessMode? AccessMode,
+    string? Address = null,
+    string? Contact = null,
+    /// <summary>The newest HRIS sign-in to this company; null when none is known.</summary>
+    DateTime? LastActiveUtc = null);
 
 public sealed record DiscountView(Guid Id, decimal? Percent, decimal? FixedAmount, string? Reason, DateTime? ValidUntilUtc);
 
@@ -173,11 +179,13 @@ public class PlatformDirectoryService
 {
     private readonly IUnitOfWorkService _uow;
     private readonly SubscriptionStateMachine _states;
+    private readonly ITenantActivitySource _activity;
 
-    public PlatformDirectoryService(IUnitOfWorkService uow, SubscriptionStateMachine states)
+    public PlatformDirectoryService(IUnitOfWorkService uow, SubscriptionStateMachine states, ITenantActivitySource? activity = null)
     {
         _uow = uow;
         _states = states;
+        _activity = activity ?? NoTenantActivitySource.Instance;
     }
 
     private TenantContext Context => _uow.Context;
@@ -268,10 +276,17 @@ public class PlatformDirectoryService
 
         var companies = (await Context.Tenants.AsNoTracking()
                 .Where(t => ownerIds.Contains(t.UserId))
-                .Select(t => new { t.UserId, Activated = t.ActivatedAtUtc != null })
+                .Select(t => new { t.Id, t.UserId, Activated = t.ActivatedAtUtc != null })
                 .ToListAsync(token))
+            .ToList();
+        var counts = companies
             .GroupBy(t => t.UserId)
             .ToDictionary(g => g.Key, g => (Total: g.Count(), Activated: g.Count(c => c.Activated)));
+        var activity = await _activity.GetLastActiveAsync(companies.Select(c => c.Id).ToList(), token);
+        var lastActiveByOwner = companies
+            .Where(c => activity.ContainsKey(c.Id))
+            .GroupBy(c => c.UserId)
+            .ToDictionary(g => g.Key, g => g.Max(c => activity[c.Id]));
         var subscriptions = (await Context.AccountSubscriptions.AsNoTracking()
                 .Include(s => s.Plan)
                 .Where(s => ownerIds.Contains(s.OwnerUserId))
@@ -281,14 +296,15 @@ public class PlatformDirectoryService
 
         return ownerIds.Select(owner =>
         {
-            companies.TryGetValue(owner, out var counts);
+            counts.TryGetValue(owner, out var ownerCounts);
             subscriptions.TryGetValue(owner, out var subscription);
             identities.TryGetValue(owner, out var identity);
+            DateTime? lastActive = lastActiveByOwner.TryGetValue(owner, out var at) ? at : null;
             return new AccountListItem(
-                owner, identity.Email, identity.Name, counts.Total, counts.Activated,
+                owner, identity.Email, identity.Name, ownerCounts.Total, ownerCounts.Activated,
                 subscription?.Plan.Code, subscription?.Plan.Name, subscription?.SubStatus, subscription?.BillingCycle,
                 subscription?.TrialEndsAtUtc, subscription?.CurrentPeriodEndUtc, subscription?.GraceEndsAtUtc,
-                subscription?.CancelAtPeriodEnd ?? false, subscription?.CreatedAt);
+                subscription?.CancelAtPeriodEnd ?? false, subscription?.CreatedAt, lastActive);
         }).ToList();
     }
 
@@ -333,28 +349,51 @@ public class PlatformDirectoryService
         var page = await tenants
             .OrderByDescending(t => t.CreatedAt).ThenBy(t => t.Id)
             .Skip(paging.Skip).Take(paging.SafePageSize)
-            .Select(t => new { t.Id, t.TenantName, t.UserId, t.ActivatedAtUtc, t.CreatedAt })
+            .Select(t => new CompanyRow(t.Id, t.TenantName, t.UserId, t.ActivatedAtUtc, t.CreatedAt, t.Address, t.Contact))
             .ToListAsync(token);
 
-        var ownerIds = page.Select(t => t.UserId).Distinct().ToList();
+        var items = await ToCompanyItemsAsync(page, token);
+        return new PagedResult<CompanyListItem>(items, total, paging.SafePage, paging.SafePageSize);
+    }
+
+    /// <summary>One company for the console's detail view, or null when it doesn't exist.</summary>
+    public async Task<CompanyListItem?> GetCompanyAsync(Guid tenantId, CancellationToken token = default)
+    {
+        var row = await Context.Tenants.AsNoTracking()
+            .Where(t => t.Id == tenantId)
+            .Select(t => new CompanyRow(t.Id, t.TenantName, t.UserId, t.ActivatedAtUtc, t.CreatedAt, t.Address, t.Contact))
+            .FirstOrDefaultAsync(token);
+        if (row == null) return null;
+        return (await ToCompanyItemsAsync([row], token))[0];
+    }
+
+    private sealed record CompanyRow(
+        Guid Id, string? TenantName, Guid UserId, DateTime? ActivatedAtUtc, DateTime CreatedAt,
+        string? Address, string? Contact);
+
+    private async Task<List<CompanyListItem>> ToCompanyItemsAsync(IReadOnlyList<CompanyRow> rows, CancellationToken token)
+    {
+        var ownerIds = rows.Select(t => t.UserId).Distinct().ToList();
         var identities = await OwnerIdentitiesAsync(ownerIds, token);
         var subscriptions = (await Context.AccountSubscriptions.AsNoTracking()
                 .Include(s => s.Plan)
                 .Where(s => ownerIds.Contains(s.OwnerUserId))
                 .ToListAsync(token))
             .ToDictionary(s => s.OwnerUserId);
+        var activity = await _activity.GetLastActiveAsync(rows.Select(t => t.Id).ToList(), token);
 
-        var items = page.Select(t =>
+        return rows.Select(t =>
         {
             subscriptions.TryGetValue(t.UserId, out var subscription);
             identities.TryGetValue(t.UserId, out var identity);
+            DateTime? lastActive = activity.TryGetValue(t.Id, out var at) ? at : null;
             return new CompanyListItem(
                 t.Id, t.TenantName, t.UserId, identity.Email,
                 t.ActivatedAtUtc != null, t.ActivatedAtUtc, t.CreatedAt,
                 subscription?.Plan.Name, subscription?.SubStatus,
-                subscription == null ? null : _states.AccessModeOf(subscription));
+                subscription == null ? null : _states.AccessModeOf(subscription),
+                t.Address, t.Contact, lastActive);
         }).ToList();
-        return new PagedResult<CompanyListItem>(items, total, paging.SafePage, paging.SafePageSize);
     }
 
     // ── Payments ─────────────────────────────────────────────────────────────

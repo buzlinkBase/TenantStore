@@ -35,10 +35,12 @@ public class RoleService : BaseService<Role>
     public const string PermissionGranted = "Granted";
     public const string PermissionNotGranted = "Not granted";
 
-    // System Roles (Owner/Admin/Member/Employee/Client) + every Custom Role this tenant defined.
+    // System Roles (Owner/Admin/None/Employee) + every Custom Role this tenant defined.
+    // Client roles (system ones like Client Admin, and the custom ones a client defined for its own
+    // users) are not the agency's to list or grant -- they're managed per client.
     public Task<List<Role>> FindAllForTenantAsync(Guid tenantId, CancellationToken token)
     {
-        return GetQueryable(x => x.TenantId == null || x.TenantId == tenantId)
+        return GetQueryable(x => x.Audience == RoleAudience.Staff && (x.TenantId == null || x.TenantId == tenantId))
             .Include(x => x.RolePermissions).ThenInclude(x => x.Permission)
             .OrderBy(x => x.IsSystemRole ? 0 : 1).ThenBy(x => x.Name)
             .ToListAsync(token);
@@ -46,9 +48,18 @@ public class RoleService : BaseService<Role>
 
     public Task<Role?> FindOneWithPermissionsAsync(Guid id, CancellationToken token)
     {
-        return GetQueryable(x => x.Id == id)
+        return GetQueryable(x => x.Id == id && x.Audience == RoleAudience.Staff)
             .Include(x => x.RolePermissions).ThenInclude(x => x.Permission)
             .FirstOrDefaultAsync(token);
+    }
+
+    // The agency's role endpoints address a role by id alone, so every one of them goes through
+    // here: a client's role (built-in or custom) is managed through ClientRoleService, never this.
+    private async Task<Role> GetStaffRoleAsync(Guid id, CancellationToken token)
+    {
+        var role = await GetOneAsync(id, token);
+        if (role == null || role.Audience != RoleAudience.Staff) throw new KeyNotFoundException("Role not found.");
+        return role;
     }
 
     // Only Custom Roles are admin-creatable; System Roles are seeded once and fixed.
@@ -69,7 +80,7 @@ public class RoleService : BaseService<Role>
 
     public async Task<Role> UpdateCustomRoleAsync(Guid id, string name, string description, CancellationToken token)
     {
-        var role = await GetOneAsync(id, token) ?? throw new KeyNotFoundException("Role not found.");
+        var role = await GetStaffRoleAsync(id, token);
         if (role.IsSystemRole) throw new InvalidOperationException("System roles cannot be edited.");
 
         var previousName = role.Name;
@@ -92,7 +103,7 @@ public class RoleService : BaseService<Role>
 
     public async Task DeleteCustomRoleAsync(Guid id, CancellationToken token)
     {
-        var role = await GetOneAsync(id, token) ?? throw new KeyNotFoundException("Role not found.");
+        var role = await GetStaffRoleAsync(id, token);
         if (role.IsSystemRole) throw new InvalidOperationException("System roles cannot be deleted.");
 
         var stillAssigned = await Context.MembershipRoles.AnyAsync(x => x.RoleId == id, token);
@@ -107,7 +118,7 @@ public class RoleService : BaseService<Role>
 
     public async Task SetPermissionsAsync(Guid roleId, List<Guid> permissionIds, CancellationToken token)
     {
-        var role = await GetOneAsync(roleId, token) ?? throw new KeyNotFoundException("Role not found.");
+        var role = await GetStaffRoleAsync(roleId, token);
         if (role.IsSystemRole) throw new InvalidOperationException("System role permissions are fixed and cannot be changed.");
 
         var distinctIds = permissionIds.Distinct().ToHashSet();
@@ -193,9 +204,11 @@ public class RoleService : BaseService<Role>
     // rows saved before RoleId existed are matched by it, within this company only.
     private async Task NotifyMembersAsync(Role role, string storedName, CancellationToken token)
     {
-        if (_publisher == null || role.TenantId is not { } tenantId) return;
+        // A client's own role is announced by the client-role endpoints (Phase 2), not here.
+        if (_publisher == null || role.Audience != RoleAudience.Staff || role.TenantId is not { } tenantId) return;
 
         var members = await Context.Memberships.AsNoTracking()
+            .InternalOnly()
             .Where(m => m.TenantId == tenantId && m.Status == "Active" && m.UserId != Guid.Empty &&
                         m.Roles.Any(r => r.RoleId == role.Id || (r.RoleId == null && r.Role == storedName)))
             .Select(m => new { m.UserId, Roles = m.Roles.Select(r => new { r.RoleId, r.Role }).ToList() })
@@ -221,7 +234,7 @@ public class RoleService : BaseService<Role>
     // membership API. Owner is never grantable this way (ownership transfer is a separate flow).
     public async Task<bool> IsAssignableAsync(string roleName, Guid tenantId, CancellationToken token)
     {
-        var role = await GetQueryable(x => x.Name == roleName && (x.TenantId == null || x.TenantId == tenantId))
+        var role = await GetQueryable(x => x.Name == roleName && x.Audience == RoleAudience.Staff && (x.TenantId == null || x.TenantId == tenantId))
             .FirstOrDefaultAsync(token);
         if (role == null) return false;
         return !(role.IsSystemRole && role.Name == "Owner");
@@ -257,12 +270,12 @@ public class RoleService : BaseService<Role>
 
     public Task<Role?> FindByNameAsync(string name, Guid tenantId, CancellationToken token)
     {
-        return GetQueryable(x => x.Name == name && (x.TenantId == null || x.TenantId == tenantId))
+        return GetQueryable(x => x.Name == name && x.Audience == RoleAudience.Staff && (x.TenantId == null || x.TenantId == tenantId))
             .FirstOrDefaultAsync(token);
     }
 }
 
-// Seeds the global Permission catalog and the System Roles (Owner/Admin/Member/Employee/Client),
+// Seeds the global Permission catalog and the System Roles (Owner/Admin/None/Employee),
 // then backfills existing MembershipRole rows (Migration A's nullable RoleId) to point at them.
 // Idempotent -- safe to run on every TenantApi startup.
 //
@@ -276,13 +289,8 @@ public class PermissionCatalogSeederService
     [
         new(OwnerRole, "Full access to everything."),
         new(TenantRoles.Admin, "Manages tenant members and roles."),
-        new(TenantRoles.Member, "Standard member."),
+        new(TenantRoles.None, "Standard member."),
         new(TenantRoles.Employee, "Employee-linked member."),
-        // Reserved for the upcoming client-facing portal (the client counterpart of the
-        // Employee Self-Service Portal). Deliberately granted nothing yet -- it gets its own
-        // portal permission(s) once that feature exists, the way Employee has
-        // EmployeeGrantedCodes.
-        new(TenantRoles.Client, "Client-linked member."),
     ];
 
     private readonly IUnitOfWorkService _uow;
@@ -482,6 +490,7 @@ public class PermissionCatalogSeederService
                 Description = role.Description,
                 IsSystemRole = true,
                 Product = role.Product,
+                Audience = role.Audience,
             })
             .ToList();
 

@@ -78,7 +78,7 @@ public class InvitationAdminSeatTests
     [InlineData(new[] { "Client" }, false)]
     [InlineData(new[] { " employee " }, false)]
     [InlineData(new[] { "Admin" }, true)]
-    [InlineData(new[] { "Member" }, true)]
+    [InlineData(new[] { "None" }, true)]
     [InlineData(new[] { "Payroll Officer" }, true)]
     [InlineData(new[] { "Employee", "Admin" }, true)]
     public void TakesAdminSeat_AnyRoleBeyondThePortalOnes(string[] roles, bool expected)

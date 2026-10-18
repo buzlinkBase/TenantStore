@@ -34,6 +34,21 @@ public static class ServiceRegistrations
             var authUrl = builder.Configuration["Grpc_AuthUrl"]?.ToString() ?? "";
             options.Address = new Uri(authUrl);
         });
+        builder.Services.AddGrpcClient<Onepunch.Auth.Core.AccountOriginsService.AccountOriginsServiceClient>(options =>
+        {
+            var authUrl = builder.Configuration["Grpc_AuthUrl"]?.ToString() ?? "";
+            options.Address = new Uri(authUrl);
+        });
+        builder.Services.AddGrpcClient<Onepunch.Auth.Core.TenantActivityService.TenantActivityServiceClient>(options =>
+        {
+            var authUrl = builder.Configuration["Grpc_AuthUrl"]?.ToString() ?? "";
+            options.Address = new Uri(authUrl);
+        });
+        // When each company last had a sign-in -- the Platform Console's "last active" column.
+        builder.Services.AddScoped<TenantStoreApi.Core.Services.Platform.ITenantActivitySource, TenantStoreApi.Core.Services.Platform.AuthTenantActivitySource>();
+        // Where accounts came from -- the Platform Console's Acquisition page.
+        builder.Services.AddScoped<TenantStoreApi.Core.Services.Platform.IAccountOriginSource, TenantStoreApi.Core.Services.Platform.AuthAccountOriginSource>();
+        builder.Services.AddScoped<TenantStoreApi.Core.Services.Platform.PlatformAcquisitionService>();
         // Which companies finished setting up -- see CompanyActivationSyncService.
         builder.Services.AddScoped<TenantStoreApi.Core.Services.Subscriptions.IProvisionedTenantSource,
             TenantStoreApi.Core.Services.Subscriptions.AuthProvisionedTenantSource>();

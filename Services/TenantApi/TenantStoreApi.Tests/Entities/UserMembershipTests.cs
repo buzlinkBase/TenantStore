@@ -52,14 +52,14 @@ public class UserMembershipTests
     [Fact]
     public void HasPermission_ReturnsFalse_ForOtherRoles_WhenRoleRefIsNotLoaded()
     {
-        WithRole("Member").HasPermission("Tenant Members:Manage").Should().BeFalse();
+        WithRole("None").HasPermission("Tenant Members:Manage").Should().BeFalse();
     }
 
     [Fact]
     public void HasPermission_ReturnsTrue_WhenRolePermissionsActuallyGrantTheCode()
     {
         var permission = new Permission { Code = "Tenant Members:Manage" };
-        var membership = WithRole("Member", [new RolePermission { Permission = permission }]);
+        var membership = WithRole("None", [new RolePermission { Permission = permission }]);
 
         membership.HasPermission("Tenant Members:Manage").Should().BeTrue();
     }

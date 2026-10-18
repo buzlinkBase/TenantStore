@@ -15,7 +15,7 @@ public class UserServiceResolveDefaultRolesTests
     [Fact]
     public void KeepsCurrentDefaults_WhenStillPresentInTheNewRoleSet()
     {
-        var result = UserService.ResolveDefaultRoles(["Admin"], ["Admin", "Member"]);
+        var result = UserService.ResolveDefaultRoles(["Admin"], ["Admin", "None"]);
 
         result.Should().BeEquivalentTo(["Admin"]);
     }
@@ -23,24 +23,24 @@ public class UserServiceResolveDefaultRolesTests
     [Fact]
     public void FallsBackToFirstNewRole_WhenNoCurrentDefaultSurvived()
     {
-        var result = UserService.ResolveDefaultRoles(["Admin"], ["Member", "Employee"]);
+        var result = UserService.ResolveDefaultRoles(["Admin"], ["None", "Employee"]);
 
-        result.Should().BeEquivalentTo(["Member"]);
+        result.Should().BeEquivalentTo(["None"]);
     }
 
     [Fact]
     public void KeepsOnlyTheSurvivingSubset_WhenSomeCurrentDefaultsWereRemoved()
     {
-        var result = UserService.ResolveDefaultRoles(["Admin", "Member"], ["Member", "Employee"]);
+        var result = UserService.ResolveDefaultRoles(["Admin", "None"], ["None", "Employee"]);
 
-        result.Should().BeEquivalentTo(["Member"]);
+        result.Should().BeEquivalentTo(["None"]);
     }
 
     [Fact]
     public void FallsBackToFirstNewRole_WhenThereWereNoCurrentDefaultsAtAll()
     {
-        var result = UserService.ResolveDefaultRoles([], ["Member", "Employee"]);
+        var result = UserService.ResolveDefaultRoles([], ["None", "Employee"]);
 
-        result.Should().BeEquivalentTo(["Member"]);
+        result.Should().BeEquivalentTo(["None"]);
     }
 }

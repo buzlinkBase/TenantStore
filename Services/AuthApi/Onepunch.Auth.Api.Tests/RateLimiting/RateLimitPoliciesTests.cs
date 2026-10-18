@@ -7,6 +7,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Onepunch.Auth.Core.Portal;
 using OnePunch.Auth.Api.Controllers;
 using OnePunch.Auth.Api.RateLimiting;
 using Xunit;
@@ -65,6 +68,10 @@ public class RateLimitPoliciesTests
     [InlineData(RateLimitPolicies.PlatformMfa)]
     [InlineData(RateLimitPolicies.PlatformSession)]
     [InlineData(RateLimitPolicies.PlatformAdmin)]
+    [InlineData(RateLimitPolicies.PortalLogin)]
+    [InlineData(RateLimitPolicies.PortalRefresh)]
+    [InlineData(RateLimitPolicies.PortalEmail)]
+    [InlineData(RateLimitPolicies.PortalPassword)]
     public void EachPolicy_AllowsItsLimit_ThenRefuses(string name)
     {
         var rule = Rule(name);
@@ -122,6 +129,12 @@ public class RateLimitPoliciesTests
         { typeof(PlatformAuthController), nameof(PlatformAuthController.MfaSetup), RateLimitPolicies.PlatformMfa },
         { typeof(PlatformAuthController), nameof(PlatformAuthController.MfaVerify), RateLimitPolicies.PlatformMfa },
         { typeof(PlatformAuthController), nameof(PlatformAuthController.Me), RateLimitPolicies.PlatformSession },
+        { typeof(PortalAuthController), nameof(PortalAuthController.Login), RateLimitPolicies.PortalLogin },
+        { typeof(PortalAuthController), nameof(PortalAuthController.Refresh), RateLimitPolicies.PortalRefresh },
+        { typeof(PortalAuthController), nameof(PortalAuthController.Logout), RateLimitPolicies.PortalRefresh },
+        { typeof(PortalAuthController), nameof(PortalAuthController.ForgotPassword), RateLimitPolicies.PortalEmail },
+        { typeof(PortalAuthController), nameof(PortalAuthController.ResetPassword), RateLimitPolicies.PortalPassword },
+        { typeof(PortalAuthController), nameof(PortalAuthController.EnsureAccount), RateLimitPolicies.PortalPassword },
     };
 
     [Theory]
@@ -154,6 +167,51 @@ public class RateLimitPoliciesTests
 
         unlimited.Should().BeEmpty("a platform endpoint without a limit can be hammered");
     }
+
+    [Fact]
+    public void EveryPortalAction_IsRateLimited()
+    {
+        var unlimited = typeof(PortalAuthController)
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .Where(m => m.GetCustomAttributes<HttpMethodAttribute>().Any())
+            .Where(m => m.GetCustomAttribute<EnableRateLimitingAttribute>() == null)
+            .Select(m => m.Name);
+
+        unlimited.Should().BeEmpty();
+    }
+
+    private static HttpContext PortalRequest(string connectionIp, string? key, string? endUserIp, string serviceKey = "svc-key")
+    {
+        var context = Request(connectionIp);
+        var services = new ServiceCollection();
+        services.AddSingleton<IOptions<PortalAuthSettings>>(Options.Create(new PortalAuthSettings { ServiceKey = serviceKey }));
+        context.RequestServices = services.BuildServiceProvider();
+        if (key != null) context.Request.Headers[PortalAuthSettings.KeyHeader] = key;
+        if (endUserIp != null) context.Request.Headers[PortalAuthSettings.ClientIpHeader] = endUserIp;
+        return context;
+    }
+
+    [Fact]
+    public void PortalUsers_AreCountedByTheirOwnAddress_NotByThePortalServer()
+    {
+        var first = RateLimitPolicies.PartitionKey(PortalRequest("10.0.0.9", "svc-key", "203.0.113.1"), RateLimitKey.PortalClient);
+        var second = RateLimitPolicies.PartitionKey(PortalRequest("10.0.0.9", "svc-key", "203.0.113.2"), RateLimitKey.PortalClient);
+
+        first.Should().Be("portal:203.0.113.1");
+        second.Should().NotBe(first);
+    }
+
+    [Theory]
+    [InlineData("wrong-key", "203.0.113.1")]
+    [InlineData(null, "203.0.113.1")]
+    [InlineData("svc-key", "not-an-ip")]
+    [InlineData("svc-key", null)]
+    public void WithoutTheKeyOrAUsableAddress_TheConnectionsOwnAllowanceApplies(string? key, string? endUserIp) =>
+        RateLimitPolicies.PartitionKey(PortalRequest("10.0.0.9", key, endUserIp), RateLimitKey.PortalClient).Should().Be("ip:10.0.0.9");
+
+    [Fact]
+    public void WithNoServiceKeyConfigured_TheHeaderIsNeverTrusted() =>
+        RateLimitPolicies.PartitionKey(PortalRequest("10.0.0.9", "", "203.0.113.1", serviceKey: ""), RateLimitKey.PortalClient).Should().Be("ip:10.0.0.9");
 
     [Fact]
     public void PlatformAdminsController_CarriesTheAdminLimit_OnTheController() =>

@@ -176,6 +176,32 @@ public class EmailNotificationService
         }, token);
     }
 
+    /// <summary>
+    /// Sends a message another service composed. The address is always ours; the sender only chooses the display name. A message that
+    /// fails validation is dropped (retrying cannot fix it); a Resend failure throws so the bus retries.
+    /// </summary>
+    public async Task SendGeneralEmail(SendEmailRequested payload, CancellationToken token)
+    {
+        if (!SendEmailRequested.TryNormalize(payload, out var message, out var problem))
+        {
+            Serilog.Log.Logger.Warning("Dropped an email from {Source}: {Problem}", payload.Source, problem);
+            return;
+        }
+
+        var email = new EmailMessage
+        {
+            From = $"{message.FromName ?? "Onepunch"} <support@onepunch.site>",
+            To = message.To,
+            Subject = message.Subject,
+            HtmlBody = message.HtmlBody,
+            TextBody = message.TextBody,
+        };
+        if (message.ReplyTo is not null)
+            email.ReplyTo = message.ReplyTo;
+
+        await _resend.EmailSendAsync(email, token);
+    }
+
     private const string BillingSender = "Onepunch <support@onepunch.site>";
     private const string ApprovalTemplateId = "approval-notification";
 

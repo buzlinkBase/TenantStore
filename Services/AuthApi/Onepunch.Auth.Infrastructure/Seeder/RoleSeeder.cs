@@ -7,7 +7,7 @@
 //{
 //    public static async Task SeedRolesAsync(RoleManager<Role> roleManager)
 //    {
-//        string[] roles = { "Admin", "Manager", "User", "Member" };
+//        string[] roles = { "Admin", "Manager", "User", "None" };
 //        foreach (var role in roles)
 //        {
 //            if (!await roleManager.RoleExistsAsync(role))
