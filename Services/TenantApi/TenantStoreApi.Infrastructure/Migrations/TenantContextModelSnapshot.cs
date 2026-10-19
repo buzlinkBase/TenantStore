@@ -2359,6 +2359,10 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<decimal>("CreditAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("Currency")
                         .IsRequired()
                         .HasMaxLength(8)

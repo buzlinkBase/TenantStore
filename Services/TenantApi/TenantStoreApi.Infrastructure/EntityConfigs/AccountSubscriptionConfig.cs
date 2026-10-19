@@ -82,6 +82,7 @@ public class SubscriptionPaymentConfig: IEntityTypeConfiguration<SubscriptionPay
     public void Configure(EntityTypeBuilder<SubscriptionPayment> builder)
     {
         builder.Property(x => x.Amount).HasPrecision(18, 2);
+        builder.Property(x => x.CreditAmount).HasPrecision(18, 2);
         builder.Property(x => x.Currency).HasMaxLength(8);
         builder.Property(x => x.BillingCycle).HasConversion<string>().HasMaxLength(16);
         builder.Property(x => x.Method).HasConversion<string>().HasMaxLength(32);

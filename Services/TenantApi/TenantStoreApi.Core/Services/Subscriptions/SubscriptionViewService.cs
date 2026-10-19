@@ -33,7 +33,10 @@ public sealed record PendingChangeView(
     BillingCycle BillingCycle,
     PlanChangeTiming Timing,
     DateTime? EffectiveAtUtc,
-    decimal AmountDue);
+    decimal AmountDue,
+    /// <summary>An upgrade's credit for the unused days of the running period, already taken off <see cref="AmountDue"/>.</summary>
+    decimal CreditAmount = 0m,
+    int UnusedDays = 0);
 
 /// <summary>What Pay now would pay for (see AccountSubscriptionService.GetPaymentDueAsync).</summary>
 public sealed record PaymentDueView(
@@ -42,7 +45,10 @@ public sealed record PaymentDueView(
     BillingCycle BillingCycle,
     decimal Amount,
     PaymentDueReason Reason,
-    decimal AddOnsAmount = 0m);
+    decimal AddOnsAmount = 0m,
+    /// <summary>An upgrade's credit for the unused days of the running period, already taken off <see cref="Amount"/>.</summary>
+    decimal CreditAmount = 0m,
+    int UnusedDays = 0);
 
 public sealed record CompanyUsageView(
     Guid TenantId,
@@ -70,7 +76,9 @@ public sealed record PaymentView(
     /// <summary>How much of it has gone back to the payer (a refund sent from the console or made in the gateway).</summary>
     decimal RefundedAmount = 0m,
     /// <summary>Point-in-time plan and storage amounts; null for records made before line-item snapshots.</summary>
-    IReadOnlyList<PaymentLineItemSnapshot>? LineItems = null);
+    IReadOnlyList<PaymentLineItemSnapshot>? LineItems = null,
+    /// <summary>The unused time of the previous plan put towards this period on an upgrade.</summary>
+    decimal CreditAmount = 0m);
 
 public static class PaymentStatuses
 {
@@ -250,22 +258,27 @@ public class SubscriptionViewService
         var now = _clock.GetUtcNow().UtcDateTime;
         var plans = await _subscriptions.GetVisiblePlansAsync(owner, token);
 
+        var due = await _subscriptions.GetPaymentDueAsync(subscription, token);
+
         PendingChangeView? pending = null;
         if (subscription.PendingPlanId is { } pendingPlanId
             && await _subscriptions.FindPlanAsync(pendingPlanId, token) is { } pendingPlan)
         {
             var cycle = subscription.PendingBillingCycle ?? subscription.BillingCycle;
-            pending = new PendingChangeView(
-                pendingPlan.Code, pendingPlan.Name, cycle,
-                subscription.PendingChangeTiming ?? PlanChangeTiming.OnPayment,
-                subscription.PendingChangeEffectiveAtUtc,
-                await _subscriptions.PriceForAsync(subscription, pendingPlan, cycle, token));
+            var timing = subscription.PendingChangeTiming ?? PlanChangeTiming.OnPayment;
+            // An upgrade waiting for payment costs what Pay now charges: its credit already taken off.
+            pending = timing == PlanChangeTiming.OnPayment && due is { Reason: PaymentDueReason.PlanChange } upgrade
+                ? new PendingChangeView(
+                    pendingPlan.Code, pendingPlan.Name, cycle, timing, subscription.PendingChangeEffectiveAtUtc,
+                    upgrade.Amount, upgrade.CreditAmount, upgrade.UnusedDays)
+                : new PendingChangeView(
+                    pendingPlan.Code, pendingPlan.Name, cycle, timing, subscription.PendingChangeEffectiveAtUtc,
+                    await _subscriptions.PriceForAsync(subscription, pendingPlan, cycle, token));
         }
 
         var payments = await _subscriptions.GetPaymentsAsync(subscription.Id, token: token);
         var planNames = plans.ToDictionary(p => p.Id, p => p.Name);
         planNames.TryAdd(subscription.PlanId, subscription.Plan.Name);
-        var due = await _subscriptions.GetPaymentDueAsync(subscription, token);
         var storagePayments = await _storage.GetPaymentsAsync(subscription.Id, token);
         // Refunds -- sent from the console or made in the gateway -- show here as soon as they happen, voided or not.
         var gatewayIssues = await _subscriptions.LoadGatewayIssuesAsync(owner, token);
@@ -280,7 +293,8 @@ public class SubscriptionViewService
                     RefundedAmount: refunded,
                     LineItems: p.LineItemsJson == null
                         ? null
-                        : JsonSerializer.Deserialize<List<PaymentLineItemSnapshot>>(p.LineItemsJson));
+                        : JsonSerializer.Deserialize<List<PaymentLineItemSnapshot>>(p.LineItemsJson),
+                    CreditAmount: p.CreditAmount);
             })
             .Concat(storagePayments.Select(s =>
             {
@@ -309,7 +323,9 @@ public class SubscriptionViewService
             CompaniesUsed = await _usage.CountOwnedCompaniesAsync(owner, token),
             CompaniesMax = _resolver.ResolveAgainstPlan(subscription, subscription.Plan, Guid.Empty).LimitOf(EntitlementKeys.CompaniesMax),
             Payments = paymentViews,
-            PaymentDue = due == null ? null : new PaymentDueView(due.Plan.Code, due.Plan.Name, due.BillingCycle, due.Amount, due.Reason, due.AddOnsAmount),
+            PaymentDue = due == null ? null : new PaymentDueView(
+                due.Plan.Code, due.Plan.Name, due.BillingCycle, due.Amount, due.Reason, due.AddOnsAmount,
+                due.CreditAmount, due.UnusedDays),
             OnlinePaymentEnabled = _gateway.IsEnabled,
         };
     }

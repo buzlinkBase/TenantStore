@@ -167,6 +167,8 @@ public enum PaymentMethod
     ShopeePay,
     OnlineBanking,
     BillEase,
+    /// <summary>Nothing was paid: the unused time of the previous plan covered the whole period.</summary>
+    Credit,
 }
 
 /// <summary>A payment for one billing period: recorded by a platform admin, or by the payment
@@ -179,6 +181,9 @@ public class SubscriptionPayment : BaseEntity
     public Guid PlanId { get; set; }
     public BillingCycle BillingCycle { get; set; }
     public decimal Amount { get; set; }
+    /// <summary>Unused time of the previous plan taken off this period's price on an upgrade. The
+    /// period is worth <see cref="Amount"/> plus this, which is what a later upgrade credits back.</summary>
+    public decimal CreditAmount { get; set; }
     public string Currency { get; set; } = "PHP";
     public PaymentMethod Method { get; set; }
     public string? Reference { get; set; }

@@ -478,6 +478,9 @@ public class SubscriptionCheckoutService
             .Where(p => p.Id == checkout.PlanId)
             .Select(p => p.Code)
             .FirstAsync(token);
+        var lineItems = checkout.LineItemsJson == null
+            ? null
+            : JsonSerializer.Deserialize<List<PaymentLineItemSnapshot>>(checkout.LineItemsJson);
         var recorded = await _subscriptions.RecordPaymentAsync(checkout.OwnerUserId, new RecordPaymentCommand
         {
             Amount = payment.Amount,
@@ -487,9 +490,9 @@ public class SubscriptionCheckoutService
             PlanCode = planCode,
             BillingCycle = checkout.BillingCycle,
             Notes = $"Paid online ({checkout.Provider} checkout {session.SessionId})",
-            LineItems = checkout.LineItemsJson == null
-                ? null
-                : JsonSerializer.Deserialize<List<PaymentLineItemSnapshot>>(checkout.LineItemsJson),
+            LineItems = lineItems,
+            // The credit as quoted on the page that was paid, not as it stands now.
+            CreditAmount = lineItems == null ? null : CreditOf(lineItems),
         }, checkout.Provider, token);
 
         checkout.CheckoutStatus = PaymentCheckoutStatus.Paid;
@@ -570,13 +573,11 @@ public class SubscriptionCheckoutService
     {
         var cycle = due.BillingCycle == BillingCycle.Annual ? "annual" : "monthly";
         var returnUrl = ReturnUrl(checkout);
-        var lineItems = BuildLineItems(due);
         return new GatewayCheckoutRequest
         {
             CheckoutId = checkout.Id,
             ItemName = $"{due.Plan.Name} plan ({cycle})",
-            LineItems = lineItems.Select(item =>
-                new GatewayCheckoutLineItem(item.Name, item.Amount, item.Description)).ToList(),
+            LineItems = GatewayLineItems(due),
             Description = due.Reason switch
             {
                 PaymentDueReason.Renewal => $"{_options.ProductName} subscription renewal",
@@ -596,7 +597,7 @@ public class SubscriptionCheckoutService
         var cycle = due.BillingCycle == BillingCycle.Annual ? "annual" : "monthly";
         var items = new List<PaymentLineItemSnapshot>
         {
-            new($"{due.Plan.Name} plan ({cycle})", due.Amount - due.AddOnsAmount),
+            new($"{due.Plan.Name} plan ({cycle})", due.PlanAmount),
         };
         if (due.AddOnsAmount > 0)
         {
@@ -605,8 +606,42 @@ public class SubscriptionCheckoutService
                 due.AddOnsAmount,
                 $"Storage add-ons for the next {cycle} billing period"));
         }
+        if (due.CreditAmount > 0)
+        {
+            items.Add(new(
+                AccountSubscriptionService.UpgradeCreditLineName,
+                -due.CreditAmount,
+                $"{due.UnusedDays} unused days of your current plan"));
+        }
         return items;
     }
+
+    /// <summary>
+    /// The lines the gateway's page shows. Its lines can't be negative, so an upgrade's credit is
+    /// taken off the plan line (and said so); a credit bigger than that line makes one line of the total.
+    /// </summary>
+    public static List<GatewayCheckoutLineItem> GatewayLineItems(PaymentDue due)
+    {
+        var items = BuildLineItems(due);
+        if (due.CreditAmount <= 0)
+            return items.Select(item => new GatewayCheckoutLineItem(item.Name, item.Amount, item.Description)).ToList();
+
+        var credit = $"{due.CreditAmount:N2} {due.Plan.Currency} credit for {due.UnusedDays} unused days of your current plan";
+        var plan = items[0];
+        if (due.CreditAmount >= plan.Amount)
+            return [new GatewayCheckoutLineItem(plan.Name, due.Amount, $"Includes storage add-ons, less {credit}")];
+
+        return items
+            .Where(item => item.Amount > 0)
+            .Select((item, index) => index == 0
+                ? new GatewayCheckoutLineItem(item.Name, item.Amount - due.CreditAmount, $"Less {credit}")
+                : new GatewayCheckoutLineItem(item.Name, item.Amount, item.Description))
+            .ToList();
+    }
+
+    /// <summary>The upgrade credit a saved line-item snapshot carries (its negative lines).</summary>
+    public static decimal CreditOf(IEnumerable<PaymentLineItemSnapshot> lineItems) =>
+        -lineItems.Where(item => item.Amount < 0).Sum(item => item.Amount);
 
     private string ReturnUrl(PaymentCheckout checkout) =>
         $"{_options.ReturnBaseUrl.TrimEnd('/')}{ReturnPath}?checkout={checkout.Id}";
@@ -643,6 +678,6 @@ public class SubscriptionCheckoutService
         public const string SubscriptionId = "subscription_id";
         public const string OwnerUserId = "owner_user_id";
         public const string CheckoutFormat = "checkout_format";
-        public const string CurrentCheckoutFormat = "itemized-plan-storage-v1";
+        public const string CurrentCheckoutFormat = "itemized-plan-storage-credit-v2";
     }
 }
