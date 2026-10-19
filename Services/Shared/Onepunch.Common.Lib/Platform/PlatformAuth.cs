@@ -59,10 +59,13 @@ public static class PlatformPermissions
     public const string SettingsManage = "platform.settings.manage";
     public const string AuditRead = "platform.audit.read";
     public const string AdminsManage = "platform.admins.manage";
+    /// <summary>Requesting and approving the permanent erasure of an account (two different operators needed).</summary>
+    public const string AccountsDelete = "platform.accounts.delete";
 
     public static readonly IReadOnlyList<string> All =
     [
         AccountsRead, SubscriptionsManage, PaymentsRecord, PaymentsRefund, PlansManage, SettingsManage, AuditRead, AdminsManage,
+        AccountsDelete,
     ];
 }
 

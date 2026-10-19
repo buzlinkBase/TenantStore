@@ -36,6 +36,28 @@ public record PublicOfferingRequest
     public string? Reason { get; set; }
 }
 
+public record DeletionRequestBody
+{
+    public string? Reason { get; set; }
+    /// <summary>The account owner's email, typed by the operator to confirm.</summary>
+    public string? ConfirmEmail { get; set; }
+}
+
+public record CompanyDeletionRequestBody
+{
+    public string? Reason { get; set; }
+    /// <summary>The company's name, typed by the operator to confirm.</summary>
+    public string? ConfirmName { get; set; }
+}
+
+public record ApproveDeletionBody
+{
+    /// <summary>For an account: the owner's email.</summary>
+    public string? ConfirmEmail { get; set; }
+    /// <summary>For a company: the company's name.</summary>
+    public string? ConfirmName { get; set; }
+}
+
 public record ExtendPeriodRequest
 {
     public int Days { get; set; }
@@ -56,11 +78,19 @@ public class PlatformAccountsController : ControllerBase
 {
     private readonly PlatformDirectoryService _directory;
     private readonly PlatformAccountActionsService _actions;
+    private readonly AccountDeletionRequestService _deletionRequests;
+    private readonly PlatformAccountDeletionService _deletion;
 
-    public PlatformAccountsController(PlatformDirectoryService directory, PlatformAccountActionsService actions)
+    public PlatformAccountsController(
+        PlatformDirectoryService directory,
+        PlatformAccountActionsService actions,
+        AccountDeletionRequestService deletionRequests,
+        PlatformAccountDeletionService deletion)
     {
         _directory = directory;
         _actions = actions;
+        _deletionRequests = deletionRequests;
+        _deletion = deletion;
     }
 
     private string Actor => PlatformActor.From(User);
@@ -148,6 +178,88 @@ public class PlatformAccountsController : ControllerBase
             await _actions.CommitChangesAsync(token);
             return Ok();
         });
+
+    /// <summary>The account's latest deletion request (any outcome); 204 when it never had one.</summary>
+    [HttpGet("{ownerUserId:guid}/deletion-request")]
+    [PlatformAuthorize(PlatformPermissions.AccountsRead)]
+    [ProducesResponseType(typeof(AccountDeletionRequestView), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetDeletionRequest(Guid ownerUserId, CancellationToken token) =>
+        await _deletionRequests.GetLatestAsync(ownerUserId, token) is { } request ? Ok(request) : NoContent();
+
+    /// <summary>Asks for the account to be erased for good. Nothing is deleted until a second operator approves.</summary>
+    [HttpPost("{ownerUserId:guid}/deletion-requests")]
+    [PlatformAuthorize(PlatformPermissions.AccountsDelete)]
+    [ProducesResponseType(typeof(AccountDeletionRequestView), StatusCodes.Status200OK)]
+    public Task<IActionResult> RequestDeletion(Guid ownerUserId, [FromBody] DeletionRequestBody body, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            var request = await _deletionRequests.RequestAsync(
+                ownerUserId, body.Reason, body.ConfirmEmail, PlatformActor.Operator(User), token);
+            await _deletionRequests.CommitChangesAsync(token);
+            return Ok(request);
+        });
+
+    [HttpPost("{ownerUserId:guid}/deletion-requests/{requestId:guid}/cancel")]
+    [PlatformAuthorize(PlatformPermissions.AccountsDelete)]
+    public Task<IActionResult> CancelDeletion(Guid ownerUserId, Guid requestId, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            await _deletionRequests.CancelAsync(ownerUserId, requestId, PlatformActor.Operator(User), token);
+            await _deletionRequests.CommitChangesAsync(token);
+            return Ok();
+        });
+
+    /// <summary>Asks again for the companies whose data hasn't been reported deleted.</summary>
+    [HttpPost("{ownerUserId:guid}/hard-delete/retry")]
+    [PlatformAuthorize(PlatformPermissions.AccountsDelete)]
+    public Task<IActionResult> RetryHardDelete(Guid ownerUserId, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            await _deletion.RetryAsync(ownerUserId, Actor, token);
+            await _deletion.CommitChangesAsync(token);
+            return Accepted();
+        });
+}
+
+/// <summary>
+/// Pending account deletions across the console: the second operator approves or rejects here. The
+/// operator who asked can't approve their own request.
+/// </summary>
+[Route("api/v{version:apiVersion}/platform/deletion-requests")]
+[ApiVersion("1.0")]
+[EnableRateLimiting(PlatformRateLimiting.PolicyName)]
+[ApiController]
+public class PlatformDeletionRequestsController : ControllerBase
+{
+    private readonly AccountDeletionRequestService _requests;
+
+    public PlatformDeletionRequestsController(AccountDeletionRequestService requests) => _requests = requests;
+
+    [HttpGet]
+    [PlatformAuthorize(PlatformPermissions.AccountsDelete)]
+    [ProducesResponseType(typeof(IReadOnlyList<AccountDeletionRequestView>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ListPending(CancellationToken token) => Ok(await _requests.ListPendingAsync(token));
+
+    /// <summary>Approves and starts the erasure at once; the account shows as being deleted until every company reports back.</summary>
+    [HttpPost("{requestId:guid}/approve")]
+    [PlatformAuthorize(PlatformPermissions.AccountsDelete)]
+    public Task<IActionResult> Approve(Guid requestId, [FromBody] ApproveDeletionBody body, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            var approved = await _requests.ApproveAsync(requestId, body.ConfirmName ?? body.ConfirmEmail, PlatformActor.Operator(User), token);
+            await _requests.CommitChangesAsync(token);
+            return Accepted(new { approved.OwnerUserId, approved.TenantId });
+        });
+
+    [HttpPost("{requestId:guid}/reject")]
+    [PlatformAuthorize(PlatformPermissions.AccountsDelete)]
+    public Task<IActionResult> Reject(Guid requestId, [FromBody] ReasonRequest body, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            await _requests.RejectAsync(requestId, body.Reason, PlatformActor.Operator(User), token);
+            await _requests.CommitChangesAsync(token);
+            return Ok();
+        });
 }
 
 /// <summary>Companies across all accounts, for the console's companies screen.</summary>
@@ -158,8 +270,16 @@ public class PlatformAccountsController : ControllerBase
 public class PlatformCompaniesController : ControllerBase
 {
     private readonly PlatformDirectoryService _directory;
+    private readonly AccountDeletionRequestService _deletionRequests;
+    private readonly PlatformCompanyDeletionService _deletion;
 
-    public PlatformCompaniesController(PlatformDirectoryService directory) => _directory = directory;
+    public PlatformCompaniesController(
+        PlatformDirectoryService directory, AccountDeletionRequestService deletionRequests, PlatformCompanyDeletionService deletion)
+    {
+        _directory = directory;
+        _deletionRequests = deletionRequests;
+        _deletion = deletion;
+    }
 
     [HttpGet]
     [PlatformAuthorize(PlatformPermissions.AccountsRead)]
@@ -173,6 +293,46 @@ public class PlatformCompaniesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Get(Guid tenantId, CancellationToken token) =>
         await _directory.GetCompanyAsync(tenantId, token) is { } company ? Ok(company) : NotFound();
+
+    /// <summary>The company's latest deletion request (any outcome); 204 when it never had one.</summary>
+    [HttpGet("{tenantId:guid}/deletion-request")]
+    [PlatformAuthorize(PlatformPermissions.AccountsRead)]
+    [ProducesResponseType(typeof(AccountDeletionRequestView), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetDeletionRequest(Guid tenantId, CancellationToken token) =>
+        await _deletionRequests.GetLatestForCompanyAsync(tenantId, token) is { } request ? Ok(request) : NoContent();
+
+    /// <summary>Asks for this one company to be erased for good (the account stays). Nothing is deleted until a second operator approves.</summary>
+    [HttpPost("{tenantId:guid}/deletion-requests")]
+    [PlatformAuthorize(PlatformPermissions.AccountsDelete)]
+    [ProducesResponseType(typeof(AccountDeletionRequestView), StatusCodes.Status200OK)]
+    public Task<IActionResult> RequestDeletion(Guid tenantId, [FromBody] CompanyDeletionRequestBody body, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            var request = await _deletionRequests.RequestCompanyAsync(tenantId, body.Reason, body.ConfirmName, PlatformActor.Operator(User), token);
+            await _deletionRequests.CommitChangesAsync(token);
+            return Ok(request);
+        });
+
+    [HttpPost("{tenantId:guid}/deletion-requests/{requestId:guid}/cancel")]
+    [PlatformAuthorize(PlatformPermissions.AccountsDelete)]
+    public Task<IActionResult> CancelDeletion(Guid tenantId, Guid requestId, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            await _deletionRequests.CancelCompanyAsync(tenantId, requestId, PlatformActor.Operator(User), token);
+            await _deletionRequests.CommitChangesAsync(token);
+            return Ok();
+        });
+
+    /// <summary>Asks again for a company whose erasure failed or never reported back.</summary>
+    [HttpPost("{tenantId:guid}/hard-delete/retry")]
+    [PlatformAuthorize(PlatformPermissions.AccountsDelete)]
+    public Task<IActionResult> RetryHardDelete(Guid tenantId, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            await _deletion.RetryAsync(tenantId, PlatformActor.From(User), token);
+            await _deletion.CommitChangesAsync(token);
+            return Accepted();
+        });
 }
 
 /// <summary>Recorded payments across all accounts, voiding one recorded in error, and refunding an online one.</summary>

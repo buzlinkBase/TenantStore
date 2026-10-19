@@ -8,6 +8,10 @@ public enum CompanyPurgeStage
     ArchiveAndPurge,
     /// <summary>Once the 5-year legal retention has run out: delete the archive itself.</summary>
     DestroyArchive,
+    /// <summary>An operator erased a (test) account from the Platform Console after a second operator
+    /// approved it: delete everything for the company at once -- no read-only check, no archive, and
+    /// the company row itself goes too. The company may still be live when this arrives.</summary>
+    HardDelete,
 }
 
 /// <summary>

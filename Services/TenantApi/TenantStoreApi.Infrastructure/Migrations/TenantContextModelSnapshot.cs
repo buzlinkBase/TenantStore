@@ -71,7 +71,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasIndex("Delivered");
 
-                    b.ToTable("InboxState", (string)null);
+                    b.ToTable("InboxState");
                 });
 
             modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.OutboxMessage", b =>
@@ -162,7 +162,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.HasIndex("InboxMessageId", "InboxConsumerId", "SequenceNumber")
                         .IsUnique();
 
-                    b.ToTable("OutboxMessage", (string)null);
+                    b.ToTable("OutboxMessage");
                 });
 
             modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.OutboxState", b =>
@@ -192,7 +192,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasIndex("Created");
 
-                    b.ToTable("OutboxState", (string)null);
+                    b.ToTable("OutboxState");
                 });
 
             modelBuilder.Entity("Onepunch.AuditEngine.EntityFrameworkCore.AuditEventRecord", b =>
@@ -311,7 +311,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "ExternalId");
 
-                    b.ToTable("ClientEntities", (string)null);
+                    b.ToTable("ClientEntities");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.ClientMembershipRole", b =>
@@ -351,7 +351,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.HasIndex("UserMembershipId", "ClientEntityId", "RoleId")
                         .IsUnique();
 
-                    b.ToTable("ClientMembershipRoles", (string)null);
+                    b.ToTable("ClientMembershipRoles");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.ConnectionStringStore", b =>
@@ -421,7 +421,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasIndex("TenantId");
 
-                    b.ToTable("Connections", (string)null);
+                    b.ToTable("Connections");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.MembershipRole", b =>
@@ -460,7 +460,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.HasIndex("UserMembershipId", "Role")
                         .IsUnique();
 
-                    b.ToTable("MembershipRoles", (string)null);
+                    b.ToTable("MembershipRoles");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Permission", b =>
@@ -514,7 +514,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasIndex("Product");
 
-                    b.ToTable("Permissions", (string)null);
+                    b.ToTable("Permissions");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.PlatformSetting", b =>
@@ -555,7 +555,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.HasIndex("Key")
                         .IsUnique();
 
-                    b.ToTable("PlatformSettings", (string)null);
+                    b.ToTable("PlatformSettings");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Role", b =>
@@ -614,7 +614,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.HasIndex("TenantId", "ClientEntityId", "Name")
                         .IsUnique();
 
-                    b.ToTable("Roles", (string)null);
+                    b.ToTable("Roles");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.RolePermission", b =>
@@ -649,7 +649,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.HasIndex("RoleId", "PermissionId")
                         .IsUnique();
 
-                    b.ToTable("RolePermissions", (string)null);
+                    b.ToTable("RolePermissions");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.SchemaVersion", b =>
@@ -691,7 +691,98 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.HasIndex("TenantId", "System")
                         .IsUnique();
 
-                    b.ToTable("SchemaVersions", (string)null);
+                    b.ToTable("SchemaVersions");
+                });
+
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.AccountDeletionRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("CompanyName")
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DecidedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("DecidedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<Guid?>("DecidedById")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("DecisionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Erasure")
+                        .HasMaxLength(16)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<string>("ErasureError")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("OwnerEmail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("RequestStatus")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<DateTime>("RequestedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("RequestedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<Guid>("RequestedById")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerUserId", "RequestStatus");
+
+                    b.HasIndex("RequestStatus", "ExpiresAtUtc");
+
+                    b.HasIndex("TenantId", "RequestStatus");
+
+                    b.ToTable("AccountDeletionRequests");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.AccountSubscription", b =>
@@ -819,7 +910,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasIndex("SubStatus");
 
-                    b.ToTable("AccountSubscriptions", (string)null);
+                    b.ToTable("AccountSubscriptions");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.BillingEvent", b =>
@@ -875,7 +966,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasIndex("SubscriptionId", "OccurredAtUtc");
 
-                    b.ToTable("BillingEvents", (string)null);
+                    b.ToTable("BillingEvents");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.PaymentCheckout", b =>
@@ -988,7 +1079,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasIndex("SubscriptionId", "CheckoutStatus");
 
-                    b.ToTable("PaymentCheckouts", (string)null);
+                    b.ToTable("PaymentCheckouts");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.Plan", b =>
@@ -1061,7 +1152,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasIndex("Name");
 
-                    b.ToTable("Plans", (string)null);
+                    b.ToTable("Plans");
 
                     b.HasData(
                         new
@@ -1167,7 +1258,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.HasIndex("PlanId", "Key")
                         .IsUnique();
 
-                    b.ToTable("PlanEntitlements", (string)null);
+                    b.ToTable("PlanEntitlements");
 
                     b.HasData(
                         new
@@ -1885,7 +1976,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasIndex("PlanId", "OwnerUserId");
 
-                    b.ToTable("PlanOffers", (string)null);
+                    b.ToTable("PlanOffers");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.StorageAddOn", b =>
@@ -1950,7 +2041,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasIndex("SubscriptionId");
 
-                    b.ToTable("StorageAddOns", (string)null);
+                    b.ToTable("StorageAddOns");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.StorageAddOnOffer", b =>
@@ -1991,7 +2082,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasIndex("OfferingId", "OwnerUserId");
 
-                    b.ToTable("StorageAddOnOffers", (string)null);
+                    b.ToTable("StorageAddOnOffers");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.StorageAddOnOffering", b =>
@@ -2061,7 +2152,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("StorageAddOnOfferings", (string)null);
+                    b.ToTable("StorageAddOnOfferings");
 
                     b.HasData(
                         new
@@ -2146,7 +2237,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasIndex("SubscriptionId", "PaidAtUtc");
 
-                    b.ToTable("StorageAddOnPayments", (string)null);
+                    b.ToTable("StorageAddOnPayments");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.SubscriptionDiscount", b =>
@@ -2194,7 +2285,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasIndex("SubscriptionId");
 
-                    b.ToTable("SubscriptionDiscounts", (string)null);
+                    b.ToTable("SubscriptionDiscounts");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.SubscriptionOverride", b =>
@@ -2247,7 +2338,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasIndex("SubscriptionId", "TenantId", "Key");
 
-                    b.ToTable("SubscriptionOverrides", (string)null);
+                    b.ToTable("SubscriptionOverrides");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.SubscriptionPayment", b =>
@@ -2335,7 +2426,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasIndex("SubscriptionId", "PaidAtUtc");
 
-                    b.ToTable("SubscriptionPayments", (string)null);
+                    b.ToTable("SubscriptionPayments");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Tenant", b =>
@@ -2380,7 +2471,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasIndex("UserId", "ActivatedAtUtc");
 
-                    b.ToTable("Tenants", (string)null);
+                    b.ToTable("Tenants");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.TenantDelegation", b =>
@@ -2422,7 +2513,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasIndex("HostTenantId");
 
-                    b.ToTable("TenantDelegations", (string)null);
+                    b.ToTable("TenantDelegations");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.UserMembership", b =>
@@ -2477,7 +2568,7 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "Category");
 
-                    b.ToTable("Memberships", (string)null);
+                    b.ToTable("Memberships");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.ClientMembershipRole", b =>

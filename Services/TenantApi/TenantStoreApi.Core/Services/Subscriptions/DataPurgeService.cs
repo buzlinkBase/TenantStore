@@ -25,7 +25,8 @@ public static class DataPurgeSchedule
     /// </summary>
     public static void Reconcile(AccountSubscription subscription, DateTime nowUtc, SubscriptionOptions options)
     {
-        if (subscription.PurgeState is DataPurgeState.Purged or DataPurgeState.ArchiveDestroyed) return;
+        if (subscription.PurgeState is DataPurgeState.Purged or DataPurgeState.ArchiveDestroyed
+            or DataPurgeState.HardDeleting or DataPurgeState.HardDeleteFailed) return;
 
         if (!IsLocked(subscription))
         {

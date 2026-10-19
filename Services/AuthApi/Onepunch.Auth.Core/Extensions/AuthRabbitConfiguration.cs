@@ -21,6 +21,7 @@ public static class AuthRabbitConfiguration
             x.AddConsumer<MembershipChangedWorker, MembershipChangedConsumerDefinition>();
             x.AddConsumer<TenantRenamedWorker, TenantRenamedConsumerDefinition>();
             x.AddConsumer<SubscriptionChangedWorker, SubscriptionChangedConsumerDefinition>();
+            x.AddConsumer<AccountHardDeletedWorker, AccountHardDeletedConsumerDefinition>();
             x.AddEntityFrameworkOutbox<AuthContext>(o =>
             {
                 o.UseMySql();
@@ -90,6 +91,14 @@ public class TenantRenamedConsumerDefinition : ConsumerDefinition<TenantRenamedW
     public TenantRenamedConsumerDefinition()
     {
         EndpointName = "auth-tenant-renamed-que";
+    }
+}
+public class AccountHardDeletedConsumerDefinition : ConsumerDefinition<AccountHardDeletedWorker>
+{
+    public AccountHardDeletedConsumerDefinition()
+    {
+        EndpointName = "auth-account-hard-deleted-que";
+        ConcurrentMessageLimit = 1;
     }
 }
 public class SubscriptionChangedConsumerDefinition : ConsumerDefinition<SubscriptionChangedWorker>

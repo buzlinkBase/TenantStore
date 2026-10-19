@@ -42,6 +42,11 @@ public enum DataPurgeState
     Purged,
     /// <summary>The archive's retention ran out and it was destroyed. Nothing is left.</summary>
     ArchiveDestroyed,
+    /// <summary>Two operators approved erasing the account outright (no archive); waiting for every
+    /// company to report its data deleted, after which this row goes too.</summary>
+    HardDeleting,
+    /// <summary>A company reported the erasure failed; an operator can retry.</summary>
+    HardDeleteFailed,
 }
 
 /// <summary>

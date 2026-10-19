@@ -14,6 +14,7 @@ public static class LibServicesRegistrations
         services.AddScoped<IHMACService, HMACService>();
         services.AddScoped<MembershipGrpcClient>();
         services.AddScoped<IMfaChallengeService, NoOpMfaChallengeService>();
+        services.AddScoped<Onepunch.Auth.Core.Platform.IRowEraser, Onepunch.Auth.Core.Platform.RelationalRowEraser>();
     }
 
     public static void AddLibraryAssemblyDependencies(IServiceCollection services, string assemblyName)

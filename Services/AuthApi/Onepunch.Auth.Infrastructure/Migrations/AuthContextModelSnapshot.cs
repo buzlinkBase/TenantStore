@@ -68,7 +68,7 @@ namespace Onepunch.Auth.Infrastructure.Migrations
 
                     b.HasIndex("Delivered");
 
-                    b.ToTable("InboxState");
+                    b.ToTable("InboxState", (string)null);
                 });
 
             modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.OutboxMessage", b =>
@@ -159,7 +159,7 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                     b.HasIndex("InboxMessageId", "InboxConsumerId", "SequenceNumber")
                         .IsUnique();
 
-                    b.ToTable("OutboxMessage");
+                    b.ToTable("OutboxMessage", (string)null);
                 });
 
             modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.OutboxState", b =>
@@ -189,7 +189,7 @@ namespace Onepunch.Auth.Infrastructure.Migrations
 
                     b.HasIndex("Created");
 
-                    b.ToTable("OutboxState");
+                    b.ToTable("OutboxState", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
@@ -560,7 +560,7 @@ namespace Onepunch.Auth.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("ApiToken");
+                    b.ToTable("ApiToken", (string)null);
                 });
 
             modelBuilder.Entity("Onepunch.Auth.Domain.Entities.EmailToken", b =>
@@ -601,7 +601,7 @@ namespace Onepunch.Auth.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("EmailTokens");
+                    b.ToTable("EmailTokens", (string)null);
                 });
 
             modelBuilder.Entity("Onepunch.Auth.Domain.Entities.Invitation", b =>
@@ -678,7 +678,7 @@ namespace Onepunch.Auth.Infrastructure.Migrations
 
                     b.HasIndex("ClientEntityId", "Status");
 
-                    b.ToTable("Invitations");
+                    b.ToTable("Invitations", (string)null);
                 });
 
             modelBuilder.Entity("Onepunch.Auth.Domain.Entities.InvitationBatch", b =>
@@ -716,7 +716,7 @@ namespace Onepunch.Auth.Infrastructure.Migrations
                     b.HasIndex("TenantId", "IdempotencyKey")
                         .IsUnique();
 
-                    b.ToTable("InvitationBatches");
+                    b.ToTable("InvitationBatches", (string)null);
                 });
 
             modelBuilder.Entity("Onepunch.Auth.Domain.Entities.RefreshToken", b =>
@@ -765,7 +765,7 @@ namespace Onepunch.Auth.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "CreatedAt");
 
-                    b.ToTable("RefreshTokens");
+                    b.ToTable("RefreshTokens", (string)null);
                 });
 
             modelBuilder.Entity("Onepunch.Auth.Domain.Entities.TenantCreationRequestStatus", b =>
@@ -807,7 +807,7 @@ namespace Onepunch.Auth.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("TenantCreationRequests");
+                    b.ToTable("TenantCreationRequests", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>

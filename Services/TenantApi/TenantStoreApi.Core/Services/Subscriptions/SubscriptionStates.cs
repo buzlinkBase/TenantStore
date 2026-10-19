@@ -84,6 +84,17 @@ public static class BillingEventTypes
     /// <summary>An operator refunded (part of) an online payment through the gateway. Changes nothing else: voiding is a separate step.</summary>
     public const string PaymentRefundIssued = "payment.refund-issued";
 
+    // Permanent erasure (AccountDeletionRequestService, PlatformAccountDeletionService). Two operators
+    // are needed; once approved these vanish with the account, so they only outlive a request that
+    // was rejected, canceled or expired.
+    public const string DeletionRequested = "account.deletion-requested";
+    public const string DeletionCanceled = "account.deletion-canceled";
+    public const string DeletionRejected = "account.deletion-rejected";
+    public const string DeletionApproved = "account.deletion-approved";
+    public const string HardDeleteRequested = "account.hard-delete-requested";
+    public const string HardDeleteCompanyDone = "account.hard-delete-company-done";
+    public const string HardDeleteFailed = "account.hard-delete-failed";
+
     // Online checkout (SubscriptionCheckoutService).
     public const string CheckoutStarted = "checkout.started";
     public const string CheckoutPaid = "checkout.paid";

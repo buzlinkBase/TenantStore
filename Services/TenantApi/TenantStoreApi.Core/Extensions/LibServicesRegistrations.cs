@@ -15,6 +15,15 @@ public static class LibServicesRegistrations
         builder.Services.AddScoped<Services.Subscriptions.IAgencyStandingProvider, Services.Subscriptions.AgencyStandingProvider>();
         builder.Services.AddScoped<Services.Subscriptions.IClientStandingPublisher, Services.Subscriptions.ClientStandingPublisher>();
 
+        // Erasing an account (two operators approve): the rows go in set-based DELETEs, and every
+        // guard below must pass at both the request and the approval.
+        builder.Services.AddScoped<Services.Platform.IRowEraser, Services.Platform.RelationalRowEraser>();
+        builder.Services.AddScoped<Services.Platform.TenantStoreAccountEraser>();
+        foreach (var guard in Services.Platform.AccountDeletionGuards.Default)
+            builder.Services.AddSingleton<Services.Platform.IAccountDeletionGuard>(guard);
+        foreach (var guard in Services.Platform.AccountDeletionGuards.Company)
+            builder.Services.AddSingleton<Services.Platform.ICompanyDeletionGuard>(guard);
+
         // One provider per product that shares this authorization store; the seeder seeds them all.
         // A new system (procurement, accounting, billing) registers its provider here.
         builder.Services.AddSingleton<Services.IPermissionCatalogProvider, Services.HrmsPermissionCatalog>();
