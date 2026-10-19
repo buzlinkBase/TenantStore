@@ -60,6 +60,8 @@ public static class BillingEventTypes
     public const string StorageReductionWithdrawn = "storage.reduction-withdrawn";
     public const string StorageReductionApplied = "storage.reduction-applied";
     public const string StorageThresholdCrossed = "storage.threshold-crossed";
+    /// <summary>An operator deleted a company's stored files for the owner (StorageFileCleanupService).</summary>
+    public const string StorageFilesDeleted = "storage.files-deleted";
 
     // Data removal (DataPurgeService). A year after the lock, the company's data is archived and
     // deleted from the live databases; five years after its last entry the archive is destroyed.

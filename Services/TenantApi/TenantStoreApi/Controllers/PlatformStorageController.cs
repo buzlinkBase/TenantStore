@@ -33,15 +33,18 @@ public class PlatformStorageController : ControllerBase
     private readonly StorageOfferingCatalogService _catalog;
     private readonly StorageAddOnService _addOns;
     private readonly PlatformDirectoryService _directory;
+    private readonly StorageFileCleanupService _files;
 
     public PlatformStorageController(
         StorageOfferingCatalogService catalog,
         StorageAddOnService addOns,
-        PlatformDirectoryService directory)
+        PlatformDirectoryService directory,
+        StorageFileCleanupService files)
     {
         _catalog = catalog;
         _addOns = addOns;
         _directory = directory;
+        _files = files;
     }
 
     private string Actor => PlatformActor.From(User);
@@ -155,5 +158,42 @@ public class PlatformStorageController : ControllerBase
             await _addOns.RemoveAsync(ownerUserId, addOnId, reason, Actor, token);
             await _addOns.CommitChangesAsync(token);
             return Ok();
+        });
+
+    // ── One company's stored files ───────────────────────────────────────────────────────────
+
+    /// <summary>What fills one of the account's companies' file storage, by category and year.</summary>
+    [HttpGet("accounts/{ownerUserId:guid}/companies/{tenantId:guid}/files/breakdown")]
+    [PlatformAuthorize(PlatformPermissions.AccountsRead)]
+    [ProducesResponseType(typeof(StorageBreakdownView), StatusCodes.Status200OK)]
+    public Task<IActionResult> FileBreakdown(Guid ownerUserId, Guid tenantId, CancellationToken token) =>
+        SubscriptionResults.Run(async () => Ok(await _files.GetBreakdownAsync(ownerUserId, tenantId, token)));
+
+    [HttpGet("accounts/{ownerUserId:guid}/companies/{tenantId:guid}/files")]
+    [PlatformAuthorize(PlatformPermissions.AccountsRead)]
+    [ProducesResponseType(typeof(StoredFilePageView), StatusCodes.Status200OK)]
+    public Task<IActionResult> Files(
+        Guid ownerUserId, Guid tenantId, [FromQuery] string category, [FromQuery] int year,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken token = default) =>
+        SubscriptionResults.Run(async () =>
+            Ok(await _files.GetFilesAsync(ownerUserId, tenantId, category, year, page, pageSize, token)));
+
+    [HttpPost("accounts/{ownerUserId:guid}/companies/{tenantId:guid}/files/delete/preview")]
+    [PlatformAuthorize(PlatformPermissions.StorageFilesDelete)]
+    [ProducesResponseType(typeof(StorageDeletePreviewView), StatusCodes.Status200OK)]
+    public Task<IActionResult> PreviewFileDelete(
+        Guid ownerUserId, Guid tenantId, [FromBody] StorageFileDeleteCommand command, CancellationToken token) =>
+        SubscriptionResults.Run(async () => Ok(await _files.PreviewDeleteAsync(ownerUserId, tenantId, command, token)));
+
+    /// <summary>Delete files to free the account's storage. A reason is required; both audit trails record it.</summary>
+    [HttpPost("accounts/{ownerUserId:guid}/companies/{tenantId:guid}/files/delete")]
+    [PlatformAuthorize(PlatformPermissions.StorageFilesDelete)]
+    [ProducesResponseType(typeof(StorageDeleteResultView), StatusCodes.Status200OK)]
+    public Task<IActionResult> DeleteFiles(
+        Guid ownerUserId, Guid tenantId, [FromBody] StorageFileDeleteCommand command, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            var result = await _files.DeleteAsync(ownerUserId, tenantId, command, PlatformActor.Operator(User), token);
+            return Ok(result);
         });
 }

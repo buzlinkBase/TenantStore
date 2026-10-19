@@ -140,6 +140,12 @@ public class HrmsPermissionCatalog : IPermissionCatalogProvider
         // and whoever they make a billing admin through a custom role.
         ("Billing", "Billing", ["View", "Manage"]),
 
+        // Billing > Storage (hrms-api StorageManagerController): View sees what fills the
+        // company's file storage by category and year; Manage deletes files no longer needed, so
+        // the account uses the storage it has instead of buying more. Unlike Billing it IS in
+        // AdminGrantedCodes -- cleaning up files is day-to-day administration, not spending.
+        ("Billing", "Storage", ["View", "Manage"]),
+
         // What UserMembershipService already enforces today via HasAnyRole(Owner, Admin) --
         // folded into the same catalog so it's one permission system, not two. Named "Tenant
         // Members"/"Tenant Roles" (not "Members"/"Roles") to avoid colliding with the Security
@@ -207,6 +213,7 @@ public class HrmsPermissionCatalog : IPermissionCatalogProvider
             "Workforce Analytics", "Attendance Analytics", "Payroll Analytics", "Request Analytics",
         }.SelectMany(feature => new[] { "View", "Export" }.Select(action => $"{feature}:{action}")),
         .. new[] { "View", "Create", "Edit", "Delete", "Publish" }.Select(action => $"Announcements:{action}"),
+        "Storage:View", "Storage:Manage",
     ];
     // The frontend's "My Portal" menu is gated on this permission (see hrms-ui-onepunch's
     // navigation.const.ts) -- Employee is the role whose entire purpose is the self-service

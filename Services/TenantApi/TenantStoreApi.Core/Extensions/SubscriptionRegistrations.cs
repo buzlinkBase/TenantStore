@@ -42,6 +42,7 @@ public static class SubscriptionRegistrations
                 EntitlementKeys.PayrollCore, EntitlementKeys.PayrollLoansIncome, EntitlementKeys.ReportsStatutory,
                 EntitlementKeys.ApprovalsMultilevel, EntitlementKeys.Announcements, EntitlementKeys.ClientsAgency,
             ]);
+        AddStorageManagerApi(services, config["Subscriptions:Usage:HrmsApiUrl"], config["Subscriptions:Usage:HrmsApiKey"]);
         AddRemoteUsageProvider(services, "hrms-adms-api",
             config["Subscriptions:Usage:AdmsApiUrl"], config["Subscriptions:Usage:AdmsApiKey"],
             [EntitlementKeys.BiometricDevicesMax]);
@@ -104,6 +105,23 @@ public static class SubscriptionRegistrations
             options.StartDelay = TimeSpan.FromSeconds(5);
             options.WaitForJobsToComplete = true;
         });
+    }
+
+    // hrms-api's Storage Manager, for the console's per-company file cleanup. Same address and key as
+    // its usage endpoint; unconfigured, StorageFileCleanupService says storage isn't reachable.
+    private static void AddStorageManagerApi(IServiceCollection services, string? baseUrl, string? apiKey)
+    {
+        if (string.IsNullOrWhiteSpace(baseUrl)) return;
+
+        const string clientName = "storage-manager:hrms-api";
+        services.AddHttpClient(clientName, client =>
+        {
+            client.BaseAddress = new Uri(baseUrl);
+            client.Timeout = TimeSpan.FromSeconds(60);
+            if (!string.IsNullOrWhiteSpace(apiKey)) client.DefaultRequestHeaders.Add("Api-key", apiKey);
+        });
+        services.AddScoped(sp =>
+            RestService.For<IStorageManagerApi>(sp.GetRequiredService<IHttpClientFactory>().CreateClient(clientName)));
     }
 
     // Unconfigured: that service's counts stay unknown, so a downgrade that depends on them is
