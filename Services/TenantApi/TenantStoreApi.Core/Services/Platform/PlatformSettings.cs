@@ -11,6 +11,7 @@ public enum PlatformSettingKind
 {
     Integer,
     Text,
+    Boolean,
 }
 
 /// <summary>
@@ -88,6 +89,26 @@ public sealed class TextSetting : PlatformSettingDefinition
         : null;
 }
 
+/// <summary>A yes/no switch, stored as "true" / "false".</summary>
+public sealed class BooleanSetting : PlatformSettingDefinition
+{
+    private readonly Func<SubscriptionOptions, bool> _get;
+    private readonly Action<SubscriptionOptions, bool> _set;
+
+    public BooleanSetting(Func<SubscriptionOptions, bool> get, Action<SubscriptionOptions, bool> set)
+    {
+        _get = get;
+        _set = set;
+    }
+
+    public override PlatformSettingKind Kind => PlatformSettingKind.Boolean;
+    public override string Read(SubscriptionOptions options) => _get(options) ? "true" : "false";
+    public override void Apply(SubscriptionOptions options, string value) => _set(options, bool.Parse(value.Trim()));
+
+    public override string? Validate(string value) =>
+        bool.TryParse(value.Trim(), out _) ? null : $"{Label} must be Yes or No.";
+}
+
 /// <summary>
 /// The settings the console can change. Everything else in <see cref="SubscriptionOptions"/> (cron
 /// schedule, plan codes, enforcement switch ...) stays in configuration on purpose: those change
@@ -126,6 +147,12 @@ public static class PlatformSettingsCatalog
         {
             Key = "subscriptions.payment-instructions", Label = "Payment instructions",
             Description = "Shown to an owner after they pick a plan: where to send the payment and what reference to use.",
+        },
+        new BooleanSetting(o => o.RequireSecondDeletionApprover, (o, v) => o.RequireSecondDeletionApprover = v)
+        {
+            Key = "platform.deletion.require-second-approver", Label = "Second approver for permanent deletions",
+            Description = "On: deleting an account or company needs a second administrator to approve it. Turn off only for testing: "
+                + "the administrator who asked can then approve their own request.",
         },
     ];
 

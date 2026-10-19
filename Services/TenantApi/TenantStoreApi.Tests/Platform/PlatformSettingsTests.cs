@@ -17,6 +17,7 @@ public class PlatformSettingsTests
     private const string TrialDaysKey = "subscriptions.trial-days";
     private const string GraceDaysKey = "subscriptions.grace-days";
     private const string InstructionsKey = "subscriptions.payment-instructions";
+    private const string SecondApproverKey = "platform.deletion.require-second-approver";
 
     private sealed class FakeSource(Func<Dictionary<string, string>> load) : IPlatformSettingsSource
     {
@@ -65,9 +66,26 @@ public class PlatformSettingsTests
     [InlineData(GraceDaysKey, "-1", false)]
     [InlineData(InstructionsKey, "   ", false)]
     [InlineData(InstructionsKey, "Pay by GCash to 0917...", true)]
+    [InlineData(SecondApproverKey, "true", true)]
+    [InlineData(SecondApproverKey, "False", true)]
+    [InlineData(SecondApproverKey, "yes", false)]
+    [InlineData(SecondApproverKey, "", false)]
     public void Validate_EnforcesEachSettingsRange(string key, string value, bool valid)
     {
         (PlatformSettingsCatalog.Find(key)!.Validate(value) == null).Should().Be(valid);
+    }
+
+    [Fact]
+    public void TheSecondApproverSwitch_IsOnByDefault_AndCanBeTurnedOff()
+    {
+        var setting = PlatformSettingsCatalog.Find(SecondApproverKey)!;
+        var options = new SubscriptionOptions();
+
+        setting.Kind.Should().Be(PlatformSettingKind.Boolean);
+        setting.Read(options).Should().Be("true");
+        setting.Apply(options, "false");
+        options.RequireSecondDeletionApprover.Should().BeFalse();
+        setting.Read(options).Should().Be("false");
     }
 
     [Fact]

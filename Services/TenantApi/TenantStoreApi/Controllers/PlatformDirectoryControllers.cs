@@ -232,8 +232,20 @@ public class PlatformAccountsController : ControllerBase
 public class PlatformDeletionRequestsController : ControllerBase
 {
     private readonly AccountDeletionRequestService _requests;
+    private readonly DeletionImpactService _impact;
 
-    public PlatformDeletionRequestsController(AccountDeletionRequestService requests) => _requests = requests;
+    public PlatformDeletionRequestsController(AccountDeletionRequestService requests, DeletionImpactService impact)
+    {
+        _requests = requests;
+        _impact = impact;
+    }
+
+    /// <summary>Whose logins approving this request deletes, and whose it keeps because they belong to other companies.</summary>
+    [HttpGet("{requestId:guid}/impact")]
+    [PlatformAuthorize(PlatformPermissions.AccountsDelete)]
+    [ProducesResponseType(typeof(DeletionImpact), StatusCodes.Status200OK)]
+    public Task<IActionResult> Impact(Guid requestId, CancellationToken token) =>
+        SubscriptionResults.Run(async () => Ok(await _impact.GetAsync(requestId, token)));
 
     [HttpGet]
     [PlatformAuthorize(PlatformPermissions.AccountsDelete)]

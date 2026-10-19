@@ -46,7 +46,8 @@ public class AccountDeletionTests
 
         public AccountDeletionRequestService Requests => new(
             Host.Uow, new PlatformDirectoryService(Host.Uow, Host.StateMachine), Deletion, CompanyDeletion, Host.Events,
-            AccountDeletionGuards.Default, AccountDeletionGuards.Company, Host.Clock);
+            AccountDeletionGuards.Default, AccountDeletionGuards.Company,
+            Microsoft.Extensions.Options.Options.Create(Host.Options), Host.Clock);
 
         public List<T> Published<T>() => Host.Publisher.Invocations
             .Where(i => i.Arguments.FirstOrDefault() is T)
@@ -176,6 +177,31 @@ public class AccountDeletionTests
 
         await act.Should().ThrowAsync<SubscriptionRuleException>().WithMessage("*second administrator*");
         f.Host.SubscriptionOf(owner).PurgeState.Should().Be(DataPurgeState.None);
+    }
+
+    [Fact]
+    public async Task WithTheSecondApproverSettingOff_TheOperatorWhoAsked_CanApprove()
+    {
+        var f = new Fixture();
+        f.Host.Options.RequireSecondDeletionApprover = false;
+        var (owner, _) = await f.Host.TrialAccountAsync(OwnerEmail);
+        var request = await f.RequestAsync(owner);
+        request.SecondApproverRequired.Should().BeFalse();
+
+        await f.Requests.ApproveAsync(request.Id, OwnerEmail, Alice);
+        await f.Host.SaveAsync();
+
+        f.Host.SubscriptionOf(owner).PurgeState.Should().Be(DataPurgeState.HardDeleting);
+        f.Host.Uow.Context.AccountDeletionRequests.Single().DecidedById.Should().Be(Alice.Id);
+    }
+
+    [Fact]
+    public async Task ByDefault_TheViewSaysASecondApproverIsRequired()
+    {
+        var f = new Fixture();
+        var (owner, _) = await f.Host.TrialAccountAsync(OwnerEmail);
+
+        (await f.RequestAsync(owner)).SecondApproverRequired.Should().BeTrue();
     }
 
     [Fact]

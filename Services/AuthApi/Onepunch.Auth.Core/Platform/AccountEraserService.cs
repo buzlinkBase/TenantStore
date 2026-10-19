@@ -111,6 +111,13 @@ public class AccountEraserService
         var organizations = tenantIds.Select(id => id.ToString()).ToList();
         var actors = deleteIds.Select(id => id.ToString()).ToList();
 
+        // Named in the operator log: whoever keeps a login because they belong to other companies.
+        var keptEmails = await Context.Users.AsNoTracking()
+            .Where(u => detachIds.Contains(u.Id))
+            .Select(u => u.Email ?? u.UserName ?? u.Id.ToString())
+            .OrderBy(e => e)
+            .ToListAsync(token);
+
         // Detach first, while the rows are still tracked normally.
         var detached = await Context.Users
             .Where(u => detachIds.Contains(u.Id) && u.DefaultTenantId != null && tenantIds.Contains(u.DefaultTenantId.Value))
@@ -152,10 +159,10 @@ public class AccountEraserService
             await _notifications.NotifySessionRevoked(userId, new SessionRevokedNotification { TenantId = tenantId });
         }
 
-        await RecordAsync(message, token);
+        await RecordAsync(message, keptEmails, token);
     }
 
-    private async Task RecordAsync(ErasureOrder message, CancellationToken token)
+    private async Task RecordAsync(ErasureOrder message, IReadOnlyList<string> keptEmails, CancellationToken token)
     {
         if (await _platform.PlatformAdminAudits.AsNoTracking()
                 .AnyAsync(a => a.Action == message.Action && a.TargetId == message.RequestId, token))
@@ -164,7 +171,14 @@ public class AccountEraserService
         var detail = $"Requested by {Email(message.RequestedBy)}, approved by {Email(message.ApprovedBy)}. "
             + $"Companies: {string.Join(", ", message.CompanyNames)}. "
             + $"Logins deleted: {message.DeleteUserIds.Count}, kept: {message.DetachUserIds.Count}. "
-            + $"Reason: {message.Reason}";
+            + $"Reason: {message.Reason}"
+            + KeptSentence(keptEmails, MaxDetailLength);
+        // The list goes last and is shortened to fit, so the facts above always survive.
+        if (detail.Length > MaxDetailLength && keptEmails.Count > 0)
+        {
+            var head = detail[..detail.IndexOf(" Logins kept", StringComparison.Ordinal)];
+            detail = head + KeptSentence(keptEmails, MaxDetailLength - head.Length);
+        }
         _platform.PlatformAdminAudits.Add(new PlatformAdminAudit
         {
             CreatedUtc = _clock.GetUtcNow().UtcDateTime,
@@ -175,6 +189,20 @@ public class AccountEraserService
             Detail = detail.Length > MaxDetailLength ? detail[..MaxDetailLength] : detail,
         });
         await _platform.SaveChangesAsync(token);
+    }
+
+    /// <summary>" Logins kept (they belong to other companies): a, b, +N more." -- as many emails as fit in <paramref name="room"/>.</summary>
+    private static string KeptSentence(IReadOnlyList<string> emails, int room)
+    {
+        if (emails.Count == 0) return string.Empty;
+        const string start = " Logins kept (they belong to other companies): ";
+        for (var shown = emails.Count; shown >= 0; shown--)
+        {
+            var rest = emails.Count - shown;
+            var sentence = start + string.Join(", ", emails.Take(shown).Append(rest > 0 ? $"+{rest} more" : null).OfType<string>()) + ".";
+            if (sentence.Length <= room || shown == 0) return sentence.Length <= room ? sentence : string.Empty;
+        }
+        return string.Empty;
     }
 
     private static string Email(string actor) =>

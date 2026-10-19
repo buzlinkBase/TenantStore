@@ -26,6 +26,9 @@ public sealed class SubscriptionOptions
     /// <summary>The least warning an account gets before its first purge date: an account that had
     /// already been locked for over a year when purging went live gets this long, not zero.</summary>
     public int MinPurgeNoticeDays { get; set; } = 30;
+    /// <summary>On: erasing an account or company from the Platform Console needs a second operator to
+    /// approve it. Off only for testing (one operator may approve their own request). A console setting.</summary>
+    public bool RequireSecondDeletionApprover { get; set; } = true;
     /// <summary>How long the compliance archive is kept after the company's last payroll / attendance /
     /// accounting entry. DOLE asks 3 years and BIR 5 (NIRC Sec. 235), so one 5-year clock covers both.</summary>
     public int ArchiveRetentionYears { get; set; } = 5;

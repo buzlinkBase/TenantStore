@@ -48,7 +48,8 @@ public class CompanyDeletionTests
         public AccountDeletionRequestService Requests => new(
             Host.Uow, new PlatformDirectoryService(Host.Uow, Host.StateMachine),
             new PlatformAccountDeletionService(Host.Uow, Host.Events, Host.Notifier, Host.Publisher.Object, Eraser, Host.Clock),
-            CompanyDeletion, Host.Events, AccountDeletionGuards.Default, AccountDeletionGuards.Company, Host.Clock);
+            CompanyDeletion, Host.Events, AccountDeletionGuards.Default, AccountDeletionGuards.Company,
+            Microsoft.Extensions.Options.Options.Create(Host.Options), Host.Clock);
 
         /// <summary>An account with a real company ("Acme") and a test one ("Acme Test").</summary>
         public async Task<Fixture> SeedAsync()
@@ -162,6 +163,19 @@ public class CompanyDeletionTests
         var act = () => f.Requests.ApproveAsync(request.Id, "Acme Test", Alice);
 
         await act.Should().ThrowAsync<SubscriptionRuleException>().WithMessage("*second administrator*");
+    }
+
+    [Fact]
+    public async Task WithTheSecondApproverSettingOff_TheOperatorWhoAsked_CanApprove()
+    {
+        var f = await new Fixture().SeedAsync();
+        f.Host.Options.RequireSecondDeletionApprover = false;
+        var request = await f.RequestAsync();
+
+        await f.Requests.ApproveAsync(request.Id, "Acme Test", Alice);
+        await f.Host.SaveAsync();
+
+        f.Published<PurgeCompanyData>().Should().ContainSingle(m => m.TenantId == f.Test);
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TenantStoreApi.Core.Services.Subscriptions;
 using TenantStoreApi.Domain.Entities;
 using TenantStoreApi.Domain.Entities.Subs;
@@ -30,7 +31,8 @@ public sealed record AccountDeletionRequestView(
     DateTime ExpiresAtUtc,
     string? DecidedBy,
     DateTime? DecidedAtUtc,
-    string? DecisionReason);
+    string? DecisionReason,
+    bool SecondApproverRequired);
 
 /// <summary>
 /// The two-person rule in front of <see cref="PlatformAccountDeletionService"/> and
@@ -52,6 +54,7 @@ public class AccountDeletionRequestService
     private readonly BillingEventService _events;
     private readonly IEnumerable<IAccountDeletionGuard> _guards;
     private readonly IEnumerable<ICompanyDeletionGuard> _companyGuards;
+    private readonly SubscriptionOptions _options;
     private readonly TimeProvider _clock;
 
     public AccountDeletionRequestService(
@@ -62,8 +65,10 @@ public class AccountDeletionRequestService
         BillingEventService events,
         IEnumerable<IAccountDeletionGuard> guards,
         IEnumerable<ICompanyDeletionGuard> companyGuards,
+        IOptions<SubscriptionOptions> options,
         TimeProvider clock)
     {
+        _options = options.Value;
         _uow = uow;
         _directory = directory;
         _deletion = deletion;
@@ -188,7 +193,8 @@ public class AccountDeletionRequestService
     public async Task<ApprovedDeletion> ApproveAsync(Guid requestId, string? confirmation, PlatformOperator approver, CancellationToken token = default)
     {
         var request = await RequirePendingAsync(requestId, token);
-        if (request.RequestedById == approver.Id)
+        // A console setting can drop the two-person rule for testing; on by default.
+        if (_options.RequireSecondDeletionApprover && request.RequestedById == approver.Id)
             throw new SubscriptionRuleException("A second administrator must approve this deletion. You can't approve your own request.");
 
         var subscription = await RequireSubscriptionAsync(request.OwnerUserId, token);
@@ -336,5 +342,6 @@ public class AccountDeletionRequestService
         r.TenantId != null && r.CompanyName != null ? [r.CompanyName] : companyNames, r.Reason,
         // Nobody marks a request expired: it simply ran out.
         r.RequestStatus == AccountDeletionRequestStatus.Pending && r.ExpiresAtUtc <= Now ? AccountDeletionRequestStatus.Expired : r.RequestStatus,
-        r.RequestedById, r.RequestedBy, r.RequestedAtUtc, r.ExpiresAtUtc, r.DecidedBy, r.DecidedAtUtc, r.DecisionReason);
+        r.RequestedById, r.RequestedBy, r.RequestedAtUtc, r.ExpiresAtUtc, r.DecidedBy, r.DecidedAtUtc, r.DecisionReason,
+        _options.RequireSecondDeletionApprover);
 }

@@ -153,6 +153,8 @@ public class AccountEraserServiceTests
         kept.DefaultTenantRoles.Should().BeEmpty();
         (await f.Db.RefreshTokens.CountAsync()).Should().Be(1, "their session in the other company stays");
         f.Cache.Verify(c => c.RemoveAsync($"membership:{shared.Id}"), Times.Once);
+        (await f.Platform.PlatformAdminAudits.SingleAsync()).Detail.Should()
+            .Contain("Logins kept (they belong to other companies): hr@both.ph.");
         f.Client.Verify(c => c.RolesChanged(It.IsAny<RolesChangedNotification>()), Times.Once);
     }
 
@@ -206,5 +208,22 @@ public class AccountEraserServiceTests
         line.Action.Should().Be(AccountEraserService.CompanyHardDeletedAction);
         line.TargetId.Should().Be(message.RequestId);
         line.Detail.Should().Contain("Acme Test");
+    }
+
+    [Fact]
+    public async Task ALongListOfKeptLogins_IsShortenedToFit_AndTheFactsSurvive()
+    {
+        var f = new Fixture();
+        var owner = new User { Id = Guid.NewGuid(), Email = "owner@acme.ph" };
+        var shared = Enumerable.Range(0, 40).Select(i => new User { Id = Guid.NewGuid(), Email = $"person{i:00}@another-company.ph" }).ToList();
+        f.Db.Users.Add(owner);
+        f.Db.Users.AddRange(shared);
+        await f.Db.SaveChangesAsync();
+
+        await f.ConsumeAsync(Message(owner.Id, [owner.Id], shared.Select(u => u.Id)));
+
+        var detail = (await f.Platform.PlatformAdminAudits.SingleAsync()).Detail!;
+        detail.Length.Should().BeLessThanOrEqualTo(500);
+        detail.Should().Contain("Reason: Test account").And.Contain("kept: 40").And.Contain("person00@another-company.ph").And.MatchRegex(@"\+\d+ more\.$");
     }
 }
