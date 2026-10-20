@@ -28,6 +28,7 @@ public class PlatformAccountActionsService
     private readonly SubscriptionStateMachine _states;
     private readonly SubscriptionOptions _options;
     private readonly IPaymentGateway _gateway;
+    private readonly StorageSubscriptionService _storagePeriod;
     private readonly TimeProvider _clock;
 
     public PlatformAccountActionsService(
@@ -38,8 +39,10 @@ public class PlatformAccountActionsService
         SubscriptionStateMachine states,
         IOptions<SubscriptionOptions> options,
         IPaymentGateway gateway,
-        TimeProvider clock)
+        TimeProvider clock,
+        StorageSubscriptionService storagePeriod)
     {
+        _storagePeriod = storagePeriod;
         _uow = uow;
         _subscriptions = subscriptions;
         _events = events;
@@ -212,8 +215,15 @@ public class PlatformAccountActionsService
         Guid paymentId, string? reason, string? actor, VoidKind kind = VoidKind.EntryError, bool revertPlan = false, CancellationToken token = default)
     {
         reason = RequireReason(reason);
-        var payment = await Context.SubscriptionPayments.FirstOrDefaultAsync(p => p.Id == paymentId, token)
-            ?? throw new KeyNotFoundException("Payment not found.");
+        var payment = await Context.SubscriptionPayments.FirstOrDefaultAsync(p => p.Id == paymentId, token);
+        if (payment == null)
+        {
+            // Storage is billed on its own: its payments are voided against the storage period.
+            var storagePayment = await Context.StorageAddOnPayments.FirstOrDefaultAsync(p => p.Id == paymentId, token)
+                ?? throw new KeyNotFoundException("Payment not found.");
+            await _storagePeriod.VoidPaymentAsync(storagePayment, reason, kind, actor, token);
+            return;
+        }
         if (payment.VoidedAtUtc != null) throw new SubscriptionRuleException("This payment is already void.");
 
         var subscription = await Context.AccountSubscriptions

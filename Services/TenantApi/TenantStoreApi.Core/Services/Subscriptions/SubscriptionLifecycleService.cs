@@ -30,6 +30,9 @@ public class SubscriptionLifecycleService
     private readonly TimeProvider _clock;
     private readonly IEnumerable<ISubscriptionReminderRule> _rules;
     private readonly StorageAddOnService _storage;
+    private readonly StorageSubscriptionService _storagePeriod;
+    private readonly IEnumerable<IStorageReminderRule> _storageRules;
+    private readonly Payments.AutoRenewService _autoRenew;
 
     public SubscriptionLifecycleService(
         IUnitOfWorkService uow,
@@ -41,9 +44,14 @@ public class SubscriptionLifecycleService
         IPublishEndpoint publisher,
         IOptions<SubscriptionOptions> options,
         TimeProvider clock,
-        StorageAddOnService storage)
+        StorageAddOnService storage,
+        StorageSubscriptionService storagePeriod,
+        Payments.AutoRenewService autoRenew)
     {
+        _autoRenew = autoRenew;
         _storage = storage;
+        _storagePeriod = storagePeriod;
+        _storageRules = StorageReminderSchedule.Rules;
         _uow = uow;
         _stateMachine = stateMachine;
         _events = events;
@@ -67,22 +75,16 @@ public class SubscriptionLifecycleService
         var subscription = await Context.AccountSubscriptions
             .Include(s => s.Plan)
             .Include(s => s.StorageAddOns)
+            .Include(s => s.StorageSubscription)
             .FirstOrDefaultAsync(s => s.Id == subscriptionId, token);
         if (subscription == null) return [];
 
         var now = _clock.GetUtcNow().UtcDateTime;
 
-        // Scheduled storage reductions whose paid period has ended become permanent (entitlements
-        // already follow them by date, so this only keeps the stored blocks and the next charge honest).
-        var reductions = StorageAddOnPricing.ApplyDueReductions(subscription, now);
-        foreach (var (addOn, from, to) in reductions)
-        {
-            if (to == 0) Context.StorageAddOns.Remove(addOn);
-            await _events.AddAsync(subscription, BillingEventTypes.StorageReductionApplied,
-                new { addOn.Id, from, to }, actor: "system", token: token);
-        }
-        if (reductions.Count > 0)
-            await _notifier.PublishAsync(subscription.OwnerUserId, BillingEventTypes.StorageReductionApplied, token);
+        // Storage runs on its own period: scheduled reductions whose storage period has ended become
+        // permanent, and the period moves on by date (past due, then lapsed). Entitlements already follow
+        // the dates, so this keeps the stored rows, the next charge and the emails honest.
+        await _storagePeriod.AdvanceAsync(subscription, now, token);
 
         var transitions = _stateMachine.Advance(subscription, now, _options);
         if (transitions.Count > 0)
@@ -101,8 +103,13 @@ public class SubscriptionLifecycleService
         DataPurgeSchedule.Reconcile(subscription, now, _options);
         await _purge.RequestDueAsync(subscription, now, token);
 
+        // Auto renews whose target no longer renews (cancelled, suspended, a cycle switch) are stopped at the
+        // gateway, and a charge whose webhook never came is recorded.
+        await _autoRenew.ReconcileAsync(subscription, token);
+
         await SendDueEmailsAsync(subscription, now, token);
         await SendStorageAlertsAsync(subscription, now, token);
+        await SendStorageBillingEmailsAsync(subscription, now, token);
         await _uow.CommitChangesAsync("", token);
         return transitions;
     }
@@ -130,7 +137,9 @@ public class SubscriptionLifecycleService
         if (summary.Level != StorageLevel.Critical || summary.UsedMb == null || summary.LimitMb == null) return;
 
         // One email per account per billing period (storage is one pool for all its companies); only the owner.
-        var period = (subscription.CurrentPeriodEndUtc ?? subscription.TrialEndsAtUtc ?? now).ToString("yyyyMMdd");
+        // The storage period when there is one, since storage is billed on its own.
+        var period = (subscription.StorageSubscription?.CurrentPeriodEndUtc ?? subscription.CurrentPeriodEndUtc
+            ?? subscription.TrialEndsAtUtc ?? now).ToString("yyyyMMdd");
         var dedupeKey = $"email:{SubscriptionEmailTemplates.StorageAlmostFull}:{subscription.Id:N}:{period}";
         if (await _events.ExistsAsync(dedupeKey, token)) return;
 
@@ -156,6 +165,47 @@ public class SubscriptionLifecycleService
         }, token);
         await _events.AddAsync(subscription, BillingEventTypes.StorageThresholdCrossed,
             new { percent = summary.PercentUsed }, actor: "system", dedupeKey: dedupeKey, token: token);
+    }
+
+    /// <summary>Storage's own billing emails -- its renewal reminder, past due and lapsed -- apart from the plan's.</summary>
+    private async Task SendStorageBillingEmailsAsync(AccountSubscription subscription, DateTime now, CancellationToken token)
+    {
+        if (subscription.StorageSubscription is not { } storage) return;
+        var due = new List<ReminderDecision>();
+        foreach (var rule in _storageRules)
+        {
+            if (rule.Evaluate(subscription, storage, now, _options) is { } decision && !await _events.ExistsAsync(decision.DedupeKey, token))
+                due.Add(decision);
+        }
+        if (due.Count == 0) return;
+
+        var recipient = await Context.Memberships.AsNoTracking()
+            .Where(m => m.UserId == subscription.OwnerUserId && m.IsHidden && m.InvitedEmail != null)
+            .Select(m => new { m.InvitedEmail, m.FullName })
+            .FirstOrDefaultAsync(token);
+        if (recipient?.InvitedEmail == null)
+        {
+            Log.Logger.Warning("Subscription {SubscriptionId}: no owner email on file, {Count} storage email(s) not sent", subscription.Id, due.Count);
+            return;
+        }
+
+        foreach (var decision in due)
+        {
+            await _publisher.Publish(new SubscriptionReminderEmail
+            {
+                Email = recipient.InvitedEmail,
+                FullName = recipient.FullName,
+                Template = decision.Template,
+                PlanName = subscription.Plan?.Name,
+                PeriodEndUtc = storage.CurrentPeriodEndUtc,
+                GraceEndsAtUtc = storage.GraceEndsAtUtc,
+                PaymentMethodLabel = decision.Template == SubscriptionEmailTemplates.StorageRenewalDue
+                    ? (await AutoRenewReadModel.ChargingAsync(Context, subscription.Id, AutoRenewTarget.Storage, token))?.PaymentMethodLabel
+                    : null,
+            }, token);
+            await _events.AddAsync(subscription, BillingEventTypes.EmailSent,
+                new { template = decision.Template }, actor: "system", dedupeKey: decision.DedupeKey, token: token);
+        }
     }
 
     private async Task SendDueEmailsAsync(AccountSubscription subscription, DateTime now, CancellationToken token)
@@ -201,6 +251,9 @@ public class SubscriptionLifecycleService
                 PurgeAfterUtc = subscription.PurgeAfterUtc,
                 EmployeeCount = employees,
                 CompanyCount = companies,
+                PaymentMethodLabel = decision.Template == SubscriptionEmailTemplates.PaymentDue
+                    ? (await AutoRenewReadModel.ChargingAsync(Context, subscription.Id, AutoRenewTarget.Plan, token))?.PaymentMethodLabel
+                    : null,
             }, token);
             await _events.AddAsync(subscription, BillingEventTypes.EmailSent,
                 new { template = decision.Template }, actor: "system", dedupeKey: decision.DedupeKey, token: token);

@@ -25,6 +25,7 @@ public static class PaymentRegistrations
         {
             Log.Logger.Information("Online payment is off: set Payments:ReturnBaseUrl and Payments:PayMongo:SecretKey to turn it on");
             builder.Services.AddSingleton<IPaymentGateway, DisabledPaymentGateway>();
+            builder.Services.AddSingleton<IRecurringBillingGateway, DisabledRecurringBillingGateway>();
             return;
         }
 
@@ -35,12 +36,15 @@ public static class PaymentRegistrations
                                "confirmed only when the payer's return screen checks it -- set it in production");
         }
         var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes(options.PayMongo.SecretKey + ":"));
-        builder.Services.AddHttpClient<IPaymentGateway, PayMongoGateway>(client =>
+        builder.Services.AddHttpClient<PayMongoGateway>(client =>
         {
             client.BaseAddress = new Uri(options.PayMongo.ApiBaseUrl.TrimEnd('/') + "/");
             client.Timeout = TimeSpan.FromSeconds(20);
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", credentials);
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         });
+        // One adapter, two roles: hosted checkout, and recurring billing for auto renew.
+        builder.Services.AddTransient<IPaymentGateway>(sp => sp.GetRequiredService<PayMongoGateway>());
+        builder.Services.AddTransient<IRecurringBillingGateway>(sp => sp.GetRequiredService<PayMongoGateway>());
     }
 }

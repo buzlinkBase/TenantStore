@@ -9,7 +9,7 @@ namespace TenantStoreApi.Core.Services.Subscriptions;
 
 /// <summary>What a requested plan change will cost and when it takes effect.</summary>
 /// <param name="AmountDue">What's left to pay: <paramref name="Subtotal"/> less <paramref name="CreditAmount"/>.</param>
-/// <param name="Subtotal">The plan's price for a full period, plus <paramref name="AddOnsAmount"/>.</param>
+/// <param name="Subtotal">The plan's price for a full period. Storage is billed on its own (StorageSubscriptionService).</param>
 /// <param name="CreditAmount">The unused part of the period already paid for, taken off an upgrade's price.</param>
 /// <param name="UnusedDays">The whole days of the current period that <paramref name="CreditAmount"/> pays back.</param>
 /// <param name="AppliedImmediately">The credit covered the whole price: the plan was switched right away.</param>
@@ -24,7 +24,6 @@ public sealed record PlanChangeQuote(
     string Currency,
     bool PricesIncludeVat,
     decimal Subtotal = 0m,
-    decimal AddOnsAmount = 0m,
     decimal CreditAmount = 0m,
     int UnusedDays = 0,
     bool AppliedImmediately = false,
@@ -42,8 +41,8 @@ public enum PaymentDueReason
 
 /// <summary>What paying now buys: one period of <see cref="Plan"/> on <see cref="BillingCycle"/>,
 /// at this account's price.</summary>
-/// <param name="Amount">The whole charge: the plan's price plus <paramref name="AddOnsAmount"/>, less <paramref name="CreditAmount"/>.</param>
-/// <param name="AddOnsAmount">The part of it that renews the company's paid storage blocks.</param>
+/// <param name="Amount">The whole charge: the plan's price less <paramref name="CreditAmount"/>. Storage
+/// blocks are billed on their own cycle, never here.</param>
 /// <param name="CreditAmount">An upgrade's credit for the unused days of the period already paid for.</param>
 /// <param name="UnusedDays">The whole days that credit pays back.</param>
 public sealed record PaymentDue(
@@ -51,12 +50,11 @@ public sealed record PaymentDue(
     BillingCycle BillingCycle,
     decimal Amount,
     PaymentDueReason Reason,
-    decimal AddOnsAmount = 0m,
     decimal CreditAmount = 0m,
     int UnusedDays = 0)
 {
     /// <summary>The plan's own price, before the credit.</summary>
-    public decimal PlanAmount => Amount + CreditAmount - AddOnsAmount;
+    public decimal PlanAmount => Amount + CreditAmount;
 }
 
 public sealed record RecordPaymentCommand
@@ -134,7 +132,7 @@ public class AccountSubscriptionService
         _clock = clock;
     }
 
-    private TenantContext Context => _uow.Context;
+    internal TenantContext Context => _uow.Context;
     private DateTime Now => _clock.GetUtcNow().UtcDateTime;
 
     public Task<bool> CommitChangesAsync(CancellationToken token = default) => _uow.CommitChangesAsync("", token);
@@ -146,6 +144,7 @@ public class AccountSubscriptionService
             .Include(s => s.Plan).ThenInclude(p => p.Entitlements)
             .Include(s => s.Overrides)
             .Include(s => s.StorageAddOns)
+            .Include(s => s.StorageSubscription)
             .FirstOrDefaultAsync(s => s.OwnerUserId == ownerUserId, token);
 
     private async Task<AccountSubscription> RequireAsync(Guid ownerUserId, CancellationToken token) =>
@@ -355,22 +354,42 @@ public class AccountSubscriptionService
             ? subscription.Plan
             : await Context.Plans.Include(p => p.Entitlements).FirstOrDefaultAsync(p => p.Id == planId, token);
         if (plan == null) return null;
-        // Storage blocks renew with the plan, so paying for a period pays for them too.
-        var addOns = StorageAddOnPricing.RenewalAmount(subscription, cycle);
-        var charge = await PriceForAsync(subscription, plan, cycle, token) + addOns;
-        if (reason != PaymentDueReason.PlanChange) return new PaymentDue(plan, cycle, charge, reason, addOns);
+        // The plan alone: storage blocks have their own cycle and due date (StorageSubscriptionService).
+        var charge = await PriceForAsync(subscription, plan, cycle, token);
+        if (reason != PaymentDueReason.PlanChange) return new PaymentDue(plan, cycle, charge, reason);
 
         // An upgrade before the period ends: the days already paid for and not yet used come off.
         var upgrade = UpgradeProration.Apply(charge, await GetUpgradeCreditAsync(subscription, token), Now, cycle);
-        return new PaymentDue(plan, cycle, upgrade.AmountDue, reason, addOns,
+        return new PaymentDue(plan, cycle, upgrade.AmountDue, reason,
             Math.Min(upgrade.CreditApplied, charge), upgrade.UnusedDays);
     }
 
     /// <summary>
+    /// The next period of the plan that is running (or about to switch at the period end), at this
+    /// account's price -- whatever the date, unlike <see cref="GetPaymentDueAsync"/>. What an auto renew
+    /// should charge next. Null when the plan isn't set to continue: not paid and running (or past due),
+    /// set to cancel, suspended by an operator, or waiting for payment of an upgrade.
+    /// </summary>
+    public async Task<PaymentDue?> GetNextRenewalAsync(AccountSubscription subscription, CancellationToken token = default)
+    {
+        if (IsSuspendedByOperator(subscription) || subscription.CancelAtPeriodEnd) return null;
+        if (subscription.SubStatus is not (AccountSubscriptionStatus.Active or AccountSubscriptionStatus.PastDue)) return null;
+        if (subscription.PendingChangeTiming == PlanChangeTiming.OnPayment) return null;
+
+        var (planId, cycle) = subscription.PendingChangeTiming == PlanChangeTiming.AtPeriodEnd && subscription.PendingPlanId is { } next
+            ? (next, subscription.PendingBillingCycle ?? subscription.BillingCycle)
+            : (subscription.PlanId, subscription.BillingCycle);
+        var plan = planId == subscription.PlanId
+            ? subscription.Plan
+            : await Context.Plans.Include(p => p.Entitlements).FirstOrDefaultAsync(p => p.Id == planId, token);
+        return plan == null ? null : new PaymentDue(plan, cycle, await PriceForAsync(subscription, plan, cycle, token), PaymentDueReason.Renewal);
+    }
+
+    /// <summary>
     /// What the unused part of the running paid period is worth, credited when the owner upgrades
-    /// before it ends. Only money actually paid counts -- the plan payments for this period (and any
-    /// paid ahead) and storage bought during it, less refunds -- so a period an operator granted, or
-    /// a trial, earns nothing. Payments for earlier periods never count: an upgrade starts a new
+    /// before it ends. Only money actually paid for the plan counts -- its payments for this period (and
+    /// any paid ahead), less refunds -- so a period an operator granted, or a trial, earns nothing.
+    /// Storage is billed on its own and keeps running through an upgrade, so it is never credited. Payments for earlier periods never count: an upgrade starts a new
     /// period, so its credit can't be claimed twice.
     /// </summary>
     public async Task<UpgradeCredit> GetUpgradeCreditAsync(AccountSubscription subscription, CancellationToken token = default)
@@ -389,29 +408,20 @@ public class AccountSubscriptionService
                 && p.PeriodEndUtc > now)
             .Select(p => new { p.Amount, p.CreditAmount, p.Reference, p.PeriodStartUtc, p.PeriodEndUtc })
             .ToListAsync(token);
-        var storagePayments = await Context.StorageAddOnPayments.AsNoTracking()
-            .Where(p => p.SubscriptionId == subscription.Id
-                && p.PeriodStartUtc >= periodStart
-                && p.PeriodEndUtc > now)
-            .Select(p => new { p.Amount, p.Reference, p.PeriodStartUtc, p.PeriodEndUtc })
-            .ToListAsync(token);
-        if (planPayments.Count == 0 && storagePayments.Count == 0) return UpgradeCredit.None;
+        if (planPayments.Count == 0) return UpgradeCredit.None;
 
         var refunds = await LoadGatewayIssuesAsync(subscription.OwnerUserId, token);
         var spans = planPayments
-            .Select(p => new PaidSpan(p.Amount + p.CreditAmount - refunds.RefundedOf(p.Reference), p.PeriodStartUtc, p.PeriodEndUtc))
-            .Concat(storagePayments.Select(p =>
-                new PaidSpan(p.Amount - refunds.RefundedOf(p.Reference), p.PeriodStartUtc, p.PeriodEndUtc)));
+            .Select(p => new PaidSpan(p.Amount + p.CreditAmount - refunds.RefundedOf(p.Reference), p.PeriodStartUtc, p.PeriodEndUtc));
         return UpgradeProration.CreditFor(spans, now);
     }
 
     /// <summary>What moving to <paramref name="target"/> on <paramref name="cycle"/> today costs: a
-    /// full period of it (storage renewal included), less the credit for the running period's unused days.</summary>
+    /// full period of it, less the credit for the running period's unused days.</summary>
     public async Task<UpgradeCharge> QuoteUpgradeAsync(
         AccountSubscription subscription, Plan target, BillingCycle cycle, CancellationToken token = default)
     {
-        var charge = await PriceForAsync(subscription, target, cycle, token)
-            + StorageAddOnPricing.RenewalAmount(subscription, cycle);
+        var charge = await PriceForAsync(subscription, target, cycle, token);
         return UpgradeProration.Apply(charge, await GetUpgradeCreditAsync(subscription, token), Now, cycle);
     }
 
@@ -519,7 +529,6 @@ public class AccountSubscriptionService
                 target.Code, target.Name, cycle, timing, subscription.PendingChangeEffectiveAtUtc,
                 charge.AmountDue, target.Currency, target.PricesIncludeVat,
                 Subtotal: charge.Charge,
-                AddOnsAmount: StorageAddOnPricing.RenewalAmount(subscription, cycle),
                 CreditAmount: Math.Min(charge.CreditApplied, charge.Charge),
                 UnusedDays: charge.UnusedDays,
                 PeriodEndUtc: charge.PeriodEndUtc);
@@ -639,8 +648,7 @@ public class AccountSubscriptionService
             && cycle == (subscription.PendingBillingCycle ?? subscription.BillingCycle);
 
         var planAmount = await PriceForAsync(subscription, target, cycle, token);
-        var addOnsAmount = StorageAddOnPricing.RenewalAmount(subscription, cycle);
-        var charge = planAmount + addOnsAmount;
+        var charge = planAmount;
 
         // An upgrade mid-period (counted before the period below is replaced): the unused days put
         // towards the new period -- as quoted, or whatever of them the amount paid falls short by.
@@ -661,13 +669,6 @@ public class AccountSubscriptionService
             {
                 new($"{target.Name} plan ({cycleLabel})", planAmount),
             };
-            if (addOnsAmount > 0)
-            {
-                snapshot.Add(new(
-                    "Storage add-ons",
-                    addOnsAmount,
-                    $"Storage add-ons for the next {cycleLabel} billing period"));
-            }
             if (deducted > 0)
             {
                 snapshot.Add(UpgradeCreditLine(subscription.Plan, deducted, credit.UnusedDays));
@@ -950,8 +951,9 @@ public class AccountSubscriptionService
 
     // ── Helpers ──────────────────────────────────────────────────────────────────────────────
 
-    public static DateTime AddCycle(DateTime start, BillingCycle cycle) =>
-        cycle == BillingCycle.Annual ? start.AddYears(1) : start.AddMonths(1);
+    /// <param name="count">Cycles to add; negative steps back.</param>
+    public static DateTime AddCycle(DateTime start, BillingCycle cycle, int count = 1) =>
+        cycle == BillingCycle.Annual ? start.AddYears(count) : start.AddMonths(count);
 
     /// <summary>The (negative) billing line for an upgrade's credit.</summary>
     public static PaymentLineItemSnapshot UpgradeCreditLine(Plan previousPlan, decimal amount, int unusedDays) =>

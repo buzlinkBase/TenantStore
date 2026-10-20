@@ -116,6 +116,8 @@ public class AccountSubscription : BaseEntity
 
     public virtual ICollection<SubscriptionOverride> Overrides { get; set; } = new List<SubscriptionOverride>();
     public virtual ICollection<StorageAddOn> StorageAddOns { get; set; } = new List<StorageAddOn>();
+    /// <summary>The storage blocks' own billing period; null until the account first holds blocks.</summary>
+    public virtual StorageSubscription? StorageSubscription { get; set; }
 }
 
 /// <summary>

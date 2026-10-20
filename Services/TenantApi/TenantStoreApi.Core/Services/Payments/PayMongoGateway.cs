@@ -2,16 +2,18 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Options;
+using TenantStoreApi.Domain.Entities.Subs;
 
 namespace TenantStoreApi.Core.Services.Payments;
 
 /// <summary>
 /// Adapter: <see cref="IPaymentGateway"/> over PayMongo's Checkout Sessions API
-/// (https://api.paymongo.com/v1/checkout_sessions). The HttpClient arrives configured with the base
+/// (https://api.paymongo.com/v1/checkout_sessions), and <see cref="IRecurringBillingGateway"/> over its
+/// Customers, Subscriptions and Payment Intents APIs. The HttpClient arrives configured with the base
 /// address and the secret key as HTTP Basic auth -- see PaymentRegistrations. Every transport or API
 /// failure surfaces as <see cref="PaymentGatewayException"/>.
 /// </summary>
-public sealed class PayMongoGateway : IPaymentGateway
+public sealed class PayMongoGateway : IPaymentGateway, IRecurringBillingGateway
 {
     public const string ProviderName = "paymongo";
 
@@ -109,6 +111,98 @@ public sealed class PayMongoGateway : IPaymentGateway
         };
         return PayMongoDocuments.ReadRefund(RequireResource(await SendAsync(HttpMethod.Post, "refunds", body, token)));
     }
+
+    // ── Recurring billing (PayMongo Subscriptions) ──────────────────────────────────────────
+
+    public string? PublicKey => string.IsNullOrWhiteSpace(_options.PublicKey) ? null : _options.PublicKey.Trim();
+
+    public async Task<string> CreateCustomerAsync(GatewayCustomerRequest customer, CancellationToken token)
+    {
+        var body = new
+        {
+            data = new
+            {
+                attributes = new
+                {
+                    first_name = Clip(customer.FirstName, 255),
+                    last_name = Clip(customer.LastName, 255),
+                    email = customer.Email,
+                    phone = string.IsNullOrWhiteSpace(customer.Phone) ? null : Clip(customer.Phone, 13),
+                    default_device = "email",
+                },
+            },
+        };
+        return RequireId(await SendAsync(HttpMethod.Post, "customers", body, token), "customer");
+    }
+
+    public async Task<string> CreatePlanAsync(string name, string description, decimal amount, string currency, BillingCycle cycle,
+        IReadOnlyDictionary<string, string> metadata, CancellationToken token)
+    {
+        var body = new
+        {
+            data = new
+            {
+                attributes = new
+                {
+                    name,
+                    description,
+                    amount = PayMongoDocuments.ToCentavos(amount),
+                    currency,
+                    interval = PayMongoDocuments.Interval(cycle),
+                    interval_count = 1,
+                    metadata,
+                },
+            },
+        };
+        return RequireId(await SendAsync(HttpMethod.Post, "subscriptions/plans", body, token), "plan");
+    }
+
+    public async Task<GatewayBillingSubscription> CreateSubscriptionAsync(string customerId, string planId, CancellationToken token)
+    {
+        var body = new { data = new { attributes = new { customer_id = customerId, plan_id = planId } } };
+        var created = PayMongoDocuments.ReadSubscription(RequireResource(await SendAsync(HttpMethod.Post, "subscriptions", body, token)));
+        if (string.IsNullOrEmpty(created.SubscriptionId))
+            throw new PaymentGatewayException("PayMongo created a subscription without an id.");
+        // The create response may leave out the first invoice's payment intent; a read has it.
+        return created.PaymentIntentId != null ? created : await GetSubscriptionAsync(created.SubscriptionId, token);
+    }
+
+    public async Task<GatewayBillingSubscription> GetSubscriptionAsync(string subscriptionId, CancellationToken token) =>
+        PayMongoDocuments.ReadSubscription(RequireResource(
+            await SendAsync(HttpMethod.Get, $"subscriptions/{Uri.EscapeDataString(subscriptionId)}", null, token)));
+
+    public Task CancelSubscriptionAsync(string subscriptionId, CancellationToken token) =>
+        SendAsync(HttpMethod.Delete, $"subscriptions/{Uri.EscapeDataString(subscriptionId)}", null, token);
+
+    public Task ChangeSubscriptionPlanAsync(string subscriptionId, string planId, CancellationToken token) =>
+        SendAsync(HttpMethod.Put, $"subscriptions/{Uri.EscapeDataString(subscriptionId)}/plan",
+            new { data = new { attributes = new { plan_id = planId } } }, token);
+
+    public Task AddInvoiceLineItemAsync(string invoiceId, decimal amount, string description, CancellationToken token) =>
+        SendAsync(HttpMethod.Post, $"subscriptions/invoices/{Uri.EscapeDataString(invoiceId)}/line_items",
+            new { data = new { attributes = new { amount = PayMongoDocuments.ToCentavos(amount), description } } }, token);
+
+    public async Task<string> CreateWalletPaymentMethodAsync(string type, string name, string email, CancellationToken token)
+    {
+        var body = new { data = new { attributes = new { type, billing = new { name, email } } } };
+        return RequireId(await SendAsync(HttpMethod.Post, "payment_methods", body, token), "payment method");
+    }
+
+    public async Task<GatewayIntentAttach> AttachPaymentMethodAsync(string intentId, string paymentMethodId, string returnUrl, CancellationToken token) =>
+        PayMongoDocuments.ReadAttach(RequireResource(await SendAsync(HttpMethod.Post,
+            $"payment_intents/{Uri.EscapeDataString(intentId)}/attach",
+            new { data = new { attributes = new { payment_method = paymentMethodId, return_url = returnUrl } } }, token)));
+
+    public async Task<GatewayIntentState> GetPaymentIntentAsync(string intentId, CancellationToken token) =>
+        PayMongoDocuments.ReadIntent(RequireResource(
+            await SendAsync(HttpMethod.Get, $"payment_intents/{Uri.EscapeDataString(intentId)}", null, token)));
+
+    private static string Clip(string value, int max) => value.Length <= max ? value : value[..max];
+
+    private static string RequireId(JsonElement data, string what) =>
+        data.ValueKind == JsonValueKind.Object && data.TryGetProperty("id", out var id) && id.GetString() is { Length: > 0 } text
+            ? text
+            : throw new PaymentGatewayException($"PayMongo created a {what} without an id.");
 
     public GatewayWebhookEvent? ReadWebhook(string rawBody, string? signatureHeader)
     {

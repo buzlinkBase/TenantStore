@@ -29,6 +29,9 @@ public sealed class PayMongoOptions
     public string SecretKey { get; set; } = string.Empty;
     /// <summary>The webhook's signing secret (whsk_...), shown when the webhook is created.</summary>
     public string WebhookSecret { get; set; } = string.Empty;
+    /// <summary>pk_test_... or pk_live_...: the browser uses it to hand card details straight to PayMongo
+    /// when an owner turns on auto renew (they never reach this server). Unset: auto renew offers Maya only.</summary>
+    public string? PublicKey { get; set; }
     /// <summary>
     /// What the payment page offers: card, gcash, paymaya, qrph, grab_pay, shopee_pay, billease,
     /// dob, dob_ubp, brankas_bdo, brankas_landbank, brankas_metrobank. Only methods activated on the

@@ -38,6 +38,11 @@ public record SubscriptionReminderEmail
     public int? StoragePercent { get; set; }
     public int? StorageUsedMb { get; set; }
     public int? StorageLimitMb { get; set; }
+    // Auto renew: what is renewed ("Payroll plan", "Extra storage"), how, and for how much.
+    public string? AutoRenewItem { get; set; }
+    /// <summary>"Visa •••• 4242", "Maya". On a renewal-due email it means the renewal is charged automatically.</summary>
+    public string? PaymentMethodLabel { get; set; }
+    public decimal? Amount { get; set; }
 }
 
 public static class SubscriptionEmailTemplates
@@ -54,4 +59,15 @@ public static class SubscriptionEmailTemplates
     public const string PurgeWarning = "purge-warning";
     /// <summary>The account's storage reached 95% of its limit.</summary>
     public const string StorageAlmostFull = "storage-almost-full";
+    // Storage is billed on its own cycle: PeriodEndUtc / GraceEndsAtUtc are the storage period's.
+    /// <summary>The storage renewal window opened: storage is due on PeriodEndUtc.</summary>
+    public const string StorageRenewalDue = "storage-renewal-due";
+    /// <summary>The storage period ended unpaid: the extra storage still counts until GraceEndsAtUtc.</summary>
+    public const string StoragePastDue = "storage-past-due";
+    /// <summary>Unpaid past the grace: the extra storage no longer counts.</summary>
+    public const string StorageLapsed = "storage-lapsed";
+    // Auto renew: AutoRenewItem names what renews, PaymentMethodLabel how.
+    public const string AutoRenewOn = "auto-renew-on";
+    public const string AutoRenewChargeFailed = "auto-renew-charge-failed";
+    public const string AutoRenewStopped = "auto-renew-stopped";
 }

@@ -17,8 +17,11 @@ public enum PaymentCheckoutKind
 {
     /// <summary>One period of a plan (<see cref="PaymentCheckout.PlanId"/> and cycle).</summary>
     Plan,
-    /// <summary>Extra storage blocks for the account; PlanId/BillingCycle are the plan running at the time.</summary>
+    /// <summary>Extra storage blocks for the account; BillingCycle is the storage cycle they're priced in
+    /// (PlanId is the plan running at the time, for reference only).</summary>
     StorageAddOn,
+    /// <summary>One more storage period for every paid block; BillingCycle is the storage cycle renewed into.</summary>
+    StorageRenewal,
 }
 
 /// <summary>
@@ -34,8 +37,16 @@ public class PaymentCheckout : BaseEntity
     /// <summary>Storage checkouts: the offering and block count quoted.</summary>
     public Guid? StorageOfferingId { get; set; }
     public int? StorageBlocks { get; set; }
-    /// <summary>Storage checkouts: the StorageAddOnPayment recorded when it was paid.</summary>
+    /// <summary>Storage checkouts (purchase or renewal): the StorageAddOnPayment recorded when it was paid.</summary>
     public Guid? StorageAddOnPaymentId { get; set; }
+
+    /// <summary>
+    /// Set when this pays the first invoice of an auto renew (<see cref="AutoRenewMandate"/>): paid in the
+    /// gateway's payment-intent flow rather than a hosted checkout page, so <see cref="ProviderSessionId"/>
+    /// holds the gateway subscription and <see cref="ProviderIntentId"/> the intent.
+    /// </summary>
+    public Guid? MandateId { get; set; }
+    public string? ProviderIntentId { get; set; }
 
     public Guid SubscriptionId { get; set; }
     public virtual AccountSubscription Subscription { get; set; } = null!;

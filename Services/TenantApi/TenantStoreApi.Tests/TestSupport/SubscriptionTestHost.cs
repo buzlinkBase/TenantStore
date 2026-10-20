@@ -47,6 +47,7 @@ public sealed class SubscriptionTestHost
     public FakeUsageProvider HrmsUsage { get; } = new(EntitlementKeys.EmployeesMax, EntitlementKeys.PayrollCore, EntitlementKeys.StorageMaxMb);
     public FakeUsageProvider AdmsUsage { get; } = new(EntitlementKeys.BiometricDevicesMax);
     public SubscriptionStateMachine StateMachine { get; } = new();
+    public StorageSubscriptionStateMachine StorageStateMachine { get; } = new();
 
     public SubscriptionTestHost()
     {
@@ -82,14 +83,16 @@ public sealed class SubscriptionTestHost
     public DataPurgeService DataPurge => new(Uow, Events, Notifier, Publisher.Object, WrappedOptions, Clock);
 
     public SubscriptionLifecycleService Lifecycle =>
-        new(Uow, StateMachine, Events, Notifier, Usage, DataPurge, Publisher.Object, WrappedOptions, Clock, Storage);
+        new(Uow, StateMachine, Events, Notifier, Usage, DataPurge, Publisher.Object, WrappedOptions, Clock, Storage, StoragePeriod, AutoRenew);
 
     public FakePaymentGateway Gateway { get; } = new();
     public PaymentOptions PaymentOptions { get; } = new() { ReturnBaseUrl = "https://hris.test/" };
 
     public StorageOfferingCatalogService StorageCatalog => new(Uow, Subscriptions, Events, Notifier, Clock);
 
-    public StorageAddOnService Storage => new(Uow, Subscriptions, StorageCatalog, Resolver, Usage, Events, Notifier, Clock);
+    public StorageSubscriptionService StoragePeriod => new(Uow, Events, Notifier, StorageStateMachine, WrappedOptions, Clock);
+
+    public StorageAddOnService Storage => new(Uow, Subscriptions, StorageCatalog, Resolver, Usage, Events, Notifier, StoragePeriod, Clock);
 
     public SubscriptionViewService Views => new(Subscriptions, Resolver, Usage, WrappedOptions, Clock, Gateway, Storage);
 
@@ -97,7 +100,12 @@ public sealed class SubscriptionTestHost
     /// checkout service commits, and BuzlinkRepository's unit of work commits only once.</summary>
     public SubscriptionCheckoutService Checkouts =>
         new(TenantTestContextFactory.CreateUnitOfWork(Uow.Context), Subscriptions, Events, Gateway,
-            Microsoft.Extensions.Options.Options.Create(PaymentOptions), Clock, Storage);
+            Microsoft.Extensions.Options.Options.Create(PaymentOptions), Clock, Storage, StoragePeriod);
+
+    /// <summary>Auto renew over the fake gateway's recurring billing; a fresh unit of work, like <see cref="Checkouts"/>.</summary>
+    public AutoRenewService AutoRenew =>
+        new(TenantTestContextFactory.CreateUnitOfWork(Uow.Context), Gateway, Gateway, Checkouts, Subscriptions, StoragePeriod, Storage,
+            Events, Notifier, Publisher.Object, Microsoft.Extensions.Options.Options.Create(PaymentOptions), Clock);
 
     /// <summary>A company owned by <paramref name="owner"/>, with its hidden Owner membership.</summary>
     public Guid AddCompany(Guid owner, string name = "Acme", string email = "owner@acme.ph", bool activated = true)

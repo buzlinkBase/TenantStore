@@ -21,7 +21,9 @@ public sealed record CheckoutView(
     DateTime CreatedAtUtc,
     DateTime? PaidAtUtc,
     PaymentMethod? PaymentMethod,
-    PaymentCheckoutKind Kind = PaymentCheckoutKind.Plan);
+    PaymentCheckoutKind Kind = PaymentCheckoutKind.Plan,
+    /// <summary>It pays the first invoice of an auto renew: once paid, the gateway renews on its own.</summary>
+    bool AutoRenew = false);
 
 public enum WebhookOutcome
 {
@@ -76,6 +78,7 @@ public class SubscriptionCheckoutService
     private readonly PaymentOptions _options;
     private readonly TimeProvider _clock;
     private readonly StorageAddOnService _storage;
+    private readonly StorageSubscriptionService _storagePeriod;
 
     public SubscriptionCheckoutService(
         IUnitOfWorkService uow,
@@ -84,8 +87,10 @@ public class SubscriptionCheckoutService
         IPaymentGateway gateway,
         IOptions<PaymentOptions> options,
         TimeProvider clock,
-        StorageAddOnService storage)
+        StorageAddOnService storage,
+        StorageSubscriptionService storagePeriod)
     {
+        _storagePeriod = storagePeriod;
         _uow = uow;
         _subscriptions = subscriptions;
         _events = events;
@@ -114,13 +119,16 @@ public class SubscriptionCheckoutService
             throw new SubscriptionRuleException("This account was suspended by Onepunch support, so it can't be reactivated by paying. Please contact support.");
         var due = await _subscriptions.GetPaymentDueAsync(subscription, token)
             ?? throw new SubscriptionRuleException("There's nothing to pay right now.");
+        if (due.Reason == PaymentDueReason.Renewal
+            && await AutoRenewReadModel.ChargingAsync(Context, subscription.Id, AutoRenewTarget.Plan, token) != null)
+            throw new SubscriptionRuleException("Your plan renews automatically. Turn auto renew off first to pay by hand.");
         if (due.Amount <= 0)
             throw new SubscriptionRuleException("There's nothing to pay online for this plan -- please contact billing to activate it.");
 
         var now = Now;
         var open = await Context.PaymentCheckouts
             .Where(c => c.SubscriptionId == subscription.Id && c.CheckoutStatus == PaymentCheckoutStatus.Open
-                && c.Kind == PaymentCheckoutKind.Plan)
+                && c.Kind == PaymentCheckoutKind.Plan && c.MandateId == null)
             .ToListAsync(token);
 
         var reusable = open.FirstOrDefault(c =>
@@ -164,16 +172,17 @@ public class SubscriptionCheckoutService
     }
 
     /// <summary>Opens the hosted payment page for blocks of storage the owner chose for the account
-    /// (priced by <see cref="StorageAddOnService.QuoteAsync"/>, prorated to the paid period's end).</summary>
+    /// (priced by <see cref="StorageAddOnService.QuoteAsync"/>: prorated to the storage due date, or a full
+    /// storage period on <paramref name="cycle"/> when none is running).</summary>
     public async Task<CheckoutStarted> StartStorageAsync(
-        Guid ownerUserId, string offeringCode, int blocks, Guid actorUserId, CancellationToken token = default)
+        Guid ownerUserId, string offeringCode, int blocks, Guid actorUserId, BillingCycle? cycle = null, CancellationToken token = default)
     {
         if (!_gateway.IsEnabled)
             throw new SubscriptionRuleException("Online payment isn't available yet -- please contact billing to add storage.");
 
         var subscription = await _subscriptions.FindAsync(ownerUserId, token)
             ?? throw new KeyNotFoundException("This account has no subscription.");
-        var quote = await _storage.QuoteAsync(ownerUserId, offeringCode, blocks, token);
+        var quote = await _storage.QuoteAsync(ownerUserId, offeringCode, blocks, cycle, token);
         if (quote.AmountDue <= 0)
             throw new SubscriptionRuleException("There's nothing to pay online for this purchase -- please contact billing.");
         var offering = await Context.StorageAddOnOfferings.AsNoTracking().FirstAsync(o => o.Code == quote.OfferingCode, token);
@@ -181,13 +190,14 @@ public class SubscriptionCheckoutService
         var now = Now;
         var open = await Context.PaymentCheckouts
             .Where(c => c.SubscriptionId == subscription.Id && c.CheckoutStatus == PaymentCheckoutStatus.Open
-                && c.Kind == PaymentCheckoutKind.StorageAddOn)
+                && c.Kind == PaymentCheckoutKind.StorageAddOn && c.MandateId == null)
             .ToListAsync(token);
 
         var reusable = open.FirstOrDefault(c =>
             c.Provider == _gateway.Provider
             && c.StorageOfferingId == offering.Id
             && c.StorageBlocks == blocks
+            && c.BillingCycle == quote.BillingCycle
             && c.Amount == quote.AmountDue
             && c.CheckoutUrl != null
             && now - c.CreatedAtUtc < ReuseWindow);
@@ -203,7 +213,7 @@ public class SubscriptionCheckoutService
             Kind = PaymentCheckoutKind.StorageAddOn,
             Provider = _gateway.Provider,
             PlanId = subscription.PlanId,
-            BillingCycle = subscription.BillingCycle,
+            BillingCycle = quote.BillingCycle,
             StorageOfferingId = offering.Id,
             StorageBlocks = blocks,
             Amount = quote.AmountDue,
@@ -215,7 +225,9 @@ public class SubscriptionCheckoutService
         {
             CheckoutId = checkout.Id,
             ItemName = $"{blocks} x {offering.Name}",
-            Description = $"{_options.ProductName} extra storage, prorated to the end of the current billing period",
+            Description = quote.StartsNewPeriod
+                ? $"{_options.ProductName} extra storage, {StorageSubscriptionService.CycleLabel(quote.BillingCycle)} billing"
+                : $"{_options.ProductName} extra storage, prorated to the end of the current storage period",
             Amount = quote.AmountDue,
             Currency = quote.Currency,
             SuccessUrl = ReturnUrl(checkout),
@@ -223,7 +235,76 @@ public class SubscriptionCheckoutService
             Metadata = CheckoutMetadata(checkout),
         };
         return await OpenSessionAsync(checkout, request, subscription,
-            new { kind = checkout.Kind, offering = offering.Code, blocks, amount = quote.AmountDue },
+            new { kind = checkout.Kind, offering = offering.Code, blocks, amount = quote.AmountDue, cycle = quote.BillingCycle },
+            actorUserId, token);
+    }
+
+    /// <summary>Opens the hosted payment page for the storage renewal now due -- billed on storage's own
+    /// cycle, apart from the plan (see <see cref="StorageSubscriptionService.GetRenewalDueAsync"/>).</summary>
+    public async Task<CheckoutStarted> StartStorageRenewalAsync(Guid ownerUserId, Guid actorUserId, CancellationToken token = default)
+    {
+        if (!_gateway.IsEnabled)
+            throw new SubscriptionRuleException("Online payment isn't available yet -- please contact billing to pay for storage.");
+
+        var subscription = await _subscriptions.FindAsync(ownerUserId, token)
+            ?? throw new KeyNotFoundException("This account has no subscription.");
+        if (AccountSubscriptionService.IsSuspendedByOperator(subscription))
+            throw new SubscriptionRuleException("This account was suspended by Onepunch support. Please contact support.");
+        var due = await _storagePeriod.GetRenewalDueAsync(subscription, token)
+            ?? throw new SubscriptionRuleException("There's no storage renewal to pay right now.");
+        if (due.Reason == StorageDueReason.Renewal
+            && await AutoRenewReadModel.ChargingAsync(Context, subscription.Id, AutoRenewTarget.Storage, token) != null)
+            throw new SubscriptionRuleException("Your storage renews automatically. Turn auto renew off first to pay by hand.");
+        if (due.Amount <= 0)
+            throw new SubscriptionRuleException("There's nothing to pay online for this storage -- please contact billing.");
+
+        var now = Now;
+        var open = await Context.PaymentCheckouts
+            .Where(c => c.SubscriptionId == subscription.Id && c.CheckoutStatus == PaymentCheckoutStatus.Open
+                && c.Kind == PaymentCheckoutKind.StorageRenewal && c.MandateId == null)
+            .ToListAsync(token);
+        var reusable = open.FirstOrDefault(c =>
+            c.Provider == _gateway.Provider
+            && c.BillingCycle == due.BillingCycle
+            && c.Amount == due.Amount
+            && c.CheckoutUrl != null
+            && now - c.CreatedAtUtc < ReuseWindow);
+        if (reusable != null) return new CheckoutStarted(reusable.Id, reusable.CheckoutUrl!);
+
+        foreach (var stale in open) await ExpireAsync(stale, token);
+
+        var checkout = new PaymentCheckout
+        {
+            Id = Guid.CreateVersion7(),
+            SubscriptionId = subscription.Id,
+            OwnerUserId = ownerUserId,
+            Kind = PaymentCheckoutKind.StorageRenewal,
+            Provider = _gateway.Provider,
+            PlanId = subscription.PlanId,
+            BillingCycle = due.BillingCycle,
+            StorageBlocks = due.Blocks,
+            Amount = due.Amount,
+            Currency = due.Currency,
+            LineItemsJson = JsonSerializer.Serialize(due.LineItems),
+            CreatedByUserId = actorUserId,
+            CreatedAtUtc = now,
+        };
+        var cycleLabel = StorageSubscriptionService.CycleLabel(due.BillingCycle);
+        var request = new GatewayCheckoutRequest
+        {
+            CheckoutId = checkout.Id,
+            ItemName = $"Extra storage ({cycleLabel}), {due.Blocks} {(due.Blocks == 1 ? "block" : "blocks")}",
+            Description = due.Reason == StorageDueReason.Reactivation
+                ? $"{_options.ProductName} extra storage reactivation"
+                : $"{_options.ProductName} extra storage renewal",
+            Amount = due.Amount,
+            Currency = due.Currency,
+            SuccessUrl = ReturnUrl(checkout),
+            CancelUrl = $"{ReturnUrl(checkout)}&canceled=1",
+            Metadata = CheckoutMetadata(checkout),
+        };
+        return await OpenSessionAsync(checkout, request, subscription,
+            new { kind = checkout.Kind, cycle = due.BillingCycle, due.Blocks, amount = due.Amount, reason = due.Reason },
             actorUserId, token);
     }
 
@@ -270,6 +351,7 @@ public class SubscriptionCheckoutService
 
         if (checkout.CheckoutStatus is PaymentCheckoutStatus.Open or PaymentCheckoutStatus.Expired
             && checkout.ProviderSessionId is { } sessionId
+            && checkout.MandateId == null
             && checkout.Provider == _gateway.Provider
             && _gateway.IsEnabled)
         {
@@ -294,8 +376,10 @@ public class SubscriptionCheckoutService
             }
         }
 
-        var isStorage = checkout.Kind == PaymentCheckoutKind.StorageAddOn;
-        var name = isStorage
+        var isStorage = checkout.Kind is PaymentCheckoutKind.StorageAddOn or PaymentCheckoutKind.StorageRenewal;
+        var name = checkout.Kind == PaymentCheckoutKind.StorageRenewal
+            ? StorageAddOnService.DescribeRenewal(checkout.StorageBlocks ?? 0, checkout.BillingCycle)
+            : isStorage
             ? $"{checkout.StorageBlocks} x " + (await Context.StorageAddOnOfferings.AsNoTracking()
                 .Where(o => o.Id == checkout.StorageOfferingId)
                 .Select(o => o.Name)
@@ -317,7 +401,7 @@ public class SubscriptionCheckoutService
                 .FirstOrDefaultAsync(token);
         return new CheckoutView(
             checkout.Id, checkout.CheckoutStatus, name, checkout.BillingCycle, checkout.Amount, checkout.Currency,
-            checkout.CreatedAtUtc, checkout.PaidAtUtc, method, checkout.Kind);
+            checkout.CreatedAtUtc, checkout.PaidAtUtc, method, checkout.Kind, checkout.MandateId != null);
     }
 
     // ── Webhook ──────────────────────────────────────────────────────────────────────────────
@@ -414,8 +498,10 @@ public class SubscriptionCheckoutService
 
         try
         {
+            // An auto renew's first payment isn't a hosted session: AutoRenewService reconciles it.
             if (checkout.CheckoutStatus is PaymentCheckoutStatus.Open or PaymentCheckoutStatus.Expired
-                && checkout.ProviderSessionId is { } sessionId)
+                && checkout.ProviderSessionId is { } sessionId
+                && checkout.MandateId == null)
             {
                 var session = await _gateway.GetCheckoutAsync(sessionId, token);
                 if (session.IsPaid)
@@ -448,6 +534,14 @@ public class SubscriptionCheckoutService
     // ── Settlement ───────────────────────────────────────────────────────────────────────────
 
     /// <summary>Applies a paid session to its checkout. Doesn't commit.</summary>
+    /// <summary>
+    /// Settles a paid gateway payment against the checkout it names -- exactly as a hosted checkout's
+    /// webhook would. Used by auto renew for its first payment, where <paramref name="session"/> stands
+    /// for the gateway subscription (<see cref="PaymentCheckout.ProviderSessionId"/>). Doesn't commit.
+    /// </summary>
+    public Task<WebhookOutcome> SettlePaidAsync(GatewaySessionState session, CancellationToken token) =>
+        SettleAsync(session, token);
+
     private async Task<WebhookOutcome> SettleAsync(GatewaySessionState session, CancellationToken token)
     {
         var payment = session.Payment!;
@@ -471,7 +565,7 @@ public class SubscriptionCheckoutService
                 new { checkoutId = checkout.Id, sessionId = session.SessionId, payment.PaymentId, paid = payment.Amount, quoted = checkout.Amount }, token);
         }
 
-        if (checkout.Kind == PaymentCheckoutKind.StorageAddOn)
+        if (checkout.Kind is PaymentCheckoutKind.StorageAddOn or PaymentCheckoutKind.StorageRenewal)
             return await SettleStorageAsync(checkout, session, subscription, settledKey, token);
 
         var planCode = await Context.Plans.AsNoTracking()
@@ -511,18 +605,28 @@ public class SubscriptionCheckoutService
         return WebhookOutcome.Settled;
     }
 
-    /// <summary>A paid storage checkout: adds exactly the blocks that were quoted.</summary>
+    /// <summary>A paid storage checkout: adds exactly the blocks that were quoted, or renews the storage period.</summary>
     private async Task<WebhookOutcome> SettleStorageAsync(
         PaymentCheckout checkout, GatewaySessionState session, AccountSubscription? subscription, string settledKey, CancellationToken token)
     {
         var payment = session.Payment!;
-        var offeringCode = await Context.StorageAddOnOfferings.AsNoTracking()
-            .Where(o => o.Id == checkout.StorageOfferingId)
-            .Select(o => o.Code)
-            .FirstAsync(token);
-        var recorded = await _storage.ActivateAsync(
-            checkout.OwnerUserId, offeringCode, checkout.StorageBlocks!.Value,
-            payment.Amount, payment.Method, payment.PaymentId, checkout.Provider, token);
+        StorageAddOnPayment recorded;
+        if (checkout.Kind == PaymentCheckoutKind.StorageRenewal)
+        {
+            recorded = await _storagePeriod.RecordRenewalAsync(
+                checkout.OwnerUserId, payment.Amount, payment.Method, payment.PaymentId, checkout.Provider,
+                payment.PaidAtUtc, token);
+        }
+        else
+        {
+            var offeringCode = await Context.StorageAddOnOfferings.AsNoTracking()
+                .Where(o => o.Id == checkout.StorageOfferingId)
+                .Select(o => o.Code)
+                .FirstAsync(token);
+            recorded = await _storage.ActivateAsync(
+                checkout.OwnerUserId, offeringCode, checkout.StorageBlocks!.Value,
+                payment.Amount, payment.Method, payment.PaymentId, checkout.Provider, checkout.BillingCycle, token);
+        }
 
         checkout.CheckoutStatus = PaymentCheckoutStatus.Paid;
         checkout.PaidAtUtc = recorded.PaidAtUtc;
@@ -592,20 +696,14 @@ public class SubscriptionCheckoutService
         };
     }
 
-    private static List<PaymentLineItemSnapshot> BuildLineItems(PaymentDue due)
+    /// <summary>The itemized lines of a plan charge: the plan, and an upgrade's credit.</summary>
+    public static List<PaymentLineItemSnapshot> BuildLineItems(PaymentDue due)
     {
         var cycle = due.BillingCycle == BillingCycle.Annual ? "annual" : "monthly";
         var items = new List<PaymentLineItemSnapshot>
         {
             new($"{due.Plan.Name} plan ({cycle})", due.PlanAmount),
         };
-        if (due.AddOnsAmount > 0)
-        {
-            items.Add(new(
-                "Storage add-ons",
-                due.AddOnsAmount,
-                $"Storage add-ons for the next {cycle} billing period"));
-        }
         if (due.CreditAmount > 0)
         {
             items.Add(new(
@@ -629,7 +727,7 @@ public class SubscriptionCheckoutService
         var credit = $"{due.CreditAmount:N2} {due.Plan.Currency} credit for {due.UnusedDays} unused days of your current plan";
         var plan = items[0];
         if (due.CreditAmount >= plan.Amount)
-            return [new GatewayCheckoutLineItem(plan.Name, due.Amount, $"Includes storage add-ons, less {credit}")];
+            return [new GatewayCheckoutLineItem(plan.Name, due.Amount, $"Less {credit}")];
 
         return items
             .Where(item => item.Amount > 0)
@@ -658,7 +756,7 @@ public class SubscriptionCheckoutService
     private async Task ExpireAsync(PaymentCheckout checkout, CancellationToken token)
     {
         checkout.CheckoutStatus = PaymentCheckoutStatus.Expired;
-        if (checkout.ProviderSessionId == null || checkout.Provider != _gateway.Provider) return;
+        if (checkout.ProviderSessionId == null || checkout.Provider != _gateway.Provider || checkout.MandateId != null) return;
         try
         {
             await _gateway.ExpireCheckoutAsync(checkout.ProviderSessionId, token);

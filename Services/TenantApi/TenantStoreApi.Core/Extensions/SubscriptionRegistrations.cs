@@ -32,6 +32,7 @@ public static class SubscriptionRegistrations
         // Factory, not the type: DI would pick the greedy IEnumerable<ISubscriptionState> constructor
         // (always resolvable, but empty here) and every StateOf lookup would throw KeyNotFound.
         services.AddSingleton(_ => new SubscriptionStateMachine());
+        services.AddSingleton(_ => new StorageSubscriptionStateMachine());
         AddSubscriptionScheduler(services, config);
 
         services.AddScoped<ICompanyUsageProvider, AdminSeatUsageProvider>();

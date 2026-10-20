@@ -60,6 +60,13 @@ public static class BillingEventTypes
     public const string StorageReductionWithdrawn = "storage.reduction-withdrawn";
     public const string StorageReductionApplied = "storage.reduction-applied";
     public const string StorageThresholdCrossed = "storage.threshold-crossed";
+    // Storage's own billing period (StorageSubscriptionService, StorageSubscriptionStateMachine).
+    public const string StorageRenewed = "storage.renewed";
+    public const string StoragePastDue = "storage.past-due";
+    public const string StorageLapsed = "storage.lapsed";
+    public const string StorageCycleChangeRequested = "storage.cycle-change-requested";
+    public const string StorageCycleChangeWithdrawn = "storage.cycle-change-withdrawn";
+    public const string StoragePaymentVoided = "storage.payment-voided";
     /// <summary>An operator deleted a company's stored files for the owner (StorageFileCleanupService).</summary>
     public const string StorageFilesDeleted = "storage.files-deleted";
 
@@ -96,6 +103,17 @@ public static class BillingEventTypes
     public const string HardDeleteRequested = "account.hard-delete-requested";
     public const string HardDeleteCompanyDone = "account.hard-delete-company-done";
     public const string HardDeleteFailed = "account.hard-delete-failed";
+
+    // Auto renew (AutoRenewService): the gateway charges a saved card or wallet each cycle.
+    public const string AutoRenewSetupStarted = "autorenew.setup-started";
+    public const string AutoRenewActivated = "autorenew.activated";
+    public const string AutoRenewCharged = "autorenew.charged";
+    public const string AutoRenewChargeFailed = "autorenew.charge-failed";
+    /// <summary>A draft gateway invoice was corrected to this account's price before being charged.</summary>
+    public const string AutoRenewInvoiceAdjusted = "autorenew.invoice-adjusted";
+    public const string AutoRenewCanceled = "autorenew.canceled";
+    /// <summary>The gateway charged an amount other than the one expected -- recorded, for an operator to check.</summary>
+    public const string AutoRenewAmountMismatch = "autorenew.amount-mismatch";
 
     // Online checkout (SubscriptionCheckoutService).
     public const string CheckoutStarted = "checkout.started";

@@ -118,6 +118,7 @@ public class EntitlementResolverService
             .Include(s => s.Plan).ThenInclude(p => p.Entitlements)
             .Include(s => s.Overrides)
             .Include(s => s.StorageAddOns)
+            .Include(s => s.StorageSubscription)
             .FirstOrDefaultAsync(s => s.OwnerUserId == ownerUserId, token);
         if (subscription == null) return null;
 

@@ -67,7 +67,7 @@ public class SubscriptionCheckoutServiceTests
     }
 
     [Fact]
-    public async Task Start_WithRecurringStorage_AddsSeparatePlanAndStorageLines()
+    public async Task Start_WithStorageHeld_ChargesThePlanAlone()
     {
         var (host, owner) = await ChosePayrollAsync();
         var initialPayment = await host.Subscriptions.RecordPaymentAsync(owner, new RecordPaymentCommand
@@ -86,21 +86,15 @@ public class SubscriptionCheckoutServiceTests
         var started = await host.Checkouts.StartAsync(owner, owner);
 
         var request = host.Gateway.Created.Single();
-        request.Amount.Should().Be(5799m);
-        request.LineItems.Should().Equal(
-            new GatewayCheckoutLineItem("Payroll plan (monthly)", 4999m),
-            new GatewayCheckoutLineItem(
-                "Storage add-ons", 800m, "Storage add-ons for the next monthly billing period"));
+        request.Amount.Should().Be(4999m, "storage is billed on its own cycle");
+        request.LineItems.Should().Equal(new GatewayCheckoutLineItem("Payroll plan (monthly)", 4999m));
 
         var checkout = CheckoutOf(host, started.CheckoutId);
         var checkoutLines = JsonSerializer.Deserialize<List<PaymentLineItemSnapshot>>(checkout.LineItemsJson!);
-        checkoutLines.Should().Equal(
-            new PaymentLineItemSnapshot("Payroll plan (monthly)", 4999m),
-            new PaymentLineItemSnapshot(
-                "Storage add-ons", 800m, "Storage add-ons for the next monthly billing period"));
+        checkoutLines.Should().Equal(new PaymentLineItemSnapshot("Payroll plan (monthly)", 4999m));
 
         await host.Checkouts.HandleWebhookAsync(
-            host.Gateway.Deliver(host.Gateway.Pay("cs_1", 5799m)),
+            host.Gateway.Deliver(host.Gateway.Pay("cs_1", 4999m)),
             FakePaymentGateway.ValidSignature);
 
         var payment = host.Uow.Context.SubscriptionPayments.Single(item => item.Reference == "pay_cs_1");

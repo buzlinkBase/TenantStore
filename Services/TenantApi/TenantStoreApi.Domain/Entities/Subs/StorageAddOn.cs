@@ -40,10 +40,54 @@ public class StorageAddOnOffer : BaseEntity
     public string? CreatedBy { get; set; }
 }
 
+/// <summary>Where an account's storage billing period stands -- apart from its plan's.</summary>
+public enum StorageSubscriptionStatus
+{
+    /// <summary>Paid up to <see cref="StorageSubscription.CurrentPeriodEndUtc"/>.</summary>
+    Active,
+    /// <summary>The period ended unpaid: the blocks still count until <see cref="StorageSubscription.GraceEndsAtUtc"/>.</summary>
+    PastDue,
+    /// <summary>Unpaid past the grace (or canceled): paid blocks no longer count. Paying restarts it.</summary>
+    Lapsed,
+}
+
+/// <summary>What a storage payment paid for.</summary>
+public enum StorageAddOnPaymentKind
+{
+    /// <summary>Blocks bought, for the rest of the storage period (or a new one).</summary>
+    Purchase,
+    /// <summary>Every paid block for one more storage period.</summary>
+    Renewal,
+}
+
+/// <summary>
+/// The account's storage billing: its own cycle and due date, independent of the plan's -- storage
+/// can be paid monthly on an annual plan, or the reverse, and lapses on its own. One per account,
+/// created with the first block bought (or granted). All dates UTC.
+/// </summary>
+[Audited]
+public class StorageSubscription : BaseEntity
+{
+    public Guid SubscriptionId { get; set; }
+    public virtual AccountSubscription Subscription { get; set; } = null!;
+    public StorageSubscriptionStatus Status { get; set; }
+    public BillingCycle BillingCycle { get; set; }
+    /// <summary>The cycle the next renewal switches to.</summary>
+    public BillingCycle? PendingBillingCycle { get; set; }
+    public DateTime? CurrentPeriodStartUtc { get; set; }
+    public DateTime? CurrentPeriodEndUtc { get; set; }
+    /// <summary>Set on entering PastDue: the blocks keep counting until then.</summary>
+    public DateTime? GraceEndsAtUtc { get; set; }
+    /// <summary>Every paid block is being removed at the period end: it lapses then, with no grace.</summary>
+    public bool CancelAtPeriodEnd { get; set; }
+    /// <summary>Optimistic concurrency, as on the plan subscription.</summary>
+    public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
+}
+
 /// <summary>
 /// Blocks of extra storage an account holds. The blocks add <c>Blocks x BlockMb</c> to the account's
-/// <c>storage.max_mb</c> -- one pool shared by all its companies -- for as long as its plan is running,
-/// and renew with the plan's billing period. <see cref="BlockMb"/> and the unit prices are fixed when
+/// <c>storage.max_mb</c> -- one pool shared by all its companies -- while its storage period is paid
+/// (<see cref="StorageSubscription"/>), and renew with that period, not the plan's. <see cref="BlockMb"/> and the unit prices are fixed when
 /// bought, so a later catalog edit doesn't reprice what a customer already pays for. A reduction is
 /// scheduled (<see cref="PendingBlocks"/>) and applied at the end of the paid period.
 /// </summary>
@@ -57,9 +101,9 @@ public class StorageAddOn : BaseEntity
 
     public int Blocks { get; set; }
     public int BlockMb { get; set; }
-    /// <summary>Price of one block for a month (accounts on the monthly cycle).</summary>
+    /// <summary>Price of one block for a month (storage on the monthly cycle).</summary>
     public decimal UnitPrice { get; set; }
-    /// <summary>Price of one block for a year (accounts on the annual cycle).</summary>
+    /// <summary>Price of one block for a year (storage on the annual cycle).</summary>
     public decimal UnitAnnualPrice { get; set; }
     /// <summary>Granted by the platform at no charge.</summary>
     public bool IsComplimentary { get; set; }
@@ -71,21 +115,36 @@ public class StorageAddOn : BaseEntity
     public string? CreatedBy { get; set; }
 }
 
-/// <summary>A payment for storage blocks bought mid-period. Kept apart from SubscriptionPayment, which
-/// defines the paid plan period and is rolled back when voided; this one never moves the period.</summary>
+/// <summary>A storage payment: blocks bought (<see cref="StorageAddOnPaymentKind.Purchase"/>) or one more
+/// storage period (<see cref="StorageAddOnPaymentKind.Renewal"/>). Kept apart from SubscriptionPayment,
+/// which defines the plan's paid period; this one only ever moves the storage period.</summary>
 [Audited]
 public class StorageAddOnPayment : BaseEntity
 {
     public Guid SubscriptionId { get; set; }
+    /// <summary>Stored as text; existing rows are purchases.</summary>
+    public StorageAddOnPaymentKind Kind { get; set; } = StorageAddOnPaymentKind.Purchase;
+    /// <summary>The storage cycle it was priced in.</summary>
+    public BillingCycle BillingCycle { get; set; }
+    /// <summary>Purchases: the add-on the blocks went to. Renewals: <see cref="Guid.Empty"/> (they cover them all).</summary>
     public Guid AddOnId { get; set; }
+    /// <summary>Purchases: blocks bought. Renewals: paid blocks renewed.</summary>
     public int Blocks { get; set; }
     public decimal Amount { get; set; }
     public string Currency { get; set; } = "PHP";
     public PaymentMethod Method { get; set; }
     public string? Reference { get; set; }
     public DateTime PaidAtUtc { get; set; }
-    /// <summary>The (prorated) span the amount pays for: from the purchase to the plan period's end.</summary>
+    /// <summary>The span the amount pays for: a purchase, to the storage period's end; a renewal, the new period.</summary>
     public DateTime PeriodStartUtc { get; set; }
     public DateTime PeriodEndUtc { get; set; }
     public string? RecordedBy { get; set; }
+    /// <summary>Item amounts captured when it was paid; null for purchases and older records.</summary>
+    public string? LineItemsJson { get; set; }
+
+    /// <summary>Set when an operator voids it (never deleted). A voided renewal hands its period back.</summary>
+    public DateTime? VoidedAtUtc { get; set; }
+    public string? VoidedBy { get; set; }
+    public string? VoidReason { get; set; }
+    public VoidKind? VoidKind { get; set; }
 }

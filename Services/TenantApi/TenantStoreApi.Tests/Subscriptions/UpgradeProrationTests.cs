@@ -233,17 +233,18 @@ public class UpgradeProrationTests
     public void GatewayLines_AreNeverNegative_AndAddUpToTheAmount()
     {
         var plan = new Plan { Name = "Premium", Currency = "PHP" };
-        var withStorage = new PaymentDue(plan, BillingCycle.Monthly, 8218.87m, PaymentDueReason.PlanChange, 800m, 2580.13m, 16);
-        var bigCredit = new PaymentDue(plan, BillingCycle.Monthly, 300m, PaymentDueReason.PlanChange, 800m, 10499m, 300);
+        var upgrade = new PaymentDue(plan, BillingCycle.Monthly, 7418.87m, PaymentDueReason.PlanChange, 2580.13m, 16);
+        var renewal = new PaymentDue(plan, BillingCycle.Monthly, 9999m, PaymentDueReason.Renewal);
 
-        foreach (var due in new[] { withStorage, bigCredit })
+        foreach (var due in new[] { upgrade, renewal })
         {
             var lines = SubscriptionCheckoutService.GatewayLineItems(due);
             lines.Should().OnlyContain(line => line.Amount > 0);
             lines.Sum(line => line.Amount).Should().Be(due.Amount);
         }
-        SubscriptionCheckoutService.GatewayLineItems(withStorage).Select(l => l.Amount).Should().Equal(7418.87m, 800m);
-        SubscriptionCheckoutService.GatewayLineItems(bigCredit).Should().ContainSingle();
+        SubscriptionCheckoutService.GatewayLineItems(upgrade).Select(l => l.Amount).Should().Equal(7418.87m);
+        SubscriptionCheckoutService.GatewayLineItems(upgrade).Single().Description.Should().StartWith("Less ");
+        SubscriptionCheckoutService.GatewayLineItems(renewal).Should().ContainSingle("storage is never on a plan checkout");
     }
 
     [Fact]

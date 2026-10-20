@@ -4,12 +4,21 @@ using Microsoft.AspNetCore.RateLimiting;
 using Onepunch.Common.Lib.Platform;
 using TenantStoreApi.Core.Services.Platform;
 using TenantStoreApi.Core.Services.Subscriptions;
+using TenantStoreApi.Domain.Entities.Subs;
 using TenantStoreApi.Security;
 
 namespace TenantStoreApi.Controllers;
 
 /// <summary>A storage offering as the console lists it: its definition plus how many accounts it is offered to.</summary>
 public sealed record PlatformStorageOfferingView(StorageOfferingView Offering, int OfferedTo);
+
+public record RecordStorageRenewalRequest
+{
+    public decimal Amount { get; set; }
+    public PaymentMethod Method { get; set; }
+    public string? Reference { get; set; }
+    public DateTime? PaidAtUtc { get; set; }
+}
 
 public record GrantStorageRequest
 {
@@ -32,17 +41,20 @@ public class PlatformStorageController : ControllerBase
 {
     private readonly StorageOfferingCatalogService _catalog;
     private readonly StorageAddOnService _addOns;
+    private readonly StorageSubscriptionService _period;
     private readonly PlatformDirectoryService _directory;
     private readonly StorageFileCleanupService _files;
 
     public PlatformStorageController(
         StorageOfferingCatalogService catalog,
         StorageAddOnService addOns,
+        StorageSubscriptionService period,
         PlatformDirectoryService directory,
         StorageFileCleanupService files)
     {
         _catalog = catalog;
         _addOns = addOns;
+        _period = period;
         _directory = directory;
         _files = files;
     }
@@ -146,6 +158,20 @@ public class PlatformStorageController : ControllerBase
             var addOn = await _addOns.GrantAsync(ownerUserId, request.OfferingCode, request.Blocks, request.Reason, Actor, token);
             await _addOns.CommitChangesAsync(token);
             return Ok(addOn.Id);
+        });
+
+    /// <summary>Record a storage renewal paid outside the gateway (e.g. a bank transfer). Storage is billed
+    /// on its own: this pays the storage period now due, never the plan.</summary>
+    [HttpPost("accounts/{ownerUserId:guid}/renewal-payments")]
+    [PlatformAuthorize(PlatformPermissions.PaymentsRecord)]
+    [ProducesResponseType(typeof(Guid), StatusCodes.Status200OK)]
+    public Task<IActionResult> RecordRenewal(Guid ownerUserId, [FromBody] RecordStorageRenewalRequest request, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            var payment = await _period.RecordRenewalAsync(
+                ownerUserId, request.Amount, request.Method, request.Reference, Actor, request.PaidAtUtc, token);
+            await _addOns.CommitChangesAsync(token);
+            return Ok(payment.Id);
         });
 
     /// <summary>Remove held blocks outright.</summary>

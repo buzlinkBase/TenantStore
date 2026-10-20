@@ -16,7 +16,7 @@ public class PlatformAccountActionsServiceTests
 
     private static PlatformAccountActionsService Actions(SubscriptionTestHost host) => new(
         host.Uow, host.Subscriptions, host.Events, host.Notifier, host.StateMachine,
-        Microsoft.Extensions.Options.Options.Create(host.Options), host.Gateway, host.Clock);
+        Microsoft.Extensions.Options.Options.Create(host.Options), host.Gateway, host.Clock, host.StoragePeriod);
 
     /// <summary>An Active account on Payroll, paid up for a month.</summary>
     private static async Task<Guid> ActiveAccountAsync(SubscriptionTestHost host)

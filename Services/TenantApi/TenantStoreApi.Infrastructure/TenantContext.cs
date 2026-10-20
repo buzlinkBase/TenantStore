@@ -28,6 +28,8 @@ public class TenantContext : DbContext
     public DbSet<StorageAddOnOffer> StorageAddOnOffers { get; set; }
     public DbSet<StorageAddOn> StorageAddOns { get; set; }
     public DbSet<StorageAddOnPayment> StorageAddOnPayments { get; set; }
+    public DbSet<StorageSubscription> StorageSubscriptions { get; set; }
+    public DbSet<AutoRenewMandate> AutoRenewMandates { get; set; }
     public DbSet<BillingEvent> BillingEvents { get; set; }
     public DbSet<AccountDeletionRequest> AccountDeletionRequests { get; set; }
     public DbSet<PlatformSetting> PlatformSettings { get; set; }

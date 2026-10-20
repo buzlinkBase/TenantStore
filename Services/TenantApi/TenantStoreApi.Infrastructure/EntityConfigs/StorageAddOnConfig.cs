@@ -17,7 +17,7 @@ public static class StorageAddOnSeed
             Id = Block50GbId,
             Code = "storage-50gb",
             Name = "50 GB storage block",
-            Description = "Adds 50 GB of file storage to your account, shared by all your companies and billed with your plan.",
+            Description = "Adds 50 GB of file storage to your account, shared by all your companies and billed on its own cycle.",
             SortOrder = 1,
             BlockMb = 50 * 1024,
             MonthlyPrice = 400m,
@@ -88,8 +88,32 @@ public class StorageAddOnPaymentConfig : IEntityTypeConfiguration<StorageAddOnPa
         builder.Property(x => x.Amount).HasPrecision(18, 2);
         builder.Property(x => x.Currency).HasMaxLength(8);
         builder.Property(x => x.Method).HasConversion<string>().HasMaxLength(32);
+        builder.Property(x => x.Kind).HasConversion<string>().HasMaxLength(16).HasDefaultValue(StorageAddOnPaymentKind.Purchase);
+        builder.Property(x => x.BillingCycle).HasConversion<string>().HasMaxLength(16);
+        builder.Property(x => x.VoidKind).HasConversion<string>().HasMaxLength(16);
+        builder.Property(x => x.VoidedBy).HasMaxLength(128);
+        builder.Property(x => x.VoidReason).HasMaxLength(512);
         builder.Property(x => x.Reference).HasMaxLength(128);
         builder.Property(x => x.RecordedBy).HasMaxLength(128);
+        builder.Property(x => x.LineItemsJson).HasColumnType("longtext");
         builder.HasIndex(x => new { x.SubscriptionId, x.PaidAtUtc });
+    }
+}
+
+public class StorageSubscriptionConfig : IEntityTypeConfiguration<StorageSubscription>
+{
+    public void Configure(EntityTypeBuilder<StorageSubscription> builder)
+    {
+        builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+        builder.Property(x => x.BillingCycle).HasConversion<string>().HasMaxLength(16);
+        builder.Property(x => x.PendingBillingCycle).HasConversion<string>().HasMaxLength(16);
+        builder.Property(x => x.ConcurrencyStamp).IsConcurrencyToken();
+        // One storage period per account.
+        builder.HasIndex(x => x.SubscriptionId).IsUnique();
+        builder.HasIndex(x => x.Status);
+        builder.HasOne(x => x.Subscription)
+            .WithOne(x => x.StorageSubscription)
+            .HasForeignKey<StorageSubscription>(x => x.SubscriptionId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

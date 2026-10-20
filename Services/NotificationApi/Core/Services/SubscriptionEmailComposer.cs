@@ -56,7 +56,9 @@ public static class SubscriptionEmailComposer
                 $"Your {plan} subscription renews on {Date(p.PeriodEndUtc)}",
                 [
                     $"Your current period ends on {Date(p.PeriodEndUtc)}.",
-                    "Sign in and open Billing for the amount due and how to pay.",
+                    p.PaymentMethodLabel != null
+                        ? $"Auto renew is on: we'll charge your {p.PaymentMethodLabel} automatically. Nothing to do -- or turn it off in Billing."
+                        : "Sign in and open Billing for the amount due and how to pay.",
                 ]),
             SubscriptionEmailTemplates.PastDue => (
                 "Payment overdue for your Onepunch subscription",
@@ -91,6 +93,44 @@ public static class SubscriptionEmailComposer
                     $"Your account is using {Size(p.StorageUsedMb)} of its {Size(p.StorageLimitMb)} of storage ({p.StoragePercent}%), counting all of your companies together.",
                     "When it is full, uploads are blocked. Open Billing and add storage blocks to keep going -- the extra space is available as soon as payment is confirmed -- or delete files you no longer need.",
                 ]),
+            SubscriptionEmailTemplates.StorageRenewalDue => (
+                $"Your Onepunch extra storage renews on {Date(p.PeriodEndUtc)}",
+                [
+                    $"The extra storage on your account is paid until {Date(p.PeriodEndUtc)}. It is billed separately from your {plan} plan.",
+                    p.PaymentMethodLabel != null
+                        ? $"Auto renew is on: we'll charge your {p.PaymentMethodLabel} automatically. Nothing to do -- or turn it off in Billing."
+                        : "Sign in and open Billing to pay for the next storage period.",
+                ]),
+            SubscriptionEmailTemplates.AutoRenewOn => (
+                $"Auto renew is on for your {AutoRenewItem(p)}",
+                [
+                    $"Thanks for your payment. Your {AutoRenewItem(p)} now renews automatically: we'll charge your {p.PaymentMethodLabel ?? "saved payment method"} at the start of each billing period.",
+                    "You'll get a reminder before each charge. You can turn auto renew off any time in Billing.",
+                ]),
+            SubscriptionEmailTemplates.AutoRenewChargeFailed => (
+                $"We couldn't charge your {p.PaymentMethodLabel ?? "payment method"}",
+                [
+                    $"The automatic payment{(p.Amount is { } amount ? $" of {amount:N2} PHP" : "")} for your {AutoRenewItem(p)} didn't go through. We'll try again over the next few days.",
+                    "To avoid an interruption, open Billing and pay now, or check that your card or Maya account can be charged.",
+                ]),
+            SubscriptionEmailTemplates.AutoRenewStopped => (
+                $"Auto renew has stopped for your {AutoRenewItem(p)}",
+                [
+                    $"We couldn't charge your {p.PaymentMethodLabel ?? "payment method"} after several tries, or your billing changed, so auto renew for your {AutoRenewItem(p)} is off.",
+                    "Open Billing to pay and, if you like, turn auto renew on again with your payment.",
+                ]),
+            SubscriptionEmailTemplates.StoragePastDue => (
+                "Payment overdue for your Onepunch extra storage",
+                [
+                    $"We haven't received payment for your extra storage. It stays available until {Date(p.GraceEndsAtUtc)}; after that your account's storage goes back to what your plan includes.",
+                    "Nothing is deleted, but uploads are blocked while your files take up more than that. Open Billing to pay for storage.",
+                ]),
+            SubscriptionEmailTemplates.StorageLapsed => (
+                "Your Onepunch extra storage has ended",
+                [
+                    "Payment for your extra storage wasn't received, so your account's storage is back to what your plan includes.",
+                    "Nothing has been deleted. If your files take up more than that, uploads are blocked until you pay for storage in Billing or free up space.",
+                ]),
             _ => null,
         };
         if (content is not { } c) return null;
@@ -107,6 +147,9 @@ public static class SubscriptionEmailComposer
         < 1024 => $"{megabytes} MB",
         { } mb => $"{Math.Round(mb / 1024.0, 2)} GB",
     };
+
+    private static string AutoRenewItem(SubscriptionReminderEmail p) =>
+        string.IsNullOrWhiteSpace(p.AutoRenewItem) ? "subscription" : p.AutoRenewItem;
 
     private static string UsageLine(SubscriptionReminderEmail p) =>
         (p.CompanyCount, p.EmployeeCount) switch

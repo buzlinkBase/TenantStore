@@ -20,14 +20,16 @@ public class PaymentWebhooksController : ControllerBase
 {
     private const int MaxBodyBytes = 256 * 1024;
 
-    private readonly SubscriptionCheckoutService _checkouts;
+    private readonly AutoRenewService _webhooks;
 
-    public PaymentWebhooksController(SubscriptionCheckoutService checkouts)
+    public PaymentWebhooksController(AutoRenewService webhooks)
     {
-        _checkouts = checkouts;
+        _webhooks = webhooks;
     }
 
-    /// <summary>PayMongo webhook -- subscribe it to checkout_session.payment.paid.</summary>
+    /// <summary>PayMongo webhook -- subscribe it to checkout_session.payment.paid, the refund and dispute events,
+    /// and (for auto renew) subscription.invoice.created / paid / payment_failed and subscription.past_due /
+    /// unpaid / updated. Auto renew events are handled first; the rest go on to the hosted checkout.</summary>
     [HttpPost("paymongo/webhook")]
     [RequestSizeLimit(MaxBodyBytes)]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -40,7 +42,7 @@ public class PaymentWebhooksController : ControllerBase
             body = await reader.ReadToEndAsync(token);
         }
 
-        var outcome = await _checkouts.HandleWebhookAsync(
+        var outcome = await _webhooks.HandleWebhookAsync(
             body, Request.Headers[PayMongoWebhookSignature.HeaderName].FirstOrDefault(), token);
         return outcome == WebhookOutcome.Rejected ? Unauthorized() : Ok(new { outcome });
     }

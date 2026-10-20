@@ -29,6 +29,8 @@ public class SubscriptionsController : ControllerBase
     private readonly AccountSubscriptionService _subscriptions;
     private readonly SubscriptionCheckoutService _checkouts;
     private readonly StorageAddOnService _storage;
+    private readonly StorageSubscriptionService _storagePeriod;
+    private readonly AutoRenewService _autoRenew;
     private readonly UserMembershipService _members;
     private readonly TenantService _tenants;
     private readonly ITenantProvider _tenantProvider;
@@ -38,6 +40,8 @@ public class SubscriptionsController : ControllerBase
         AccountSubscriptionService subscriptions,
         SubscriptionCheckoutService checkouts,
         StorageAddOnService storage,
+        StorageSubscriptionService storagePeriod,
+        AutoRenewService autoRenew,
         UserMembershipService members,
         TenantService tenants,
         ITenantProvider tenantProvider)
@@ -46,6 +50,8 @@ public class SubscriptionsController : ControllerBase
         _subscriptions = subscriptions;
         _checkouts = checkouts;
         _storage = storage;
+        _storagePeriod = storagePeriod;
+        _autoRenew = autoRenew;
         _members = members;
         _tenants = tenants;
         _tenantProvider = tenantProvider;
@@ -137,12 +143,40 @@ public class SubscriptionsController : ControllerBase
     [ProducesResponseType(typeof(CheckoutView), StatusCodes.Status200OK)]
     public Task<IActionResult> GetCheckout(Guid checkoutId, CancellationToken token) =>
         WithBillingAccess(ViewBilling, token, async tenantId =>
-            Ok(await _checkouts.RefreshAsync(await OwnerOfAsync(tenantId, token), checkoutId, token)));
+            Ok(await _autoRenew.RefreshAsync(await OwnerOfAsync(tenantId, token), checkoutId, token)));
+
+    // ── Auto renew ───────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Turn auto renew on by paying what's due now (the plan's, or storage's): sets it up at the
+    /// gateway and returns the payment to complete with <see cref="ConfirmAutoRenew"/>.</summary>
+    [HttpPost("auto-renew")]
+    [ProducesResponseType(typeof(AutoRenewStarted), StatusCodes.Status200OK)]
+    public Task<IActionResult> StartAutoRenew([FromBody] StartAutoRenewCommand command, CancellationToken token) =>
+        WithBillingAccess(ManageBilling, token, async tenantId =>
+            Ok(await _autoRenew.StartAsync(await OwnerOfAsync(tenantId, token), User.GetRequiredUserId(), command, token)));
+
+    /// <summary>Pay the first invoice by card (tokenized in the browser -- send its pm_ id, never card details)
+    /// or Maya. The browser then goes to RedirectUrl to authorize it, and returns to /billing/payment?checkout={id}.</summary>
+    [HttpPost("auto-renew/{checkoutId:guid}/confirm")]
+    [ProducesResponseType(typeof(AutoRenewConfirmed), StatusCodes.Status200OK)]
+    public Task<IActionResult> ConfirmAutoRenew(Guid checkoutId, [FromBody] ConfirmAutoRenewCommand command, CancellationToken token) =>
+        WithBillingAccess(ManageBilling, token, async tenantId =>
+            Ok(await _autoRenew.ConfirmAsync(await OwnerOfAsync(tenantId, token), checkoutId, command, token)));
+
+    /// <summary>Turn auto renew off: nothing more is charged automatically. The paid period runs to its end.</summary>
+    [HttpDelete("auto-renew/{target}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public Task<IActionResult> TurnOffAutoRenew(AutoRenewTarget target, CancellationToken token) =>
+        WithBillingAccess(ManageBilling, token, async tenantId =>
+        {
+            await _autoRenew.TurnOffAsync(await OwnerOfAsync(tenantId, token), target, ActorId, "Turned off by the owner", token);
+            return Ok();
+        });
 
     // ── Storage ──────────────────────────────────────────────────────────────────────────────
 
     /// <summary>The account's storage (one pool for all its companies): base plan capacity, blocks held,
-    /// usage, the offerings it may buy and what it all costs.</summary>
+    /// usage, the offerings it may buy, and its own billing period -- cycle, due date, what's due.</summary>
     [HttpGet("storage")]
     [ProducesResponseType(typeof(StorageSummary), StatusCodes.Status200OK)]
     public Task<IActionResult> GetStorage(CancellationToken token) =>
@@ -168,12 +202,14 @@ public class SubscriptionsController : ControllerBase
             Ok(StorageStatus.From(await _storage.GetSummaryAsync(await OwnerOfAsync(tenantId, token), token))));
     }
 
-    /// <summary>The prorated price of more blocks, for the checkout breakdown.</summary>
+    /// <summary>The price of more blocks, for the checkout breakdown: prorated to the storage due date, or
+    /// a full storage period on <see cref="StoragePurchaseRequest.BillingCycle"/> when none is running.</summary>
     [HttpPost("storage/quote")]
     [ProducesResponseType(typeof(StorageQuote), StatusCodes.Status200OK)]
     public Task<IActionResult> QuoteStorage([FromBody] StoragePurchaseRequest request, CancellationToken token) =>
         WithBillingAccess(ManageBilling, token, async tenantId =>
-            Ok(await _storage.QuoteAsync(await OwnerOfAsync(tenantId, token), request.OfferingCode, request.Blocks, token)));
+            Ok(await _storage.QuoteAsync(
+                await OwnerOfAsync(tenantId, token), request.OfferingCode, request.Blocks, request.BillingCycle, token)));
 
     /// <summary>Pay online for more blocks; the browser goes to CheckoutUrl and returns to /billing/payment?checkout={id}.</summary>
     [HttpPost("storage/checkout")]
@@ -181,9 +217,38 @@ public class SubscriptionsController : ControllerBase
     public Task<IActionResult> StartStorageCheckout([FromBody] StoragePurchaseRequest request, CancellationToken token) =>
         WithBillingAccess(ManageBilling, token, async tenantId =>
             Ok(await _checkouts.StartStorageAsync(
-                await OwnerOfAsync(tenantId, token), request.OfferingCode, request.Blocks, User.GetRequiredUserId(), token)));
+                await OwnerOfAsync(tenantId, token), request.OfferingCode, request.Blocks, User.GetRequiredUserId(),
+                request.BillingCycle, token)));
 
-    /// <summary>Hold fewer blocks (0 cancels them) from the end of the paid period.</summary>
+    /// <summary>Pay online for the storage renewal now due (StorageSummary.RenewalDue) -- apart from the plan.</summary>
+    [HttpPost("storage/renewal/checkout")]
+    [ProducesResponseType(typeof(CheckoutStarted), StatusCodes.Status200OK)]
+    public Task<IActionResult> StartStorageRenewalCheckout(CancellationToken token) =>
+        WithBillingAccess(ManageBilling, token, async tenantId =>
+            Ok(await _checkouts.StartStorageRenewalAsync(await OwnerOfAsync(tenantId, token), User.GetRequiredUserId(), token)));
+
+    /// <summary>Switch storage to monthly or annual billing from its next renewal.</summary>
+    [HttpPost("storage/cycle")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public Task<IActionResult> ChangeStorageCycle([FromBody] StorageCycleRequest request, CancellationToken token) =>
+        WithBillingAccess(ManageBilling, token, async tenantId =>
+        {
+            await _storagePeriod.RequestCycleChangeAsync(await OwnerOfAsync(tenantId, token), request.BillingCycle, ActorId, token);
+            await _storage.CommitChangesAsync(token);
+            return Ok();
+        });
+
+    [HttpDelete("storage/cycle")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public Task<IActionResult> WithdrawStorageCycleChange(CancellationToken token) =>
+        WithBillingAccess(ManageBilling, token, async tenantId =>
+        {
+            await _storagePeriod.WithdrawCycleChangeAsync(await OwnerOfAsync(tenantId, token), ActorId, token);
+            await _storage.CommitChangesAsync(token);
+            return Ok();
+        });
+
+    /// <summary>Hold fewer blocks (0 cancels them) from the end of the paid storage period.</summary>
     [HttpPost("storage/reduction")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public Task<IActionResult> RequestStorageReduction([FromBody] StorageReductionRequest request, CancellationToken token) =>
@@ -230,6 +295,13 @@ public record StoragePurchaseRequest
 {
     public string OfferingCode { get; set; } = string.Empty;
     public int Blocks { get; set; }
+    /// <summary>The storage cycle when this purchase starts the storage period; ignored while one runs.</summary>
+    public BillingCycle? BillingCycle { get; set; }
+}
+
+public record StorageCycleRequest
+{
+    public BillingCycle BillingCycle { get; set; }
 }
 
 public record StorageReductionRequest

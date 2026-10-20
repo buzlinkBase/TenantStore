@@ -73,6 +73,8 @@ public class TenantStoreAccountEraser
         deleted += await _rows.EraseAsync(All<SubscriptionPayment>().Where(p => p.SubscriptionId == subscriptionId), token);
         deleted += await _rows.EraseAsync(All<StorageAddOnPayment>().Where(p => p.SubscriptionId == subscriptionId), token);
         deleted += await _rows.EraseAsync(All<StorageAddOn>().Where(a => a.SubscriptionId == subscriptionId), token);
+        deleted += await _rows.EraseAsync(All<StorageSubscription>().Where(s => s.SubscriptionId == subscriptionId), token);
+        deleted += await _rows.EraseAsync(All<AutoRenewMandate>().Where(m => m.SubscriptionId == subscriptionId), token);
         deleted += await _rows.EraseAsync(All<StorageAddOnOffer>().Where(o => o.OwnerUserId == owner), token);
         deleted += await _rows.EraseAsync(All<PlanOffer>().Where(o => o.OwnerUserId == owner), token);
         deleted += await _rows.EraseAsync(All<SubscriptionDiscount>().Where(d => d.SubscriptionId == subscriptionId), token);

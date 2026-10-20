@@ -17,6 +17,9 @@ public sealed class SubscriptionOptions
     /// <summary>How long before a paid period ends the owner is reminded, and may pay for the
     /// next one online.</summary>
     public int RenewalWindowDays { get; set; } = 7;
+    /// <summary>How long bought storage keeps counting after its own period ends unpaid. Storage is billed
+    /// apart from the plan; the reminder before its due date uses <see cref="RenewalWindowDays"/>.</summary>
+    public int StorageGraceDays { get; set; } = 7;
     /// <summary>How long a locked account's operational data is kept (one year). Payroll, employee and
     /// attendance records are archived rather than destroyed then -- DOLE and BIR retention.</summary>
     public int PurgeAfterDays { get; set; } = 365;

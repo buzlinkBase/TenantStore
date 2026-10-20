@@ -45,7 +45,6 @@ public sealed record PaymentDueView(
     BillingCycle BillingCycle,
     decimal Amount,
     PaymentDueReason Reason,
-    decimal AddOnsAmount = 0m,
     /// <summary>An upgrade's credit for the unused days of the running period, already taken off <see cref="Amount"/>.</summary>
     decimal CreditAmount = 0m,
     int UnusedDays = 0);
@@ -67,9 +66,9 @@ public sealed record PaymentView(
     BillingCycle BillingCycle,
     DateTime PeriodStartUtc,
     DateTime PeriodEndUtc,
-    /// <summary>"Plan" for a plan period, "Storage" for storage blocks bought mid-period.</summary>
+    /// <summary>"Plan" for a plan period, "Storage" for storage blocks bought, "StorageRenewal" for a storage period.</summary>
     string Kind = PaymentKinds.Plan,
-    /// <summary>Storage payments: what was bought, e.g. "2 x 50 GB Storage".</summary>
+    /// <summary>Storage payments: what was paid for, e.g. "2 x 50 GB Storage".</summary>
     string? Description = null,
     /// <summary>"Paid", or "Refunded" / "Cancelled" for a voided payment the owner still sees.</summary>
     string Status = PaymentStatuses.Paid,
@@ -100,6 +99,7 @@ public static class PaymentKinds
 {
     public const string Plan = "Plan";
     public const string Storage = "Storage";
+    public const string StorageRenewal = "StorageRenewal";
 }
 
 /// <summary>The billing screen: plan, status, usage against limits, payments.</summary>
@@ -125,6 +125,8 @@ public sealed record BillingView
     public PaymentDueView? PaymentDue { get; init; }
     /// <summary>Whether Pay now (the payment gateway's hosted page) is offered.</summary>
     public bool OnlinePaymentEnabled { get; init; }
+    /// <summary>Auto renews that are on (or being set up), one per target at most.</summary>
+    public List<AutoRenewView> AutoRenew { get; init; } = [];
 }
 
 /// <summary>
@@ -301,9 +303,15 @@ public class SubscriptionViewService
                 var refunded = gatewayIssues.RefundedOf(s.Payment.Reference);
                 return new PaymentView(
                     s.Payment.Id, s.Payment.PaidAtUtc, s.Payment.Amount, s.Payment.Currency, s.Payment.Method,
-                    s.Payment.Reference, subscription.Plan.Name, subscription.BillingCycle,
-                    s.Payment.PeriodStartUtc, s.Payment.PeriodEndUtc, PaymentKinds.Storage, s.Description,
-                    Status: PaymentStatuses.Of(null, s.Payment.Amount, refunded), RefundedAmount: refunded);
+                    s.Payment.Reference, null, s.Payment.BillingCycle,
+                    s.Payment.PeriodStartUtc, s.Payment.PeriodEndUtc,
+                    s.Payment.Kind == StorageAddOnPaymentKind.Renewal ? PaymentKinds.StorageRenewal : PaymentKinds.Storage,
+                    s.Description,
+                    Status: PaymentStatuses.Of(s.Payment.VoidedAtUtc == null ? null : s.Payment.VoidKind.ToString(), s.Payment.Amount, refunded),
+                    RefundedAmount: refunded,
+                    LineItems: s.Payment.LineItemsJson == null
+                        ? null
+                        : JsonSerializer.Deserialize<List<PaymentLineItemSnapshot>>(s.Payment.LineItemsJson));
             }))
             .OrderByDescending(p => p.PaidAtUtc)
             .ToList();
@@ -324,9 +332,10 @@ public class SubscriptionViewService
             CompaniesMax = _resolver.ResolveAgainstPlan(subscription, subscription.Plan, Guid.Empty).LimitOf(EntitlementKeys.CompaniesMax),
             Payments = paymentViews,
             PaymentDue = due == null ? null : new PaymentDueView(
-                due.Plan.Code, due.Plan.Name, due.BillingCycle, due.Amount, due.Reason, due.AddOnsAmount,
+                due.Plan.Code, due.Plan.Name, due.BillingCycle, due.Amount, due.Reason,
                 due.CreditAmount, due.UnusedDays),
             OnlinePaymentEnabled = _gateway.IsEnabled,
+            AutoRenew = await AutoRenewReadModel.LiveAsync(_subscriptions.Context, subscription.Id, token),
         };
     }
 

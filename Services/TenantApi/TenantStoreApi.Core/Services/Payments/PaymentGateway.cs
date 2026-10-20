@@ -65,21 +65,33 @@ public enum GatewayEventKind
     PaymentRefunded,
     /// <summary>The payer disputed the payment with their bank or wallet.</summary>
     PaymentDisputed,
+    /// <summary>A recurring-billing invoice was raised as a draft -- it can still be adjusted.</summary>
+    SubscriptionInvoiceCreated,
+    SubscriptionInvoicePaid,
+    SubscriptionInvoiceFailed,
+    /// <summary>A recurring-billing subscription changed state (activated, past due, unpaid, updated).</summary>
+    SubscriptionChanged,
     Other,
 }
 
 /// <summary>A refund or dispute against a payment we took: which gateway payment, and for how much.</summary>
 public sealed record GatewayPaymentIssue(string PaymentId, decimal? Amount);
 
+/// <summary>A recurring-billing subscription as a webhook reports it.</summary>
+public sealed record GatewaySubscriptionNotice(string SubscriptionId, string Status, DateTime? NextBillingDateUtc);
+
 /// <summary>An authentic webhook delivery. <see cref="Session"/> is set for checkout events,
-/// <see cref="Issue"/> for refunds and disputes.</summary>
+/// <see cref="Issue"/> for refunds and disputes, <see cref="Invoice"/> and
+/// <see cref="Subscription"/> for recurring billing.</summary>
 public sealed record GatewayWebhookEvent(
     string EventId,
     string Type,
     GatewayEventKind Kind,
     bool LiveMode,
     GatewaySessionState? Session,
-    GatewayPaymentIssue? Issue = null);
+    GatewayPaymentIssue? Issue = null,
+    GatewayInvoice? Invoice = null,
+    GatewaySubscriptionNotice? Subscription = null);
 
 /// <summary>
 /// A payment provider's hosted checkout. Strategy/Adapter: the checkout flow

@@ -28,20 +28,43 @@ public class PlatformBillingController : ControllerBase
     private readonly PlanCatalogService _plans;
     private readonly BillingEventService _events;
     private readonly PlatformDirectoryService _directory;
+    private readonly Core.Services.Payments.AutoRenewService _autoRenew;
 
     public PlatformBillingController(
         AccountSubscriptionService subscriptions,
         SubscriptionViewService views,
         PlanCatalogService plans,
         BillingEventService events,
-        PlatformDirectoryService directory)
+        PlatformDirectoryService directory,
+        Core.Services.Payments.AutoRenewService autoRenew)
     {
         _subscriptions = subscriptions;
         _views = views;
         _plans = plans;
         _events = events;
         _directory = directory;
+        _autoRenew = autoRenew;
     }
+
+    /// <summary>The account's auto renews, newest first: on, being set up, and stopped (with why).</summary>
+    [PlatformAuthorize(PlatformPermissions.AccountsRead)]
+    [HttpGet("accounts/{ownerUserId:guid}/auto-renew")]
+    [ProducesResponseType(typeof(List<AutoRenewView>), StatusCodes.Status200OK)]
+    public Task<IActionResult> GetAutoRenew(Guid ownerUserId, CancellationToken token) =>
+        SubscriptionResults.Run(async () => Ok(await _autoRenew.HistoryAsync(ownerUserId, token)));
+
+    /// <summary>Stop an account's auto renew (the gateway stops billing at once). Turning it on is the owner's
+    /// consent, so an operator can only turn it off.</summary>
+    [PlatformAuthorize(PlatformPermissions.SubscriptionsManage)]
+    [HttpDelete("accounts/{ownerUserId:guid}/auto-renew/{target}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public Task<IActionResult> StopAutoRenew(Guid ownerUserId, AutoRenewTarget target, [FromQuery] string? reason, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            await _autoRenew.TurnOffAsync(ownerUserId, target, Actor,
+                string.IsNullOrWhiteSpace(reason) ? "Turned off by Onepunch support" : reason.Trim(), token);
+            return Ok();
+        });
 
     /// <summary>Who did it, for the billing history: the signed-in operator, from their token.</summary>
     private string Actor => PlatformActor.From(User);

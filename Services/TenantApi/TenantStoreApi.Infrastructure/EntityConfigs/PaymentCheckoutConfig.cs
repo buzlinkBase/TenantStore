@@ -20,6 +20,8 @@ public class PaymentCheckoutConfig : IEntityTypeConfiguration<PaymentCheckout>
         builder.Property(x => x.ProviderPaymentId).HasMaxLength(128);
         builder.Property(x => x.ProviderPaymentMethod).HasMaxLength(32);
         builder.Property(x => x.FailureReason).HasMaxLength(512);
+        builder.Property(x => x.ProviderIntentId).HasMaxLength(128);
+        builder.HasIndex(x => x.MandateId);
         builder.HasOne(x => x.Subscription)
             .WithMany()
             .HasForeignKey(x => x.SubscriptionId)

@@ -124,12 +124,38 @@ public static class PayMongoDocuments
         {
             issue = ReadIssue(issueResource);
         }
-        return new GatewayWebhookEvent(eventId, type, kind, IsTrue(attributes, "livemode"), session, issue);
+
+        GatewayInvoice? invoice = null;
+        GatewaySubscriptionNotice? notice = null;
+        if (attributes.TryGetProperty("data", out var billingResource) && billingResource.ValueKind == JsonValueKind.Object)
+        {
+            if (kind is GatewayEventKind.SubscriptionInvoiceCreated or GatewayEventKind.SubscriptionInvoicePaid
+                or GatewayEventKind.SubscriptionInvoiceFailed)
+            {
+                invoice = ReadInvoice(billingResource);
+            }
+            else if (kind == GatewayEventKind.SubscriptionChanged)
+            {
+                var subscription = ReadSubscription(billingResource);
+                notice = new GatewaySubscriptionNotice(subscription.SubscriptionId, subscription.Status, subscription.NextBillingDateUtc);
+            }
+        }
+        return new GatewayWebhookEvent(eventId, type, kind, IsTrue(attributes, "livemode"), session, issue, invoice, notice);
     }
+
+    // Recurring billing (PayMongo Subscriptions) events.
+    public const string InvoiceCreatedEvent = "subscription.invoice.created";
+    public const string InvoicePaidEvent = "subscription.invoice.paid";
+    public const string InvoiceFailedEvent = "subscription.invoice.payment_failed";
 
     private static GatewayEventKind KindOf(string type)
     {
         if (type == CheckoutPaidEvent) return GatewayEventKind.CheckoutPaid;
+        if (type == InvoiceCreatedEvent) return GatewayEventKind.SubscriptionInvoiceCreated;
+        if (type == InvoicePaidEvent) return GatewayEventKind.SubscriptionInvoicePaid;
+        if (type == InvoiceFailedEvent) return GatewayEventKind.SubscriptionInvoiceFailed;
+        if (type.StartsWith("subscription.invoice.", StringComparison.Ordinal)) return GatewayEventKind.Other;
+        if (type.StartsWith("subscription.", StringComparison.Ordinal)) return GatewayEventKind.SubscriptionChanged;
         if (type.StartsWith("payment.refund", StringComparison.Ordinal)) return GatewayEventKind.PaymentRefunded;
         if (type.Contains("dispute", StringComparison.Ordinal)) return GatewayEventKind.PaymentDisputed;
         return GatewayEventKind.Other;
@@ -192,6 +218,138 @@ public static class PayMongoDocuments
             => PaymentMethod.OnlineBanking,
         _ => PaymentMethod.Other,
     };
+
+    /// <summary>
+    /// A subscription resource (a GET's data, or a webhook's attributes.data). Read from the resource's
+    /// attributes, or the object itself when an event sends it flat.
+    /// </summary>
+    public static GatewayBillingSubscription ReadSubscription(JsonElement resource)
+    {
+        var a = AttributesOf(resource);
+        string? invoiceId = null, invoiceStatus = null, intentId = null, intentStatus = null;
+        if (a.TryGetProperty("latest_invoice", out var invoice) && invoice.ValueKind == JsonValueKind.Object)
+        {
+            invoiceId = Text(invoice, "id");
+            invoiceStatus = Text(invoice, "status");
+            if (invoice.TryGetProperty("payment_intent", out var intent) && intent.ValueKind == JsonValueKind.Object)
+            {
+                intentId = Text(intent, "id");
+                intentStatus = Text(intent, "status");
+            }
+        }
+        var planId = a.TryGetProperty("plan", out var plan) && plan.ValueKind == JsonValueKind.Object
+            ? Text(plan, "id")
+            : Text(a, "plan_id");
+        return new GatewayBillingSubscription(
+            Text(resource, "id") ?? Text(a, "id") ?? string.Empty,
+            Text(a, "status") ?? string.Empty,
+            Text(a, "customer_id"),
+            planId,
+            Date(a, "next_billing_schedule"),
+            invoiceId, invoiceStatus, intentId, intentStatus);
+    }
+
+    /// <summary>A subscription invoice (a webhook's attributes.data). The subscription is named by
+    /// <c>resource_id</c> or a nested <c>subscription.id</c>.</summary>
+    public static GatewayInvoice ReadInvoice(JsonElement resource)
+    {
+        var a = AttributesOf(resource);
+        var subscriptionId = Text(a, "resource_id")
+            ?? (a.TryGetProperty("subscription", out var subscription) && subscription.ValueKind == JsonValueKind.Object
+                ? Text(subscription, "id")
+                : null);
+        var intentId = a.TryGetProperty("payment_intent", out var intent) && intent.ValueKind == JsonValueKind.Object
+            ? Text(intent, "id")
+            : Text(a, "payment_intent_id");
+        return new GatewayInvoice(
+            Text(resource, "id") ?? Text(a, "id") ?? string.Empty,
+            subscriptionId,
+            a.TryGetProperty("amount", out var amount) && amount.ValueKind == JsonValueKind.Number ? FromCentavos(amount.GetInt64()) : 0m,
+            Text(a, "currency") ?? "PHP",
+            Text(a, "status") ?? string.Empty,
+            Date(a, "due_date"),
+            intentId);
+    }
+
+    /// <summary>A payment_intent resource: its status, the redirect a payer must follow, and its paid payment.</summary>
+    public static GatewayIntentState ReadIntent(JsonElement resource)
+    {
+        var a = AttributesOf(resource);
+        GatewayPayment? paid = null;
+        string? label = null;
+        if (a.TryGetProperty("payments", out var payments) && payments.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var payment in payments.EnumerateArray())
+            {
+                var p = AttributesOf(payment);
+                if (Text(p, "status") != "paid") continue;
+                var methodName = SourceType(p);
+                paid = new GatewayPayment(
+                    Text(payment, "id") ?? string.Empty,
+                    p.TryGetProperty("amount", out var amount) && amount.ValueKind == JsonValueKind.Number ? FromCentavos(amount.GetInt64()) : 0m,
+                    Text(p, "currency") ?? "PHP",
+                    MapMethod(methodName),
+                    methodName,
+                    p.TryGetProperty("paid_at", out var paidAt) && paidAt.ValueKind == JsonValueKind.Number
+                        ? DateTimeOffset.FromUnixTimeSeconds(paidAt.GetInt64()).UtcDateTime
+                        : null);
+                label = MethodLabel(p);
+                break;
+            }
+        }
+        return new GatewayIntentState(Text(resource, "id") ?? string.Empty, Text(a, "status") ?? string.Empty, paid, label, ReadMetadata(a));
+    }
+
+    /// <summary>The page a payer must visit to authorize an intent (3-D Secure, a wallet), if any.</summary>
+    public static GatewayIntentAttach ReadAttach(JsonElement resource)
+    {
+        var a = AttributesOf(resource);
+        string? url = null;
+        if (a.TryGetProperty("next_action", out var next) && next.ValueKind == JsonValueKind.Object
+            && next.TryGetProperty("redirect", out var redirect) && redirect.ValueKind == JsonValueKind.Object)
+        {
+            url = Text(redirect, "url");
+        }
+        return new GatewayIntentAttach(Text(a, "status") ?? string.Empty, url);
+    }
+
+    /// <summary>"Visa •••• 4242" for a card, "Maya" for a Maya wallet -- never more of the card than that.</summary>
+    public static string? MethodLabel(JsonElement paymentAttributes)
+    {
+        if (!paymentAttributes.TryGetProperty("source", out var source) || source.ValueKind != JsonValueKind.Object) return null;
+        var type = Text(source, "type");
+        if (type == "card")
+        {
+            var brand = Text(source, "brand");
+            var last4 = Text(source, "last4");
+            var name = string.IsNullOrWhiteSpace(brand) ? "Card" : char.ToUpperInvariant(brand[0]) + brand[1..];
+            return last4 == null ? name : $"{name} •••• {last4}";
+        }
+        return type switch
+        {
+            "paymaya" => "Maya",
+            null => null,
+            _ => type,
+        };
+    }
+
+    /// <summary>PayMongo's interval name for a billing cycle.</summary>
+    public static string Interval(BillingCycle cycle) => cycle == BillingCycle.Annual ? "yearly" : "monthly";
+
+    private static JsonElement AttributesOf(JsonElement resource) =>
+        resource.ValueKind == JsonValueKind.Object
+        && resource.TryGetProperty("attributes", out var attributes)
+        && attributes.ValueKind == JsonValueKind.Object
+            ? attributes
+            : resource;
+
+    /// <summary>A "YYYY-MM-DD" date, as midnight UTC.</summary>
+    private static DateTime? Date(JsonElement element, string name) =>
+        Text(element, name) is { } text
+        && DateTime.TryParseExact(text, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var date)
+            ? DateTime.SpecifyKind(date, DateTimeKind.Utc)
+            : null;
 
     private static string? SourceType(JsonElement paymentAttributes) =>
         paymentAttributes.TryGetProperty("source", out var source) && source.ValueKind == JsonValueKind.Object

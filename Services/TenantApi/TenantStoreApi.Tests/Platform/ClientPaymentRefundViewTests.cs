@@ -15,7 +15,7 @@ public class ClientPaymentRefundViewTests
 
     private static PlatformAccountActionsService Actions(SubscriptionTestHost host) => new(
         host.Uow, host.Subscriptions, host.Events, host.Notifier, host.StateMachine,
-        Microsoft.Extensions.Options.Options.Create(host.Options), host.Gateway, host.Clock);
+        Microsoft.Extensions.Options.Options.Create(host.Options), host.Gateway, host.Clock, host.StoragePeriod);
 
     private static async Task<(Guid Owner, SubscriptionPayment Payment)> PaidOnlineAsync(SubscriptionTestHost host, string email = "owner@acme.ph")
     {

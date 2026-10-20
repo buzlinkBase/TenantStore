@@ -418,11 +418,15 @@ public class PlatformDirectoryService
                               join s in Context.AccountSubscriptions.AsNoTracking() on p.SubscriptionId equals s.Id
                               select new PaymentRow
                               {
-                                  Id = p.Id, OwnerUserId = s.OwnerUserId, Kind = PaymentKinds.Storage,
+                                  Id = p.Id, OwnerUserId = s.OwnerUserId,
+                                  Kind = p.Kind == StorageAddOnPaymentKind.Renewal ? PaymentKinds.StorageRenewal : PaymentKinds.Storage,
                                   PaidAtUtc = p.PaidAtUtc, Amount = p.Amount, Currency = p.Currency, Method = p.Method,
-                                  Reference = p.Reference, PlanId = s.PlanId, BillingCycle = s.BillingCycle,
+                                  Reference = p.Reference, PlanId = s.PlanId, BillingCycle = p.BillingCycle,
                                   PeriodStartUtc = p.PeriodStartUtc, PeriodEndUtc = p.PeriodEndUtc,
                                   RecordedBy = p.RecordedBy, AddOnId = p.AddOnId, Blocks = p.Blocks,
+                                  LineItemsJson = p.LineItemsJson,
+                                  VoidedAtUtc = p.VoidedAtUtc, VoidedBy = p.VoidedBy, VoidReason = p.VoidReason,
+                                  VoidKind = p.VoidKind,
                               };
 
         IQueryable<PaymentRow> Filtered(IQueryable<PaymentRow> payments)
@@ -434,19 +438,20 @@ public class PlatformDirectoryService
             return payments;
         }
 
-        // Only plan payments can be voided; storage payments have no void columns, so the void filter
-        // is applied to the plan side alone (a storage payment is never void).
+        // Both kinds can be voided (a voided storage renewal hands its storage period back).
         var plan = Filtered(planPayments);
-        if (query.Voided is { } voided)
-            plan = voided ? plan.Where(x => x.VoidedAtUtc != null) : plan.Where(x => x.VoidedAtUtc == null);
         var storage = Filtered(storagePayments);
-        if (query.Voided == true) storage = storage.Where(_ => false);
+        if (query.Voided is { } voided)
+        {
+            plan = voided ? plan.Where(x => x.VoidedAtUtc != null) : plan.Where(x => x.VoidedAtUtc == null);
+            storage = voided ? storage.Where(x => x.VoidedAtUtc != null) : storage.Where(x => x.VoidedAtUtc == null);
+        }
         if (query.NeedsReview == true)
         {
             var allIssues = await GatewayIssueLedger.LoadAsync(Context, null, token);
             var review = allIssues.NeedingReview().ToList();
             plan = plan.Where(x => x.VoidedAtUtc == null && x.Reference != null && review.Contains(x.Reference));
-            storage = storage.Where(x => x.Reference != null && review.Contains(x.Reference));
+            storage = storage.Where(x => x.VoidedAtUtc == null && x.Reference != null && review.Contains(x.Reference));
         }
 
         // Two tables, merged here rather than in SQL: each side contributes its newest (skip + take)
@@ -489,13 +494,16 @@ public class PlatformDirectoryService
         var items = page.Select(x =>
         {
             identities.TryGetValue(x.OwnerUserId, out var identity);
-            var description = x.Kind == PaymentKinds.Storage
-                ? StorageAddOnService.DescribePayment(x.Blocks, x.AddOnId is { } id ? offeringNames.GetValueOrDefault(id) : null)
-                : null;
+            var description = x.Kind switch
+            {
+                PaymentKinds.Storage => StorageAddOnService.DescribePayment(x.Blocks, x.AddOnId is { } id ? offeringNames.GetValueOrDefault(id) : null),
+                PaymentKinds.StorageRenewal => StorageAddOnService.DescribeRenewal(x.Blocks, x.BillingCycle),
+                _ => null,
+            };
             var refunded = ledger.RefundedOf(x.Reference);
             return new PlatformPaymentView(
                 x.Id, x.OwnerUserId, identity.Email, x.PaidAtUtc, x.Amount, x.Currency, x.Method, x.Reference,
-                planNames.GetValueOrDefault(x.PlanId), x.BillingCycle, x.PeriodStartUtc, x.PeriodEndUtc,
+                x.Kind == PaymentKinds.Plan ? planNames.GetValueOrDefault(x.PlanId) : null, x.BillingCycle, x.PeriodStartUtc, x.PeriodEndUtc,
                 x.RecordedBy, x.Notes, x.VoidedAtUtc, x.VoidedBy, x.VoidReason, x.Kind, description,
                 ledger.IssueOf(x.Reference), x.VoidKind?.ToString(),
                 refunded, onlineIds.Contains(x.Id) && refunded < x.Amount,

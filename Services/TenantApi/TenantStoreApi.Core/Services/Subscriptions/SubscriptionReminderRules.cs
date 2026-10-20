@@ -27,6 +27,45 @@ public sealed class SubscriptionReminderRule(
             : null;
 }
 
+/// <summary>Strategy, like <see cref="ISubscriptionReminderRule"/>, for the emails about storage's own billing period.</summary>
+public interface IStorageReminderRule
+{
+    ReminderDecision? Evaluate(AccountSubscription subscription, StorageSubscription storage, DateTime nowUtc, SubscriptionOptions options);
+}
+
+/// <summary>A storage rule defined by a predicate producing the occurrence part of the dedupe key.</summary>
+public sealed class StorageReminderRule(
+    string template,
+    Func<StorageSubscription, DateTime, SubscriptionOptions, string?> occurrence) : IStorageReminderRule
+{
+    public ReminderDecision? Evaluate(AccountSubscription subscription, StorageSubscription storage, DateTime nowUtc, SubscriptionOptions options) =>
+        occurrence(storage, nowUtc, options) is { } key
+            ? new ReminderDecision(template, $"email:{template}:{subscription.Id:N}:{key}")
+            : null;
+}
+
+/// <summary>The storage billing email schedule: before the storage due date, past due, lapsed.</summary>
+public static class StorageReminderSchedule
+{
+    public static IReadOnlyList<IStorageReminderRule> Rules { get; } =
+    [
+        // When the storage renewal window opens (not when every paid block is being given up).
+        new StorageReminderRule(SubscriptionEmailTemplates.StorageRenewalDue, (s, now, o) =>
+            s.Status == StorageSubscriptionStatus.Active && !s.CancelAtPeriodEnd
+            && s.CurrentPeriodEndUtc is { } end && end > now && end - now <= TimeSpan.FromDays(o.RenewalWindowDays)
+                ? SubscriptionReminderSchedule.Day(end) : null),
+
+        new StorageReminderRule(SubscriptionEmailTemplates.StoragePastDue, (s, _, _) =>
+            s.Status == StorageSubscriptionStatus.PastDue && s.GraceEndsAtUtc is { } grace
+                ? SubscriptionReminderSchedule.Day(grace) : null),
+
+        // Only a lapse for non-payment (it had a grace): giving storage up on purpose isn't news.
+        new StorageReminderRule(SubscriptionEmailTemplates.StorageLapsed, (s, _, _) =>
+            s.Status == StorageSubscriptionStatus.Lapsed && s.GraceEndsAtUtc is { } grace
+                ? SubscriptionReminderSchedule.Day(grace) : null),
+    ];
+}
+
 /// <summary>The trial and billing email schedule.</summary>
 public static class SubscriptionReminderSchedule
 {
@@ -108,5 +147,5 @@ public static class SubscriptionReminderSchedule
     private static bool IsUnpaidExpiredTrial(AccountSubscription subscription) =>
         subscription.SubStatus == AccountSubscriptionStatus.Expired && subscription.CurrentPeriodEndUtc == null;
 
-    private static string Day(DateTime value) => value.ToString("yyyyMMdd");
+    internal static string Day(DateTime value) => value.ToString("yyyyMMdd");
 }
