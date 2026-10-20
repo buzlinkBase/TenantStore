@@ -8,14 +8,30 @@ public sealed record PortalClientRow(string ExternalId, string Code, string Name
 
 public sealed record PortalSiteRow(string ExternalId, string ClientExternalId, string Code, string Name);
 
-public sealed record PortalPostRow(string ExternalId, string SiteExternalId, string Code, string Name);
+/// <summary><see cref="Position"/>: the kind of personnel the post needs ("Regular guard", "Detachment commander"); null from older senders.</summary>
+public sealed record PortalPostRow(string ExternalId, string SiteExternalId, string Code, string Name, string? Position = null);
 
 public sealed record PortalGuardRow(string ExternalId, string ClientExternalId, string Code, string FullName);
 
+/// <summary>Required headcount of a post's shift on a day: from the post's contracted manning when HRIS has it, else from the work schedule.</summary>
 public sealed record PortalScheduleRow(string PostExternalId, DateOnly WorkDate, string ShiftName, int RequiredHeadcount);
 
 public sealed record PortalPunchRow(DateTime At, string Kind);
 
+/// <summary>
+/// One employee-day. The first fields are the original contract; the ones after <see cref="Punches"/> were added later and default when a
+/// sender doesn't fill them (older HRIS builds), so either side can be upgraded first.
+/// <list type="bullet">
+/// <item><see cref="RegularHours"/> still includes rest-day hours; <see cref="RestDayHours"/> says how many of them were on a rest day.</item>
+/// <item><see cref="HolidayHours"/> = <see cref="LegalHolidayHours"/> + <see cref="SpecialHolidayHours"/>; <see cref="HolidayOvertimeHours"/> is the part
+/// of <see cref="OvertimeHours"/> worked on a holiday.</item>
+/// <item>A day not worked is sent too: <see cref="Absent"/>, or leave (<see cref="LeaveHours"/>, <see cref="LeaveType"/>, <see cref="LeavePaid"/>),
+/// or a rest day (<see cref="DayType"/> RestDay with no times).</item>
+/// <item><see cref="DayType"/>: Regular, RestDay, Legal, Special, DoubleLegal, RestLegal, RestSpecial or RestDoubleLegal.
+/// <see cref="ShiftKind"/>: Day or Night.</item>
+/// <item><see cref="DeploymentRole"/> (Regular, Reliever, Augmentation) and <see cref="EventTag"/> come from the employee's deployment.</item>
+/// </list>
+/// </summary>
 public sealed record PortalDtrRow(
     string ExternalId,
     string ClientExternalId,
@@ -34,7 +50,21 @@ public sealed record PortalDtrRow(
     decimal NightDiffHours,
     decimal HolidayHours,
     bool OvertimeApproved,
-    IReadOnlyList<PortalPunchRow> Punches);
+    IReadOnlyList<PortalPunchRow> Punches,
+    string DayType = "Regular",
+    decimal RestDayHours = 0,
+    decimal LegalHolidayHours = 0,
+    decimal SpecialHolidayHours = 0,
+    decimal HolidayOvertimeHours = 0,
+    bool Absent = false,
+    decimal LeaveHours = 0,
+    string? LeaveType = null,
+    bool LeavePaid = false,
+    DateTime? ScheduledStart = null,
+    DateTime? ScheduledEnd = null,
+    string ShiftKind = "Day",
+    string? DeploymentRole = null,
+    string? EventTag = null);
 
 public sealed record PortalRowError(string ExternalId, string Error);
 
