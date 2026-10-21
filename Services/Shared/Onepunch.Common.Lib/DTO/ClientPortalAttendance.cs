@@ -62,7 +62,8 @@ public sealed record PortalDtrRow(
     bool LeavePaid = false,
     DateTime? ScheduledStart = null,
     DateTime? ScheduledEnd = null,
-    string ShiftKind = "Day",
+    // Null from older senders, so the portal falls back to reading the shift name and time-in.
+    string? ShiftKind = null,
     string? DeploymentRole = null,
     string? EventTag = null);
 

@@ -21,4 +21,4 @@ public record ClientChanged
 
     public string ChangeType { get; set; } = string.Empty; // Created, Updated, Deleted
     public DateTime OccurredAtUtc { get; set; } = DateTime.UtcNow;
-}
+} 
