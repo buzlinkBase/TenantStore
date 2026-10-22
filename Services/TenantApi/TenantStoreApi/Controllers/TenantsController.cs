@@ -72,11 +72,12 @@ public class TenantsController : ControllerBase
 
         try
         {
-            await _service.UpdateProfileAsync(tenantId, payload.Address, payload.Contact, token);
+            await _service.UpdateProfileAsync(tenantId, payload.Address, payload.Contact, token, payload.Classification);
             await _service.CommitChangesAsync(token);
             return Ok();
         }
         catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
     }
 
     [HttpPut("{id}")]

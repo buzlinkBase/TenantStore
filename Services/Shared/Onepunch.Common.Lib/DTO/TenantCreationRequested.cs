@@ -30,6 +30,15 @@ public record CompanyProfile
     public string? AuthorizedSignatoryName { get; set; }
     public string? AuthorizedSignatoryTitle { get; set; }
 
+    // Classification (codes: industry/sub-industry from Tenant Service's lookup tables, the rest
+    // from CompanyClassification). Tenant Service keeps all of them; HRIS copies them to Company.
+    public string? IndustryCode { get; set; }
+    public string? SubIndustryCode { get; set; }
+    public string? BusinessType { get; set; }
+    public string? CompanySize { get; set; }
+    public string? AcquisitionSource { get; set; }
+    public string? AcquisitionSourceOther { get; set; }
+
     /// <summary>Trims every value and turns blanks into null; null when nothing was entered.</summary>
     public static CompanyProfile? Normalize(CompanyProfile? profile)
     {
@@ -50,6 +59,12 @@ public record CompanyProfile
             PagIbigNumber = Clean(profile.PagIbigNumber),
             AuthorizedSignatoryName = Clean(profile.AuthorizedSignatoryName),
             AuthorizedSignatoryTitle = Clean(profile.AuthorizedSignatoryTitle),
+            IndustryCode = Clean(profile.IndustryCode),
+            SubIndustryCode = Clean(profile.SubIndustryCode),
+            BusinessType = Clean(profile.BusinessType),
+            CompanySize = Clean(profile.CompanySize),
+            AcquisitionSource = Clean(profile.AcquisitionSource),
+            AcquisitionSourceOther = Clean(profile.AcquisitionSourceOther),
         };
 
         return cleaned == new CompanyProfile() ? null : cleaned;

@@ -13,6 +13,18 @@ public class Tenant : BaseEntity, IUserId
     public string? Address { get; set; }
     public string? Contact { get; set; }
 
+    // How the company is classified -- the stable codes from IndustrySeed / CompanyClassification,
+    // shown (and reported on) in the platform console. HRIS's Company keeps a copy for its own screen.
+    public string? IndustryCode { get; set; }
+    public string? SubIndustryCode { get; set; }
+    public string? BusinessType { get; set; }
+    public string? CompanySize { get; set; }
+
+    /// <summary>"How did you hear about us" -- a <c>CompanyClassification.AcquisitionSources</c> code, asked once at creation.</summary>
+    public string? AcquisitionSource { get; set; }
+    /// <summary>The owner's own words when <see cref="AcquisitionSource"/> is "other".</summary>
+    public string? AcquisitionSourceOther { get; set; }
+
     /// <summary>
     /// When the company finished setting up (hrms-api's HrisOrgProvisioned with a success status --
     /// TenantActivatedWorker). Null while provisioning, or when setup failed or was abandoned. Only

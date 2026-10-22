@@ -16,6 +16,8 @@ public class TenantContext : DbContext
     public DbSet<UserMembership> Memberships { get; set; }
     public DbSet<MembershipRole> MembershipRoles { get; set; }
     public DbSet<TenantDelegation> TenantDelegations { get; set; }
+    public DbSet<Industry> Industries { get; set; }
+    public DbSet<SubIndustry> SubIndustries { get; set; }
     public DbSet<Plan> Plans { get; set; }
     public DbSet<PlanEntitlement> PlanEntitlements { get; set; }
     public DbSet<PlanOffer> PlanOffers { get; set; }
@@ -53,6 +55,13 @@ public class TenantContext : DbContext
         modelBuilder.Entity<Tenant>().HasIndex(x => x.UserId);
         modelBuilder.Entity<Tenant>().HasIndex(x => x.Status);
         modelBuilder.Entity<Tenant>().HasIndex(x => new { x.UserId, x.ActivatedAtUtc });
+        modelBuilder.Entity<Tenant>().Property(x => x.IndustryCode).HasMaxLength(64);
+        modelBuilder.Entity<Tenant>().Property(x => x.SubIndustryCode).HasMaxLength(64);
+        modelBuilder.Entity<Tenant>().Property(x => x.BusinessType).HasMaxLength(32);
+        modelBuilder.Entity<Tenant>().Property(x => x.CompanySize).HasMaxLength(32);
+        modelBuilder.Entity<Tenant>().Property(x => x.AcquisitionSource).HasMaxLength(32);
+        modelBuilder.Entity<Tenant>().Property(x => x.AcquisitionSourceOther).HasMaxLength(200);
+        modelBuilder.Entity<Tenant>().HasIndex(x => x.IndustryCode);
 
         modelBuilder.Entity<Plan>().HasIndex(x => x.Name);
 

@@ -92,4 +92,19 @@ public class CreateWorkspaceRequest
     public string? AuthorizedSignatoryName { get; set; }
     [System.ComponentModel.DataAnnotations.MaxLength(200)]
     public string? AuthorizedSignatoryTitle { get; set; }
+
+    // Classification: industry/sub-industry codes come from Tenant Service's /industries lookup,
+    // the rest from the fixed lists in CompanyClassification. Tenant Service drops unknown codes.
+    [System.ComponentModel.DataAnnotations.MaxLength(64)]
+    public string? IndustryCode { get; set; }
+    [System.ComponentModel.DataAnnotations.MaxLength(64)]
+    public string? SubIndustryCode { get; set; }
+    [System.ComponentModel.DataAnnotations.MaxLength(32)]
+    public string? BusinessType { get; set; }
+    [System.ComponentModel.DataAnnotations.MaxLength(32)]
+    public string? CompanySize { get; set; }
+    [System.ComponentModel.DataAnnotations.MaxLength(32)]
+    public string? AcquisitionSource { get; set; }
+    [System.ComponentModel.DataAnnotations.MaxLength(200)]
+    public string? AcquisitionSourceOther { get; set; }
 }

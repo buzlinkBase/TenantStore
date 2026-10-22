@@ -33,7 +33,9 @@ public sealed record CompanyQuery(
     bool? Activated = null,
     Guid? OwnerUserId = null,
     int Page = 1,
-    int PageSize = 25)
+    int PageSize = 25,
+    /// <summary>Only companies classified under this industry code.</summary>
+    string? IndustryCode = null)
 {
     public PageRequest Paging => new(Page, PageSize);
 }
@@ -86,7 +88,16 @@ public sealed record CompanyListItem(
     string? Address = null,
     string? Contact = null,
     /// <summary>The newest HRIS sign-in to this company; null when none is known.</summary>
-    DateTime? LastActiveUtc = null);
+    DateTime? LastActiveUtc = null,
+    string? IndustryCode = null,
+    /// <summary>The industry's current name; falls back to the code when the lookup no longer has it.</summary>
+    string? IndustryName = null,
+    string? SubIndustryCode = null,
+    string? SubIndustryName = null,
+    string? BusinessType = null,
+    string? CompanySize = null,
+    string? AcquisitionSource = null,
+    string? AcquisitionSourceOther = null);
 
 public sealed record DiscountView(Guid Id, decimal? Percent, decimal? FixedAmount, string? Reason, DateTime? ValidUntilUtc);
 
@@ -334,6 +345,12 @@ public class PlatformDirectoryService
         if (query.Activated is { } activated)
             tenants = activated ? tenants.Where(t => t.ActivatedAtUtc != null) : tenants.Where(t => t.ActivatedAtUtc == null);
 
+        if (!string.IsNullOrWhiteSpace(query.IndustryCode))
+        {
+            var industry = query.IndustryCode.Trim();
+            tenants = tenants.Where(t => t.IndustryCode == industry);
+        }
+
         var term = query.Search?.Trim().ToLowerInvariant();
         if (!string.IsNullOrEmpty(term))
         {
@@ -349,7 +366,8 @@ public class PlatformDirectoryService
         var page = await tenants
             .OrderByDescending(t => t.CreatedAt).ThenBy(t => t.Id)
             .Skip(paging.Skip).Take(paging.SafePageSize)
-            .Select(t => new CompanyRow(t.Id, t.TenantName, t.UserId, t.ActivatedAtUtc, t.CreatedAt, t.Address, t.Contact))
+            .Select(t => new CompanyRow(t.Id, t.TenantName, t.UserId, t.ActivatedAtUtc, t.CreatedAt, t.Address, t.Contact,
+                t.IndustryCode, t.SubIndustryCode, t.BusinessType, t.CompanySize, t.AcquisitionSource, t.AcquisitionSourceOther))
             .ToListAsync(token);
 
         var items = await ToCompanyItemsAsync(page, token);
@@ -361,7 +379,8 @@ public class PlatformDirectoryService
     {
         var row = await Context.Tenants.AsNoTracking()
             .Where(t => t.Id == tenantId)
-            .Select(t => new CompanyRow(t.Id, t.TenantName, t.UserId, t.ActivatedAtUtc, t.CreatedAt, t.Address, t.Contact))
+            .Select(t => new CompanyRow(t.Id, t.TenantName, t.UserId, t.ActivatedAtUtc, t.CreatedAt, t.Address, t.Contact,
+                t.IndustryCode, t.SubIndustryCode, t.BusinessType, t.CompanySize, t.AcquisitionSource, t.AcquisitionSourceOther))
             .FirstOrDefaultAsync(token);
         if (row == null) return null;
         return (await ToCompanyItemsAsync([row], token))[0];
@@ -369,7 +388,9 @@ public class PlatformDirectoryService
 
     private sealed record CompanyRow(
         Guid Id, string? TenantName, Guid UserId, DateTime? ActivatedAtUtc, DateTime CreatedAt,
-        string? Address, string? Contact);
+        string? Address, string? Contact,
+        string? IndustryCode, string? SubIndustryCode, string? BusinessType, string? CompanySize,
+        string? AcquisitionSource, string? AcquisitionSourceOther);
 
     private async Task<List<CompanyListItem>> ToCompanyItemsAsync(IReadOnlyList<CompanyRow> rows, CancellationToken token)
     {
@@ -382,6 +403,21 @@ public class PlatformDirectoryService
             .ToDictionary(s => s.OwnerUserId);
         var activity = await _activity.GetLastActiveAsync(rows.Select(t => t.Id).ToList(), token);
 
+        // Names for the classification codes -- including retired entries, so an older company
+        // still shows its industry. A code the lookup no longer has is shown as itself.
+        var industryCodes = rows.Select(t => t.IndustryCode).Where(c => c != null).Distinct().ToList();
+        var subCodes = rows.Select(t => t.SubIndustryCode).Where(c => c != null).Distinct().ToList();
+        var industryNames = industryCodes.Count == 0
+            ? new Dictionary<string, string>()
+            : await Context.Industries.AsNoTracking()
+                .Where(i => industryCodes.Contains(i.Code))
+                .ToDictionaryAsync(i => i.Code, i => i.Name, token);
+        var subNames = subCodes.Count == 0
+            ? new Dictionary<string, string>()
+            : await Context.SubIndustries.AsNoTracking()
+                .Where(s => subCodes.Contains(s.Code))
+                .ToDictionaryAsync(s => s.Code, s => s.Name, token);
+
         return rows.Select(t =>
         {
             subscriptions.TryGetValue(t.UserId, out var subscription);
@@ -392,8 +428,14 @@ public class PlatformDirectoryService
                 t.ActivatedAtUtc != null, t.ActivatedAtUtc, t.CreatedAt,
                 subscription?.Plan.Name, subscription?.SubStatus,
                 subscription == null ? null : _states.AccessModeOf(subscription),
-                t.Address, t.Contact, lastActive);
+                t.Address, t.Contact, lastActive,
+                t.IndustryCode, NameOf(industryNames, t.IndustryCode),
+                t.SubIndustryCode, NameOf(subNames, t.SubIndustryCode),
+                t.BusinessType, t.CompanySize, t.AcquisitionSource, t.AcquisitionSourceOther);
         }).ToList();
+
+        static string? NameOf(Dictionary<string, string> names, string? code) =>
+            code == null ? null : names.GetValueOrDefault(code, code);
     }
 
     // ── Payments ─────────────────────────────────────────────────────────────

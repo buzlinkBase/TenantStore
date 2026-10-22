@@ -129,6 +129,12 @@ public class WorkspaceService : BaseService<User>
         PagIbigNumber = payload.PagIbigNumber,
         AuthorizedSignatoryName = payload.AuthorizedSignatoryName,
         AuthorizedSignatoryTitle = payload.AuthorizedSignatoryTitle,
+        IndustryCode = payload.IndustryCode,
+        SubIndustryCode = payload.SubIndustryCode,
+        BusinessType = payload.BusinessType,
+        CompanySize = payload.CompanySize,
+        AcquisitionSource = payload.AcquisitionSource,
+        AcquisitionSourceOther = payload.AcquisitionSourceOther,
     };
 
     /// <summary>

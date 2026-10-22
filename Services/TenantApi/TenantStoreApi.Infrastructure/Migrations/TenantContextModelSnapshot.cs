@@ -424,6 +424,211 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.ToTable("Connections");
                 });
 
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Industry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("Industries");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("15e76e5d-fbab-e26e-2f53-f105b4a7c1dc"),
+                            Code = "bpo",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            Name = "BPO & Customer Support",
+                            SortOrder = 1,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("c4c7711f-5d86-b31d-15c6-d901efcba93f"),
+                            Code = "retail",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            Name = "Retail & Wholesale",
+                            SortOrder = 2,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("c175c8cc-8f6e-3b5c-01a7-71e572058fba"),
+                            Code = "food-hospitality",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            Name = "Food, Hospitality & Tourism",
+                            SortOrder = 3,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("48396e3d-e810-e743-4bac-51388eb58ca2"),
+                            Code = "manufacturing",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            Name = "Manufacturing",
+                            SortOrder = 4,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("e1529023-7092-ee74-a2a8-9363adce9924"),
+                            Code = "construction-real-estate",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            Name = "Construction & Real Estate",
+                            SortOrder = 5,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("8e5403da-fb97-f167-8b2f-55c039cfee27"),
+                            Code = "healthcare",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            Name = "Healthcare & Wellness",
+                            SortOrder = 6,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("28dfdd3e-a73d-c9a0-f6a4-0e244bd5a89e"),
+                            Code = "education",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            Name = "Education & Training",
+                            SortOrder = 7,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("9c229141-46a6-eed9-43a7-6ef63c0df41d"),
+                            Code = "logistics",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            Name = "Transportation & Logistics",
+                            SortOrder = 8,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("5637fc5d-96b6-1d03-4c64-8ecec60ab67f"),
+                            Code = "security-facilities",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            Name = "Security & Facility Services",
+                            SortOrder = 9,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("65d09d07-4fde-c160-f89e-5f5b297d3742"),
+                            Code = "it-services",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            Name = "Information Technology",
+                            SortOrder = 10,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("0b19ad66-1d4a-bb69-f6f4-9c50743d4d4e"),
+                            Code = "finance",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            Name = "Banking, Finance & Insurance",
+                            SortOrder = 11,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("48962548-9e47-6268-3b1b-44d5afadfd5e"),
+                            Code = "professional-services",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            Name = "Professional Services",
+                            SortOrder = 12,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("a4cf298f-c8fb-0a83-db4d-9e4655e20b18"),
+                            Code = "agriculture",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            Name = "Agriculture, Fishery & Forestry",
+                            SortOrder = 13,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("7c23066f-4054-3e95-e307-32b343823080"),
+                            Code = "energy-utilities",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            Name = "Energy, Mining & Utilities",
+                            SortOrder = 14,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("642a3676-6675-4e65-4ae3-3c535badcdf0"),
+                            Code = "government-nonprofit",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            Name = "Government & Non-profit",
+                            SortOrder = 15,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("affc10d8-f373-1035-0654-bc86a966dbbf"),
+                            Code = "other",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            Name = "Other",
+                            SortOrder = 16,
+                            Status = "Active"
+                        });
+                });
+
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.MembershipRole", b =>
                 {
                     b.Property<Guid>("Id")
@@ -692,6 +897,870 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("SchemaVersions");
+                });
+
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.SubIndustry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("IndustryId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("IndustryId");
+
+                    b.ToTable("SubIndustries");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("993a16c5-74e0-23ee-1375-37d08c72ce5c"),
+                            Code = "bpo-voice",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("15e76e5d-fbab-e26e-2f53-f105b4a7c1dc"),
+                            IsActive = true,
+                            Name = "Voice / Call Center",
+                            SortOrder = 1,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("784f6842-cd5f-738f-9c0c-14c830fc2ea5"),
+                            Code = "bpo-non-voice",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("15e76e5d-fbab-e26e-2f53-f105b4a7c1dc"),
+                            IsActive = true,
+                            Name = "Non-Voice / Back Office",
+                            SortOrder = 2,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("04a6db9e-0f80-b0c6-b620-dea731c4c564"),
+                            Code = "bpo-kpo",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("15e76e5d-fbab-e26e-2f53-f105b4a7c1dc"),
+                            IsActive = true,
+                            Name = "Knowledge Process Outsourcing",
+                            SortOrder = 3,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("8ff954be-8b45-c358-c609-58b2875a0b31"),
+                            Code = "bpo-other",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("15e76e5d-fbab-e26e-2f53-f105b4a7c1dc"),
+                            IsActive = true,
+                            Name = "Other",
+                            SortOrder = 4,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("8576bee9-5ca3-cc78-ca8b-8f3cb40a90da"),
+                            Code = "retail-grocery",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("c4c7711f-5d86-b31d-15c6-d901efcba93f"),
+                            IsActive = true,
+                            Name = "Grocery & Supermarket",
+                            SortOrder = 1,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("ffb45d35-49d8-e8bf-6892-beb85ed75b4f"),
+                            Code = "retail-fashion",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("c4c7711f-5d86-b31d-15c6-d901efcba93f"),
+                            IsActive = true,
+                            Name = "Fashion & Apparel",
+                            SortOrder = 2,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("f99783c5-370b-22be-02d5-63f6b75c654e"),
+                            Code = "retail-pharmacy",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("c4c7711f-5d86-b31d-15c6-d901efcba93f"),
+                            IsActive = true,
+                            Name = "Pharmacy & Drugstore",
+                            SortOrder = 3,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("2d4450c4-02d5-ad30-5578-6c5451a9ad50"),
+                            Code = "retail-hardware",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("c4c7711f-5d86-b31d-15c6-d901efcba93f"),
+                            IsActive = true,
+                            Name = "Hardware & Home Improvement",
+                            SortOrder = 4,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("aab1d381-c018-f76b-0db2-9a3ad11d5ae8"),
+                            Code = "retail-wholesale",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("c4c7711f-5d86-b31d-15c6-d901efcba93f"),
+                            IsActive = true,
+                            Name = "Wholesale & Distribution",
+                            SortOrder = 5,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("e9441c83-90f4-94e6-a195-8844da9a0af2"),
+                            Code = "retail-ecommerce",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("c4c7711f-5d86-b31d-15c6-d901efcba93f"),
+                            IsActive = true,
+                            Name = "E-commerce",
+                            SortOrder = 6,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("905908eb-17ca-e505-ada3-3524046297bc"),
+                            Code = "retail-other",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("c4c7711f-5d86-b31d-15c6-d901efcba93f"),
+                            IsActive = true,
+                            Name = "Other",
+                            SortOrder = 7,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("bacd03d5-aa22-4f72-ebb2-a428147d6471"),
+                            Code = "food-restaurant",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("c175c8cc-8f6e-3b5c-01a7-71e572058fba"),
+                            IsActive = true,
+                            Name = "Restaurant & Cafe",
+                            SortOrder = 1,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("84d2386c-a8d8-5d73-e088-2ea26dcbd68a"),
+                            Code = "food-fastfood",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("c175c8cc-8f6e-3b5c-01a7-71e572058fba"),
+                            IsActive = true,
+                            Name = "Fast Food & Franchise",
+                            SortOrder = 2,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("1687a3d5-6bc2-3704-f5db-094c49d1bd6c"),
+                            Code = "food-hotel",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("c175c8cc-8f6e-3b5c-01a7-71e572058fba"),
+                            IsActive = true,
+                            Name = "Hotel & Resort",
+                            SortOrder = 3,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("23565991-947a-0da0-eefd-95b7174c107b"),
+                            Code = "food-catering",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("c175c8cc-8f6e-3b5c-01a7-71e572058fba"),
+                            IsActive = true,
+                            Name = "Catering",
+                            SortOrder = 4,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("5e32fb25-ad6e-8cd9-4cf9-627bae3541ae"),
+                            Code = "food-travel",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("c175c8cc-8f6e-3b5c-01a7-71e572058fba"),
+                            IsActive = true,
+                            Name = "Travel & Tours",
+                            SortOrder = 5,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("018277a1-5c65-7da5-0247-a64530aa0fbc"),
+                            Code = "food-other",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("c175c8cc-8f6e-3b5c-01a7-71e572058fba"),
+                            IsActive = true,
+                            Name = "Other",
+                            SortOrder = 6,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("643a6a71-fb0b-5794-747d-39aa9b153b32"),
+                            Code = "mfg-food-beverage",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("48396e3d-e810-e743-4bac-51388eb58ca2"),
+                            IsActive = true,
+                            Name = "Food & Beverage",
+                            SortOrder = 1,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("36d1ca47-e8c5-2b6e-7897-20a3aaef75a7"),
+                            Code = "mfg-garments",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("48396e3d-e810-e743-4bac-51388eb58ca2"),
+                            IsActive = true,
+                            Name = "Garments & Textile",
+                            SortOrder = 2,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("8e5ab79e-92a4-f907-8e2b-5edcf483030e"),
+                            Code = "mfg-electronics",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("48396e3d-e810-e743-4bac-51388eb58ca2"),
+                            IsActive = true,
+                            Name = "Electronics & Semiconductors",
+                            SortOrder = 3,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("7601cb1c-4cfc-317c-8d93-201cb5606100"),
+                            Code = "mfg-automotive",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("48396e3d-e810-e743-4bac-51388eb58ca2"),
+                            IsActive = true,
+                            Name = "Automotive & Parts",
+                            SortOrder = 4,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("810b58e1-975f-f4a5-d752-4aea4e891cd2"),
+                            Code = "mfg-furniture",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("48396e3d-e810-e743-4bac-51388eb58ca2"),
+                            IsActive = true,
+                            Name = "Furniture & Wood",
+                            SortOrder = 5,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("f90a44c6-82a3-995c-4874-138fce170663"),
+                            Code = "mfg-chemicals-plastics",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("48396e3d-e810-e743-4bac-51388eb58ca2"),
+                            IsActive = true,
+                            Name = "Chemicals & Plastics",
+                            SortOrder = 6,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("74460cdb-3c8a-5b7d-e5ca-4f2e3245b949"),
+                            Code = "mfg-other",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("48396e3d-e810-e743-4bac-51388eb58ca2"),
+                            IsActive = true,
+                            Name = "Other",
+                            SortOrder = 7,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("e519bc95-8734-a300-baaf-72525918e704"),
+                            Code = "construction-general",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("e1529023-7092-ee74-a2a8-9363adce9924"),
+                            IsActive = true,
+                            Name = "General Contractor",
+                            SortOrder = 1,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("483477f9-809b-5a05-318f-b7002011ab8d"),
+                            Code = "construction-engineering",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("e1529023-7092-ee74-a2a8-9363adce9924"),
+                            IsActive = true,
+                            Name = "Engineering & Architecture",
+                            SortOrder = 2,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("09013d90-e7bc-3ce9-4b37-e34e390e9450"),
+                            Code = "construction-property-dev",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("e1529023-7092-ee74-a2a8-9363adce9924"),
+                            IsActive = true,
+                            Name = "Property Development",
+                            SortOrder = 3,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("6e55c4f6-9813-e274-4b31-0ee45b5386b1"),
+                            Code = "construction-property-mgmt",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("e1529023-7092-ee74-a2a8-9363adce9924"),
+                            IsActive = true,
+                            Name = "Property Management",
+                            SortOrder = 4,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("596856fb-f7de-f285-6ce1-b8cbedf70749"),
+                            Code = "construction-other",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("e1529023-7092-ee74-a2a8-9363adce9924"),
+                            IsActive = true,
+                            Name = "Other",
+                            SortOrder = 5,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("5526ec6b-8625-0766-0b00-7688f40d2391"),
+                            Code = "health-hospital",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("8e5403da-fb97-f167-8b2f-55c039cfee27"),
+                            IsActive = true,
+                            Name = "Hospital",
+                            SortOrder = 1,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("3f05e9c0-92fe-d9b9-7136-cb9bba3fa8c0"),
+                            Code = "health-clinic",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("8e5403da-fb97-f167-8b2f-55c039cfee27"),
+                            IsActive = true,
+                            Name = "Clinic & Diagnostics",
+                            SortOrder = 2,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("f7600542-3f77-1187-0c42-c3b033e66d54"),
+                            Code = "health-dental",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("8e5403da-fb97-f167-8b2f-55c039cfee27"),
+                            IsActive = true,
+                            Name = "Dental",
+                            SortOrder = 3,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("8fb088fa-eef7-1738-7d64-54a59c836787"),
+                            Code = "health-wellness",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("8e5403da-fb97-f167-8b2f-55c039cfee27"),
+                            IsActive = true,
+                            Name = "Wellness, Salon & Spa",
+                            SortOrder = 4,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("eaefe255-0b43-71cc-5277-65c19f8ad3ff"),
+                            Code = "health-other",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("8e5403da-fb97-f167-8b2f-55c039cfee27"),
+                            IsActive = true,
+                            Name = "Other",
+                            SortOrder = 5,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("6168cee7-8332-e0c3-3ec0-06fffc328eba"),
+                            Code = "edu-school",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("28dfdd3e-a73d-c9a0-f6a4-0e244bd5a89e"),
+                            IsActive = true,
+                            Name = "School (Basic Education)",
+                            SortOrder = 1,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("5919222b-78b4-b1c9-0976-550fd836d83b"),
+                            Code = "edu-college",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("28dfdd3e-a73d-c9a0-f6a4-0e244bd5a89e"),
+                            IsActive = true,
+                            Name = "College & University",
+                            SortOrder = 2,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("5180733c-89b2-cfe6-7744-11d7e23ef690"),
+                            Code = "edu-training",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("28dfdd3e-a73d-c9a0-f6a4-0e244bd5a89e"),
+                            IsActive = true,
+                            Name = "Training & Review Center",
+                            SortOrder = 3,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("b90ea2aa-3c7b-1054-1231-822762d96cb0"),
+                            Code = "edu-other",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("28dfdd3e-a73d-c9a0-f6a4-0e244bd5a89e"),
+                            IsActive = true,
+                            Name = "Other",
+                            SortOrder = 4,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("171f918a-ac68-79bc-3746-93c4db675e44"),
+                            Code = "logistics-freight",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("9c229141-46a6-eed9-43a7-6ef63c0df41d"),
+                            IsActive = true,
+                            Name = "Freight & Courier",
+                            SortOrder = 1,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("1cd116dc-751d-df06-ff1e-9c9577b7bd8b"),
+                            Code = "logistics-warehousing",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("9c229141-46a6-eed9-43a7-6ef63c0df41d"),
+                            IsActive = true,
+                            Name = "Warehousing",
+                            SortOrder = 2,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("8fe6619e-2a0e-cd47-cab9-423fcc457544"),
+                            Code = "logistics-passenger",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("9c229141-46a6-eed9-43a7-6ef63c0df41d"),
+                            IsActive = true,
+                            Name = "Passenger Transport",
+                            SortOrder = 3,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("43d49d3c-e344-d43f-9e6c-9be144f8255a"),
+                            Code = "logistics-shipping",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("9c229141-46a6-eed9-43a7-6ef63c0df41d"),
+                            IsActive = true,
+                            Name = "Shipping & Maritime",
+                            SortOrder = 4,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("484145f3-f8b4-7f5e-20d9-4b0ca1369987"),
+                            Code = "logistics-other",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("9c229141-46a6-eed9-43a7-6ef63c0df41d"),
+                            IsActive = true,
+                            Name = "Other",
+                            SortOrder = 5,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("5fc71c85-92a1-37e1-0018-bb4208e09bb5"),
+                            Code = "security-guard",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("5637fc5d-96b6-1d03-4c64-8ecec60ab67f"),
+                            IsActive = true,
+                            Name = "Security Agency",
+                            SortOrder = 1,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("94002a1f-8695-eb81-5b9a-6f88faffdce6"),
+                            Code = "security-janitorial",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("5637fc5d-96b6-1d03-4c64-8ecec60ab67f"),
+                            IsActive = true,
+                            Name = "Janitorial & Housekeeping",
+                            SortOrder = 2,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("1b3a2db4-1ea9-4408-9d11-3391360b38f2"),
+                            Code = "security-manpower",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("5637fc5d-96b6-1d03-4c64-8ecec60ab67f"),
+                            IsActive = true,
+                            Name = "Manpower Agency",
+                            SortOrder = 3,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("9b099686-6592-c2ce-a068-b1097aa62b9a"),
+                            Code = "security-other",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("5637fc5d-96b6-1d03-4c64-8ecec60ab67f"),
+                            IsActive = true,
+                            Name = "Other",
+                            SortOrder = 4,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("da29420d-4596-f717-7e87-f8d0d05dafa2"),
+                            Code = "it-software",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("65d09d07-4fde-c160-f89e-5f5b297d3742"),
+                            IsActive = true,
+                            Name = "Software & Development",
+                            SortOrder = 1,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("0fa0b4d2-8d12-356f-37e8-27875dcc0b47"),
+                            Code = "it-infrastructure",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("65d09d07-4fde-c160-f89e-5f5b297d3742"),
+                            IsActive = true,
+                            Name = "IT Infrastructure & Support",
+                            SortOrder = 2,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("5a2e86a2-d7f3-bfff-5d77-03273d96c5bd"),
+                            Code = "it-telecom",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("65d09d07-4fde-c160-f89e-5f5b297d3742"),
+                            IsActive = true,
+                            Name = "Telecommunications",
+                            SortOrder = 3,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("410e1950-1bd4-92c7-bc01-7a29f4671d75"),
+                            Code = "it-other",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("65d09d07-4fde-c160-f89e-5f5b297d3742"),
+                            IsActive = true,
+                            Name = "Other",
+                            SortOrder = 4,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("23c172d9-98a2-48b2-028e-e1ecb973e33c"),
+                            Code = "finance-bank",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("0b19ad66-1d4a-bb69-f6f4-9c50743d4d4e"),
+                            IsActive = true,
+                            Name = "Banking",
+                            SortOrder = 1,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("31d096de-62a6-3ecc-0560-6592c2631284"),
+                            Code = "finance-lending",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("0b19ad66-1d4a-bb69-f6f4-9c50743d4d4e"),
+                            IsActive = true,
+                            Name = "Lending & Financing",
+                            SortOrder = 2,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("0fba2836-7e26-b93e-e967-79b5a03da1f9"),
+                            Code = "finance-insurance",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("0b19ad66-1d4a-bb69-f6f4-9c50743d4d4e"),
+                            IsActive = true,
+                            Name = "Insurance",
+                            SortOrder = 3,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("0680e269-b80c-78a9-7334-193700d9a0a5"),
+                            Code = "finance-accounting",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("0b19ad66-1d4a-bb69-f6f4-9c50743d4d4e"),
+                            IsActive = true,
+                            Name = "Accounting & Auditing",
+                            SortOrder = 4,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("aa4aea3c-8ff1-668f-cca5-ff813ff772c2"),
+                            Code = "finance-other",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("0b19ad66-1d4a-bb69-f6f4-9c50743d4d4e"),
+                            IsActive = true,
+                            Name = "Other",
+                            SortOrder = 5,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("f86d4520-56a7-33cd-8bbc-73718288d2c3"),
+                            Code = "prof-legal",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("48962548-9e47-6268-3b1b-44d5afadfd5e"),
+                            IsActive = true,
+                            Name = "Legal",
+                            SortOrder = 1,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("b2c7f3c0-195c-93f9-bcf2-da73449a272c"),
+                            Code = "prof-consulting",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("48962548-9e47-6268-3b1b-44d5afadfd5e"),
+                            IsActive = true,
+                            Name = "Consulting",
+                            SortOrder = 2,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("6291a3ad-43aa-29f4-700c-dc78be6f39ba"),
+                            Code = "prof-marketing",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("48962548-9e47-6268-3b1b-44d5afadfd5e"),
+                            IsActive = true,
+                            Name = "Marketing & Advertising",
+                            SortOrder = 3,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("f58740ef-2aa5-c176-e0a0-e083b1ffdd7d"),
+                            Code = "prof-recruitment",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("48962548-9e47-6268-3b1b-44d5afadfd5e"),
+                            IsActive = true,
+                            Name = "Recruitment & Staffing",
+                            SortOrder = 4,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("0cd210da-cdac-4c49-4acd-f5b01c91ad7d"),
+                            Code = "prof-other",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("48962548-9e47-6268-3b1b-44d5afadfd5e"),
+                            IsActive = true,
+                            Name = "Other",
+                            SortOrder = 5,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("1d7944ba-c2e1-26ff-8ab3-6498087f2e8d"),
+                            Code = "agri-farming",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("a4cf298f-c8fb-0a83-db4d-9e4655e20b18"),
+                            IsActive = true,
+                            Name = "Farming & Crops",
+                            SortOrder = 1,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("7b8f3e6c-6a6b-aec3-cec1-7e4a5b0c89e1"),
+                            Code = "agri-livestock",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("a4cf298f-c8fb-0a83-db4d-9e4655e20b18"),
+                            IsActive = true,
+                            Name = "Livestock & Poultry",
+                            SortOrder = 2,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("d37dc12f-0f80-072a-0265-2feff569659a"),
+                            Code = "agri-fishery",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("a4cf298f-c8fb-0a83-db4d-9e4655e20b18"),
+                            IsActive = true,
+                            Name = "Fishery & Aquaculture",
+                            SortOrder = 3,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("fb148887-84f2-7168-389b-7dca7413c303"),
+                            Code = "agri-other",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("a4cf298f-c8fb-0a83-db4d-9e4655e20b18"),
+                            IsActive = true,
+                            Name = "Other",
+                            SortOrder = 4,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("e22e96ff-2289-e33a-92fb-5d191c68890b"),
+                            Code = "energy-power",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("7c23066f-4054-3e95-e307-32b343823080"),
+                            IsActive = true,
+                            Name = "Power & Energy",
+                            SortOrder = 1,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("26982717-c0ae-ff72-9f01-3aa362f612b3"),
+                            Code = "energy-mining",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("7c23066f-4054-3e95-e307-32b343823080"),
+                            IsActive = true,
+                            Name = "Mining & Quarrying",
+                            SortOrder = 2,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("3560bfb0-8e1e-27cb-f91c-7b900fd1a316"),
+                            Code = "energy-water",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("7c23066f-4054-3e95-e307-32b343823080"),
+                            IsActive = true,
+                            Name = "Water & Waste",
+                            SortOrder = 3,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("8c3c3920-808c-b684-3184-d5694d5c0d62"),
+                            Code = "energy-other",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("7c23066f-4054-3e95-e307-32b343823080"),
+                            IsActive = true,
+                            Name = "Other",
+                            SortOrder = 4,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("ea30ccfb-c59d-4ee6-eb74-5bcfb66e3a8f"),
+                            Code = "gov-government",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("642a3676-6675-4e65-4ae3-3c535badcdf0"),
+                            IsActive = true,
+                            Name = "Government Agency / LGU",
+                            SortOrder = 1,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("79b6e199-05fb-054a-3e15-be25a84e3899"),
+                            Code = "gov-ngo",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("642a3676-6675-4e65-4ae3-3c535badcdf0"),
+                            IsActive = true,
+                            Name = "NGO & Foundation",
+                            SortOrder = 2,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("9eb190a5-91f5-755b-22cf-1bfacf9137a0"),
+                            Code = "gov-religious",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("642a3676-6675-4e65-4ae3-3c535badcdf0"),
+                            IsActive = true,
+                            Name = "Religious Organization",
+                            SortOrder = 3,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("2d4b18b6-b106-e524-7061-2d0a06a07292"),
+                            Code = "gov-other",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("642a3676-6675-4e65-4ae3-3c535badcdf0"),
+                            IsActive = true,
+                            Name = "Other",
+                            SortOrder = 4,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = new Guid("84918b2a-de30-344d-6385-50ff2df68fbc"),
+                            Code = "other-other",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IndustryId = new Guid("affc10d8-f373-1035-0654-bc86a966dbbf"),
+                            IsActive = true,
+                            Name = "Other",
+                            SortOrder = 1,
+                            Status = "Active"
+                        });
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.AccountDeletionRequest", b =>
@@ -2439,11 +3508,27 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
+                    b.Property<string>("AcquisitionSource")
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<string>("AcquisitionSourceOther")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
                     b.Property<DateTime?>("ActivatedAtUtc")
                         .HasColumnType("datetime(6)");
 
                     b.Property<string>("Address")
                         .HasColumnType("longtext");
+
+                    b.Property<string>("BusinessType")
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<string>("CompanySize")
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
 
                     b.Property<string>("Contact")
                         .HasColumnType("longtext");
@@ -2454,9 +3539,17 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<string>("IndustryCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("varchar(255)");
+
+                    b.Property<string>("SubIndustryCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
 
                     b.Property<string>("TenantName")
                         .HasColumnType("longtext");
@@ -2468,6 +3561,8 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .HasColumnType("char(36)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IndustryCode");
 
                     b.HasIndex("Status");
 
@@ -2650,6 +3745,17 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.Navigation("Tenant");
                 });
 
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.SubIndustry", b =>
+                {
+                    b.HasOne("TenantStoreApi.Domain.Entities.Industry", "Industry")
+                        .WithMany("SubIndustries")
+                        .HasForeignKey("IndustryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Industry");
+                });
+
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.AccountSubscription", b =>
                 {
                     b.HasOne("TenantStoreApi.Domain.Entities.Subs.Plan", "Plan")
@@ -2755,6 +3861,11 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Subscription");
+                });
+
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Industry", b =>
+                {
+                    b.Navigation("SubIndustries");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Role", b =>

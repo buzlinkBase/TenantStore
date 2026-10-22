@@ -67,14 +67,30 @@ public class TenantService : BaseService<Tenant>
     }
 
     // Keeps the console-facing contact details in line with HRIS's Company Info screen. Blank
-    // clears the value. Doesn't commit; the caller owns the transaction.
-    public async Task UpdateProfileAsync(Guid tenantId, string? address, string? contact, CancellationToken token)
+    // clears the value. Classification (industry, sub-industry, business type, size) is replaced as
+    // a whole when sent and left alone when null -- an invalid code is refused with an
+    // InvalidOperationException before anything changes. Doesn't commit; the caller owns the
+    // transaction.
+    public async Task UpdateProfileAsync(Guid tenantId, string? address, string? contact, CancellationToken token,
+        TenantClassification? classification = null)
     {
         var tenant = await Context.Tenants.FirstOrDefaultAsync(x => x.Id == tenantId, token)
             ?? throw new KeyNotFoundException("Company not found.");
 
+        var resolved = classification == null
+            ? null
+            : await new IndustryCatalogService(Uow).ResolveAsync(classification, strict: true, token);
+
         tenant.Address = string.IsNullOrWhiteSpace(address) ? null : address.Trim();
         tenant.Contact = string.IsNullOrWhiteSpace(contact) ? null : contact.Trim();
+
+        if (resolved != null)
+        {
+            tenant.IndustryCode = resolved.IndustryCode;
+            tenant.SubIndustryCode = resolved.SubIndustryCode;
+            tenant.BusinessType = resolved.BusinessType;
+            tenant.CompanySize = resolved.CompanySize;
+        }
     }
 
     protected override async Task<EvaluationResult> CreateValidatorAsync(Tenant model, CancellationToken token)
@@ -91,11 +107,41 @@ public class TenantService : BaseService<Tenant>
         var profile = CompanyProfile.Normalize(payload.Profile);
         tenant.Address = profile?.Address;
         tenant.Contact = profile?.Contact;
+
+        // Optional classification: an unknown code is dropped rather than failing the queued
+        // company creation over a field nobody needs to have.
+        var classification = await new IndustryCatalogService(Uow).ResolveAsync(new TenantClassification
+        {
+            IndustryCode = profile?.IndustryCode,
+            SubIndustryCode = profile?.SubIndustryCode,
+            BusinessType = profile?.BusinessType,
+            CompanySize = profile?.CompanySize,
+        }, strict: false, token);
+        tenant.IndustryCode = classification.IndustryCode;
+        tenant.SubIndustryCode = classification.SubIndustryCode;
+        tenant.BusinessType = classification.BusinessType;
+        tenant.CompanySize = classification.CompanySize;
+
+        if (CompanyClassification.IsAcquisitionSource(profile?.AcquisitionSource))
+        {
+            tenant.AcquisitionSource = profile!.AcquisitionSource;
+            tenant.AcquisitionSourceOther = profile.AcquisitionSource == CompanyClassification.OtherSource
+                ? Truncate(profile.AcquisitionSourceOther, 200)
+                : null;
+        }
+
         await CreateAsync(tenant, token);
         await Uow.SaveChangesAsync(token);
         _tenantProvider.SetTenantId(tenant.Id);
         return _mapper.Map<TenantModel>(tenant);
     }
+    private static string? Truncate(string? value, int max)
+    {
+        var trimmed = value?.Trim();
+        if (string.IsNullOrEmpty(trimmed)) return null;
+        return trimmed.Length <= max ? trimmed : trimmed[..max];
+    }
+
     public async Task UpdateAsync(Guid Id, UpdateTenant payload, CancellationToken token)
     {
         var tenant = _mapper.Map<Tenant>(payload);

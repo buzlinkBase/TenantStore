@@ -284,14 +284,23 @@ public class PlatformCompaniesController : ControllerBase
     private readonly PlatformDirectoryService _directory;
     private readonly AccountDeletionRequestService _deletionRequests;
     private readonly PlatformCompanyDeletionService _deletion;
+    private readonly IndustryCatalogService _industries;
 
     public PlatformCompaniesController(
-        PlatformDirectoryService directory, AccountDeletionRequestService deletionRequests, PlatformCompanyDeletionService deletion)
+        PlatformDirectoryService directory, AccountDeletionRequestService deletionRequests, PlatformCompanyDeletionService deletion,
+        IndustryCatalogService industries)
     {
         _directory = directory;
         _deletionRequests = deletionRequests;
         _deletion = deletion;
+        _industries = industries;
     }
+
+    /// <summary>The industries (with sub-industries) companies can be classified under, for the console's filter.</summary>
+    [HttpGet("industries")]
+    [PlatformAuthorize(PlatformPermissions.AccountsRead)]
+    [ProducesResponseType(typeof(List<IndustryView>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Industries(CancellationToken token) => Ok(await _industries.GetAllAsync(token));
 
     [HttpGet]
     [PlatformAuthorize(PlatformPermissions.AccountsRead)]
