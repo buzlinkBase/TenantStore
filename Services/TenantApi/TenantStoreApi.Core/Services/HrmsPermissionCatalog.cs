@@ -37,10 +37,17 @@ public class HrmsPermissionCatalog : IPermissionCatalogProvider
         ("Setup", "Holiday Setup", ["View", "Create", "Edit", "Delete"]),
         ("Setup", "Minimum Wage Setup", ["View", "Create", "Edit", "Delete"]),
 
-        ("Timekeeping", "Upload Attendance", ["View", "Edit", "Export"]),
+        // Edit: upload attendance files, and edit (or restore the original of) a file-uploaded
+        // log from the DTR Attendance Logs view. Delete: remove a file-uploaded log, or a whole
+        // upload (AttendanceController.DeleteUploadBatch).
+        ("Timekeeping", "Upload Attendance", ["View", "Edit", "Export", "Delete"]),
         // Delete: AttendanceController.Delete(id)/Delete(batch) remove manually-entered
         // attendance records/batches -- had no catalog action to gate with before this.
         ("Timekeeping", "Attendance Manual Entry", ["View", "Edit", "Export", "Delete"]),
+        // Logs synced from biometric devices. Edit/Delete: edit or remove (and restore the
+        // original of) a synced log from the DTR Attendance Logs view. View: reserved for a
+        // synced-logs screen.
+        ("Timekeeping", "Sync Attendance", ["View", "Edit", "Delete"]),
         ("Timekeeping", "Raw Logs", ["View", "Edit", "Export"]),
         ("Timekeeping", "Unregistered Employees", ["View", "Edit", "Export"]),
         ("Timekeeping", "Incomplete Punches", ["View", "Edit", "Export"]),
@@ -187,7 +194,9 @@ public class HrmsPermissionCatalog : IPermissionCatalogProvider
         {
             "Upload Attendance", "Raw Logs", "Unregistered Employees", "Incomplete Punches",
         }.SelectMany(feature => new[] { "View", "Edit", "Export" }.Select(action => $"{feature}:{action}")),
+        "Upload Attendance:Delete",
         .. new[] { "View", "Edit", "Export", "Delete" }.Select(action => $"Attendance Manual Entry:{action}"),
+        .. new[] { "View", "Edit", "Delete" }.Select(action => $"Sync Attendance:{action}"),
         .. new[] { "View", "Create", "Approve", "ManageOwnTeam", "Delete" }.Select(action => $"Work Rotation:{action}"),
         .. new[]
         {

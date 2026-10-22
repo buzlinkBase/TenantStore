@@ -210,6 +210,12 @@ public class PermissionCatalogSeederServiceTests
         {
             grantedCodes.Should().Contain($"Attendance Manual Entry:{action}");
         }
+
+        grantedCodes.Should().Contain("Upload Attendance:Delete");
+        foreach (var action in new[] { "View", "Edit", "Delete" })
+        {
+            grantedCodes.Should().Contain($"Sync Attendance:{action}");
+        }
     }
 
     [Fact]
