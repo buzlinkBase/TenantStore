@@ -88,7 +88,7 @@ public static class SubscriptionRegistrations
                 .ForJob(SubscriptionLifecycleJob.Key)
                 .WithIdentity(SubscriptionLifecycleJob.TriggerKey)
                 .WithCronSchedule(cron, schedule => schedule
-                    .InTimeZone(TimeZoneInfo.Utc)
+                    .InTimeZone(PhilippineTime.Zone)
                     .WithMisfireHandlingInstructionFireAndProceed()));
 
             // Payments the gateway's webhook never told us about (paid, or refunded): asked about directly.
@@ -97,7 +97,7 @@ public static class SubscriptionRegistrations
                 .ForJob(PaymentReconcileJob.Key)
                 .WithIdentity(PaymentReconcileJob.TriggerKey)
                 .WithCronSchedule(PaymentReconcileJob.DefaultCron, schedule => schedule
-                    .InTimeZone(TimeZoneInfo.Utc)
+                    .InTimeZone(PhilippineTime.Zone)
                     .WithMisfireHandlingInstructionFireAndProceed()));
         });
         services.AddQuartzHostedService(options =>

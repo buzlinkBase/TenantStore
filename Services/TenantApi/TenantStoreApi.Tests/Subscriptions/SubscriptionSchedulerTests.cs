@@ -93,7 +93,7 @@ public class SubscriptionSchedulerRegistrationTests
     }
 
     [Fact]
-    public void ByDefault_TheJobRunsAtTheTopOfEveryHour_InUtc()
+    public void ByDefault_TheJobRunsAtTheTopOfEveryHour_InPhilippineTime()
     {
         var options = QuartzOptionsOf(Register(new()));
 
@@ -103,7 +103,7 @@ public class SubscriptionSchedulerRegistrationTests
         trigger.Key.Should().Be(SubscriptionLifecycleJob.TriggerKey);
         trigger.JobKey.Should().Be(SubscriptionLifecycleJob.Key);
         trigger.CronExpressionString.Should().Be("0 0 * * * ?");
-        trigger.TimeZone.Should().Be(TimeZoneInfo.Utc);
+        trigger.TimeZone.Id.Should().Be("Asia/Manila");
         trigger.MisfireInstruction.Should().Be(MisfireInstruction.CronTrigger.FireOnceNow);
     }
 
@@ -124,6 +124,15 @@ public class SubscriptionSchedulerRegistrationTests
         options.JobDetails.Should().ContainSingle(j => j.Key.Equals(PaymentReconcileJob.Key) && j.Durable);
         options.Triggers.OfType<CronTriggerImpl>().Single(t => t.Key.Equals(PaymentReconcileJob.TriggerKey))
             .CronExpressionString.Should().Be("0 0/15 * * * ?");
+    }
+
+    [Fact]
+    public void TheReconcileJob_AlsoRunsInPhilippineTime()
+    {
+        var options = QuartzOptionsOf(Register(new()));
+
+        options.Triggers.OfType<CronTriggerImpl>().Single(t => t.Key.Equals(PaymentReconcileJob.TriggerKey))
+            .TimeZone.Id.Should().Be("Asia/Manila");
     }
 
     [Fact]
