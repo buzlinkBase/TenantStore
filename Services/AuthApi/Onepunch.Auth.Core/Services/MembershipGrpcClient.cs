@@ -19,6 +19,8 @@ public class MembershipResolveResult
 {
     public bool Success { get; set; }
     public bool Found { get; set; }
+    /// <summary>Tenant Service refused the join (the invite was revoked/removed); nothing changed.</summary>
+    public bool Denied { get; set; }
     public List<string> Roles { get; set; } = new();
     public List<string> Permissions { get; set; } = new();
     public string Status { get; set; } = string.Empty;
@@ -96,6 +98,7 @@ public class MembershipGrpcClient
         string? email,
         string? fullName,
         IEnumerable<string> roles,
+        ActivationMode mode = ActivationMode.Legacy,
         int deadlineMilliseconds = 2000)
     {
         var sw = Stopwatch.StartNew();
@@ -108,6 +111,7 @@ public class MembershipGrpcClient
                 TenantName = tenantName ?? string.Empty,
                 Email = email ?? string.Empty,
                 FullName = fullName ?? string.Empty,
+                Mode = mode,
             };
             request.Roles.AddRange(roles);
             var response = await _client.ActivateMembershipAsync(
@@ -122,6 +126,7 @@ public class MembershipGrpcClient
             {
                 Success = true,
                 Found = response.Found,
+                Denied = response.Denied,
                 Roles = response.Roles.ToList(),
                 Permissions = response.Permissions.ToList(),
                 Status = response.Status,

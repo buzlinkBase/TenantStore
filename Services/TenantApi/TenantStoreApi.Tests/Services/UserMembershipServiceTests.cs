@@ -488,4 +488,201 @@ public class UserMembershipServiceTests
         (await sut.RevokeForSeparatedEmployeeAsync(userId, tenantId, CancellationToken.None)).Should().BeFalse();
         (await sut.RevokeForSeparatedEmployeeAsync(Guid.NewGuid(), tenantId, CancellationToken.None)).Should().BeFalse();
     }
+
+    // ── AcceptInviteAsync / InviteRevoked ────────────────────────────────────────────────
+    // An admin who revokes or removes a pending invite must stop the link from working: plain
+    // JoinAsync would create a brand new Active membership, so the invitation flow goes through
+    // AcceptInviteAsync, which refuses unless the invite is still pending.
+
+    private static async Task<(UserMembershipService Sut, Mock<IPublishEndpoint> Publisher)> CreateSutWithPublisherAsync()
+    {
+        var uow = TenantTestContextFactory.CreateUnitOfWork();
+        await new PermissionCatalogSeederService(uow).EnsureSeededAsync(CancellationToken.None);
+        var publisher = new Mock<IPublishEndpoint>();
+        var sut = new UserMembershipService(uow, publisher.Object, new RoleService(uow), new MembershipRoleService(uow));
+        return (sut, publisher);
+    }
+
+    private static async Task<UserMembership> AddPlaceholderAsync(UserMembershipService sut, Guid tenantId, string email = "invitee@test.com")
+    {
+        await sut.CreateInvitePlaceholderAsync(tenantId, "Acme", email, ["Employee"], "Invitee", CancellationToken.None);
+        await sut.Context.SaveChangesAsync(CancellationToken.None);
+        return (await sut.FindPendingInviteAsync(tenantId, email, CancellationToken.None))!;
+    }
+
+    // FindPendingInviteAsync reads no-tracking, so the tracked row is looked up by key to change it.
+    private static async Task RevokePlaceholderAsync(UserMembershipService sut, UserMembership placeholder)
+    {
+        var tracked = await sut.Context.Memberships.FindAsync(placeholder.Id);
+        tracked!.Status = "Revoked";
+        await sut.Context.SaveChangesAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task AcceptInviteAsync_JoinsThePendingInvite()
+    {
+        var (sut, _) = await CreateSutAsync();
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        await AddPlaceholderAsync(sut, tenantId);
+
+        var (membership, denyReason) = await sut.AcceptInviteAsync(
+            userId, tenantId, "Acme", "invitee@test.com", "Invitee", ["Employee"], replay: false, CancellationToken.None);
+        await sut.Context.SaveChangesAsync(CancellationToken.None);
+
+        denyReason.Should().BeNull();
+        membership.Should().NotBeNull();
+        (await sut.GetMemberAsync(userId, tenantId, CancellationToken.None))!.Status.Should().Be("Active");
+        (await CountMembershipsAsync(sut, tenantId)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task AcceptInviteAsync_IsDenied_AfterTheInviteWasRevoked_AndCreatesNothing()
+    {
+        var (sut, _) = await CreateSutAsync();
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var placeholder = await AddPlaceholderAsync(sut, tenantId);
+        await RevokePlaceholderAsync(sut, placeholder);
+
+        var (membership, denyReason) = await sut.AcceptInviteAsync(
+            userId, tenantId, "Acme", "invitee@test.com", "Invitee", ["Employee"], replay: false, CancellationToken.None);
+        await sut.Context.SaveChangesAsync(CancellationToken.None);
+
+        membership.Should().BeNull();
+        denyReason.Should().NotBeNullOrEmpty();
+        (await sut.GetMemberAsync(userId, tenantId, CancellationToken.None)).Should().BeNull();
+        (await CountMembershipsAsync(sut, tenantId)).Should().Be(1); // just the revoked placeholder
+    }
+
+    [Fact]
+    public async Task AcceptInviteAsync_IsDenied_AfterTheInviteWasRemoved()
+    {
+        var (sut, _) = await CreateSutAsync();
+        var tenantId = Guid.NewGuid();
+        var ownerId = Guid.NewGuid();
+        await AddMemberAsync(sut, tenantId, ownerId, "Owner");
+        var placeholder = await AddPlaceholderAsync(sut, tenantId);
+        await sut.RemoveMemberAsync(ownerId, placeholder.Id, tenantId, CancellationToken.None);
+        await sut.Context.SaveChangesAsync(CancellationToken.None);
+
+        var (membership, _) = await sut.AcceptInviteAsync(
+            Guid.NewGuid(), tenantId, "Acme", "invitee@test.com", "Invitee", ["Employee"], replay: false, CancellationToken.None);
+
+        membership.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task AcceptInviteAsync_ReactivatesARevokedMember_OnlyWhileTheNewInviteIsLive()
+    {
+        var (sut, _) = await CreateSutAsync();
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var old = await AddMemberAsync(sut, tenantId, userId, "None");
+        old.Status = "Revoked";
+        await AddPlaceholderAsync(sut, tenantId);
+
+        var (live, _) = await sut.AcceptInviteAsync(
+            userId, tenantId, "Acme", "invitee@test.com", "Invitee", ["None"], replay: false, CancellationToken.None);
+        await sut.Context.SaveChangesAsync(CancellationToken.None);
+        live.Should().NotBeNull();
+        (await sut.GetMemberAsync(userId, tenantId, CancellationToken.None))!.Status.Should().Be("Active");
+
+        // Revoked again, with a new invite that the admin also revokes: the link must stay dead.
+        var member = (await sut.GetMemberAsync(userId, tenantId, CancellationToken.None))!;
+        member.Status = "Revoked";
+        var second = await AddPlaceholderAsync(sut, tenantId);
+        await RevokePlaceholderAsync(sut, second);
+
+        var (denied, _) = await sut.AcceptInviteAsync(
+            userId, tenantId, "Acme", "invitee@test.com", "Invitee", ["None"], replay: false, CancellationToken.None);
+        denied.Should().BeNull();
+        (await sut.GetMemberAsync(userId, tenantId, CancellationToken.None))!.Status.Should().Be("Revoked");
+    }
+
+    [Fact]
+    public async Task AcceptInviteAsync_RetryByAnAlreadyActiveMember_StillWorks()
+    {
+        // A first accept that activated the membership but failed afterwards (the placeholder is
+        // already consumed) must be retryable.
+        var (sut, _) = await CreateSutAsync();
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        await AddMemberAsync(sut, tenantId, userId, "Employee");
+
+        var (membership, denyReason) = await sut.AcceptInviteAsync(
+            userId, tenantId, "Acme", "invitee@test.com", "Invitee", ["Employee"], replay: false, CancellationToken.None);
+
+        membership.Should().NotBeNull();
+        denyReason.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task AcceptInviteAsync_Replay_NeedsAnActiveMembership_AndNeverReactivates()
+    {
+        var (sut, _) = await CreateSutAsync();
+        var tenantId = Guid.NewGuid();
+        var active = Guid.NewGuid();
+        var revoked = Guid.NewGuid();
+        await AddMemberAsync(sut, tenantId, active, "Employee");
+        (await AddMemberAsync(sut, tenantId, revoked, "Employee")).Status = "Revoked";
+        await sut.Context.SaveChangesAsync(CancellationToken.None);
+
+        var (ok, _) = await sut.AcceptInviteAsync(active, tenantId, "Acme", "a@test.com", "A", ["Employee"], replay: true, CancellationToken.None);
+        var (denied, reason) = await sut.AcceptInviteAsync(revoked, tenantId, "Acme", "b@test.com", "B", ["Employee"], replay: true, CancellationToken.None);
+        var (unknown, _) = await sut.AcceptInviteAsync(Guid.NewGuid(), tenantId, "Acme", "c@test.com", "C", ["Employee"], replay: true, CancellationToken.None);
+        await sut.Context.SaveChangesAsync(CancellationToken.None);
+
+        ok.Should().NotBeNull();
+        denied.Should().BeNull();
+        reason.Should().NotBeNullOrEmpty();
+        unknown.Should().BeNull();
+        (await sut.GetMemberAsync(revoked, tenantId, CancellationToken.None))!.Status.Should().Be("Revoked");
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_RevokingAPendingInvite_PublishesInviteRevoked()
+    {
+        var (sut, publisher) = await CreateSutWithPublisherAsync();
+        var tenantId = Guid.NewGuid();
+        var ownerId = Guid.NewGuid();
+        await AddMemberAsync(sut, tenantId, ownerId, "Owner");
+        var placeholder = await AddPlaceholderAsync(sut, tenantId);
+
+        await sut.UpdateStatusAsync(ownerId, placeholder.Id, tenantId, "Revoked", CancellationToken.None);
+
+        publisher.Verify(p => p.Publish(
+            It.Is<InviteRevoked>(m => m.TenantId == tenantId && m.Email == "invitee@test.com"),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_RevokingARealMember_DoesNotPublishInviteRevoked()
+    {
+        var (sut, publisher) = await CreateSutWithPublisherAsync();
+        var tenantId = Guid.NewGuid();
+        var ownerId = Guid.NewGuid();
+        await AddMemberAsync(sut, tenantId, ownerId, "Owner");
+        var target = await AddMemberAsync(sut, tenantId, Guid.NewGuid(), "Employee");
+
+        await sut.UpdateStatusAsync(ownerId, target.Id, tenantId, "Revoked", CancellationToken.None);
+
+        publisher.Verify(p => p.Publish(It.IsAny<InviteRevoked>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_RemovingAPendingInvite_PublishesInviteRevoked()
+    {
+        var (sut, publisher) = await CreateSutWithPublisherAsync();
+        var tenantId = Guid.NewGuid();
+        var ownerId = Guid.NewGuid();
+        await AddMemberAsync(sut, tenantId, ownerId, "Owner");
+        var placeholder = await AddPlaceholderAsync(sut, tenantId);
+
+        await sut.RemoveMemberAsync(ownerId, placeholder.Id, tenantId, CancellationToken.None);
+
+        publisher.Verify(p => p.Publish(
+            It.Is<InviteRevoked>(m => m.TenantId == tenantId && m.Email == "invitee@test.com"),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
 }

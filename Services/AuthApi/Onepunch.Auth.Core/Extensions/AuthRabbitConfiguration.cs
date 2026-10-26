@@ -20,6 +20,7 @@ public static class AuthRabbitConfiguration
             x.AddConsumer<HrDbCreatedWorker, HrDbCreatedConsumerDefinition>();
             x.AddConsumer<MembershipChangedWorker, MembershipChangedConsumerDefinition>();
             x.AddConsumer<TenantRenamedWorker, TenantRenamedConsumerDefinition>();
+            x.AddConsumer<InviteRevokedWorker, InviteRevokedConsumerDefinition>();
             x.AddConsumer<SubscriptionChangedWorker, SubscriptionChangedConsumerDefinition>();
             x.AddConsumer<AccountHardDeletedWorker, AccountHardDeletedConsumerDefinition>();
             x.AddEntityFrameworkOutbox<AuthContext>(o =>
@@ -84,6 +85,13 @@ public class MembershipChangedConsumerDefinition : ConsumerDefinition<Membership
     public MembershipChangedConsumerDefinition()
     {
         EndpointName = "auth-membership-changed-que";
+    }
+}
+public class InviteRevokedConsumerDefinition : ConsumerDefinition<InviteRevokedWorker>
+{
+    public InviteRevokedConsumerDefinition()
+    {
+        EndpointName = "auth-invite-revoked-que";
     }
 }
 public class TenantRenamedConsumerDefinition : ConsumerDefinition<TenantRenamedWorker>

@@ -229,6 +229,44 @@ public class UserMembershipService : BaseService<UserMembership>
         return membership;
     }
 
+    /// <summary>
+    /// The invitation flow's stricter version of <see cref="JoinAsync"/>: an admin who revokes or
+    /// removes a pending invite deletes/closes its "Invited" placeholder, and plain JoinAsync
+    /// would just create a fresh Active membership for whoever still holds the link.
+    /// - AcceptInvite: needs the still-pending placeholder for this email (or a membership that
+    ///   is already Active, so a retry after a half-finished first accept still works).
+    /// - Replay: re-opening an already accepted invitation; needs a membership that is still
+    ///   Active and never reactivates one that was revoked afterwards.
+    /// Returns the membership, or null (with <paramref name="denyReason"/>) when refused; nothing
+    /// is changed in that case. Doesn't commit.
+    /// </summary>
+    public async Task<(UserMembership? Membership, string? DenyReason)> AcceptInviteAsync(
+        Guid userId,
+        Guid tenantId,
+        string? tenantName,
+        string? email,
+        string? fullName,
+        IReadOnlyCollection<string> roles,
+        bool replay,
+        CancellationToken token = default)
+    {
+        const string revoked = "This invitation is no longer valid.";
+        var existing = await GetMemberAsync(userId, tenantId, token);
+        var isActive = existing != null
+            && string.Equals(existing.Status, "Active", StringComparison.OrdinalIgnoreCase);
+
+        if (replay)
+            return isActive ? (existing, null) : (null, revoked);
+
+        var pendingInvite = !string.IsNullOrWhiteSpace(email)
+            ? await FindPendingInviteAsync(tenantId, email, token)
+            : null;
+        if (pendingInvite == null && !isActive)
+            return (null, revoked);
+
+        return (await JoinAsync(userId, tenantId, tenantName, email, fullName, roles, token), null);
+    }
+
     /// <summary>Grants an additional role to an existing membership, leaving other roles intact.</summary>
     public async Task AddRoleAsync(Guid callerUserId, Guid targetMembershipId, Guid tenantId, string newRole, CancellationToken token = default)
     {
@@ -335,6 +373,7 @@ public class UserMembershipService : BaseService<UserMembership>
         if (target.HasRole(TenantRoles.Owner))
             throw new InvalidOperationException("Cannot change the Owner's status.");
 
+        var wasPendingInvite = IsPendingInvite(target);
         target.Status = newStatus;
         await ModifyAsync(target, token);
 
@@ -345,6 +384,8 @@ public class UserMembershipService : BaseService<UserMembership>
             ChangeType = "StatusChanged",
             NewStatus = newStatus
         }, token);
+        if (wasPendingInvite && !string.Equals(newStatus, "Active", StringComparison.OrdinalIgnoreCase))
+            await PublishInviteRevokedAsync(target, token);
 
     }
 
@@ -375,6 +416,18 @@ public class UserMembershipService : BaseService<UserMembership>
         return true;
     }
 
+    private static bool IsPendingInvite(UserMembership membership) =>
+        string.Equals(membership.Status, "Invited", StringComparison.OrdinalIgnoreCase)
+        && !string.IsNullOrWhiteSpace(membership.InvitedEmail);
+
+    // Lets Auth expire the invitation link now, rather than leaving it redeemable until it times out.
+    private Task PublishInviteRevokedAsync(UserMembership placeholder, CancellationToken token) =>
+        _publisher.Publish(new InviteRevoked
+        {
+            TenantId = placeholder.TenantId,
+            Email = placeholder.InvitedEmail!,
+        }, token);
+
     private async Task PublishRoleChangedAsync(Guid userId, Guid tenantId, IEnumerable<string> roles, CancellationToken token)
     {
         await _publisher.Publish(new MembershipChanged
@@ -397,6 +450,7 @@ public class UserMembershipService : BaseService<UserMembership>
             throw new InvalidOperationException("Cannot remove yourself. Use leave-tenant instead.");
         if (target.HasRole(TenantRoles.Owner)) throw new InvalidOperationException("Cannot remove the Owner.");
 
+        var wasPendingInvite = IsPendingInvite(target);
         await RemoveAsync(target);
         await _publisher.Publish(new MembershipChanged
         {
@@ -405,7 +459,7 @@ public class UserMembershipService : BaseService<UserMembership>
             ChangeType = "StatusChanged",
             NewStatus = "Revoked"
         }, token);
-
+        if (wasPendingInvite) await PublishInviteRevokedAsync(target, token);
 
     }
 

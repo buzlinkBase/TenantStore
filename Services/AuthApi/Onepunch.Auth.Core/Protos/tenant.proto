@@ -139,6 +139,19 @@ message MembershipResponse {
   string status = 3;
   string tenant_name = 4;
   repeated string permissions = 5;
+  // Set when ActivateMembership refused to join (see ActivationMode); nothing was changed.
+  bool denied = 6;
+  string deny_reason = 7;
+}
+
+// How strictly ActivateMembership vets the join. LEGACY keeps the old create-or-reactivate
+// behavior; the invitation flow uses the other two so a revoked/removed invite can't be redeemed.
+enum ActivationMode {
+  ACTIVATION_MODE_LEGACY = 0;
+  // First acceptance: needs the still-pending Invited placeholder for the email.
+  ACTIVATION_MODE_ACCEPT_INVITE = 1;
+  // Re-opening an already accepted invitation: needs a membership that is still Active.
+  ACTIVATION_MODE_REPLAY = 2;
 }
 
 message ActivateMembershipRequest {
@@ -148,6 +161,7 @@ message ActivateMembershipRequest {
   string email = 4;
   string full_name = 5;
   repeated string roles = 6;
+  ActivationMode mode = 7;
 }
 
 message UserMembershipsRequest {

@@ -387,8 +387,10 @@ namespace Onepunch.Auth.Core.Services
                 // frontend's auto-accept effect double-firing, a reload, or back/forward
                 // navigation back onto the accept-invite page). Re-mint a tenant-scoped token
                 // without re-publishing UserJoin/InvitationAccepted/UserOnboarded, which already
-                // fired once and could be double-processed downstream.
-                return await MintTenantScopedResponseAsync(user, invitation, ct);
+                // fired once and could be double-processed downstream. Only while the membership
+                // is still Active -- a member revoked since must not get back in through this link.
+                var replayActivation = await ActivateOrThrowAsync(user, invitation, ActivationMode.Replay);
+                return await MintTenantScopedResponseAsync(user, invitation, replayActivation, ct);
             }
 
             if (invitation.Expiry <= DateTime.UtcNow)
@@ -470,7 +472,17 @@ namespace Onepunch.Auth.Core.Services
             if (!createResult.Succeeded)
                 throw new GuardException(string.Join(" ", createResult.Errors.Select(e => e.Description)));
 
-            return await FinalizeAcceptanceAsync(user, invitation, ct);
+            try
+            {
+                return await FinalizeAcceptanceAsync(user, invitation, ct);
+            }
+            catch (GuardException)
+            {
+                // The invite was revoked (or Tenant Service couldn't confirm it) after the
+                // account was created above -- don't leave an unused, signed-in-able account behind.
+                await _manager.DeleteAsync(user);
+                throw;
+            }
         }
 
         /// <summary>
@@ -484,6 +496,10 @@ namespace Onepunch.Auth.Core.Services
         /// </summary>
         private async Task<LoginResponse> FinalizeAcceptanceAsync(User user, Invitation invitation, CancellationToken ct)
         {
+            // Asked first, before the invitation is marked used or any event is published: if an
+            // admin revoked/removed the invite, Tenant Service refuses and nothing is left behind.
+            var activation = await ActivateOrThrowAsync(user, invitation, ActivationMode.AcceptInvite);
+
             invitation.Status = InvitationStatus.Accepted;
 
             // The caller's own ambient tenant (whatever TenantPublishFilter would otherwise stamp
@@ -521,7 +537,29 @@ namespace Onepunch.Auth.Core.Services
                 Email = invitation.Email,
             }, (PublishContext<UserOnboarded> ctx) => ctx.Headers.Set("X-Tenant-ID", targetTenantId), ct);
 
-            return await MintTenantScopedResponseAsync(user, invitation, ct);
+            return await MintTenantScopedResponseAsync(user, invitation, activation, ct);
+        }
+
+        /// <summary>
+        /// Activates the membership on Tenant Service SYNCHRONOUSLY, and refuses (fails closed) when
+        /// the invite was revoked/removed or Tenant Service can't confirm it -- minting a token from
+        /// the invitation's own roles on a failed call would let a revoked invite through.
+        /// </summary>
+        private async Task<MembershipResolveResult> ActivateOrThrowAsync(User user, Invitation invitation, ActivationMode mode)
+        {
+            var activation = await _membershipGrpcClient.ActivateMembershipAsync(
+                user.Id,
+                invitation.TenantId,
+                invitation.TenantName,
+                invitation.Email,
+                user.FullName ?? user.Email,
+                invitation.Roles,
+                mode);
+            if (activation.Denied)
+                throw new GuardException("This invitation is no longer valid. Ask whoever invited you to send a new one.", "INVITATION_REVOKED");
+            if (!activation.Success)
+                throw new GuardException("We couldn't confirm your invitation right now. Please try again in a moment.", "INVITATION_UNAVAILABLE");
+            return activation;
         }
 
         // Shared tail of both a fresh acceptance (FinalizeAcceptanceAsync, after flipping
@@ -529,23 +567,18 @@ namespace Onepunch.Auth.Core.Services
         // invitation (Accept) — mints a tenant-scoped access/refresh token and builds the
         // LoginResponse. The replay path deliberately calls this directly, skipping the
         // Status flip/event publishing above since those already happened once.
-        private async Task<LoginResponse> MintTenantScopedResponseAsync(User user, Invitation invitation, CancellationToken ct)
+        private async Task<LoginResponse> MintTenantScopedResponseAsync(
+            User user, Invitation invitation, MembershipResolveResult activation, CancellationToken ct)
         {
-            // Activate the membership on Tenant Service SYNCHRONOUSLY, before minting anything.
-            // The UserJoin/InvitationAccepted events the caller published go through the EF bus
-            // outbox, so they only leave this service after CommitChangesAsync below -- i.e.
-            // after the token is already minted. Relying on them meant the token and response
-            // never had this tenant's permissions (and the JWT had no role claims at all), which
-            // left the frontend's permission guards redirecting the invitee in an endless loop.
-            // Idempotent on Tenant Service's side (UserMembershipService.JoinAsync), so the
-            // replay path calling this again, and the events arriving later, are both harmless.
-            var activation = await _membershipGrpcClient.ActivateMembershipAsync(
-                user.Id,
-                invitation.TenantId,
-                invitation.TenantName,
-                invitation.Email,
-                user.FullName ?? user.Email,
-                invitation.Roles);
+            // `activation` comes from the SYNCHRONOUS Tenant Service call made by the caller
+            // (ActivateOrThrowAsync), before anything is minted. The UserJoin/InvitationAccepted
+            // events the caller published go through the EF bus outbox, so they only leave this
+            // service after CommitChangesAsync below -- i.e. after the token is already minted.
+            // Relying on them meant the token and response never had this tenant's permissions
+            // (and the JWT had no role claims at all), which left the frontend's permission guards
+            // redirecting the invitee in an endless loop. Idempotent on Tenant Service's side
+            // (UserMembershipService.JoinAsync), so the replay path and the events arriving later
+            // are both harmless.
 
             // Drop any snapshot cached before this membership existed (an earlier login, or
             // before the invite was even sent) so the lookup below reads it fresh -- same
@@ -644,6 +677,25 @@ namespace Onepunch.Auth.Core.Services
             }
 
             return joinedTenant;
+        }
+
+        /// <summary>
+        /// An admin revoked/removed the pending invite for this email (Tenant Service's
+        /// InviteRevoked): expires every still-valid Staff invitation for it, so the link stops
+        /// working and the accept-invite page shows it as invalid straight away.
+        /// </summary>
+        public async Task ExpirePendingAsync(Guid tenantId, string email, CancellationToken ct = default)
+        {
+            var pending = await GetQueryable(x =>
+                x.Email == email &&
+                x.Category == InvitationCategory.Staff &&
+                x.TenantId == tenantId &&
+                x.Status == InvitationStatus.Pending &&
+                x.Expiry > DateTime.UtcNow, false)
+                .ToListAsync(ct);
+            if (pending.Count == 0) return;
+            foreach (var invitation in pending) invitation.Expiry = DateTime.UtcNow;
+            await CommitChangesAsync(ct);
         }
 
         public async Task<bool> IsValidAsync(string invitationToken, CancellationToken token = default)

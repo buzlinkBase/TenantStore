@@ -270,14 +270,32 @@ public class TenantInfoServiceProvider : GetTenantService.GetTenantServiceBase
             throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid GUID format for UserId/TenantId"));
         }
 
-        await _membershipService.JoinAsync(
-            userId,
-            tenantId,
-            request.TenantName,
-            request.Email,
-            request.FullName,
-            request.Roles.ToList(),
-            context.CancellationToken);
+        if (request.Mode == ActivationMode.Legacy)
+        {
+            await _membershipService.JoinAsync(
+                userId,
+                tenantId,
+                request.TenantName,
+                request.Email,
+                request.FullName,
+                request.Roles.ToList(),
+                context.CancellationToken);
+        }
+        else
+        {
+            // Invitation flow: refuse (changing nothing) when the invite was revoked or removed.
+            var (accepted, denyReason) = await _membershipService.AcceptInviteAsync(
+                userId,
+                tenantId,
+                request.TenantName,
+                request.Email,
+                request.FullName,
+                request.Roles.ToList(),
+                request.Mode == ActivationMode.Replay,
+                context.CancellationToken);
+            if (accepted == null)
+                return new MembershipResponse { Found = false, Denied = true, DenyReason = denyReason ?? string.Empty };
+        }
         await _membershipService.CommitChangesAsync(context.CancellationToken);
 
         // Re-read with the full role->permission graph loaded -- JoinAsync's returned entity
