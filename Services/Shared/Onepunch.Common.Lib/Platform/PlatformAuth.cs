@@ -63,11 +63,13 @@ public static class PlatformPermissions
     public const string AccountsDelete = "platform.accounts.delete";
     /// <summary>Deleting a company's stored files (attachments, photos, logos) to free an account's storage.</summary>
     public const string StorageFilesDelete = "platform.storage.files.delete";
+    /// <summary>Setting up a new company for an account owner, on their behalf (the owner can't add one for themselves unless they own the company they are in).</summary>
+    public const string CompaniesCreate = "platform.companies.create";
 
     public static readonly IReadOnlyList<string> All =
     [
         AccountsRead, SubscriptionsManage, PaymentsRecord, PaymentsRefund, PlansManage, SettingsManage, AuditRead, AdminsManage,
-        AccountsDelete, StorageFilesDelete,
+        AccountsDelete, StorageFilesDelete, CompaniesCreate,
     ];
 }
 
@@ -93,6 +95,7 @@ public static class PlatformRolePermissions
             [
                 PlatformPermissions.AccountsRead,
                 PlatformPermissions.AuditRead,
+                PlatformPermissions.CompaniesCreate,
             ],
         };
 

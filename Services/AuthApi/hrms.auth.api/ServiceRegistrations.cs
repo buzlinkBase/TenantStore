@@ -340,6 +340,11 @@ public static class ServiceRegistrations
                 .AddAuthenticationSchemes(PlatformAuthDefaults.Scheme)
                 .RequireAuthenticatedUser()
                 .RequireClaim(PlatformAuthDefaults.MethodClaim, PlatformAuthDefaults.OtpMethod)
-                .RequireClaim(PlatformAuthDefaults.PermissionClaim, PlatformPermissions.AdminsManage));
+                .RequireClaim(PlatformAuthDefaults.PermissionClaim, PlatformPermissions.AdminsManage))
+            .AddPolicy(PlatformPermissions.CompaniesCreate, policy => policy
+                .AddAuthenticationSchemes(PlatformAuthDefaults.Scheme)
+                .RequireAuthenticatedUser()
+                .RequireClaim(PlatformAuthDefaults.MethodClaim, PlatformAuthDefaults.OtpMethod)
+                .RequireClaim(PlatformAuthDefaults.PermissionClaim, PlatformPermissions.CompaniesCreate));
     }
 }

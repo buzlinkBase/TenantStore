@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -5,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Onepunch.Auth.Core;
 using Onepunch.Auth.Domain.DTOs;
 using Onepunch.Common.Lib;
+using Onepunch.Common.Lib.Security;
 using OnePunch.Auth.Api.RateLimiting;
 
 namespace OnePunch.Auth.Api.Controllers
@@ -32,11 +34,21 @@ namespace OnePunch.Auth.Api.Controllers
         [HttpPost()]
         [EnableRateLimiting(RateLimitPolicies.WorkspaceCreate)]
         [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> Create([FromBody] CreateWorkspaceRequest payload, CancellationToken token)
         {
+            if (!CanCreateCompany(User))
+                return Forbid();
+
             var response = await _service.Create(payload, User, token);
             return Ok(LoginResponseComposer.ConvertLoginResponse(response, _jwtService.RefreshExpiry, HttpContext.Request.IsHttps, Response));
         }
+
+        // Only the owner of the company the caller is working in may start another one. A token
+        // with no role at all is a person with no company yet, who must be able to create their
+        // first.
+        public static bool CanCreateCompany(ClaimsPrincipal user) =>
+            !user.FindAll(ClaimTypes.Role).Any() || user.IsOwner();
     }
 }
 
