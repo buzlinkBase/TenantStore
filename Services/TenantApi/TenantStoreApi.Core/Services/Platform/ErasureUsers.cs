@@ -5,9 +5,11 @@ namespace TenantStoreApi.Core.Services.Platform;
 
 /// <summary>
 /// Who goes with erased companies: everyone whose only memberships are in them (plus, for a whole
-/// account, its owner). Anyone who still belongs to (or owns) a company outside them keeps their login
-/// and is only detached -- an account's owner, when just one of its companies goes. Removed memberships
-/// elsewhere don't keep a login alive.
+/// account, its owner). Anyone who still belongs to (or owns) a company outside them, or owns another
+/// account's subscription, keeps their login and is only detached -- an account's owner, when just one
+/// of its companies goes. Removed memberships elsewhere don't keep a login alive (they are erased with it).
+/// <paramref name="alsoInclude"/> is the owner of an account being erased whole: their own subscription
+/// is going too, so it doesn't count.
 /// </summary>
 public static class ErasureUsers
 {
@@ -33,7 +35,13 @@ public static class ErasureUsers
             .Distinct()
             .ToListAsync(token);
 
-        var keep = memberElsewhere.Concat(ownerElsewhere).ToHashSet();
+        var subscriptionElsewhere = await context.AccountSubscriptions.AsNoTracking()
+            .Where(s => candidates.Contains(s.OwnerUserId) && s.OwnerUserId != alsoInclude)
+            .Select(s => s.OwnerUserId)
+            .Distinct()
+            .ToListAsync(token);
+
+        var keep = memberElsewhere.Concat(ownerElsewhere).Concat(subscriptionElsewhere).ToHashSet();
         return (candidates.Where(id => !keep.Contains(id)).ToList(), candidates.Where(keep.Contains).ToList());
     }
 }

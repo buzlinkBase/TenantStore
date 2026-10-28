@@ -22,12 +22,18 @@
 		<PackageReference Include="FluentAssertions" />
 		<PackageReference Include="Moq" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\Onepunch.Auth.Core\Onepunch.Auth.Core.csproj" />
 		<ProjectReference Include="..\Onepunch.Auth.Domain\Onepunch.Auth.Domain.csproj" />
 		<ProjectReference Include="..\hrms.auth.api\OnePunch.Auth.Api.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- The model-driven row seeder the erasure coverage tests share with Tenant Service's tests. -->
+		<Compile Include="..\..\TenantApi\TenantStoreApi.Tests\TestSupport\ModelRowSeeder.cs" Link="TestSupport\ModelRowSeeder.cs" />
 	</ItemGroup>
 
 </Project>

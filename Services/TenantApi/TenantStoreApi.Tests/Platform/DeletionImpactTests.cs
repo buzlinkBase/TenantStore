@@ -29,8 +29,8 @@ public class DeletionImpactTests
 
         public AccountDeletionRequestService Requests => new(
             Host.Uow, new PlatformDirectoryService(Host.Uow, Host.StateMachine),
-            new PlatformAccountDeletionService(Host.Uow, Host.Events, Host.Notifier, Host.Publisher.Object, Eraser, Host.Clock),
-            new PlatformCompanyDeletionService(Host.Uow, Host.Events, Host.Publisher.Object, Eraser, Host.Clock),
+            new PlatformAccountDeletionService(Host.Uow, Host.Events, Host.Notifier, Host.Publisher.Object, Eraser, Host.Confirmations, Host.Clock),
+            new PlatformCompanyDeletionService(Host.Uow, Host.Events, Host.Publisher.Object, Eraser, Host.Confirmations, Host.Clock),
             Host.Events, AccountDeletionGuards.Default, AccountDeletionGuards.Company,
             Microsoft.Extensions.Options.Options.Create(Host.Options), Host.Clock);
 

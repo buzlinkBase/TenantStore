@@ -128,6 +128,9 @@ public class CompanyDataPurgedWorkerDefinition : ConsumerDefinition<CompanyDataP
     public CompanyDataPurgedWorkerDefinition()
     {
         EndpointName = "tenant-service-company-data-purged-que";
+        // One answer at a time: an erasure finishes on whichever answer is the last, and two handled
+        // together could each miss the other's confirmation.
+        ConcurrentMessageLimit = 1;
     }
 }
 

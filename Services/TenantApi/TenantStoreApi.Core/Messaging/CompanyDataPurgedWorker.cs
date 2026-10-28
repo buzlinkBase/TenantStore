@@ -7,11 +7,13 @@ using TenantStoreApi.Infrastructure;
 namespace TenantStoreApi.Core.Messaging;
 
 /// <summary>
-/// hrms-api finished (or failed) removing one company's data. Records it in the billing history and,
+/// A service finished (or failed) removing one company's data. Records it in the billing history and,
 /// once every company of the account has reported, moves the account to Purged (or, for the
 /// archive stage, ArchiveDestroyed). Idempotent -- every event is keyed, so a redelivery adds nothing.
 /// Answers for a company or account an operator erased go to <see cref="PlatformCompanyDeletionService"/>
-/// or <see cref="PlatformAccountDeletionService"/>.
+/// or <see cref="PlatformAccountDeletionService"/>, which wait for every service
+/// (<see cref="PurgeSources"/>, read from the message header); the yearly purge only ever counts
+/// hrms-api's answer.
 /// </summary>
 public class CompanyDataPurgedWorker : IConsumer<CompanyDataPurged>
 {
@@ -31,12 +33,13 @@ public class CompanyDataPurgedWorker : IConsumer<CompanyDataPurged>
 
     public async Task Consume(ConsumeContext<CompanyDataPurged> context)
     {
+        var source = PurgeSources.From(context.Headers.Get<string>(PurgeSources.Header));
         if (context.Message.Stage == CompanyPurgeStage.HardDelete)
         {
-            if (!await _companyDeletion.RecordResultAsync(context.Message, context.CancellationToken))
-                await _deletion.RecordResultAsync(context.Message, context.CancellationToken);
+            if (!await _companyDeletion.RecordResultAsync(context.Message, source, context.CancellationToken))
+                await _deletion.RecordResultAsync(context.Message, source, context.CancellationToken);
         }
-        else
+        else if (source == PurgeSources.Hrms)
             await _purge.RecordResultAsync(context.Message, context.CancellationToken);
         await _uow.CommitChangesAsync("", context.CancellationToken);
     }

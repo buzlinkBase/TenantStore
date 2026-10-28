@@ -48,3 +48,21 @@ public record CompanyDataPurged
     public int FilesDeleted { get; set; }
     public DateTime CompletedAtUtc { get; set; } = DateTime.UtcNow;
 }
+
+/// <summary>
+/// Which service answered with a <see cref="CompanyDataPurged"/>, carried in the <see cref="Header"/>
+/// message header (not a field, so services built against an older copy of this library still
+/// interoperate). hrms-api's answers carry no header and count as <see cref="Hrms"/>. An operator's
+/// erasure finishes only once every service holding company data has confirmed.
+/// </summary>
+public static class PurgeSources
+{
+    public const string Header = "X-Purge-Source";
+    public const string Hrms = "hrms";
+    public const string Adms = "adms";
+    public const string Portal = "portal";
+
+    /// <summary>The source an answer came from: the header's value, or hrms-api when there is none.</summary>
+    public static string From(string? header) =>
+        string.IsNullOrWhiteSpace(header) ? Hrms : header.Trim().ToLowerInvariant();
+}

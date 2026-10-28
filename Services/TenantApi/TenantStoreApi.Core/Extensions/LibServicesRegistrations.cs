@@ -19,6 +19,7 @@ public static class LibServicesRegistrations
         // guard below must pass at both the request and the approval.
         builder.Services.AddScoped<Services.Platform.IRowEraser, Services.Platform.RelationalRowEraser>();
         builder.Services.AddScoped<Services.Platform.TenantStoreAccountEraser>();
+        builder.Services.AddScoped<Services.Platform.ErasureConfirmations>();
         builder.Services.AddScoped<Services.Platform.IUserLookup, Services.Platform.GrpcUserLookup>();
         foreach (var guard in Services.Platform.AccountDeletionGuards.Default)
             builder.Services.AddSingleton<Services.Platform.IAccountDeletionGuard>(guard);

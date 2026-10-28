@@ -13,10 +13,11 @@ namespace TenantStoreApi.Core.Services.Platform;
 /// <list type="number">
 /// <item><see cref="StartAsync"/> locks the account (read-only, sign-ins refreshed) and asks every
 /// service holding company data to delete it outright (<see cref="PurgeCompanyData"/>, stage
-/// <see cref="CompanyPurgeStage.HardDelete"/>). hrms-api answers per company; adms and the client
-/// portal delete on the same message without answering.</item>
-/// <item><see cref="RecordResultAsync"/> collects hrms-api's answers. A failure parks the account in
-/// <see cref="DataPurgeState.HardDeleteFailed"/> for an operator to retry; once every company is gone,
+/// <see cref="CompanyPurgeStage.HardDelete"/>). hrms-api, adms and the client portal each answer per
+/// company (<see cref="ErasureConfirmations"/>).</item>
+/// <item><see cref="RecordResultAsync"/> collects the answers. A failure parks the account in
+/// <see cref="DataPurgeState.HardDeleteFailed"/> for an operator to retry; once every service has
+/// confirmed every company,
 /// <see cref="FinalizeAsync"/> deletes Tenant Service's own rows and hands the logins over to Auth
 /// Service (<see cref="AccountHardDeleted"/>).</item>
 /// </list>
@@ -30,6 +31,7 @@ public class PlatformAccountDeletionService
     private readonly SubscriptionChangeNotifierService _notifier;
     private readonly IPublishEndpoint _publisher;
     private readonly TenantStoreAccountEraser _eraser;
+    private readonly ErasureConfirmations _confirmations;
     private readonly TimeProvider _clock;
 
     public PlatformAccountDeletionService(
@@ -38,6 +40,7 @@ public class PlatformAccountDeletionService
         SubscriptionChangeNotifierService notifier,
         IPublishEndpoint publisher,
         TenantStoreAccountEraser eraser,
+        ErasureConfirmations confirmations,
         TimeProvider clock)
     {
         _uow = uow;
@@ -45,6 +48,7 @@ public class PlatformAccountDeletionService
         _notifier = notifier;
         _publisher = publisher;
         _eraser = eraser;
+        _confirmations = confirmations;
         _clock = clock;
     }
 
@@ -80,7 +84,8 @@ public class PlatformAccountDeletionService
         await RequestCompaniesAsync(subscription, tenantIds, token);
     }
 
-    /// <summary>Asks again for the companies that haven't reported their data deleted.</summary>
+    /// <summary>Asks again for the companies some service hasn't confirmed deleted (every service is
+    /// asked; for one that already did, it is a harmless repeat).</summary>
     public async Task RetryAsync(Guid ownerUserId, string actor, CancellationToken token)
     {
         var subscription = await RequireAsync(ownerUserId, token);
@@ -88,11 +93,7 @@ public class PlatformAccountDeletionService
             throw new SubscriptionRuleException("This account isn't being deleted.");
 
         var tenantIds = await OwnerTenantIdsAsync(ownerUserId, token);
-        var pending = new List<Guid>();
-        foreach (var tenantId in tenantIds)
-        {
-            if (!await _events.ExistsAsync(DoneKey(subscription.Id, tenantId), token)) pending.Add(tenantId);
-        }
+        var pending = await _confirmations.PendingCompaniesAsync(subscription.Id, tenantIds, token);
         if (pending.Count == 0)
         {
             await FinalizeAsync(ownerUserId, token);
@@ -106,44 +107,49 @@ public class PlatformAccountDeletionService
     }
 
     /// <summary>
-    /// Records hrms-api's answer for one company of an account being erased. An answer for any other
-    /// account is ignored (the archive purge's answers go to <see cref="DataPurgeService"/>).
+    /// Records one service's answer (<paramref name="source"/>, see <c>PurgeSources</c>) for one company
+    /// of an account being erased. An answer for any other account, or from a service that isn't a
+    /// participant, is ignored (the archive purge's answers go to <see cref="DataPurgeService"/>).
+    /// Every answer bumps the subscription's concurrency stamp, so two answers handled at once can't
+    /// both miss each other's confirmation: one of them fails to save and is retried after the other.
     /// </summary>
-    public async Task RecordResultAsync(CompanyDataPurged result, CancellationToken token)
+    public async Task RecordResultAsync(CompanyDataPurged result, string source, CancellationToken token)
     {
+        if (!_confirmations.IsParticipant(source)) return;
         var subscription = await Context.AccountSubscriptions
             .FirstOrDefaultAsync(s => s.Id == result.SubscriptionId && s.OwnerUserId == result.OwnerUserId, token);
         if (subscription is null || subscription.PurgeState is not (DataPurgeState.HardDeleting or DataPurgeState.HardDeleteFailed)) return;
         var tenantIds = await OwnerTenantIdsAsync(subscription.OwnerUserId, token);
         if (!tenantIds.Contains(result.TenantId)) return;
+        subscription.ConcurrencyStamp = Guid.NewGuid();
 
         if (!result.Succeeded)
         {
             subscription.PurgeState = DataPurgeState.HardDeleteFailed;
-            subscription.ConcurrencyStamp = Guid.NewGuid();
             await _events.AddAsync(subscription, BillingEventTypes.HardDeleteFailed,
-                new { result.TenantId, result.Error }, actor: "system", token: token);
+                new { result.TenantId, source, result.Error }, actor: "system", token: token);
             return;
         }
 
-        var stillPending = 0;
-        foreach (var tenantId in tenantIds.Where(id => id != result.TenantId))
-        {
-            if (!await _events.ExistsAsync(DoneKey(subscription.Id, tenantId), token)) stillPending++;
-        }
-        if (stillPending > 0)
-        {
-            var key = DoneKey(subscription.Id, result.TenantId);
-            if (!await _events.ExistsAsync(key, token))
-            {
-                await _events.AddAsync(subscription, BillingEventTypes.HardDeleteCompanyDone,
-                    new { result.TenantId, result.RowsDeleted, result.FilesDeleted }, actor: "system", dedupeKey: key, token: token);
-            }
-            return;
-        }
+        await _confirmations.ConfirmAsync(subscription, result, source, token);
+        if ((await _confirmations.PendingCompaniesAsync(subscription.Id, tenantIds, token)).Count > 0) return;
 
-        // The last company: nothing of the account is left outside Tenant Service.
+        // The last confirmation: nothing of the account is left outside Tenant Service.
         await FinalizeAsync(subscription.OwnerUserId, token);
+    }
+
+    /// <summary>The account's companies with the services that haven't confirmed each yet -- for the console.</summary>
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> PendingConfirmationsAsync(Guid ownerUserId, CancellationToken token)
+    {
+        var subscription = await Context.AccountSubscriptions.AsNoTracking().FirstOrDefaultAsync(s => s.OwnerUserId == ownerUserId, token);
+        var pending = new Dictionary<Guid, IReadOnlyList<string>>();
+        if (subscription is null || subscription.PurgeState is not (DataPurgeState.HardDeleting or DataPurgeState.HardDeleteFailed)) return pending;
+        foreach (var tenantId in await OwnerTenantIdsAsync(ownerUserId, token))
+        {
+            var services = await _confirmations.PendingAsync(subscription.Id, tenantId, token);
+            if (services.Count > 0) pending[tenantId] = services;
+        }
+        return pending;
     }
 
     /// <summary>
@@ -173,7 +179,7 @@ public class PlatformAccountDeletionService
         var tenantIds = tenants.Select(t => t.Id).ToList();
         var (deleteUserIds, detachUserIds) = await ErasureUsers.PartitionAsync(Context, tenantIds, ownerUserId, token);
 
-        await _eraser.EraseAsync(new AccountErasureScope(ownerUserId, subscription.Id, tenantIds), token);
+        await _eraser.EraseAsync(new AccountErasureScope(ownerUserId, subscription.Id, tenantIds, deleteUserIds), token);
 
         await _publisher.Publish(new AccountHardDeleted
         {
@@ -206,9 +212,6 @@ public class PlatformAccountDeletionService
             }, ctx => ctx.Headers.Set("X-Tenant-ID", tenantId.ToString()), token);
         }
     }
-
-    private static string DoneKey(Guid subscriptionId, Guid tenantId) =>
-        $"{BillingEventTypes.HardDeleteCompanyDone}:{subscriptionId:N}:{tenantId:N}";
 
     private async Task<AccountSubscription> RequireAsync(Guid ownerUserId, CancellationToken token) =>
         await Context.AccountSubscriptions.FirstOrDefaultAsync(s => s.OwnerUserId == ownerUserId, token)

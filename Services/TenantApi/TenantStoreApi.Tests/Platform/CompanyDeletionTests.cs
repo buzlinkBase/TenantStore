@@ -43,11 +43,11 @@ public class CompanyDeletionTests
 
         private TenantStoreAccountEraser Eraser => new(Host.Uow, Rows);
 
-        public PlatformCompanyDeletionService CompanyDeletion => new(Host.Uow, Host.Events, Host.Publisher.Object, Eraser, Host.Clock);
+        public PlatformCompanyDeletionService CompanyDeletion => new(Host.Uow, Host.Events, Host.Publisher.Object, Eraser, Host.Confirmations, Host.Clock);
 
         public AccountDeletionRequestService Requests => new(
             Host.Uow, new PlatformDirectoryService(Host.Uow, Host.StateMachine),
-            new PlatformAccountDeletionService(Host.Uow, Host.Events, Host.Notifier, Host.Publisher.Object, Eraser, Host.Clock),
+            new PlatformAccountDeletionService(Host.Uow, Host.Events, Host.Notifier, Host.Publisher.Object, Eraser, Host.Confirmations, Host.Clock),
             CompanyDeletion, Host.Events, AccountDeletionGuards.Default, AccountDeletionGuards.Company,
             Microsoft.Extensions.Options.Options.Create(Host.Options), Host.Clock);
 
@@ -77,20 +77,25 @@ public class CompanyDeletionTests
             await Host.SaveAsync();
         }
 
-        public async Task ReportAsync(bool succeeded = true)
+        /// <summary>Answers from <paramref name="sources"/>; by default a success from every service, a failure from hrms-api.</summary>
+        public async Task ReportAsync(bool succeeded = true, params string[] sources)
         {
+            if (sources.Length == 0) sources = succeeded ? [PurgeSources.Hrms, PurgeSources.Adms, PurgeSources.Portal] : [PurgeSources.Hrms];
             var subscription = Host.SubscriptionOf(Owner);
-            var handled = await CompanyDeletion.RecordResultAsync(new CompanyDataPurged
+            foreach (var source in sources)
             {
-                OwnerUserId = Owner,
-                SubscriptionId = subscription.Id,
-                TenantId = Test,
-                Stage = CompanyPurgeStage.HardDelete,
-                Succeeded = succeeded,
-                Error = succeeded ? null : "boom",
-            }, CancellationToken.None);
-            handled.Should().BeTrue();
-            await Host.SaveAsync();
+                var handled = await CompanyDeletion.RecordResultAsync(new CompanyDataPurged
+                {
+                    OwnerUserId = Owner,
+                    SubscriptionId = subscription.Id,
+                    TenantId = Test,
+                    Stage = CompanyPurgeStage.HardDelete,
+                    Succeeded = succeeded,
+                    Error = succeeded ? null : "boom",
+                }, source, CancellationToken.None);
+                handled.Should().BeTrue();
+                await Host.SaveAsync();
+            }
         }
     }
 
@@ -206,7 +211,7 @@ public class CompanyDeletionTests
         await f.ReportAsync(succeeded: false);
         var parked = (await f.Requests.GetLatestForCompanyAsync(f.Test))!;
         parked.Erasure.Should().Be(CompanyErasureStatus.Failed);
-        parked.ErasureError.Should().Be("boom");
+        parked.ErasureError.Should().Be("hrms: boom");
 
         f.Host.Publisher.Invocations.Clear();
         await f.CompanyDeletion.RetryAsync(f.Test, Alice.Actor, CancellationToken.None);
@@ -258,5 +263,92 @@ public class CompanyDeletionTests
         done.RequestedBy.Should().Be(Alice.Actor);
         done.ApprovedBy.Should().Be(Bob.Actor);
         f.Published<AccountHardDeleted>().Should().BeEmpty();
+    }
+
+    // ── Every service confirms ───────────────────────────────────────────────
+
+    [Fact]
+    public async Task TheCompanyIsErased_OnlyOnceEveryServiceHasConfirmed()
+    {
+        var f = await new Fixture().SeedAsync();
+        var request = await f.RequestAsync();
+        await f.ApproveAsync(request.Id);
+
+        await f.ReportAsync(true, PurgeSources.Hrms, PurgeSources.Portal);
+        f.Published<CompanyHardDeleted>().Should().BeEmpty("the device service hasn't confirmed");
+        (await f.CompanyDeletion.PendingConfirmationsAsync(f.Test, CancellationToken.None)).Should().Equal(PurgeSources.Adms);
+        (await f.Requests.GetLatestForCompanyAsync(f.Test))!.AwaitingServices.Should().Equal(PurgeSources.Adms);
+
+        await f.ReportAsync(true, PurgeSources.Adms);
+
+        f.Published<CompanyHardDeleted>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task AFailureFromTheClientPortal_ParksTheRequest_NamingIt()
+    {
+        var f = await new Fixture().SeedAsync();
+        var request = await f.RequestAsync();
+        await f.ApproveAsync(request.Id);
+
+        await f.ReportAsync(true, PurgeSources.Hrms, PurgeSources.Adms);
+        await f.ReportAsync(false, PurgeSources.Portal);
+
+        var parked = (await f.Requests.GetLatestForCompanyAsync(f.Test))!;
+        parked.Erasure.Should().Be(CompanyErasureStatus.Failed);
+        parked.ErasureError.Should().Be("portal: boom");
+        f.Published<CompanyHardDeleted>().Should().BeEmpty();
+
+        await f.CompanyDeletion.RetryAsync(f.Test, Alice.Actor, CancellationToken.None);
+        await f.Host.SaveAsync();
+        await f.ReportAsync(true, PurgeSources.Portal);
+
+        f.Published<CompanyHardDeleted>().Should().ContainSingle("hrms-api and adms had already confirmed");
+    }
+
+    [Fact]
+    public async Task Approve_ChangesTheAccountsConcurrencyStamp_SoAnAccountApprovalCantRaceIt()
+    {
+        var f = await new Fixture().SeedAsync();
+        var request = await f.RequestAsync();
+        var before = f.Host.SubscriptionOf(f.Owner).ConcurrencyStamp;
+
+        await f.ApproveAsync(request.Id);
+
+        f.Host.SubscriptionOf(f.Owner).ConcurrencyStamp.Should().NotBe(before);
+    }
+
+    [Fact]
+    public async Task WhileACompanyIsBeingErased_TheAccountCantBePutOnLegalHold_ButCanStillBeReinstated()
+    {
+        var f = await new Fixture().SeedAsync();
+        var request = await f.RequestAsync();
+        await f.ApproveAsync(request.Id);
+        var actions = new PlatformAccountActionsService(
+            f.Host.Uow, f.Host.Subscriptions, f.Host.Events, f.Host.Notifier, f.Host.StateMachine,
+            Microsoft.Extensions.Options.Options.Create(f.Host.Options), f.Host.Gateway, f.Host.Clock);
+
+        var hold = () => actions.SetLegalHoldAsync(f.Owner, "Tax audit", Alice.Actor);
+
+        await hold.Should().ThrowAsync<SubscriptionRuleException>().WithMessage("*companies is being deleted*");
+        var reinstate = () => actions.ReinstateAsync(f.Owner, "Paid", Alice.Actor);
+        await reinstate.Should().ThrowAsync<SubscriptionRuleException>().WithMessage("*nothing to reinstate*",
+            "a company's erasure leaves the account itself alone; the trial is simply still running");
+    }
+
+    [Fact]
+    public async Task TheView_AsksForTheCompanysCurrentName_AfterARename()
+    {
+        var f = await new Fixture().SeedAsync();
+        var request = await f.RequestAsync();
+        f.Host.Uow.Context.Tenants.Single(t => t.Id == f.Test).TenantName = "Acme Sandbox";
+        await f.Host.SaveAsync();
+
+        var pending = (await f.Requests.ListPendingAsync()).Single(r => r.Id == request.Id);
+
+        pending.CompanyName.Should().Be("Acme Test", "what the requester typed");
+        pending.ConfirmWith.Should().Be("Acme Sandbox", "what the approver must type now");
+        var approve = () => f.Requests.ApproveAsync(request.Id, "Acme Sandbox", Bob);
+        await approve.Should().NotThrowAsync();
     }
 }

@@ -52,6 +52,7 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Analyzers" Version="9.0.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.2" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Proxies" Version="9.0.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.2" />

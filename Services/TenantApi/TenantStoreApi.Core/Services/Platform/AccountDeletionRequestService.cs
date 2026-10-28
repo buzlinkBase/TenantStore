@@ -13,7 +13,12 @@ public sealed record PlatformOperator(Guid Id, string Actor);
 /// <summary>What an approval started: a whole account's erasure, or one company's (<paramref name="TenantId"/> set).</summary>
 public sealed record ApprovedDeletion(Guid OwnerUserId, Guid? TenantId);
 
-/// <summary>A deletion request as the console shows it. <see cref="TenantId"/> is set for one company's deletion.</summary>
+/// <summary>
+/// A deletion request as the console shows it. <see cref="TenantId"/> is set for one company's deletion.
+/// <see cref="ConfirmWith"/> is what an approver must type NOW -- the owner's current email, or the
+/// company's current name -- which may differ from what the requester typed if it changed meanwhile.
+/// <see cref="AwaitingServices"/>: while erasing, the services that haven't confirmed yet.
+/// </summary>
 public sealed record AccountDeletionRequestView(
     Guid Id,
     Guid OwnerUserId,
@@ -32,7 +37,9 @@ public sealed record AccountDeletionRequestView(
     string? DecidedBy,
     DateTime? DecidedAtUtc,
     string? DecisionReason,
-    bool SecondApproverRequired);
+    bool SecondApproverRequired,
+    string? ConfirmWith = null,
+    IReadOnlyList<string>? AwaitingServices = null);
 
 /// <summary>
 /// The two-person rule in front of <see cref="PlatformAccountDeletionService"/> and
@@ -225,8 +232,17 @@ public class AccountDeletionRequestService
             .Where(r => r.RequestStatus == AccountDeletionRequestStatus.Pending && r.ExpiresAtUtc > now)
             .OrderBy(r => r.RequestedAtUtc)
             .ToListAsync(token);
-        var names = await CompanyNamesAsync(requests.Select(r => r.OwnerUserId).Distinct().ToList(), token);
-        return requests.Select(r => ToView(r, names.GetValueOrDefault(r.OwnerUserId) ?? [])).ToList();
+        var ownerIds = requests.Select(r => r.OwnerUserId).Distinct().ToList();
+        var names = await CompanyNamesAsync(ownerIds, token);
+        var emails = await _directory.OwnerIdentitiesAsync(ownerIds, token);
+        var companyIds = requests.Where(r => r.TenantId != null).Select(r => r.TenantId!.Value).ToList();
+        var currentNames = await Context.Tenants.AsNoTracking()
+            .Where(t => companyIds.Contains(t.Id))
+            .Select(t => new { t.Id, t.TenantName })
+            .ToDictionaryAsync(t => t.Id, t => t.TenantName, token);
+        return requests.Select(r => ToView(r, names.GetValueOrDefault(r.OwnerUserId) ?? [],
+            r.TenantId is { } tenantId ? currentNames.GetValueOrDefault(tenantId)?.Trim() : emails.GetValueOrDefault(r.OwnerUserId).Email?.Trim(),
+            awaiting: null)).ToList();
     }
 
     /// <summary>The account's latest request to erase the whole account (whatever its outcome), or null when it never had one.</summary>
@@ -236,7 +252,9 @@ public class AccountDeletionRequestService
             .Where(r => r.OwnerUserId == ownerUserId && r.TenantId == null)
             .OrderByDescending(r => r.RequestedAtUtc)
             .FirstOrDefaultAsync(token);
-        return request is null ? null : await ToViewAsync(request, token);
+        if (request is null) return null;
+        var pending = await _deletion.PendingConfirmationsAsync(ownerUserId, token);
+        return await ToViewAsync(request, token, pending.Values.SelectMany(s => s).Distinct().ToList());
     }
 
     /// <summary>The company's latest deletion request (whatever its outcome), or null when it never had one.</summary>
@@ -246,7 +264,9 @@ public class AccountDeletionRequestService
             .Where(r => r.TenantId == tenantId)
             .OrderByDescending(r => r.RequestedAtUtc)
             .FirstOrDefaultAsync(token);
-        return request is null ? null : await ToViewAsync(request, token);
+        if (request is null) return null;
+        var awaiting = request.Erasure == null ? null : await _companyDeletion.PendingConfirmationsAsync(tenantId, token);
+        return await ToViewAsync(request, token, awaiting);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -331,17 +351,32 @@ public class AccountDeletionRequestService
             .ToDictionary(g => g.Key, g => g.Select(r => r.TenantName ?? "(unnamed)").OrderBy(n => n).ToList());
     }
 
-    private async Task<AccountDeletionRequestView> ToViewAsync(AccountDeletionRequest request, CancellationToken token)
+    private async Task<AccountDeletionRequestView> ToViewAsync(
+        AccountDeletionRequest request, CancellationToken token, IReadOnlyList<string>? awaiting = null)
     {
         var names = await CompanyNamesAsync([request.OwnerUserId], token);
-        return ToView(request, names.GetValueOrDefault(request.OwnerUserId) ?? []);
+        string? confirmWith;
+        if (request.TenantId is { } tenantId)
+        {
+            confirmWith = (await Context.Tenants.AsNoTracking().Where(t => t.Id == tenantId)
+                .Select(t => t.TenantName).FirstOrDefaultAsync(token))?.Trim();
+        }
+        else
+        {
+            var identities = await _directory.OwnerIdentitiesAsync([request.OwnerUserId], token);
+            confirmWith = identities.GetValueOrDefault(request.OwnerUserId).Email?.Trim();
+        }
+        return ToView(request, names.GetValueOrDefault(request.OwnerUserId) ?? [], confirmWith, awaiting);
     }
 
-    private AccountDeletionRequestView ToView(AccountDeletionRequest r, IReadOnlyList<string> companyNames) => new(
+    private AccountDeletionRequestView ToView(
+        AccountDeletionRequest r, IReadOnlyList<string> companyNames, string? confirmWith, IReadOnlyList<string>? awaiting) => new(
         r.Id, r.OwnerUserId, r.TenantId, r.CompanyName, r.Erasure, r.ErasureError, r.OwnerEmail,
         r.TenantId != null && r.CompanyName != null ? [r.CompanyName] : companyNames, r.Reason,
         // Nobody marks a request expired: it simply ran out.
         r.RequestStatus == AccountDeletionRequestStatus.Pending && r.ExpiresAtUtc <= Now ? AccountDeletionRequestStatus.Expired : r.RequestStatus,
         r.RequestedById, r.RequestedBy, r.RequestedAtUtc, r.ExpiresAtUtc, r.DecidedBy, r.DecidedAtUtc, r.DecisionReason,
-        _options.RequireSecondDeletionApprover);
+        _options.RequireSecondDeletionApprover,
+        string.IsNullOrEmpty(confirmWith) ? null : confirmWith,
+        awaiting);
 }

@@ -118,9 +118,17 @@ public class AccountEraserService
             .OrderBy(e => e)
             .ToListAsync(token);
 
-        // Detach first, while the rows are still tracked normally.
+        // Their emails, for the email-only tokens (a reset or verification link sent before the login existed).
+        var deleteEmails = await Context.Users.AsNoTracking()
+            .Where(u => deleteIds.Contains(u.Id) && u.Email != null)
+            .Select(u => u.Email!)
+            .ToListAsync(token);
+
+        // Detach first, while the rows are still tracked normally. Anyone who keeps a login and still
+        // points at an erased company is moved off it -- also a user Tenant Service never listed (an
+        // invitation accepted without a membership left behind).
         var detached = await Context.Users
-            .Where(u => detachIds.Contains(u.Id) && u.DefaultTenantId != null && tenantIds.Contains(u.DefaultTenantId.Value))
+            .Where(u => !deleteIds.Contains(u.Id) && u.DefaultTenantId != null && tenantIds.Contains(u.DefaultTenantId.Value))
             .ToListAsync(token);
         foreach (var user in detached)
         {
@@ -133,7 +141,7 @@ public class AccountEraserService
             .Where(a => organizations.Contains(a.OrganizationId!) || actors.Contains(a.ActorId!)), token);
         await _rows.EraseAsync(All<RefreshToken>()
             .Where(t => deleteIds.Contains(t.UserId) || tenantIdsNullable.Contains(t.TenantId)), token);
-        await _rows.EraseAsync(All<EmailToken>().Where(t => deleteIdsNullable.Contains(t.UserId)), token);
+        await _rows.EraseAsync(All<EmailToken>().Where(t => deleteIdsNullable.Contains(t.UserId) || deleteEmails.Contains(t.Email)), token);
         await _rows.EraseAsync(All<ApiToken>()
             .Where(t => deleteIdsNullable.Contains(t.UserId) || tenantIdsNullable.Contains(t.TenantId)), token);
         await _rows.EraseAsync(All<Invitation>().Where(i => tenantIds.Contains(i.TenantId) || deleteIds.Contains(i.UserId)), token);
@@ -145,7 +153,7 @@ public class AccountEraserService
 
         await _uow.CommitChangesAsync($"{message.Action} {message.RequestId}", token);
 
-        foreach (var userId in deleteIds.Concat(detachIds))
+        foreach (var userId in deleteIds.Concat(detachIds).Concat(detached.Select(u => u.Id)).Distinct())
         {
             await _membershipCache.InvalidateAsync(userId);
         }

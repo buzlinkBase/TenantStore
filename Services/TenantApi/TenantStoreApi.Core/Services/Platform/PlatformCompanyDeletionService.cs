@@ -14,9 +14,10 @@ namespace TenantStoreApi.Core.Services.Platform;
 /// <item><see cref="StartAsync"/> asks every service holding the company's data to delete it
 /// (<see cref="PurgeCompanyData"/>, stage <see cref="CompanyPurgeStage.HardDelete"/>); the request
 /// tracks progress (<see cref="CompanyErasureStatus"/>).</item>
-/// <item><see cref="RecordResultAsync"/> takes hrms-api's answer. A failure parks the request for an
-/// operator to retry; success deletes Tenant Service's rows for the company and hands its logins to
-/// Auth Service (<see cref="CompanyHardDeleted"/>), in one transaction.</item>
+/// <item><see cref="RecordResultAsync"/> takes each service's answer (<see cref="ErasureConfirmations"/>).
+/// A failure parks the request for an operator to retry; once every service has confirmed, Tenant
+/// Service's rows for the company are deleted and its logins handed to Auth Service
+/// (<see cref="CompanyHardDeleted"/>), in one transaction.</item>
 /// </list>
 /// Every step deletes by key, so repeating one is harmless. Doesn't commit: the caller owns the unit of work.
 /// </summary>
@@ -26,6 +27,7 @@ public class PlatformCompanyDeletionService
     private readonly BillingEventService _events;
     private readonly IPublishEndpoint _publisher;
     private readonly TenantStoreAccountEraser _eraser;
+    private readonly ErasureConfirmations _confirmations;
     private readonly TimeProvider _clock;
 
     public PlatformCompanyDeletionService(
@@ -33,12 +35,14 @@ public class PlatformCompanyDeletionService
         BillingEventService events,
         IPublishEndpoint publisher,
         TenantStoreAccountEraser eraser,
+        ErasureConfirmations confirmations,
         TimeProvider clock)
     {
         _uow = uow;
         _events = events;
         _publisher = publisher;
         _eraser = eraser;
+        _confirmations = confirmations;
         _clock = clock;
     }
 
@@ -52,6 +56,9 @@ public class PlatformCompanyDeletionService
     {
         var tenantId = request.TenantId ?? throw new InvalidOperationException("Not a company deletion request.");
         var subscription = await RequireSubscriptionAsync(request.OwnerUserId, token);
+        // Writes the account's row, so this approval and one for the whole account (or a second
+        // approval of this request) can't both pass the guards: the later save conflicts.
+        subscription.ConcurrencyStamp = Guid.NewGuid();
         request.Erasure = CompanyErasureStatus.Running;
         request.ErasureError = null;
         await _events.AddAsync(subscription, BillingEventTypes.HardDeleteRequested,
@@ -66,6 +73,7 @@ public class PlatformCompanyDeletionService
             .FirstOrDefaultAsync(r => r.TenantId == tenantId && r.Erasure != null, token)
             ?? throw new SubscriptionRuleException("This company isn't being deleted.");
         var subscription = await RequireSubscriptionAsync(request.OwnerUserId, token);
+        subscription.ConcurrencyStamp = Guid.NewGuid();
         request.Erasure = CompanyErasureStatus.Running;
         request.ErasureError = null;
         await _events.AddAsync(subscription, BillingEventTypes.HardDeleteRequested,
@@ -74,27 +82,46 @@ public class PlatformCompanyDeletionService
     }
 
     /// <summary>
-    /// Records hrms-api's answer if it is for a company being erased on its own. Returns false when it
-    /// isn't (then it belongs to a whole account's erasure, or to the yearly purge).
+    /// Records one service's answer (<paramref name="source"/>, see <c>PurgeSources</c>) if it is for a
+    /// company being erased on its own. Returns false when it isn't (then it belongs to a whole
+    /// account's erasure, or to the yearly purge). Every answer bumps the account's concurrency stamp,
+    /// so answers handled at once are applied one after the other (the loser is retried).
     /// </summary>
-    public async Task<bool> RecordResultAsync(CompanyDataPurged result, CancellationToken token)
+    public async Task<bool> RecordResultAsync(CompanyDataPurged result, string source, CancellationToken token)
     {
         var request = await Context.AccountDeletionRequests
             .FirstOrDefaultAsync(r => r.TenantId == result.TenantId && r.OwnerUserId == result.OwnerUserId && r.Erasure != null, token);
         if (request is null) return false;
+        if (!_confirmations.IsParticipant(source)) return true;
+        var subscription = await RequireSubscriptionAsync(request.OwnerUserId, token);
+        subscription.ConcurrencyStamp = Guid.NewGuid();
 
         if (!result.Succeeded)
         {
+            var error = $"{source}: {result.Error}";
             request.Erasure = CompanyErasureStatus.Failed;
-            request.ErasureError = result.Error is { Length: > 500 } error ? error[..500] : result.Error;
-            var subscription = await RequireSubscriptionAsync(request.OwnerUserId, token);
+            request.ErasureError = error.Length > 500 ? error[..500] : error;
             await _events.AddAsync(subscription, BillingEventTypes.HardDeleteFailed,
-                new { requestId = request.Id, result.TenantId, result.Error }, actor: "system", token: token);
+                new { requestId = request.Id, result.TenantId, source, result.Error }, actor: "system", token: token);
             return true;
         }
 
+        await _confirmations.ConfirmAsync(subscription, result, source, token);
+        if ((await _confirmations.PendingAsync(subscription.Id, result.TenantId, token)).Count > 0) return true;
+
         await FinalizeAsync(request, token);
         return true;
+    }
+
+    /// <summary>The services that haven't confirmed a company being erased on its own -- for the console.</summary>
+    public async Task<IReadOnlyList<string>> PendingConfirmationsAsync(Guid tenantId, CancellationToken token)
+    {
+        var request = await Context.AccountDeletionRequests.AsNoTracking()
+            .FirstOrDefaultAsync(r => r.TenantId == tenantId && r.Erasure != null, token);
+        if (request is null) return [];
+        var subscription = await Context.AccountSubscriptions.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.OwnerUserId == request.OwnerUserId, token);
+        return subscription is null ? [] : await _confirmations.PendingAsync(subscription.Id, tenantId, token);
     }
 
     /// <summary>
@@ -113,7 +140,8 @@ public class PlatformCompanyDeletionService
             .Where(t => t.Id == tenantId).Select(t => t.TenantName).FirstOrDefaultAsync(token);
         var (deleteUserIds, detachUserIds) = await ErasureUsers.PartitionAsync(Context, [tenantId], alsoInclude: null, token);
 
-        await _eraser.EraseCompanyAsync(new CompanyErasureScope(request.OwnerUserId, subscription?.Id ?? Guid.Empty, tenantId, request.Id), token);
+        await _eraser.EraseCompanyAsync(
+            new CompanyErasureScope(request.OwnerUserId, subscription?.Id ?? Guid.Empty, tenantId, request.Id, deleteUserIds), token);
 
         await _publisher.Publish(new CompanyHardDeleted
         {

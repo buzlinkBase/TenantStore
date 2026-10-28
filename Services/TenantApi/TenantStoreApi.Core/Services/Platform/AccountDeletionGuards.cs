@@ -56,6 +56,42 @@ public sealed class LivePaymentsDeletionGuard : IAccountDeletionGuard
     }
 }
 
+/// <summary>
+/// Storage add-on payments are real money too, and they can't be voided: an account that bought
+/// storage (anything but a free, zero-amount entry) isn't a test account and can't be erased.
+/// </summary>
+public sealed class StoragePaymentsDeletionGuard : IAccountDeletionGuard
+{
+    public async Task CheckAsync(TenantContext context, AccountSubscription subscription, CancellationToken token)
+    {
+        var paid = await context.StorageAddOnPayments.AsNoTracking()
+            .CountAsync(p => p.SubscriptionId == subscription.Id && p.Amount > 0, token);
+        if (paid > 0)
+            throw new SubscriptionRuleException(paid == 1
+                ? "This account paid for storage, so it isn't a test account and can't be deleted."
+                : $"This account has {paid} storage payments, so it isn't a test account and can't be deleted.");
+    }
+}
+
+/// <summary>
+/// An open online checkout may still be paid; erasing the account under it would leave the money with
+/// nowhere to go. "Still payable" is the window in which the reconciler still asks the gateway about
+/// an unpaid checkout (<see cref="Payments.SubscriptionCheckoutService.ReconcileOpenWindow"/>).
+/// </summary>
+public sealed class OpenCheckoutDeletionGuard(TimeProvider? clock = null) : IAccountDeletionGuard
+{
+    private readonly TimeProvider _clock = clock ?? TimeProvider.System;
+
+    public async Task CheckAsync(TenantContext context, AccountSubscription subscription, CancellationToken token)
+    {
+        var openSince = _clock.GetUtcNow().UtcDateTime - Payments.SubscriptionCheckoutService.ReconcileOpenWindow;
+        if (await context.PaymentCheckouts.AsNoTracking()
+                .AnyAsync(c => (c.SubscriptionId == subscription.Id || c.OwnerUserId == subscription.OwnerUserId)
+                    && c.CheckoutStatus == PaymentCheckoutStatus.Open && c.CreatedAtUtc >= openSince, token))
+            throw new SubscriptionRuleException("This account has an online checkout that can still be paid. Try again once it has expired (48 hours after it was opened).");
+    }
+}
+
 /// <summary>An account erasure already under way is retried, not requested again -- and none of its companies can be singled out meanwhile.</summary>
 public sealed class NotErasingDeletionGuard : IAccountDeletionGuard, ICompanyDeletionGuard
 {
@@ -119,6 +155,8 @@ public static class AccountDeletionGuards
         NoCompanyErasure,
         LegalHold,
         new LivePaymentsDeletionGuard(),
+        new StoragePaymentsDeletionGuard(),
+        new OpenCheckoutDeletionGuard(),
     ];
 
     public static IReadOnlyList<ICompanyDeletionGuard> Company { get; } =

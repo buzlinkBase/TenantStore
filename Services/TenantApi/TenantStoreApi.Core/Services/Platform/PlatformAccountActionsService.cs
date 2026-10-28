@@ -111,6 +111,7 @@ public class PlatformAccountActionsService
     {
         reason = RequireReason(reason);
         var subscription = await RequireAsync(ownerUserId, token);
+        await RequireNotErasingAsync(subscription, "reinstated", alsoCompanies: false, token);
         if (subscription.SubStatus is not (AccountSubscriptionStatus.Suspended or AccountSubscriptionStatus.Canceled or AccountSubscriptionStatus.Expired))
             throw new SubscriptionRuleException($"A {subscription.SubStatus} account has nothing to reinstate.");
 
@@ -340,6 +341,7 @@ public class PlatformAccountActionsService
             throw new SubscriptionRuleException("This account's data has already been destroyed; there is nothing to hold.");
         if (subscription.LegalHold)
             throw new SubscriptionRuleException("This account is already on legal hold.");
+        await RequireNotErasingAsync(subscription, "put on legal hold", alsoCompanies: true, token);
 
         subscription.LegalHold = true;
         subscription.LegalHoldReason = reason;
@@ -414,6 +416,21 @@ public class PlatformAccountActionsService
     private async Task<AccountSubscription> RequireAsync(Guid ownerUserId, CancellationToken token) =>
         await _subscriptions.FindAsync(ownerUserId, token)
         ?? throw new KeyNotFoundException("This account has no subscription.");
+
+    /// <summary>
+    /// Nothing may undo or second-guess an approved erasure halfway: data is already gone from some
+    /// services, so making the account writable again (or holding records that are partly deleted)
+    /// would leave it half there. Retry the erasure instead. <paramref name="alsoCompanies"/>: one
+    /// company's erasure counts too (a hold can't keep records that are half deleted).
+    /// </summary>
+    private async Task RequireNotErasingAsync(AccountSubscription subscription, string action, bool alsoCompanies, CancellationToken token)
+    {
+        if (subscription.PurgeState is DataPurgeState.HardDeleting or DataPurgeState.HardDeleteFailed)
+            throw new SubscriptionRuleException($"This account is being deleted, so it can't be {action}. Retry the deletion instead.");
+        if (alsoCompanies && await Context.AccountDeletionRequests.AsNoTracking()
+                .AnyAsync(r => r.OwnerUserId == subscription.OwnerUserId && r.TenantId != null && r.Erasure != null, token))
+            throw new SubscriptionRuleException($"One of this account's companies is being deleted, so the account can't be {action} until that finishes.");
+    }
 
     private static string RequireReason(string? reason)
     {

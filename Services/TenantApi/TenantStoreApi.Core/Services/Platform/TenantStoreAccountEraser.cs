@@ -25,11 +25,14 @@ public sealed class RelationalRowEraser : IRowEraser
         rows.ExecuteDeleteAsync(token);
 }
 
-/// <summary>What one account's erasure covers in Tenant Service.</summary>
-public sealed record AccountErasureScope(Guid OwnerUserId, Guid SubscriptionId, IReadOnlyCollection<Guid> TenantIds);
+/// <summary>What one account's erasure covers in Tenant Service. <paramref name="DeletedUserIds"/>: the
+/// logins that go with it (<see cref="ErasureUsers"/>), whose removed memberships elsewhere go too.</summary>
+public sealed record AccountErasureScope(
+    Guid OwnerUserId, Guid SubscriptionId, IReadOnlyCollection<Guid> TenantIds, IReadOnlyCollection<Guid>? DeletedUserIds = null);
 
 /// <summary>What one company's erasure covers in Tenant Service; the account keeps everything else.</summary>
-public sealed record CompanyErasureScope(Guid OwnerUserId, Guid SubscriptionId, Guid TenantId, Guid RequestId);
+public sealed record CompanyErasureScope(
+    Guid OwnerUserId, Guid SubscriptionId, Guid TenantId, Guid RequestId, IReadOnlyCollection<Guid>? DeletedUserIds = null);
 
 /// <summary>
 /// Deletes what Tenant Service holds for one account -- subscription and billing history, companies,
@@ -61,8 +64,11 @@ public class TenantStoreAccountEraser
         var paymentIds = await All<SubscriptionPayment>().Where(p => p.SubscriptionId == subscriptionId).Select(p => p.Id).ToListAsync(token);
         var overrideIds = await All<SubscriptionOverride>().Where(o => o.SubscriptionId == subscriptionId).Select(o => o.Id).ToListAsync(token);
         var discountIds = await All<SubscriptionDiscount>().Where(d => d.SubscriptionId == subscriptionId).Select(d => d.Id).ToListAsync(token);
+        var addOnIds = await All<StorageAddOn>().Where(a => a.SubscriptionId == subscriptionId).Select(a => a.Id).ToListAsync(token);
+        var addOnPaymentIds = await All<StorageAddOnPayment>().Where(p => p.SubscriptionId == subscriptionId).Select(p => p.Id).ToListAsync(token);
         // Audit rows about the account's own records written outside any company (an operator's change to the subscription).
-        var entityIds = new[] { subscriptionId }.Concat(paymentIds).Concat(overrideIds).Concat(discountIds).Select(id => id.ToString()).ToList();
+        var entityIds = new[] { subscriptionId }.Concat(paymentIds).Concat(overrideIds).Concat(discountIds)
+            .Concat(addOnIds).Concat(addOnPaymentIds).Select(id => id.ToString()).ToList();
 
         long deleted = await _rows.EraseAsync(All<AuditEventRecord>().Where(a => entityIds.Contains(a.EntityId!)), token);
 
@@ -80,6 +86,7 @@ public class TenantStoreAccountEraser
         deleted += await _rows.EraseAsync(All<AccountSubscription>().Where(s => s.Id == subscriptionId), token);
 
         deleted += await EraseCompaniesAsync(scope.TenantIds.ToList(), token);
+        deleted += await EraseLeftoverMembershipsAsync(scope.DeletedUserIds, scope.TenantIds, token);
         return deleted;
     }
 
@@ -106,6 +113,32 @@ public class TenantStoreAccountEraser
                     || (e.DedupeKey != null && e.DedupeKey.Contains(scope.TenantId.ToString("N"))))), token);
         deleted += await _rows.EraseAsync(All<AccountDeletionRequest>().Where(r => r.TenantId == scope.TenantId), token);
         deleted += await EraseCompaniesAsync([scope.TenantId], token);
+        deleted += await EraseLeftoverMembershipsAsync(scope.DeletedUserIds, [scope.TenantId], token);
+        return deleted;
+    }
+
+    /// <summary>
+    /// The removed (soft-deleted) memberships elsewhere of the people whose logins go -- the name and
+    /// email of someone who no longer exists. Only removed ones: a live membership elsewhere would
+    /// have kept the login (<see cref="ErasureUsers"/>).
+    /// </summary>
+    private async Task<long> EraseLeftoverMembershipsAsync(
+        IReadOnlyCollection<Guid>? deletedUserIds, IReadOnlyCollection<Guid> erasedTenantIds, CancellationToken token)
+    {
+        if (deletedUserIds is not { Count: > 0 }) return 0;
+        var userIds = deletedUserIds.ToList();
+        var erased = erasedTenantIds.ToList();
+        var membershipIds = await All<UserMembership>()
+            .Where(m => userIds.Contains(m.UserId) && !erased.Contains(m.TenantId))
+            .Select(m => m.Id)
+            .ToListAsync(token);
+        if (membershipIds.Count == 0) return 0;
+        var entityIds = membershipIds.Select(id => id.ToString()).ToList();
+
+        long deleted = await _rows.EraseAsync(All<AuditEventRecord>().Where(a => entityIds.Contains(a.EntityId!)), token);
+        deleted += await _rows.EraseAsync(All<ClientMembershipRole>().Where(r => membershipIds.Contains(r.UserMembershipId)), token);
+        deleted += await _rows.EraseAsync(All<MembershipRole>().Where(r => membershipIds.Contains(r.UserMembershipId)), token);
+        deleted += await _rows.EraseAsync(All<UserMembership>().Where(m => membershipIds.Contains(m.Id)), token);
         return deleted;
     }
 
