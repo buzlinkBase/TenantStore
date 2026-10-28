@@ -50,18 +50,40 @@ public class StorageAddOnTests
         var start = new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc);
         var end = new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc);
 
-        StorageAddOnPricing.Prorate(400m, 1, start, end, start).Should().Be(400m);
-        StorageAddOnPricing.Prorate(400m, 2, start, end, start.AddDays(15.5)).Should().Be(400m);
-        StorageAddOnPricing.Prorate(400m, 1, start, end, end).Should().Be(0m);
-        StorageAddOnPricing.Prorate(400m, 1, start, end, end.AddDays(3)).Should().Be(0m, "never negative");
+        StorageAddOnPricing.Prorate(400m, 1, BillingCycle.Monthly, end, start).Should().Be(400m);
+        StorageAddOnPricing.Prorate(400m, 2, BillingCycle.Monthly, end, start.AddDays(15.5)).Should().Be(400m);
+        StorageAddOnPricing.Prorate(400m, 1, BillingCycle.Monthly, end, end).Should().Be(0m);
+        StorageAddOnPricing.Prorate(400m, 1, BillingCycle.Monthly, end, end.AddDays(3)).Should().Be(0m, "never negative");
     }
 
     [Fact]
     public void Prorate_OnAnAnnualPeriod_UsesTheAnnualPrice()
     {
         var start = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        StorageAddOnPricing.Prorate(4000m, 1, start, start.AddYears(1), start).Should().Be(4000m);
-        StorageAddOnPricing.Prorate(4000m, 1, start, start.AddYears(1), start.AddDays(365.0 / 2)).Should().BeInRange(1990m, 2010m);
+        StorageAddOnPricing.Prorate(4000m, 1, BillingCycle.Annual, start.AddYears(1), start).Should().Be(4000m);
+        StorageAddOnPricing.Prorate(4000m, 1, BillingCycle.Annual, start.AddYears(1), start.AddDays(365.0 / 2)).Should().BeInRange(1990m, 2010m);
+    }
+
+    [Fact]
+    public void Prorate_WhenTheConsoleExtendedPastOneCycle_ChargesEveryCycleLeft()
+    {
+        var now = new DateTime(2026, 10, 28, 0, 0, 0, DateTimeKind.Utc);
+        var end = new DateTime(2026, 12, 30, 0, 0, 0, DateTimeKind.Utc);
+
+        // Dec 30 -> Nov 30 -> Oct 30 are two whole months, plus 2 of the 30 days before Oct 30.
+        StorageAddOnPricing.Prorate(800m, 1, BillingCycle.Monthly, end, now).Should().Be(1653.33m);
+        StorageAddOnPricing.Prorate(800m, 2, BillingCycle.Monthly, end, now).Should().Be(3306.67m);
+        // An exact number of cycles left costs exactly that many.
+        StorageAddOnPricing.Prorate(800m, 1, BillingCycle.Monthly, end, end.AddMonths(-2)).Should().Be(1600m);
+    }
+
+    [Fact]
+    public void Prorate_AnnualExtendedPastOneYear_ChargesTheExtraYear()
+    {
+        var now = new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc);
+        StorageAddOnPricing.Prorate(4000m, 1, BillingCycle.Annual, now.AddYears(2), now).Should().Be(8000m);
+        StorageAddOnPricing.Prorate(4000m, 1, BillingCycle.Annual, now.AddYears(1).AddMonths(6), now)
+            .Should().BeInRange(5990m, 6010m);
     }
 
     // ── Who may buy what ─────────────────────────────────────────────────────────────────────

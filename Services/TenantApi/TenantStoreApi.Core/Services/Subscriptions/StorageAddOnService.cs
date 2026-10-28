@@ -53,17 +53,24 @@ public static class StorageAddOnPricing
             .Sum(a => BlocksAtRenewal(a, subscription.CurrentPeriodEndUtc) * UnitPrice(a, cycle));
 
     /// <summary>
-    /// The charge for blocks bought mid-period: their price for the whole period (<paramref name="cycleUnitPrice"/>
-    /// is already the monthly or the annual one), for the part of it still to run. The period's length
-    /// comes from its own start and end, so an odd-length period still prorates to exactly 0..1 of the
-    /// full price.
+    /// The charge for blocks bought mid-period: their price for each billing cycle still to run until the
+    /// period end (<paramref name="cycleUnitPrice"/> is already the monthly or the annual one). A console
+    /// extension can leave more than one cycle to run, so whole cycles are counted back from the end and
+    /// the part left over is prorated against the length of that last cycle.
     /// </summary>
-    public static decimal Prorate(decimal cycleUnitPrice, int blocks, DateTime periodStartUtc, DateTime periodEndUtc, DateTime nowUtc)
+    public static decimal Prorate(decimal cycleUnitPrice, int blocks, BillingCycle cycle, DateTime periodEndUtc, DateTime nowUtc)
     {
-        var total = (periodEndUtc - periodStartUtc).TotalSeconds;
-        if (total <= 0) return 0;
-        var remaining = Math.Clamp((periodEndUtc - nowUtc).TotalSeconds, 0, total);
-        return Math.Round(cycleUnitPrice * blocks * (decimal)(remaining / total), 2, MidpointRounding.AwayFromZero);
+        if (nowUtc >= periodEndUtc) return 0;
+
+        DateTime StepBack(int cycles) => cycle == BillingCycle.Annual ? periodEndUtc.AddYears(-cycles) : periodEndUtc.AddMonths(-cycles);
+
+        var whole = 0;
+        while (StepBack(whole + 1) >= nowUtc) whole++;
+
+        var cycleStart = StepBack(whole + 1);
+        var cycleEnd = StepBack(whole);
+        var fraction = (cycleEnd - nowUtc).TotalSeconds / (cycleEnd - cycleStart).TotalSeconds;
+        return Math.Round(cycleUnitPrice * blocks * (whole + (decimal)fraction), 2, MidpointRounding.AwayFromZero);
     }
 }
 
@@ -230,7 +237,7 @@ public class StorageAddOnService
         var periodEnd = subscription.CurrentPeriodEndUtc!.Value;
         var periodStart = subscription.CurrentPeriodStartUtc ?? (cycle == BillingCycle.Annual ? periodEnd.AddYears(-1) : periodEnd.AddMonths(-1));
         var unitPrice = StorageAddOnPricing.UnitPrice(offering, cycle);
-        var amount = StorageAddOnPricing.Prorate(unitPrice, blocks, periodStart, periodEnd, now);
+        var amount = StorageAddOnPricing.Prorate(unitPrice, blocks, cycle, periodEnd, now);
 
         var currentPaid = subscription.StorageAddOns
             .Where(a => a.DeletedAt == null && !a.IsComplimentary)
