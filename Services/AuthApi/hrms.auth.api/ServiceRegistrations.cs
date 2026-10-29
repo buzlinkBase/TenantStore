@@ -164,7 +164,11 @@ public static class ServiceRegistrations
         builder.Services.AddAuthorizationBuilder()
         .SetFallbackPolicy(new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
-        .Build());
+        .Build())
+        // The internal gRPC services: a signed-in user, or another service with the shared key.
+        .AddPolicy(Authorization.InternalServiceAuthorization.Policy, policy =>
+            policy.AddRequirements(new Authorization.InternalServiceRequirement()));
+        builder.Services.AddSingleton<IAuthorizationHandler, Authorization.InternalServiceHandler>();
 
         // Auth signs its own tokens with RSA (see RsaKeyProvider/JwtService.CreateTokenAsync) —
         // validate incoming requests to Auth's own API using that same key directly, no HTTP

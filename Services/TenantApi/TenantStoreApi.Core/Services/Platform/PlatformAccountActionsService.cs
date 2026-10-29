@@ -203,6 +203,78 @@ public class PlatformAccountActionsService
     }
 
     /// <summary>
+    /// Sets the date the current plan runs to -- the paid period's end, or the trial's when there is no
+    /// paid period -- without changing the plan: to correct a date set by mistake, or to test expiry.
+    /// Any date may be given, past ones included. The account is put back on the footing that date
+    /// implies (Active for a paid period, Trialing for a trial) and then moved on exactly as the
+    /// lifecycle job would at this moment, so a date in the past lapses it now (past due, suspended
+    /// after grace, or an expired trial). A downgrade scheduled for the period end moves with it.
+    /// Not for a canceled account or one an operator suspended: reinstate or set a plan instead.
+    /// </summary>
+    public async Task SetPeriodEndAsync(Guid ownerUserId, DateTime endUtc, string? reason, string? actor, CancellationToken token = default)
+    {
+        reason = RequireReason(reason);
+        endUtc = DateTime.SpecifyKind(endUtc, DateTimeKind.Utc);
+        var now = Now;
+        if (endUtc > now.AddDays(MaxExtensionDays * 5))
+            throw new SubscriptionRuleException("The end date can be at most five years from today.");
+
+        var subscription = await RequireAsync(ownerUserId, token);
+        await RequireNotErasingAsync(subscription, "changed", alsoCompanies: false, token);
+        var operatorSuspended = subscription.SubStatus == AccountSubscriptionStatus.Suspended && subscription.SuspensionReason != null;
+        if (subscription.SubStatus == AccountSubscriptionStatus.Canceled || operatorSuspended)
+            throw new SubscriptionRuleException("A canceled or operator-suspended account has no running plan to change the end of. Reinstate it or set a plan instead.");
+
+        var from = subscription.SubStatus;
+        string which;
+        DateTime? oldEnd;
+        DateTime? startMovedTo = null;
+        if (subscription.CurrentPeriodEndUtc is { } periodEnd)
+        {
+            // An end before the period began (say, testing expiry right after a payment) would leave a
+            // period of negative length: the start moves back to one billing cycle before the new end.
+            if (subscription.CurrentPeriodStartUtc is { } start && endUtc <= start)
+            {
+                startMovedTo = subscription.BillingCycle == BillingCycle.Annual ? endUtc.AddYears(-1) : endUtc.AddMonths(-1);
+                subscription.CurrentPeriodStartUtc = startMovedTo;
+            }
+
+            which = "period";
+            oldEnd = periodEnd;
+            subscription.CurrentPeriodEndUtc = endUtc;
+            if (subscription.PendingChangeTiming == PlanChangeTiming.AtPeriodEnd && subscription.PendingChangeEffectiveAtUtc is { } effective)
+                subscription.PendingChangeEffectiveAtUtc = effective + (endUtc - periodEnd);
+            subscription.SubStatus = AccountSubscriptionStatus.Active;
+        }
+        else if (subscription.TrialEndsAtUtc is { } trialEnd)
+        {
+            which = "trial";
+            oldEnd = trialEnd;
+            subscription.TrialEndsAtUtc = endUtc;
+            subscription.SubStatus = AccountSubscriptionStatus.Trialing;
+        }
+        else
+        {
+            throw new SubscriptionRuleException("This account has neither a paid period nor a trial. Set a plan with a paid-up-to date instead.");
+        }
+        subscription.GraceEndsAtUtc = null;
+        subscription.SuspensionReason = null;
+
+        var transitions = _states.Advance(subscription, now, _options);
+        // Running again (the date is still ahead, or within grace): a lapse's purge date no longer applies.
+        if (subscription.SubStatus is AccountSubscriptionStatus.Active or AccountSubscriptionStatus.Trialing or AccountSubscriptionStatus.PastDue)
+            subscription.PurgeAfterUtc = null;
+        Touch(subscription);
+
+        await _events.AddAsync(subscription, BillingEventTypes.PeriodEndSet,
+            new { which, from = oldEnd, to = endUtc, startMovedTo, statusBefore = from.ToString(), statusAfter = subscription.SubStatus.ToString(), reason },
+            actor, token: token);
+        foreach (var transition in transitions)
+            await _events.AddAsync(subscription, transition.EventType, new { transition.From, transition.To, cause = "period end set" }, actor, token: token);
+        await _notifier.PublishAsync(ownerUserId, BillingEventTypes.PeriodEndSet, token);
+    }
+
+    /// <summary>
     /// Marks a payment recorded in error as void -- never deleted, the money trail stays. If it is the
     /// payment that set the current paid period, that period falls back to the previous live payment's
     /// (or to nothing: the trial if it's still running, otherwise Expired), and whatever time-driven

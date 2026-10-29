@@ -193,6 +193,21 @@ public class PlanAllowanceTests
     }
 
     [Fact]
+    public async Task ACompany_IsWritable_UntilItsSubscriptionGoesReadOnly()
+    {
+        var host = new SubscriptionTestHost();
+        var (owner, tenantId) = await host.TrialAccountAsync();
+        (await host.Allowance.CheckWritableAsync(tenantId)).Allowed.Should().BeTrue();
+
+        host.SubscriptionOf(owner).SubStatus = AccountSubscriptionStatus.Expired;
+        await host.SaveAsync();
+
+        var allowance = await host.Allowance.CheckWritableAsync(tenantId);
+        allowance.Allowed.Should().BeFalse();
+        allowance.ProblemType.Should().Be(SubscriptionProblemTypes.ReadOnly);
+    }
+
+    [Fact]
     public async Task AdminSeats_CountActiveAndInvited_NotPortalOnlyMembers()
     {
         var host = new SubscriptionTestHost();

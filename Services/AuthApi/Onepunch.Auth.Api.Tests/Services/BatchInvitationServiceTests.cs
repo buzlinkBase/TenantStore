@@ -74,7 +74,8 @@ public class BatchInvitationServiceTests
             publisher.Object,
             null!,
             membershipCache,
-            grpc!,
+            // Loose by default: the company is writable and nothing else is asked of Tenant Service.
+            grpc ?? new Mock<MembershipGrpcClient>(MockBehavior.Loose, new object[] { null! }).Object,
             new AuthAuditRecorder(writer.Object));
         return new Sut(service, context, publisher, audited);
     }
@@ -285,6 +286,21 @@ public class BatchInvitationServiceTests
         var request = EmployeeBatch("alex@test.com");
         request.Role = "Admin";
         return request;
+    }
+
+    [Fact]
+    public async Task SendBatch_IsRefused_WhileTheCompanyIsReadOnly_AndSendsNothing()
+    {
+        var grpc = new Mock<MembershipGrpcClient>(MockBehavior.Loose, new object[] { null! });
+        grpc.Setup(g => g.EnsureCompanyWritableAsync(TenantId, It.IsAny<int>()))
+            .ThrowsAsync(new Onepunch.Common.Lib.Subscriptions.PlanRestrictionException(
+                Onepunch.Common.Lib.Subscriptions.SubscriptionProblemTypes.ReadOnly, "Your subscription is read-only."));
+        var sut = CreateSut(grpc: grpc.Object);
+
+        var act = () => sut.Service.SendBatchAsync(EmployeeBatch("alex@test.com"), TenantId, "Acme", "key-1", CanInvite, default);
+
+        await act.Should().ThrowAsync<Onepunch.Common.Lib.Subscriptions.PlanRestrictionException>();
+        (await sut.Context.Invitations.AnyAsync()).Should().BeFalse();
     }
 
     [Fact]

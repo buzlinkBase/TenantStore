@@ -316,6 +316,146 @@ public class PlatformAccountActionsServiceTests
         (await act.Should().ThrowAsync<SubscriptionRuleException>()).Which.Message.Should().Contain("trial extension");
     }
 
+    // ── Set the end date ─────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task SetPeriodEnd_CorrectsThePaidPeriodEnd_WithoutChangingThePlan()
+    {
+        var host = new SubscriptionTestHost();
+        var owner = await ActiveAccountAsync(host);
+        var plan = host.SubscriptionOf(owner).PlanId;
+        var newEnd = host.Clock.UtcNow.AddDays(90);
+
+        await Actions(host).SetPeriodEndAsync(owner, newEnd, "Wrong date entered", Operator);
+        await host.SaveAsync();
+
+        var subscription = host.SubscriptionOf(owner);
+        subscription.CurrentPeriodEndUtc.Should().Be(newEnd);
+        subscription.PlanId.Should().Be(plan);
+        subscription.SubStatus.Should().Be(AccountSubscriptionStatus.Active);
+        EventsOf(host, owner, BillingEventTypes.PeriodEndSet).Should().ContainSingle()
+            .Which.PayloadJson.Should().Contain("Wrong date entered").And.Contain("\"which\":\"period\"");
+    }
+
+    [Fact]
+    public async Task SetPeriodEnd_InThePastWithinGrace_MakesTheAccountPastDueAtOnce()
+    {
+        var host = new SubscriptionTestHost();
+        var owner = await ActiveAccountAsync(host);
+        var end = host.Clock.UtcNow.AddDays(-1);
+
+        await Actions(host).SetPeriodEndAsync(owner, end, "Testing expiry", Operator);
+        await host.SaveAsync();
+
+        var subscription = host.SubscriptionOf(owner);
+        subscription.SubStatus.Should().Be(AccountSubscriptionStatus.PastDue);
+        subscription.GraceEndsAtUtc.Should().Be(end.AddDays(host.Options.GraceDays));
+        EventsOf(host, owner, BillingEventTypes.PastDue).Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task SetPeriodEnd_PastTheGracePeriod_SuspendsTheAccountAtOnce()
+    {
+        var host = new SubscriptionTestHost();
+        var owner = await ActiveAccountAsync(host);
+
+        await Actions(host).SetPeriodEndAsync(owner, host.Clock.UtcNow.AddDays(-(host.Options.GraceDays + 2)), "Testing read-only", Operator);
+        await host.SaveAsync();
+
+        var subscription = host.SubscriptionOf(owner);
+        subscription.SubStatus.Should().Be(AccountSubscriptionStatus.Suspended);
+        subscription.SuspensionReason.Should().BeNull("a lapse, which paying undoes -- not an operator suspension");
+    }
+
+    [Fact]
+    public async Task SetPeriodEnd_ALapsedAccount_GivenAFutureDate_IsActiveAgain()
+    {
+        var host = new SubscriptionTestHost();
+        var owner = await ActiveAccountAsync(host);
+        await Actions(host).SetPeriodEndAsync(owner, host.Clock.UtcNow.AddDays(-60), "Testing", Operator);
+        await host.SaveAsync();
+        host.SubscriptionOf(owner).SubStatus.Should().Be(AccountSubscriptionStatus.Suspended);
+
+        await Actions(host).SetPeriodEndAsync(owner, host.Clock.UtcNow.AddDays(20), "Back to normal", Operator);
+        await host.SaveAsync();
+
+        var subscription = host.SubscriptionOf(owner);
+        subscription.SubStatus.Should().Be(AccountSubscriptionStatus.Active);
+        subscription.GraceEndsAtUtc.Should().BeNull();
+        subscription.PurgeAfterUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task SetPeriodEnd_OnATrial_MovesTheTrialEnd_AndExpiresItWhenPast()
+    {
+        var host = new SubscriptionTestHost();
+        var (owner, _) = await host.TrialAccountAsync();
+
+        await Actions(host).SetPeriodEndAsync(owner, host.Clock.UtcNow.AddHours(-1), "Testing trial expiry", Operator);
+        await host.SaveAsync();
+        host.SubscriptionOf(owner).SubStatus.Should().Be(AccountSubscriptionStatus.Expired);
+
+        var later = host.Clock.UtcNow.AddDays(3);
+        await Actions(host).SetPeriodEndAsync(owner, later, "Undo the test", Operator);
+        await host.SaveAsync();
+
+        var subscription = host.SubscriptionOf(owner);
+        subscription.SubStatus.Should().Be(AccountSubscriptionStatus.Trialing);
+        subscription.TrialEndsAtUtc.Should().Be(later);
+        subscription.CurrentPeriodEndUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task SetPeriodEnd_MovesAScheduledDowngradeWithIt()
+    {
+        var host = new SubscriptionTestHost();
+        var owner = await ActiveAccountAsync(host);
+        await host.Subscriptions.SetPlanAsync(owner, new SetPlanCommand { PlanCode = "premium", PeriodEndUtc = host.Clock.UtcNow.AddMonths(1) }, "platform");
+        await host.SaveAsync();
+        await host.Subscriptions.RequestPlanChangeAsync(owner, "payroll", BillingCycle.Monthly, "owner");
+        await host.SaveAsync();
+        var subscription = host.SubscriptionOf(owner);
+        var shift = TimeSpan.FromDays(12);
+        var effective = subscription.PendingChangeEffectiveAtUtc!.Value;
+
+        await Actions(host).SetPeriodEndAsync(owner, subscription.CurrentPeriodEndUtc!.Value + shift, "fix", Operator);
+        await host.SaveAsync();
+
+        host.SubscriptionOf(owner).PendingChangeEffectiveAtUtc.Should().Be(effective + shift);
+    }
+
+    [Fact]
+    public async Task SetPeriodEnd_RefusesCanceledAndOperatorSuspendedAccounts()
+    {
+        var host = new SubscriptionTestHost();
+        var suspended = await ActiveAccountAsync(host);
+        await Actions(host).SuspendAsync(suspended, "Chargeback dispute", Operator);
+        var canceled = await ActiveAccountAsync(host);
+        await Actions(host).CancelNowAsync(canceled, "Requested by owner", Operator);
+        await host.SaveAsync();
+
+        foreach (var owner in new[] { suspended, canceled })
+        {
+            var act = () => Actions(host).SetPeriodEndAsync(owner, host.Clock.UtcNow.AddDays(10), "reason", Operator);
+            await act.Should().ThrowAsync<SubscriptionRuleException>();
+        }
+    }
+
+    [Fact]
+    public async Task SetPeriodEnd_BeforeThePeriodStarted_MovesTheStartBackOneCycle()
+    {
+        var host = new SubscriptionTestHost();
+        var owner = await ActiveAccountAsync(host);
+        var end = host.SubscriptionOf(owner).CurrentPeriodStartUtc!.Value.AddDays(-1);
+
+        await Actions(host).SetPeriodEndAsync(owner, end, "Testing expiry right after paying", Operator);
+        await host.SaveAsync();
+
+        var subscription = host.SubscriptionOf(owner);
+        subscription.CurrentPeriodEndUtc.Should().Be(end);
+        subscription.CurrentPeriodStartUtc.Should().Be(end.AddMonths(-1));
+    }
+
     // ── Void a payment ───────────────────────────────────────────────────────
 
     private static async Task<(Guid Owner, SubscriptionPayment First, SubscriptionPayment Renewal)> TwoPaymentsAsync(SubscriptionTestHost host)

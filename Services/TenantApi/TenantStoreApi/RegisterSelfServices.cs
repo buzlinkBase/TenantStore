@@ -12,6 +12,7 @@ using System.Text;
 using TenantStoreApi.Core.Providers;
 using TenantStoreApi.Core.Utilities;
 using TenantStoreApi.Infrastructure;
+using TenantStoreApi;
 using TenantStoreApi.Security;
 
 public static class ServiceRegistrations
@@ -19,31 +20,33 @@ public static class ServiceRegistrations
     public static void RegisterSelfServices(this WebApplicationBuilder builder)
     {
         builder.Services.AddHttpContextAccessor();
+        // Every gRPC call to Auth carries the shared service key (see AuthServiceKeyHandler).
+        builder.Services.AddTransient<AuthServiceKeyHandler>();
         builder.Services.AddGrpcClient<CheckEmailService.CheckEmailServiceClient>(options =>
         {
             var authUrl = builder.Configuration["Grpc_AuthUrl"]?.ToString() ?? "";
             options.Address = new Uri(authUrl);
-        }).AddHeaderPropagation();
+        }).AddHeaderPropagation().AddHttpMessageHandler<AuthServiceKeyHandler>();
         builder.Services.AddGrpcClient<GetUserInfoService.GetUserInfoServiceClient>(options =>
         {
             var authUrl = builder.Configuration["Grpc_AuthUrl"]?.ToString() ?? "";
             options.Address = new Uri(authUrl);
-        }).AddHeaderPropagation();
+        }).AddHeaderPropagation().AddHttpMessageHandler<AuthServiceKeyHandler>();
         builder.Services.AddGrpcClient<Onepunch.Auth.Core.TenantProvisioningService.TenantProvisioningServiceClient>(options =>
         {
             var authUrl = builder.Configuration["Grpc_AuthUrl"]?.ToString() ?? "";
             options.Address = new Uri(authUrl);
-        });
+        }).AddHttpMessageHandler<AuthServiceKeyHandler>();
         builder.Services.AddGrpcClient<Onepunch.Auth.Core.AccountOriginsService.AccountOriginsServiceClient>(options =>
         {
             var authUrl = builder.Configuration["Grpc_AuthUrl"]?.ToString() ?? "";
             options.Address = new Uri(authUrl);
-        });
+        }).AddHttpMessageHandler<AuthServiceKeyHandler>();
         builder.Services.AddGrpcClient<Onepunch.Auth.Core.TenantActivityService.TenantActivityServiceClient>(options =>
         {
             var authUrl = builder.Configuration["Grpc_AuthUrl"]?.ToString() ?? "";
             options.Address = new Uri(authUrl);
-        });
+        }).AddHttpMessageHandler<AuthServiceKeyHandler>();
         // When each company last had a sign-in -- the Platform Console's "last active" column.
         builder.Services.AddScoped<TenantStoreApi.Core.Services.Platform.ITenantActivitySource, TenantStoreApi.Core.Services.Platform.AuthTenantActivitySource>();
         // Where accounts came from -- the Platform Console's Acquisition page.

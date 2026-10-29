@@ -78,6 +78,22 @@ public class PlanAllowanceService
                 $"Your plan allows {max} admin user{(max == 1 ? "" : "s")} per company. Upgrade to add more.", max, used);
     }
 
+    /// <summary>
+    /// Whether a company may be changed at all -- the same rule SubscriptionAccessFilter applies to
+    /// this service's own endpoints, decided for the company rather than the caller (who may change
+    /// it is the caller's permissions' business). Refused while read-only or stopped by an operator.
+    /// </summary>
+    public async Task<PlanAllowance> CheckWritableAsync(Guid tenantId, CancellationToken token = default)
+    {
+        if (!_options.EnforcementEnabled) return PlanAllowance.Yes(0, null);
+
+        var snapshot = await _resolver.ResolveForTenantAsync(tenantId, token);
+        var decision = SubscriptionAccessPolicy.Decide(snapshot, "POST", isBillingUser: true);
+        return SubscriptionAccessPolicy.Refusal(decision) is { } refusal
+            ? new(false, refusal.ProblemType, refusal.Message, null, 0)
+            : PlanAllowance.Yes(0, null);
+    }
+
     /// <summary>Whether giving <paramref name="roles"/> to someone currently holding none of them
     /// would take a new admin seat.</summary>
     public static bool TakesAdminSeat(IEnumerable<string> roles) =>

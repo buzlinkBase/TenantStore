@@ -198,6 +198,25 @@ public class TenantInfoServiceProvider : GetTenantService.GetTenantServiceBase
     }
 
     /// <summary>
+    /// Whether a company may be changed at all (read-only or operator-stopped companies may not) --
+    /// AuthApi asks before every invitation.
+    /// </summary>
+    public override async Task<PlanAllowanceResponse> CheckCompanyWritable(CompanyWritableRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.TenantId, out var tenantId))
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid GUID format for TenantId"));
+
+        var allowance = await _allowance.CheckWritableAsync(tenantId, context.CancellationToken);
+        return new PlanAllowanceResponse
+        {
+            Allowed = allowance.Allowed,
+            ProblemType = allowance.ProblemType ?? string.Empty,
+            Error = allowance.Error ?? string.Empty,
+            Unlimited = true,
+        };
+    }
+
+    /// <summary>
     /// Whether the inviting member may grant these roles (RoleGrantPolicy) -- AuthApi asks before
     /// sending an invitation with a role other than the default, since only this service knows
     /// what each role grants. An unknown or inactive caller may grant nothing.

@@ -78,6 +78,8 @@ public static class BillingEventTypes
     public const string Reinstated = "subscription.reinstated";
     public const string CanceledByAdmin = "subscription.canceled-by-admin";
     public const string PeriodExtended = "subscription.period-extended";
+    /// <summary>An operator set the current plan's end date directly (correction or expiry testing).</summary>
+    public const string PeriodEndSet = "subscription.period-end-set";
     public const string PaymentVoided = "payment.voided";
     /// <summary>An operator reviewed a gateway refund or dispute without changing the payment.</summary>
     public const string PaymentIssueReviewed = "payment.issue-reviewed";

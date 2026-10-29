@@ -36,7 +36,7 @@ namespace Onepunch.Auth.Api.Tests.Services;
 public class InvitationServiceTests
 {
     private static (InvitationService Sut, AuthContext Context, Mock<Microsoft.AspNetCore.Identity.UserManager<User>> UserManager, Mock<IPublishEndpoint> Publisher)
-        CreateSut()
+        CreateSut(MembershipGrpcClient? grpc = null)
     {
         var context = AuthTestContextFactory.CreateContext();
         var uow = AuthTestContextFactory.CreateUnitOfWork(context);
@@ -58,7 +58,9 @@ public class InvitationServiceTests
             publisher.Object,
             null!, // JwtService — not needed by any branch under test (see class doc comment)
             null!, // MembershipCacheService — same (see class doc comment)
-            null!  // MembershipGrpcClient — same; ResolveJoinedTenant below covers the activation merge
+            // MembershipGrpcClient — loose by default (the company is writable); ResolveJoinedTenant
+            // below covers the activation merge.
+            grpc ?? new Mock<MembershipGrpcClient>(MockBehavior.Loose, new object[] { null! }).Object
         );
 
         return (sut, context, userManager, publisher);
@@ -296,6 +298,28 @@ public class InvitationServiceTests
             new InvitationRequest { Email = "new-person@test.com" }, tenantId, "Acme", "app.test", SomeClaimsPrincipal(), default);
 
         context.Invitations.Should().ContainSingle(x => x.Email == "new-person@test.com");
+    }
+
+    [Fact]
+    public async Task SendUserInvitationAsync_IsRefused_WhileTheCompanyIsReadOnly_EvenForAnEmployee()
+    {
+        // An employee invite takes no admin seat, so only the writable check stands in its way.
+        var tenantId = Guid.NewGuid();
+        var grpc = new Mock<MembershipGrpcClient>(MockBehavior.Loose, new object[] { null! });
+        grpc.Setup(g => g.EnsureCompanyWritableAsync(tenantId, It.IsAny<int>()))
+            .ThrowsAsync(new Onepunch.Common.Lib.Subscriptions.PlanRestrictionException(
+                Onepunch.Common.Lib.Subscriptions.SubscriptionProblemTypes.ReadOnly, "Your subscription is read-only."));
+        var (sut, context, userManager, _) = CreateSut(grpc.Object);
+        userManager.Setup(m => m.GetUserAsync(It.IsAny<ClaimsPrincipal>()))
+            .ReturnsAsync(new User { Email = "admin@test.com", DefaultTenantRoles = ["Owner"] });
+        userManager.Setup(m => m.FindByEmailAsync("new@test.com")).ReturnsAsync((User?)null);
+
+        var act = () => sut.SendUserInvitationAsync(
+            new InvitationRequest { Email = "new@test.com" }, tenantId, "Acme", "app.test", SomeClaimsPrincipal(), default);
+
+        (await act.Should().ThrowAsync<Onepunch.Common.Lib.Subscriptions.PlanRestrictionException>())
+            .Which.ProblemType.Should().Be(Onepunch.Common.Lib.Subscriptions.SubscriptionProblemTypes.ReadOnly);
+        context.Invitations.Should().BeEmpty();
     }
 
     [Fact]

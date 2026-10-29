@@ -211,6 +211,34 @@ public class MembershipGrpcClient
     }
 
     /// <summary>
+    /// Asks Tenant Service whether the company may be changed at all -- refused (as a
+    /// <see cref="PlanRestrictionException"/>, 403 read-only / locked) while its subscription is
+    /// read-only or an operator stopped it. Fails closed like <see cref="EnsurePlanAllowsAsync"/>.
+    /// Virtual so service tests can stub it.
+    /// </summary>
+    public virtual async Task EnsureCompanyWritableAsync(Guid tenantId, int deadlineMilliseconds = 2000)
+    {
+        PlanAllowanceResponse response;
+        try
+        {
+            response = await _client.CheckCompanyWritableAsync(
+                new CompanyWritableRequest { TenantId = tenantId.ToString() },
+                deadline: DateTime.UtcNow.AddMilliseconds(deadlineMilliseconds));
+        }
+        catch (Exception ex)
+        {
+            Log.Logger.Warning(ex, "MembershipGrpcClient.EnsureCompanyWritableAsync failed for tenant {TenantId}", tenantId);
+            throw new GuardException("Your plan couldn't be checked right now. Please try again.");
+        }
+
+        if (response.Allowed) return;
+
+        throw new PlanRestrictionException(
+            string.IsNullOrEmpty(response.ProblemType) ? SubscriptionProblemTypes.ReadOnly : response.ProblemType,
+            string.IsNullOrEmpty(response.Error) ? "Your subscription is read-only. Choose a plan to make changes." : response.Error);
+    }
+
+    /// <summary>
     /// Whether this person may invite this email to a client with these roles (Tenant Service owns who
     /// holds what in a client) -- and, if so, the company and client names to word the invitation with.
     /// Fails closed. Virtual so tests can stub it.

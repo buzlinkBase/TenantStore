@@ -64,6 +64,13 @@ public record ExtendPeriodRequest
     public string? Reason { get; set; }
 }
 
+public record SetPeriodEndRequest
+{
+    /// <summary>The new end of the paid period (or of the trial, when there is no paid period). Past dates allowed.</summary>
+    public DateTime EndUtc { get; set; }
+    public string? Reason { get; set; }
+}
+
 public record AccountPriceRequest
 {
     public decimal? MonthlyPrice { get; set; }
@@ -164,6 +171,17 @@ public class PlatformAccountsController : ControllerBase
         SubscriptionResults.Run(async () =>
         {
             await _actions.ExtendPeriodAsync(ownerUserId, request.Days, request.Reason, Actor, token);
+            await _actions.CommitChangesAsync(token);
+            return Ok();
+        });
+
+    /// <summary>Sets the current plan's end date without changing the plan (a correction, or to test expiry).</summary>
+    [HttpPost("{ownerUserId:guid}/period-end")]
+    [PlatformAuthorize(PlatformPermissions.SubscriptionsManage)]
+    public Task<IActionResult> SetPeriodEnd(Guid ownerUserId, [FromBody] SetPeriodEndRequest request, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            await _actions.SetPeriodEndAsync(ownerUserId, request.EndUtc.ToUniversalTime(), request.Reason, Actor, token);
             await _actions.CommitChangesAsync(token);
             return Ok();
         });

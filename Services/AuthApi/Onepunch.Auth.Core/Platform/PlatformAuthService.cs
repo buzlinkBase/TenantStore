@@ -110,16 +110,14 @@ public class PlatformAuthService
         if (user.MfaEnrolledAtUtc.HasValue)
             throw new GuardException("Authenticator is already set up for this account.");
 
-        byte[] secret;
-        if (user.MfaSecretProtected is null)
+        // A pending secret that can't be read any more (its key is gone) is simply replaced: nothing
+        // has been enrolled with it yet.
+        var secret = user.MfaSecretProtected is null ? null : TryUnprotectSecret(user);
+        if (secret is null)
         {
             secret = Totp.NewSecret();
             user.MfaSecretProtected = _secretProtector.Protect(Convert.ToBase64String(secret));
             await _db.SaveChangesAsync(ct);
-        }
-        else
-        {
-            secret = Convert.FromBase64String(_secretProtector.Unprotect(user.MfaSecretProtected));
         }
 
         return new PlatformMfaSetup(
@@ -127,6 +125,28 @@ public class PlatformAuthService
             Totp.BuildOtpAuthUri(_settings.TotpIssuer, user.Email, secret));
     }
 
+    /// <summary>
+    /// The operator's stored authenticator secret. It is encrypted with this service's data-protection
+    /// key ring; if the key that encrypted it is gone (the key directory was lost, or it was enrolled
+    /// on another server), it can never be read again and the operator must enrol a new authenticator.
+    /// Said plainly instead of failing with a 500.
+    /// </summary>
+    private byte[] UnprotectSecret(PlatformUser user) =>
+        TryUnprotectSecret(user)
+        ?? throw new GuardException("Your authenticator can't be checked on this server. Ask another administrator to reset your two-factor setup, then set it up again.");
+
+    private byte[]? TryUnprotectSecret(PlatformUser user)
+    {
+        try
+        {
+            return Convert.FromBase64String(_secretProtector.Unprotect(user.MfaSecretProtected!));
+        }
+        catch (System.Security.Cryptography.CryptographicException ex)
+        {
+            _logger.LogError(ex, "Platform user {UserId}'s authenticator secret can't be decrypted: its data-protection key is missing", user.Id);
+            return null;
+        }
+    }
     /// <summary>Completes sign-in (or enrolment) with the authenticator's current code and opens the session.</summary>
     public async Task<PlatformSession> VerifyMfaAsync(string? challengeToken, string? code, CancellationToken ct)
     {
@@ -134,7 +154,7 @@ public class PlatformAuthService
         if (user.MfaSecretProtected is null)
             throw new GuardException("Set up your authenticator first.");
 
-        var secret = Convert.FromBase64String(_secretProtector.Unprotect(user.MfaSecretProtected));
+        var secret = UnprotectSecret(user);
         var step = Totp.Verify(secret, code, _time.GetUtcNow(), user.LastUsedTotpStep);
         if (step is null)
         {

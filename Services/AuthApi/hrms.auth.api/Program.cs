@@ -202,11 +202,14 @@ internal class Program
         // After authentication, so the rate-limit partitions can key on the signed-in user.
         app.UseRateLimiter();
         app.UseHeaderPropagation();
-        app.MapGrpcService<CheckEmailHandler>();
-        app.MapGrpcService<UserInfoHandler>();
-        app.MapGrpcService<TenantProvisioningHandler>();
-        app.MapGrpcService<AccountOriginsHandler>();
-        app.MapGrpcService<TenantActivityHandler>();
+        // Internal services: a signed-in user's propagated token, or the shared service key (background
+        // jobs and Platform Console requests have no user) -- see InternalServiceAuthorization.
+        var internalService = OnePunch.Auth.Api.Authorization.InternalServiceAuthorization.Policy;
+        app.MapGrpcService<CheckEmailHandler>().RequireAuthorization(internalService);
+        app.MapGrpcService<UserInfoHandler>().RequireAuthorization(internalService);
+        app.MapGrpcService<TenantProvisioningHandler>().RequireAuthorization(internalService);
+        app.MapGrpcService<AccountOriginsHandler>().RequireAuthorization(internalService);
+        app.MapGrpcService<TenantActivityHandler>().RequireAuthorization(internalService);
         app.MapControllers();
         app.MapHub<TenantHub>("/hubs/tenant");
         app.MapGet("/.well-known/jwks.json", (RsaKeyProvider rsaKeyProvider) =>

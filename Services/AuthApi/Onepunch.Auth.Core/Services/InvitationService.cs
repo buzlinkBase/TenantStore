@@ -67,6 +67,9 @@ namespace Onepunch.Auth.Core.Services
 
             if (!InvitationPolicy.CanInvite(userClaim, user))
                 throw new UnauthorizedException();
+            // A read-only company takes no new members -- employee invites and resends included,
+            // which the admin-seat check below doesn't cover.
+            await _membershipGrpcClient.EnsureCompanyWritableAsync(tenantId);
 
             // A single invite comes from the Employee list, so it's an employee invite.
             var roles = payload.Roles.Count > 0
@@ -197,6 +200,9 @@ namespace Onepunch.Auth.Core.Services
             if (user == null) throw new UnauthorizedException();
             Guard.ThrowIfEmpty(tenantId, "tenant");
             if (!InvitationPolicy.CanInvite(userClaim, user)) throw new UnauthorizedException();
+            // A read-only company takes no new members -- employee invites and resends included,
+            // which the admin-seat check below doesn't cover.
+            await _membershipGrpcClient.EnsureCompanyWritableAsync(tenantId);
 
             if (string.IsNullOrWhiteSpace(idempotencyKey) || idempotencyKey.Length > 100)
                 throw new GuardException("A valid X-Idempotency-Key header is required.");

@@ -19,6 +19,10 @@ service GetTenantService {
   // AuthApi creates a workspace, "admins.max" for a company (tenant_id) before it invites
   // `requested` more admins.
   rpc CheckPlanAllowance (PlanAllowanceRequest) returns (PlanAllowanceResponse);
+  // Whether a company may be changed at all: refused while its subscription is read-only or an
+  // operator stopped it -- AuthApi asks before every invitation, which the admin-seat limit alone
+  // doesn't cover (employee invites, resends).
+  rpc CheckCompanyWritable (CompanyWritableRequest) returns (PlanAllowanceResponse);
   // Client-portal access (Category=ClientUser memberships). Never mixed into the HRIS membership
   // calls above: a client user has no HRIS tenant, roles or token claims.
   // What a user may do within one client; found=false when they have no standing there.
@@ -117,6 +121,10 @@ message PlanAllowanceResponse {
   int32 max = 4;
   bool unlimited = 5;
   int32 used = 6;
+}
+
+message CompanyWritableRequest {
+  string tenant_id = 1;
 }
 
 message TenantRequest  {
