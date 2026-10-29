@@ -18,6 +18,18 @@ public sealed record UpdatePlanCommand
     public bool? PricesIncludeVat { get; init; }
     /// <summary>Internal note, console only. Unset: unchanged. Blank: cleared.</summary>
     public string? Remarks { get; init; }
+    /// <summary>Badge beside the annual price ("2 months free"). Unset: unchanged. Blank: no badge.</summary>
+    public string? AnnualPromoLabel { get; init; }
+    /// <summary>
+    /// With a price change: also moves accounts already on the plan to the new price. Unset or false:
+    /// new subscribers only.
+    /// </summary>
+    public bool? ApplyToExisting { get; init; }
+    /// <summary>
+    /// With a price change: moves only these owners' accounts (on the plan) to the new price. Ignored
+    /// when <see cref="ApplyToExisting"/> is true.
+    /// </summary>
+    public IReadOnlyList<Guid>? ApplyToOwners { get; init; }
 }
 
 public sealed record CreatePlanCommand
@@ -73,13 +85,57 @@ public class PlanCatalogService
         if (command.SortOrder is { } order) plan.SortOrder = order;
         if (command.IsRecommended is { } recommended) plan.IsRecommended = recommended;
         if (command.IsPublic is { } isPublic) plan.IsPublic = isPublic;
+        var monthlyChanged = command.MonthlyPrice is { } m && m != plan.MonthlyPrice;
+        var annualChanged = command.AnnualPrice is { } a && a != plan.AnnualPrice;
         if (command.MonthlyPrice is { } monthly) plan.MonthlyPrice = monthly;
         if (command.AnnualPrice is { } annual) plan.AnnualPrice = annual;
         if (command.PricesIncludeVat is { } includesVat) plan.PricesIncludeVat = includesVat;
         if (command.Remarks != null) plan.Remarks = NormalizeRemarks(command.Remarks);
+        if (command.AnnualPromoLabel != null) plan.AnnualPromoLabel = NormalizePromoLabel(command.AnnualPromoLabel);
 
-        await _events.AddAsync(null, "plan.updated", new { plan.Code, command }, actor, token: token);
+        IReadOnlyList<Guid>? only = command.ApplyToExisting == true ? null : command.ApplyToOwners;
+        var reprices = (command.ApplyToExisting == true || only is { Count: > 0 }) && (monthlyChanged || annualChanged);
+        var repriced = reprices
+            ? await RepriceExistingAsync(plan, monthlyChanged, annualChanged, only, token)
+            : [];
+
+        await _events.AddAsync(null, "plan.updated", new { plan.Code, command, repricedAccounts = repriced.Count }, actor, token: token);
+        foreach (var owner in repriced)
+            await _notifier.PublishAsync(owner, "plan.price-changed", token);
         return plan;
+    }
+
+    /// <summary>
+    /// Moves accounts already on the plan to its new price by rewriting their locked price. Accounts
+    /// without a lock already follow the list price. Paid periods and checkouts are left alone: the
+    /// upgrade credit comes from what was actually paid, and an open checkout is replaced when its
+    /// amount no longer matches. Returns the owners that were re-priced.
+    /// </summary>
+    private async Task<List<Guid>> RepriceExistingAsync(
+        Plan plan, bool monthlyChanged, bool annualChanged, IReadOnlyList<Guid>? onlyOwners, CancellationToken token)
+    {
+        var query = Context.AccountSubscriptions.Where(s => s.PlanId == plan.Id);
+        if (onlyOwners != null) query = query.Where(s => onlyOwners.Contains(s.OwnerUserId));
+        var subscriptions = await query.ToListAsync(token);
+        var owners = new List<Guid>();
+        foreach (var subscription in subscriptions)
+        {
+            var touched = false;
+            if (monthlyChanged && subscription.LockedMonthlyPrice != null)
+            {
+                subscription.LockedMonthlyPrice = plan.MonthlyPrice;
+                touched = true;
+            }
+            if (annualChanged && subscription.LockedAnnualPrice != null)
+            {
+                subscription.LockedAnnualPrice = plan.AnnualPrice;
+                touched = true;
+            }
+            if (!touched) continue;
+            subscription.ConcurrencyStamp = Guid.NewGuid();
+            owners.Add(subscription.OwnerUserId);
+        }
+        return owners;
     }
 
     public async Task SetEntitlementAsync(string code, string key, string value, string? actor, CancellationToken token = default)
@@ -128,6 +184,18 @@ public class PlanCatalogService
         if (string.IsNullOrEmpty(trimmed)) return null;
         if (trimmed.Length > MaxRemarksLength)
             throw new SubscriptionRuleException($"Remarks can be at most {MaxRemarksLength} characters.");
+        return trimmed;
+    }
+
+    public const int MaxPromoLabelLength = 40;
+
+    /// <summary>Trimmed; blank means no badge.</summary>
+    private static string? NormalizePromoLabel(string? label)
+    {
+        var trimmed = label?.Trim();
+        if (string.IsNullOrEmpty(trimmed)) return null;
+        if (trimmed.Length > MaxPromoLabelLength)
+            throw new SubscriptionRuleException($"The annual badge can be at most {MaxPromoLabelLength} characters.");
         return trimmed;
     }
 

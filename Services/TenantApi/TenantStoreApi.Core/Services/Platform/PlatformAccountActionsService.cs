@@ -411,6 +411,42 @@ public class PlatformAccountActionsService
         await _notifier.PublishAsync(ownerUserId, BillingEventTypes.PublicOfferingVisibilityChanged, token);
     }
 
+    /// <summary>
+    /// Corrects the price an account is charged, for a mistake in how it was set up. Sets (or, with
+    /// <paramref name="clearMonthly"/> / <paramref name="clearAnnual"/>, clears back to the plan's list
+    /// price) the account's locked monthly and annual price. Payments already made, the paid period and
+    /// the plan are left alone; the next payment due uses the corrected price.
+    /// </summary>
+    public async Task SetAccountPriceAsync(
+        Guid ownerUserId, decimal? monthly, decimal? annual, bool clearMonthly, bool clearAnnual,
+        string? reason, string? actor, CancellationToken token = default)
+    {
+        reason = RequireReason(reason);
+        if (monthly is < 0 || annual is < 0) throw new SubscriptionRuleException("Prices can't be negative.");
+        if (monthly != null && clearMonthly || annual != null && clearAnnual)
+            throw new SubscriptionRuleException("Set a price or use the plan's list price, not both.");
+        if (monthly == null && annual == null && !clearMonthly && !clearAnnual)
+            throw new SubscriptionRuleException("Nothing to change.");
+
+        var subscription = await RequireAsync(ownerUserId, token);
+        await RequireNotErasingAsync(subscription, "re-priced", alsoCompanies: false, token);
+        if (subscription.SubStatus == AccountSubscriptionStatus.Canceled)
+            throw new SubscriptionRuleException("A canceled account can't be re-priced.");
+
+        var before = new { monthly = subscription.LockedMonthlyPrice, annual = subscription.LockedAnnualPrice };
+        if (clearMonthly) subscription.LockedMonthlyPrice = null;
+        else if (monthly is { } m) subscription.LockedMonthlyPrice = m;
+        if (clearAnnual) subscription.LockedAnnualPrice = null;
+        else if (annual is { } a) subscription.LockedAnnualPrice = a;
+        if (before.monthly == subscription.LockedMonthlyPrice && before.annual == subscription.LockedAnnualPrice)
+            throw new SubscriptionRuleException("That's already this account's price.");
+        Touch(subscription);
+
+        await _events.AddAsync(subscription, BillingEventTypes.PriceCorrected,
+            new { from = before, to = new { monthly = subscription.LockedMonthlyPrice, annual = subscription.LockedAnnualPrice }, reason }, actor, token: token);
+        await _notifier.PublishAsync(ownerUserId, BillingEventTypes.PriceCorrected, token);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private async Task<AccountSubscription> RequireAsync(Guid ownerUserId, CancellationToken token) =>

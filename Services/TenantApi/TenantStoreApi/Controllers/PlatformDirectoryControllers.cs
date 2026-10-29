@@ -64,6 +64,16 @@ public record ExtendPeriodRequest
     public string? Reason { get; set; }
 }
 
+public record AccountPriceRequest
+{
+    public decimal? MonthlyPrice { get; set; }
+    public decimal? AnnualPrice { get; set; }
+    /// <summary>Back to the plan's current list price.</summary>
+    public bool ClearMonthly { get; set; }
+    public bool ClearAnnual { get; set; }
+    public string? Reason { get; set; }
+}
+
 /// <summary>
 /// Owner accounts for the Platform Admin Console: search, status and detail, plus the operator
 /// actions on an account's subscription. Every action needs a platform permission; the actions
@@ -154,6 +164,18 @@ public class PlatformAccountsController : ControllerBase
         SubscriptionResults.Run(async () =>
         {
             await _actions.ExtendPeriodAsync(ownerUserId, request.Days, request.Reason, Actor, token);
+            await _actions.CommitChangesAsync(token);
+            return Ok();
+        });
+
+    /// <summary>Corrects the price an account is charged after a setup mistake. Paid periods are untouched.</summary>
+    [HttpPost("{ownerUserId:guid}/price")]
+    [PlatformAuthorize(PlatformPermissions.SubscriptionsManage)]
+    public Task<IActionResult> CorrectPrice(Guid ownerUserId, [FromBody] AccountPriceRequest request, CancellationToken token) =>
+        SubscriptionResults.Run(async () =>
+        {
+            await _actions.SetAccountPriceAsync(ownerUserId, request.MonthlyPrice, request.AnnualPrice,
+                request.ClearMonthly, request.ClearAnnual, request.Reason, Actor, token);
             await _actions.CommitChangesAsync(token);
             return Ok();
         });

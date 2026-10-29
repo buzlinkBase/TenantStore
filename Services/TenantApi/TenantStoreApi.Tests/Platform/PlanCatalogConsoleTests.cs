@@ -121,6 +121,91 @@ public class PlanCatalogConsoleTests
         host.Uow.Context.Plans.Local.Should().NotContain(p => p.Code == "ok-code");
     }
 
+    // ── Price edits ──────────────────────────────────────────────────────────
+
+    private static async Task<(Guid Owner, SubscriptionTestHost Host)> SubscriberOnPayrollAsync()
+    {
+        var host = new SubscriptionTestHost();
+        var (owner, _) = await host.TrialAccountAsync();
+        await host.Subscriptions.SetPlanAsync(owner, new SetPlanCommand { PlanCode = "payroll", PeriodEndUtc = host.Clock.UtcNow.AddMonths(1) }, "platform");
+        await host.SaveAsync();
+        return (owner, host);
+    }
+
+    [Fact]
+    public async Task PriceEdit_ByDefault_ReachesNewSubscribersOnly()
+    {
+        var (owner, host) = await SubscriberOnPayrollAsync();
+        var lockedBefore = host.SubscriptionOf(owner).LockedMonthlyPrice;
+
+        await Catalog(host).UpdateAsync("payroll", new UpdatePlanCommand { MonthlyPrice = 6000m }, Operator);
+        await host.SaveAsync();
+
+        host.Uow.Context.Plans.Single(p => p.Code == "payroll").MonthlyPrice.Should().Be(6000m);
+        host.SubscriptionOf(owner).LockedMonthlyPrice.Should().Be(lockedBefore);
+    }
+
+    [Fact]
+    public async Task PriceEdit_ApplyToExisting_RewritesTheLockOfTheChangedPriceOnly()
+    {
+        var (owner, host) = await SubscriberOnPayrollAsync();
+        var annualBefore = host.SubscriptionOf(owner).LockedAnnualPrice;
+
+        await Catalog(host).UpdateAsync("payroll", new UpdatePlanCommand { MonthlyPrice = 6000m, ApplyToExisting = true }, Operator);
+        await host.SaveAsync();
+
+        var subscription = host.SubscriptionOf(owner);
+        subscription.LockedMonthlyPrice.Should().Be(6000m);
+        subscription.LockedAnnualPrice.Should().Be(annualBefore, "the annual price wasn't edited");
+        var price = await host.Subscriptions.PriceForAsync(subscription, subscription.Plan, BillingCycle.Monthly);
+        price.Should().Be(6000m);
+        host.Uow.Context.BillingEvents.Single(e => e.Type == "plan.updated").PayloadJson.Should().Contain("\"repricedAccounts\":1");
+    }
+
+    [Fact]
+    public async Task PriceEdit_ApplyToExisting_LeavesPaidPeriodsAndOtherPlansAlone()
+    {
+        var (owner, host) = await SubscriberOnPayrollAsync();
+        var paidBefore = host.Uow.Context.SubscriptionPayments.Select(p => p.Amount).ToList();
+        var otherPlanLock = host.Uow.Context.AccountSubscriptions.Where(s => s.OwnerUserId != owner).Select(s => s.LockedMonthlyPrice).ToList();
+
+        await Catalog(host).UpdateAsync("payroll", new UpdatePlanCommand { MonthlyPrice = 6000m, ApplyToExisting = true }, Operator);
+        await host.SaveAsync();
+
+        host.Uow.Context.SubscriptionPayments.Select(p => p.Amount).Should().BeEquivalentTo(paidBefore);
+        host.Uow.Context.AccountSubscriptions.Where(s => s.OwnerUserId != owner).Select(s => s.LockedMonthlyPrice)
+            .Should().BeEquivalentTo(otherPlanLock);
+    }
+
+    [Fact]
+    public async Task PriceEdit_ApplyToOwners_ReachesOnlyTheChosenAccounts()
+    {
+        var (owner, host) = await SubscriberOnPayrollAsync();
+        var lockedBefore = host.SubscriptionOf(owner).LockedMonthlyPrice;
+
+        await Catalog(host).UpdateAsync("payroll", new UpdatePlanCommand { MonthlyPrice = 6000m, ApplyToOwners = [Guid.NewGuid()] }, Operator);
+        await host.SaveAsync();
+        host.SubscriptionOf(owner).LockedMonthlyPrice.Should().Be(lockedBefore, "this owner wasn't chosen");
+
+        await Catalog(host).UpdateAsync("payroll", new UpdatePlanCommand { MonthlyPrice = 7000m, ApplyToOwners = [owner] }, Operator);
+        await host.SaveAsync();
+        host.SubscriptionOf(owner).LockedMonthlyPrice.Should().Be(7000m);
+    }
+
+    [Fact]
+    public async Task PriceEdit_ApplyToExisting_DoesNothingWhenThePriceIsUnchanged()
+    {
+        var (owner, host) = await SubscriberOnPayrollAsync();
+        var plan = host.Uow.Context.Plans.Single(p => p.Code == "payroll");
+        var lockedBefore = host.SubscriptionOf(owner).LockedMonthlyPrice;
+
+        await Catalog(host).UpdateAsync("payroll", new UpdatePlanCommand { MonthlyPrice = plan.MonthlyPrice, ApplyToExisting = true }, Operator);
+        await host.SaveAsync();
+
+        host.SubscriptionOf(owner).LockedMonthlyPrice.Should().Be(lockedBefore);
+        host.Uow.Context.BillingEvents.Single(e => e.Type == "plan.updated").PayloadJson.Should().Contain("\"repricedAccounts\":0");
+    }
+
     // ── Bulk entitlements ────────────────────────────────────────────────────
 
     [Fact]

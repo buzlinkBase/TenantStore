@@ -83,6 +83,8 @@ public static class BillingEventTypes
     public const string PaymentIssueReviewed = "payment.issue-reviewed";
     /// <summary>An operator hid or showed the public plans and storage offerings for one account.</summary>
     public const string PublicOfferingVisibilityChanged = "subscription.public-offering-visibility-changed";
+    /// <summary>An operator corrected the price an account is charged (its locked price), e.g. after a setup mistake.</summary>
+    public const string PriceCorrected = "subscription.price-corrected";
     /// <summary>An operator refunded (part of) an online payment through the gateway. Changes nothing else: voiding is a separate step.</summary>
     public const string PaymentRefundIssued = "payment.refund-issued";
 

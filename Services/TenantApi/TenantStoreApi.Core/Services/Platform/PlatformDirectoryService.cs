@@ -118,7 +118,13 @@ public sealed record AccountDetail(
     bool LegalHold = false,
     string? LegalHoldReason = null,
     /// <summary>False when the account is shown only the plans and storage offered to it, not the public ones.</summary>
-    bool ShowPublicOffering = true);
+    bool ShowPublicOffering = true,
+    /// <summary>The account's locked price; null follows the plan's list price.</summary>
+    decimal? LockedMonthlyPrice = null,
+    decimal? LockedAnnualPrice = null,
+    decimal? PlanMonthlyPrice = null,
+    decimal? PlanAnnualPrice = null,
+    string? Currency = null);
 
 /// <summary>One row of the combined payments list: a plan payment or a storage-block payment.</summary>
 internal sealed class PaymentRow
@@ -253,6 +259,7 @@ public class PlatformDirectoryService
 
         var subscription = await Context.AccountSubscriptions.AsNoTracking()
             .Include(s => s.Overrides)
+            .Include(s => s.Plan)
             .FirstOrDefaultAsync(s => s.OwnerUserId == ownerUserId, token);
 
         var companies = await ListCompaniesAsync(new CompanyQuery(OwnerUserId: ownerUserId, PageSize: PageRequest.MaxPageSize), token);
@@ -278,7 +285,12 @@ public class PlatformDirectoryService
             subscription?.ArchiveRetainUntilUtc,
             subscription?.LegalHold ?? false,
             subscription?.LegalHoldReason,
-            subscription?.ShowPublicOffering ?? true);
+            subscription?.ShowPublicOffering ?? true,
+            subscription?.LockedMonthlyPrice,
+            subscription?.LockedAnnualPrice,
+            subscription?.Plan?.MonthlyPrice,
+            subscription?.Plan?.AnnualPrice,
+            subscription?.Plan?.Currency);
     }
 
     private async Task<List<AccountListItem>> BuildAccountItemsAsync(List<Guid> ownerIds, CancellationToken token)

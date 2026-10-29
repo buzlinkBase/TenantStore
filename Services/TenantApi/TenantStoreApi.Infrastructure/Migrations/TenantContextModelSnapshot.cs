@@ -2161,6 +2161,10 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<string>("AnnualPromoLabel")
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(64)

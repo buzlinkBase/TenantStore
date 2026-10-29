@@ -88,6 +88,20 @@ public class UpgradeProrationTests
     }
 
     [Fact]
+    public async Task PlanScreen_ShowsTheOwnersLockedPriceOnTheirOwnPlan_AndListPriceOnOthers()
+    {
+        var (host, owner, _) = await PaidPayrollAsync();
+        await new PlanCatalogService(host.Uow, host.Events, host.Notifier)
+            .UpdateAsync("payroll", new UpdatePlanCommand { AnnualPrice = 60000m }, "platform");
+        await host.SaveAsync();
+
+        var views = await host.Views.GetVisiblePlansAsync(owner);
+
+        views.Single(p => p.Code == "payroll").AnnualPrice.Should().Be(49990m, "the account keeps the price it signed up at, so the card matches what it is charged");
+        views.Single(p => p.Code == "premium").AnnualPrice.Should().Be(99990m, "a plan the owner isn't on shows its list price");
+    }
+
+    [Fact]
     public async Task UpgradeMidPeriod_IsQuotedAndDue_LessTheUnusedDays()
     {
         var (host, owner, tenantId) = await PaidPayrollAsync();

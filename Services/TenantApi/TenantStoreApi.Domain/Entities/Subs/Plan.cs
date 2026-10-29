@@ -25,6 +25,9 @@ public class Plan : BaseEntity
     /// <summary>An internal note for operators (what a custom plan is for). Shown only in the platform
     /// console -- never part of <c>PlanView</c>, so it never reaches a customer.</summary>
     public string? Remarks { get; set; }
+    /// <summary>The badge shown beside the annual price on the plan screen ("2 months free"). Null: no
+    /// badge -- how much annual saves differs per plan, so the console sets it.</summary>
+    public string? AnnualPromoLabel { get; set; }
 
     public virtual ICollection<PlanEntitlement> Entitlements { get; set; } = new List<PlanEntitlement>();
 }

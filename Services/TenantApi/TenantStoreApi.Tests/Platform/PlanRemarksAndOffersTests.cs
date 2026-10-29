@@ -62,6 +62,43 @@ public class PlanRemarksAndOffersTests
         await create.Should().ThrowAsync<SubscriptionRuleException>();
     }
 
+    // ── Annual badge ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task AnnualPromoLabel_IsSetTrimmedClearedAndReachesCustomers()
+    {
+        var host = new SubscriptionTestHost();
+        await CreateAsync(host, "acme");
+        await host.SaveAsync();
+        var catalog = Catalog(host);
+        Plan Acme() => host.Uow.Context.Plans.Single(p => p.Code == "acme");
+
+        Acme().AnnualPromoLabel.Should().BeNull("a new plan has no badge");
+
+        await catalog.UpdateAsync("acme", new UpdatePlanCommand { Name = "Acme" }, Operator);
+        Acme().AnnualPromoLabel.Should().BeNull("a missing field leaves it as is");
+
+        await catalog.UpdateAsync("acme", new UpdatePlanCommand { AnnualPromoLabel = "  Save 20%  " }, Operator);
+        Acme().AnnualPromoLabel.Should().Be("Save 20%");
+        SubscriptionViewService.ToView(Acme()).AnnualPromoLabel.Should().Be("Save 20%");
+
+        await catalog.UpdateAsync("acme", new UpdatePlanCommand { AnnualPromoLabel = "" }, Operator);
+        Acme().AnnualPromoLabel.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task AnnualPromoLabel_LongerThanTheLimit_IsRejected()
+    {
+        var host = new SubscriptionTestHost();
+        await CreateAsync(host, "acme");
+        await host.SaveAsync();
+        var tooLong = new string('x', PlanCatalogService.MaxPromoLabelLength + 1);
+
+        var update = () => Catalog(host).UpdateAsync("acme", new UpdatePlanCommand { AnnualPromoLabel = tooLong }, Operator);
+
+        await update.Should().ThrowAsync<SubscriptionRuleException>();
+    }
+
     [Fact]
     public async Task TheConsolesPlanList_CarriesRemarks()
     {

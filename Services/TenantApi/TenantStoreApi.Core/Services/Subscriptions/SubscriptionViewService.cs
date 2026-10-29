@@ -19,7 +19,8 @@ public sealed record PlanView(
     bool PricesIncludeVat,
     Dictionary<string, bool> Features,
     Dictionary<string, int> Limits,
-    string? SupportTier);
+    string? SupportTier,
+    string? AnnualPromoLabel = null);
 
 /// <summary>What every member's session needs to lock and unlock the UI: the company's snapshot,
 /// plus the lowest plan that includes each feature it lacks (for "Available on Payroll").</summary>
@@ -177,12 +178,33 @@ public class SubscriptionViewService
             plan.MonthlyPrice, plan.AnnualPrice, plan.Currency, plan.PricesIncludeVat,
             EntitlementKeys.Features.ToDictionary(k => k, k => values.TryGetValue(k, out var v) && EntitlementSnapshotBuilder.ParseBool(v)),
             EntitlementKeys.Limits.ToDictionary(k => k, k => values.TryGetValue(k, out var v) ? EntitlementSnapshotBuilder.ParseLimit(v) : 0),
-            values.GetValueOrDefault(EntitlementKeys.SupportTier));
+            values.GetValueOrDefault(EntitlementKeys.SupportTier),
+            plan.AnnualPromoLabel);
     }
 
     /// <summary>The plans this owner may pick: the public catalog plus any private plan offered to them.</summary>
-    public async Task<List<PlanView>> GetVisiblePlansAsync(Guid ownerUserId, CancellationToken token = default) =>
-        (await _subscriptions.GetVisiblePlansAsync(ownerUserId, token)).Select(ToView).ToList();
+    /// <remarks>The plan the owner is already on shows the price they actually pay -- their locked
+    /// price, less discounts -- the same one a payment for it is charged at, not the plan's list price.</remarks>
+    public async Task<List<PlanView>> GetVisiblePlansAsync(Guid ownerUserId, CancellationToken token = default)
+    {
+        var plans = await _subscriptions.GetVisiblePlansAsync(ownerUserId, token);
+        var subscription = await _subscriptions.FindAsync(ownerUserId, token);
+        var views = new List<PlanView>(plans.Count);
+        foreach (var plan in plans)
+        {
+            var view = ToView(plan);
+            if (subscription != null && plan.Id == subscription.PlanId)
+            {
+                view = view with
+                {
+                    MonthlyPrice = await _subscriptions.PriceForAsync(subscription, plan, BillingCycle.Monthly, token),
+                    AnnualPrice = await _subscriptions.PriceForAsync(subscription, plan, BillingCycle.Annual, token),
+                };
+            }
+            views.Add(view);
+        }
+        return views;
+    }
 
     /// <param name="isBillingUser">Whether the caller is the owner or a billing admin: only they are
     /// told why an operator stopped the account; other members just learn that it is stopped.</param>

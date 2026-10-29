@@ -171,6 +171,78 @@ public class PlatformAccountActionsServiceTests
         await Assert.ThrowsAsync<SubscriptionRuleException>(() => Actions(host).CancelNowAsync(owner, "closing again", Operator));
     }
 
+    // ── Correct price ────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task SetAccountPrice_ChangesOnlyTheGivenLock_AndRecordsWhoAndWhy()
+    {
+        var host = new SubscriptionTestHost();
+        var owner = await ActiveAccountAsync(host);
+        var annualBefore = host.SubscriptionOf(owner).LockedAnnualPrice;
+
+        await Actions(host).SetAccountPriceAsync(owner, 3500m, null, false, false, "Wrong price at setup", Operator);
+        await host.SaveAsync();
+
+        var subscription = host.SubscriptionOf(owner);
+        subscription.LockedMonthlyPrice.Should().Be(3500m);
+        subscription.LockedAnnualPrice.Should().Be(annualBefore);
+        (await host.Subscriptions.PriceForAsync(subscription, subscription.Plan, BillingCycle.Monthly)).Should().Be(3500m);
+        var recorded = EventsOf(host, owner, BillingEventTypes.PriceCorrected).Should().ContainSingle().Subject;
+        recorded.Actor.Should().Be(Operator);
+        recorded.PayloadJson.Should().Contain("Wrong price at setup").And.Contain("3500");
+    }
+
+    [Fact]
+    public async Task SetAccountPrice_ClearingALock_FallsBackToThePlansListPrice()
+    {
+        var host = new SubscriptionTestHost();
+        var owner = await ActiveAccountAsync(host);
+        await Actions(host).SetAccountPriceAsync(owner, 1m, null, false, false, "custom", Operator);
+        await host.SaveAsync();
+
+        await Actions(host).SetAccountPriceAsync(owner, null, null, true, false, "back to list", Operator);
+        await host.SaveAsync();
+
+        var subscription = host.SubscriptionOf(owner);
+        subscription.LockedMonthlyPrice.Should().BeNull();
+        (await host.Subscriptions.PriceForAsync(subscription, subscription.Plan, BillingCycle.Monthly)).Should().Be(subscription.Plan.MonthlyPrice);
+    }
+
+    [Fact]
+    public async Task SetAccountPrice_LeavesPaidPaymentsAlone()
+    {
+        var host = new SubscriptionTestHost();
+        var owner = await ActiveAccountAsync(host);
+        var paidBefore = host.Uow.Context.SubscriptionPayments.Select(p => p.Amount).ToList();
+        var periodEnd = host.SubscriptionOf(owner).CurrentPeriodEndUtc;
+
+        await Actions(host).SetAccountPriceAsync(owner, 10m, 100m, false, false, "fix", Operator);
+        await host.SaveAsync();
+
+        host.Uow.Context.SubscriptionPayments.Select(p => p.Amount).Should().BeEquivalentTo(paidBefore);
+        host.SubscriptionOf(owner).CurrentPeriodEndUtc.Should().Be(periodEnd);
+    }
+
+    [Fact]
+    public async Task SetAccountPrice_RefusesNegativeNothingBothAndUnchangedAndCanceled()
+    {
+        var host = new SubscriptionTestHost();
+        var owner = await ActiveAccountAsync(host);
+        var actions = Actions(host);
+        var current = host.SubscriptionOf(owner).LockedMonthlyPrice;
+
+        await Assert.ThrowsAsync<SubscriptionRuleException>(() => actions.SetAccountPriceAsync(owner, -1m, null, false, false, "fix", Operator));
+        await Assert.ThrowsAsync<SubscriptionRuleException>(() => actions.SetAccountPriceAsync(owner, null, null, false, false, "fix", Operator));
+        await Assert.ThrowsAsync<SubscriptionRuleException>(() => actions.SetAccountPriceAsync(owner, 5m, null, true, false, "fix", Operator));
+        await Assert.ThrowsAsync<SubscriptionRuleException>(() => actions.SetAccountPriceAsync(owner, current, null, false, false, "fix", Operator));
+        await Assert.ThrowsAsync<SubscriptionRuleException>(() => actions.SetAccountPriceAsync(owner, 5m, null, false, false, "ab", Operator));
+
+        await actions.CancelNowAsync(owner, "closing", Operator);
+        await host.SaveAsync();
+        await Assert.ThrowsAsync<SubscriptionRuleException>(() => actions.SetAccountPriceAsync(owner, 5m, null, false, false, "fix", Operator));
+        host.SubscriptionOf(owner).LockedMonthlyPrice.Should().Be(current);
+    }
+
     // ── Extend ───────────────────────────────────────────────────────────────
 
     [Fact]
