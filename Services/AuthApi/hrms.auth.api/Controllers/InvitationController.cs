@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Onepunch.Common.Web.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
@@ -112,6 +113,7 @@ public class InvitationController : ControllerBase
     }
 
     [HttpPost("accept")]
+    [ForbidWhenImpersonating]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> Accept([FromBody] AcceptInvitationRequest payload, CancellationToken ct)
     {
@@ -149,6 +151,7 @@ public class InvitationController : ControllerBase
     }
 
     [HttpPost("accept-by-token")]
+    [ForbidWhenImpersonating]
     [AllowAnonymous]
     [EnableRateLimiting(RateLimitPolicies.TokenLookup)]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]

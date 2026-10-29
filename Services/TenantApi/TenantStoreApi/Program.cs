@@ -1,4 +1,6 @@
 using Asp.Versioning.ApiExplorer;
+using Onepunch.AuditEngine.AspNetCore;
+using Onepunch.Common.Web.Authorization;
 using Mapster;
 using MessagePack;
 using MessagePack.AspNetCoreMvcFormatter;
@@ -224,6 +226,9 @@ internal class Program
         // After routing so [EnableRateLimiting] is visible; before authorization so a flood of bad tokens is cut off early.
         app.UseRateLimiter();
         app.UseAuthorization();
+        // Support sign-in as a user may read here but not change companies, roles or billing; reads are audited.
+        app.UseImpersonationReadOnlyGuard();
+        app.UseImpersonationRequestAudit();
         // 7. LAST: Map your execution endpoints
         app.MapGrpcService<TenantInfoServiceProvider>();
         app.MapControllers();

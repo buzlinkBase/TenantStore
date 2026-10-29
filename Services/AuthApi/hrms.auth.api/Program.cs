@@ -1,4 +1,6 @@
 using Asp.Versioning.ApiExplorer;
+using Onepunch.AuditEngine.AspNetCore;
+using Onepunch.Common.Web.Authorization;
 using MessagePack;
 using MessagePack.AspNetCoreMvcFormatter;
 using MessagePack.Resolvers;
@@ -199,6 +201,10 @@ internal class Program
         //app.UseMiddleware<ApiKeyMiddleware>();  
         app.UseAuthentication();
         app.UseAuthorization();
+        // Support sign-in as a user: a stopped session is refused at once, and every request is audited
+        // with both identities before it runs.
+        app.UseImpersonationSessionGuard();
+        app.UseImpersonationRequestAudit();
         // After authentication, so the rate-limit partitions can key on the signed-in user.
         app.UseRateLimiter();
         app.UseHeaderPropagation();

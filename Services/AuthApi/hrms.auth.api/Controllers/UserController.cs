@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Onepunch.Common.Web.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
@@ -140,6 +141,7 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [HttpPost("change-password")]
+        [ForbidWhenImpersonating]
         [EnableRateLimiting(RateLimitPolicies.PasswordChange)]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePassword payload, CancellationToken token)
@@ -156,6 +158,7 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [HttpPost("set-password")]
+        [ForbidWhenImpersonating]
         [EnableRateLimiting(RateLimitPolicies.PasswordChange)]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> SetPassword([FromBody] SetPassword payload, CancellationToken token)
@@ -189,6 +192,7 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [HttpPatch("profile")]
+        [ForbidWhenImpersonating]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest payload, CancellationToken ct)
         {
@@ -263,6 +267,7 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [HttpPost("set-default-tenant")]
+        [ForbidWhenImpersonating]
         [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> SetDefault([FromBody] TenantIdPayload payload, CancellationToken ct)
         {
@@ -281,6 +286,7 @@ namespace OnePunch.Auth.Api.Controllers
 
         [AllowAnonymous]
         [HttpPost("logout")]
+        [ForbidWhenImpersonating]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> Logout([FromBody] RefreshTokenPayload? payload, CancellationToken ct)
         {

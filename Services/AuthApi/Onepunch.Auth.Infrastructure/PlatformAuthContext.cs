@@ -25,6 +25,7 @@ public class PlatformAuthContext : DbContext
     public DbSet<PlatformUser> PlatformUsers { get; set; }
     public DbSet<PlatformRefreshToken> PlatformRefreshTokens { get; set; }
     public DbSet<PlatformAdminAudit> PlatformAdminAudits { get; set; }
+    public DbSet<ImpersonationSession> ImpersonationSessions { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -55,6 +56,21 @@ public class PlatformAuthContext : DbContext
             audit.Property(x => x.Action).HasMaxLength(64).IsRequired();
             audit.Property(x => x.TargetEmail).HasMaxLength(256);
             audit.Property(x => x.Detail).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<ImpersonationSession>(session =>
+        {
+            session.ToTable("ImpersonationSessions");
+            session.HasKey(x => x.Id);
+            session.HasIndex(x => x.ExchangeCodeHash).IsUnique();
+            session.HasIndex(x => x.OperatorId);
+            session.HasIndex(x => x.TargetUserId);
+            session.Property(x => x.OperatorEmail).HasMaxLength(256).IsRequired();
+            session.Property(x => x.OperatorRole).HasMaxLength(50).IsRequired();
+            session.Property(x => x.TargetEmail).HasMaxLength(256).IsRequired();
+            session.Property(x => x.TenantName).HasMaxLength(256).IsRequired();
+            session.Property(x => x.Reason).HasMaxLength(500).IsRequired();
+            session.Property(x => x.ExchangeCodeHash).HasMaxLength(100).IsRequired();
         });
 
         modelBuilder.Entity<PlatformRefreshToken>(token =>

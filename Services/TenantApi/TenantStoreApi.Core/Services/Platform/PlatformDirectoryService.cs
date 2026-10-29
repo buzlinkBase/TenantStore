@@ -7,6 +7,9 @@ using TenantStoreApi.Infrastructure;
 
 namespace TenantStoreApi.Core.Services.Platform;
 
+/// <summary>A person who can sign in to a company, as the console's "sign in as" list shows them.</summary>
+public sealed record CompanyMember(Guid UserId, string? Name, string? Email, IReadOnlyList<string> Roles, bool IsAccountOwner);
+
 public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Total, int Page, int PageSize);
 
 /// <summary>Page request, clamped so a console typo can't ask for the whole table.</summary>
@@ -384,6 +387,24 @@ public class PlatformDirectoryService
 
         var items = await ToCompanyItemsAsync(page, token);
         return new PagedResult<CompanyListItem>(items, total, paging.SafePage, paging.SafePageSize);
+    }
+
+    /// <summary>
+    /// The people who can sign in to a company, for the console's "sign in as" list: active members of
+    /// the company's staff (not client-portal users), with their roles. The account owner's membership
+    /// is hidden from the company's own screens but is a real person here, so it is included.
+    /// </summary>
+    public async Task<List<CompanyMember>> ListCompanyMembersAsync(Guid tenantId, CancellationToken token = default)
+    {
+        var rows = await Context.Memberships.AsNoTracking()
+            .Where(m => m.TenantId == tenantId && m.Category == MembershipCategory.InternalEmployee
+                && m.Status == "Active" && m.UserId != Guid.Empty)
+            .Select(m => new { m.UserId, m.FullName, m.InvitedEmail, m.IsHidden, Roles = m.Roles.Select(r => r.Role).ToList() })
+            .ToListAsync(token);
+        return rows
+            .OrderByDescending(m => m.Roles.Contains("Owner")).ThenBy(m => m.FullName)
+            .Select(m => new CompanyMember(m.UserId, m.FullName, m.InvitedEmail, m.Roles, m.IsHidden))
+            .ToList();
     }
 
     /// <summary>One company for the console's detail view, or null when it doesn't exist.</summary>

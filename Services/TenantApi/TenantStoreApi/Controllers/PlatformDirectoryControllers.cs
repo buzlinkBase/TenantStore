@@ -348,6 +348,13 @@ public class PlatformCompaniesController : ControllerBase
     public async Task<IActionResult> List([FromQuery] CompanyQuery query, CancellationToken token) =>
         Ok(await _directory.ListCompaniesAsync(query, token));
 
+    /// <summary>The people who can sign in to the company, for the console's "sign in as" list.</summary>
+    [HttpGet("{tenantId:guid}/members")]
+    [PlatformAuthorize(PlatformPermissions.ImpersonateUsers)]
+    [ProducesResponseType(typeof(List<CompanyMember>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Members(Guid tenantId, CancellationToken token) =>
+        Ok(await _directory.ListCompanyMembersAsync(tenantId, token));
+
     [HttpGet("{tenantId:guid}")]
     [PlatformAuthorize(PlatformPermissions.AccountsRead)]
     [ProducesResponseType(typeof(CompanyListItem), StatusCodes.Status200OK)]

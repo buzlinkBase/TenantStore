@@ -11,6 +11,15 @@ public interface IAuditWriter
     Task WriteAsync(AuditEvent auditEvent, CancellationToken token = default);
 }
 
+/// <summary>
+/// Persists what <see cref="IAuditWriter"/> has staged when the caller has no business change to save
+/// it with -- a request log, a failed login. Implemented by each storage adapter.
+/// </summary>
+public interface IAuditCommitter
+{
+    Task CommitAsync(CancellationToken token = default);
+}
+
 /// <summary>Reads the trail back. Implemented by each storage adapter.</summary>
 public interface IAuditQueryService
 {

@@ -325,6 +325,7 @@ public static class ServiceRegistrations
                 mysql => mysql.MigrationsHistoryTable(PlatformAuthContext.MigrationsHistoryTable));
         });
         services.AddSingleton<IPlatformPasswordGenerator, PlatformPasswordGenerator>();
+        services.AddScoped<PlatformImpersonationService>();
         services.AddHostedService<PlatformBootstrapper>();
 
         services.AddAuthentication()
@@ -349,6 +350,11 @@ public static class ServiceRegistrations
                 .AddAuthenticationSchemes(PlatformAuthDefaults.Scheme)
                 .RequireAuthenticatedUser()
                 .RequireClaim(PlatformAuthDefaults.MethodClaim, PlatformAuthDefaults.OtpMethod)
-                .RequireClaim(PlatformAuthDefaults.PermissionClaim, PlatformPermissions.CompaniesCreate));
+                .RequireClaim(PlatformAuthDefaults.PermissionClaim, PlatformPermissions.CompaniesCreate))
+            .AddPolicy(PlatformPermissions.ImpersonateUsers, policy => policy
+                .AddAuthenticationSchemes(PlatformAuthDefaults.Scheme)
+                .RequireAuthenticatedUser()
+                .RequireClaim(PlatformAuthDefaults.MethodClaim, PlatformAuthDefaults.OtpMethod)
+                .RequireClaim(PlatformAuthDefaults.PermissionClaim, PlatformPermissions.ImpersonateUsers));
     }
 }

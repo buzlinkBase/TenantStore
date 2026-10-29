@@ -36,6 +36,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <ProjectReference Include="..\..\Shared\Onepunch.Common.Web\Onepunch.Common.Web.csproj" />
 	  <ProjectReference Include="..\Onepunch.Auth.Core\Onepunch.Auth.Core.csproj" />
 	  <ProjectReference Include="..\Onepunch.Auth.Domain\Onepunch.Auth.Domain.csproj" />
 	</ItemGroup>

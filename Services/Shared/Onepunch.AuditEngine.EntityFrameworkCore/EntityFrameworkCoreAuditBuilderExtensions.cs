@@ -21,6 +21,7 @@ public static class EntityFrameworkCoreAuditBuilderExtensions
             services.AddScoped<IAuditChainHead>(sp => sp.GetRequiredService<EfCoreAuditStore<TContext>>());
             services.AddScoped<IAuditReplicaWriter>(sp => sp.GetRequiredService<EfCoreAuditStore<TContext>>());
             services.AddScoped<IAuditQueryService, EfCoreAuditQueryService<TContext>>();
+            services.AddScoped<IAuditCommitter, EfCoreAuditCommitter<TContext>>();
 
             // Appends to whatever the host's own AddDbContext configures (interceptors accumulate).
             services.ConfigureDbContext<TContext>((sp, options) => options.AddInterceptors(new AuditSaveChangesInterceptor(sp)));

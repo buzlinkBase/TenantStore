@@ -35,6 +35,12 @@ public sealed class EfCoreAuditStore<TContext>(TContext context, AuditEngineOpti
     }
 }
 
+public sealed class EfCoreAuditCommitter<TContext>(TContext context) : IAuditCommitter
+    where TContext : DbContext
+{
+    public Task CommitAsync(CancellationToken token = default) => context.SaveChangesAsync(token);
+}
+
 public sealed class EfCoreAuditQueryService<TContext>(TContext context) : IAuditQueryService
     where TContext : DbContext
 {

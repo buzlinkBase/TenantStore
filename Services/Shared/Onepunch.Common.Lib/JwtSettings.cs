@@ -8,6 +8,9 @@ public class JwtSettings
     public string SigningKey { get; set; }
     public int TokenExpiry { get; set; } = 5;
     public int RefreshExpiry { get; set; } = 30;
+
+    /// <summary>Hard ceiling, in minutes, on an impersonation session's access token. It is never refreshed.</summary>
+    public int ImpersonationMaxMinutes { get; set; } = 30;
     public string SigningKeyPath { get; set; } = "/app/signing-keys/auth-signing.key";
 
     /// <summary>

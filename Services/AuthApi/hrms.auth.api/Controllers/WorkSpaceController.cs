@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Onepunch.Common.Web.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -32,6 +33,7 @@ namespace OnePunch.Auth.Api.Controllers
         }
 
         [HttpPost()]
+        [ForbidWhenImpersonating]
         [EnableRateLimiting(RateLimitPolicies.WorkspaceCreate)]
         [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]

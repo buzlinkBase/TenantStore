@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using Onepunch.Common.Web.Authorization;
 using Asp.Versioning.ApiExplorer;
 using Mapster;
 using Microsoft.AspNetCore.DataProtection;
@@ -100,6 +101,8 @@ app.UseCors("AllowAll"); // Placed cleanly between Routing and Security Handshak
 // 5. FIFTH: Security Handshake
 app.UseAuthentication(); // Included in case your controllers require [Authorize] attributes
 app.UseAuthorization();
+// Support sign-in as a user may read notifications but not change anything here.
+app.UseImpersonationReadOnlyGuard();
 // 6. LAST: Map execution endpoints
 app.MapControllers();
 app.Run();

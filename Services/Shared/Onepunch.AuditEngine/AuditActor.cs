@@ -20,4 +20,6 @@ public static class AuditActorTypes
     public const string System = "System";
     public const string Service = "Service";
     public const string Anonymous = "Anonymous";
+    /// <summary>A support operator acting as another user; the user it acted as is in the event's metadata.</summary>
+    public const string Operator = "PlatformOperator";
 }

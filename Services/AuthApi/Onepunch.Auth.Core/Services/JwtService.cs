@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Onepunch.Auth.Domain.Entities;
+using Onepunch.Common.Lib.Security;
 using OnePunch.Auth.Domain.Entities;
 using Serilog;
 using System.IdentityModel.Tokens.Jwt;
@@ -45,6 +46,7 @@ public class JwtService
     }
     public int RefreshExpiry => _jwtSettings.RefreshExpiry;
     public int TokenExpiry => _jwtSettings.TokenExpiry;
+    public virtual int ImpersonationMaxMinutes => _jwtSettings.ImpersonationMaxMinutes;
     public string Hash(string token)
     {
         using var sha256 = SHA256.Create();
@@ -136,6 +138,54 @@ public class JwtService
             audience: _jwtSettings.Audience.FirstOrDefault(),
             claims: claims,
             expires: DateTime.UtcNow.AddMinutes(_jwtSettings.TokenExpiry),
+            signingCredentials: creds
+        );
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    /// <summary>
+    /// The access token for a support operator signed in as <paramref name="target"/>. <c>sub</c>, roles,
+    /// permissions and company are the target's, so every check downstream treats it as that user; the
+    /// <c>imp</c> / <c>act_*</c> claims name the operator. It expires with the session (at most
+    /// <see cref="JwtSettings.ImpersonationMaxMinutes"/>) and no refresh token is ever created for it.
+    /// </summary>
+    public virtual async Task<string> CreateImpersonationTokenAsync(
+        User target,
+        Guid tenantId,
+        string tenantName,
+        IEnumerable<string> roles,
+        IEnumerable<string> permissions,
+        ImpersonationSession session)
+    {
+        var tenantState = TenantCreationStatus.Initial.ToString();
+        var tenantRequest = await _tenantRequestService.FindByTenant(tenantId);
+        if (tenantRequest != null) tenantState = tenantRequest.Status.ToString();
+
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new(JwtRegisteredClaimNames.Sub, target.Id.ToString()),
+            new(JwtRegisteredClaimNames.Email, target.Email ?? ""),
+            new("tenantId", tenantId.ToString()),
+            new("tenantName", tenantName),
+            new("tenantState", tenantState),
+            new(ImpersonationClaims.Marker, "1"),
+            new(ImpersonationClaims.ActorId, session.OperatorId.ToString()),
+            new(ImpersonationClaims.ActorEmail, session.OperatorEmail),
+            new(ImpersonationClaims.ActorRole, session.OperatorRole),
+            new(ImpersonationClaims.SessionId, session.Id.ToString()),
+        };
+        claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
+        claims.AddRange(permissions.Select(code => new Claim("permission", code)));
+
+        var creds = new SigningCredentials(_rsaKeyProvider.SigningKey, SecurityAlgorithms.RsaSha256);
+        var token = new JwtSecurityToken(
+            issuer: _jwtSettings.Issuer,
+            audience: _jwtSettings.Audience.FirstOrDefault(),
+            claims: claims,
+            // A session read back from the database has no DateTimeKind; say it is UTC, or the token
+            // would be dated as local time (hours off, so already expired east of Greenwich).
+            expires: DateTime.SpecifyKind(session.ExpiresAtUtc, DateTimeKind.Utc),
             signingCredentials: creds
         );
         return new JwtSecurityTokenHandler().WriteToken(token);

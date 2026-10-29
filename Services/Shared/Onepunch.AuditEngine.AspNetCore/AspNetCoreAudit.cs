@@ -12,6 +12,14 @@ public sealed class ClaimsAuditActorOptions
     public IList<string> OrganizationClaimTypes { get; } = ["tenantId"];
 
     /// <summary>
+    /// Present only in an impersonation token: the support operator signed in as the user. When set,
+    /// the operator is the event's actor and the user they acted as goes to metadata, so the trail names both.
+    /// </summary>
+    public string OperatorIdClaimType { get; set; } = "act_sub";
+    public string OperatorNameClaimType { get; set; } = "act_email";
+    public string ImpersonationSessionClaimType { get; set; } = "imp_sid";
+
+    /// <summary>
     /// Consulted before the organization claims, for hosts that know the organization some other
     /// way too (a header, or a tenant set by a message consumer where there is no request at
     /// all). Return null to fall back to the claims.
@@ -39,6 +47,10 @@ public class ClaimsPrincipalAuditActorResolver(
         var userId = FirstClaim(claimOptions.UserIdClaimTypes);
         if (userId == null) return AuditActor.Anonymous;
 
+        var operatorId = FirstClaim([claimOptions.OperatorIdClaimType]);
+        if (operatorId != null)
+            return new AuditActor(operatorId, FirstClaim([claimOptions.OperatorNameClaimType]) ?? operatorId, AuditActorTypes.Operator);
+
         return AuditActor.User(userId, FirstClaim(claimOptions.DisplayNameClaimTypes) ?? userId);
     }
 
@@ -56,8 +68,14 @@ public class ClaimsPrincipalAuditActorResolver(
 }
 
 /// <summary>Records where the action came from. Behind a proxy, run UseForwardedHeaders first.</summary>
-public sealed class HttpContextAuditMetadataEnricher(IHttpContextAccessor httpContextAccessor) : IAuditMetadataEnricher
+public sealed class HttpContextAuditMetadataEnricher(IHttpContextAccessor httpContextAccessor, ClaimsAuditActorOptions? claimOptions = null) : IAuditMetadataEnricher
 {
+    private readonly ClaimsAuditActorOptions _claimOptions = claimOptions ?? new();
+
+    public const string OnBehalfOfUserId = "OnBehalfOfUserId";
+    public const string OnBehalfOfName = "OnBehalfOfName";
+    public const string ImpersonationSessionId = "ImpersonationSessionId";
+
     public const string IpAddress = "IpAddress";
     public const string UserAgent = "UserAgent";
     public const string HttpMethod = "HttpMethod";
@@ -74,6 +92,15 @@ public sealed class HttpContextAuditMetadataEnricher(IHttpContextAccessor httpCo
         metadata[HttpMethod] = context.Request.Method;
         metadata[Path] = context.Request.Path.Value;
         metadata[TraceId] = context.TraceIdentifier;
+
+        // An impersonation session: the actor is the operator, so say whom they were acting as.
+        var user = context.User;
+        if (user.Identity?.IsAuthenticated == true && user.FindFirst(_claimOptions.OperatorIdClaimType) != null)
+        {
+            metadata[OnBehalfOfUserId] = user.FindFirst("sub")?.Value ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            metadata[OnBehalfOfName] = user.FindFirst("email")?.Value ?? user.FindFirst(ClaimTypes.Email)?.Value;
+            metadata[ImpersonationSessionId] = user.FindFirst(_claimOptions.ImpersonationSessionClaimType)?.Value;
+        }
     }
 
     private static string? ClientIp(HttpContext context)

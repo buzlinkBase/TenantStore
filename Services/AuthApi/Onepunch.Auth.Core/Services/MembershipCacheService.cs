@@ -35,7 +35,7 @@ public class MembershipCacheService
     /// lookups) since this runs on the login critical path, where a strict 200ms deadline would
     /// routinely miss under load and silently degrade every login to single-tenant data.
     /// </summary>
-    public async Task<List<UsersTenant>> GetMembershipsAsync(Guid userId, int deadlineMilliseconds = 500)
+    public virtual async Task<List<UsersTenant>> GetMembershipsAsync(Guid userId, int deadlineMilliseconds = 500)
     {
         var cached = await _cacheService.GetAsync<List<UsersTenant>>(CacheKey(userId));
         if (cached != null && cached.Count > 0)

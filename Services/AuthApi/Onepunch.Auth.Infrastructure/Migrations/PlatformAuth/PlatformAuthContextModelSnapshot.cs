@@ -22,6 +22,78 @@ namespace Onepunch.Auth.Infrastructure.Migrations.PlatformAuth
 
             MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);
 
+            modelBuilder.Entity("Onepunch.Auth.Domain.Entities.ImpersonationSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("EndedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("ExchangeCodeExpiresAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ExchangeCodeHash")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime?>("ExchangedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("OperatorEmail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<Guid>("OperatorId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("OperatorRole")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTime>("StartedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("TargetEmail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<Guid>("TargetUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("TenantName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExchangeCodeHash")
+                        .IsUnique();
+
+                    b.HasIndex("OperatorId");
+
+                    b.HasIndex("TargetUserId");
+
+                    b.ToTable("ImpersonationSessions", (string)null);
+                });
+
             modelBuilder.Entity("Onepunch.Auth.Domain.Entities.PlatformAdminAudit", b =>
                 {
                     b.Property<Guid>("Id")
