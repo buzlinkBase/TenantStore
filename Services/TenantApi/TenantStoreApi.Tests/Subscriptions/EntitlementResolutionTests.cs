@@ -23,7 +23,8 @@ public class EntitlementResolutionTests
 
         snapshot.Status.Should().Be(nameof(AccountSubscriptionStatus.Trialing));
         snapshot.AccessMode.Should().Be(SubscriptionAccessMode.Full);
-        snapshot.PlanCode.Should().Be("premium");
+        snapshot.PlanCode.Should().Be("legacy-free-trial");
+        snapshot.PlanName.Should().Be("Free Trial");
         snapshot.Features.Where(f => !EntitlementKeys.SeparateSystems.Contains(f.Key)).Select(f => f.Value)
             .Should().AllBeEquivalentTo(true);
         snapshot.Features.Where(f => EntitlementKeys.SeparateSystems.Contains(f.Key)).Select(f => f.Value)

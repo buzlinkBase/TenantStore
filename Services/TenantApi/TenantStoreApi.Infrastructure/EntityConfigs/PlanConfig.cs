@@ -99,8 +99,7 @@ public static class PlanSeed
         {
             Entitlement(TimekeepingId, row.Key, row.Timekeeping),
             Entitlement(PayrollId, row.Key, row.Payroll),
-            Entitlement(PremiumId, row.Key, row.Premium),
-        });
+            Entitlement(PremiumId, row.Key, row.Premium),        });
 
     private static PlanEntitlement Entitlement(Guid planId, string key, string value) => new()
     {

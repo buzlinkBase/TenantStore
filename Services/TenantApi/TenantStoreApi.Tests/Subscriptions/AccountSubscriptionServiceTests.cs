@@ -16,7 +16,7 @@ public class AccountSubscriptionServiceTests
     // ── Trial ────────────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task FirstCompany_StartsASevenDayPremiumTrial()
+    public async Task FirstCompany_StartsASevenDayFreeTrial()
     {
         var host = new SubscriptionTestHost();
         var (owner, _) = await host.TrialAccountAsync();
@@ -24,7 +24,7 @@ public class AccountSubscriptionServiceTests
         var subscription = host.SubscriptionOf(owner);
         subscription.SubStatus.Should().Be(AccountSubscriptionStatus.Trialing);
         subscription.TrialEndsAtUtc.Should().Be(SubscriptionTestHost.Start.AddDays(7));
-        subscription.PlanId.Should().Be(host.Uow.Context.Plans.Single(p => p.Code == "premium").Id);
+        subscription.PlanId.Should().Be(host.Uow.Context.Plans.Single(p => p.Code == "legacy-free-trial").Id);
     }
 
     [Fact]

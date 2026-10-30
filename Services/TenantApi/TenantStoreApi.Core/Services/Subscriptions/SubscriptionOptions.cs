@@ -10,8 +10,9 @@ public sealed class SubscriptionOptions
     public bool EnforcementEnabled { get; set; } = true;
 
     public int TrialDays { get; set; } = 7;
-    /// <summary>The plan a trial runs on -- full Premium.</summary>
-    public string TrialPlanCode { get; set; } = "premium";
+    /// <summary>The plan a trial runs on -- the private "Free Trial" plan, which carries Premium's
+    /// entitlements and is never offered in plan selection.</summary>
+    public string TrialPlanCode { get; set; } = "legacy-free-trial";
     /// <summary>Full access after a period ends unpaid, before suspension.</summary>
     public int GraceDays { get; set; } = 7;
     /// <summary>How long before a paid period ends the owner is reminded, and may pay for the

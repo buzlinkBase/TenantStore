@@ -63,6 +63,19 @@ public class PlanOfferTests
     }
 
     [Fact]
+    public async Task TrialingAccount_NeverSeesTheFreeTrialPlan_InPlanSelection()
+    {
+        var host = new SubscriptionTestHost();
+        var (owner, _) = await host.TrialAccountAsync();
+
+        host.SubscriptionOf(owner).Plan.Code.Should().Be("legacy-free-trial");
+        (await VisibleCodesAsync(host, owner)).Should()
+            .BeEquivalentTo("timekeeping", "payroll", "premium");
+        await Assert.ThrowsAsync<SubscriptionRuleException>(() =>
+            host.Subscriptions.RequestPlanChangeAsync(owner, "legacy-free-trial", BillingCycle.Monthly, "owner"));
+    }
+
+    [Fact]
     public async Task ExpiredOffer_HidesThePlan()
     {
         var host = new SubscriptionTestHost();
