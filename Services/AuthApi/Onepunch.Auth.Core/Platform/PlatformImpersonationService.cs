@@ -70,8 +70,7 @@ public class PlatformImpersonationService
 
         var target = await _users.FindByIdAsync(request.TargetUserId.ToString())
             ?? throw new GuardException("That user doesn't exist.");
-        var membership = (await _memberships.GetMembershipsAsync(target.Id))
-            .FirstOrDefault(m => m.TenantId == request.TenantId)
+        var membership = await _memberships.GetActiveMembershipAsync(target.Id, request.TenantId)
             ?? throw new GuardException("That user isn't a member of that company.");
 
         if (!ImpersonationPolicy.CanImpersonate(operatorUser.Role, membership.Roles))
@@ -125,8 +124,7 @@ public class PlatformImpersonationService
         await _db.SaveChangesAsync(ct);
 
         var target = await _users.FindByIdAsync(session.TargetUserId.ToString()) ?? throw new GuardException(Invalid);
-        var membership = (await _memberships.GetMembershipsAsync(target.Id))
-            .FirstOrDefault(m => m.TenantId == session.TenantId) ?? throw new GuardException(Invalid);
+        var membership = await _memberships.GetActiveMembershipAsync(target.Id, session.TenantId) ?? throw new GuardException(Invalid);
 
         // Re-checked at redemption: the target's roles may have changed since the operator asked.
         if (!ImpersonationPolicy.CanImpersonate(session.OperatorRole, membership.Roles)) throw new GuardException(Invalid);

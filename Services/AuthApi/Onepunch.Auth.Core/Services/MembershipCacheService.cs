@@ -1,5 +1,6 @@
 using Onepunch.Auth.Domain.Entities;
 using Onepunch.Common.Lib.Cache;
+using Onepunch.Common.Lib.Exceptions;
 using OnePunch.Auth.Core;
 using Serilog;
 
@@ -64,6 +65,30 @@ public class MembershipCacheService
         var withState = await ApplyRequestStateAsync(tenants, userId);
         await _cacheService.SetAsync(CacheKey(userId), withState, CacheDuration);
         return withState;
+    }
+
+    /// <summary>
+    /// The user's active membership in ONE company, asked of Tenant Service directly: no cache and no
+    /// DefaultTenant* fallback, which only ever knows a user's default company and has no permissions.
+    /// For callers that must not guess (impersonation). Null when the user has no active membership
+    /// there; a Tenant Service that can't answer is an error, not "not a member".
+    /// </summary>
+    public virtual async Task<UsersTenant?> GetActiveMembershipAsync(Guid userId, Guid tenantId, int deadlineMilliseconds = 3000)
+    {
+        var resolved = await _membershipGrpcClient.ResolveMembershipAsync(userId, tenantId, deadlineMilliseconds);
+        if (!resolved.Success)
+            throw new GuardException("The company couldn't be checked right now. Please try again.");
+        if (!resolved.Found || resolved.Status != "Active") return null;
+
+        var membership = new UsersTenant
+        {
+            TenantId = tenantId,
+            Name = resolved.TenantName,
+            Roles = resolved.Roles,
+            Permissions = resolved.Permissions,
+            State = resolved.Status
+        };
+        return (await ApplyRequestStateAsync([membership], userId))[0];
     }
 
     public async Task InvalidateAsync(Guid userId)

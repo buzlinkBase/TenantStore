@@ -204,7 +204,7 @@ public class PlatformImpersonationServiceTests : IDisposable
 
         var membership = new UsersTenant { TenantId = _tenantId, Name = "Acme", Roles = [.. targetRoles], Permissions = ["Leave:View"] };
         var memberships = new Mock<MembershipCacheService>(null!, null!, null!);
-        memberships.Setup(m => m.GetMembershipsAsync(target.Id, It.IsAny<int>())).ReturnsAsync([membership]);
+        memberships.Setup(m => m.GetActiveMembershipAsync(target.Id, _tenantId, It.IsAny<int>())).ReturnsAsync(membership);
 
         var jwt = new Mock<JwtService>(null!, null!, Microsoft.Extensions.Options.Options.Create(new Onepunch.Common.Lib.JwtSettings()), null!, null!);
         jwt.Setup(j => j.ImpersonationMaxMinutes).Returns(30);
@@ -279,6 +279,19 @@ public class PlatformImpersonationServiceTests : IDisposable
         var rig = await CreateRigAsync(PlatformRoles.SuperAdmin, "Owner");
         var result = await rig.Sut.StartAsync(rig.Operator.Id, Request(rig), Ct);
         result.ExchangeCode.Should().NotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task Start_RefusesAUserWithNoActiveMembershipInThatCompany()
+    {
+        var rig = await CreateRigAsync(PlatformRoles.SuperAdmin, "Owner");
+        var request = Request(rig);
+        request.TenantId = Guid.NewGuid();
+
+        var act = () => rig.Sut.StartAsync(rig.Operator.Id, request, Ct);
+
+        await act.Should().ThrowAsync<GuardException>().WithMessage("*isn't a member*");
+        rig.Db.ImpersonationSessions.Should().BeEmpty();
     }
 
     [Fact]
