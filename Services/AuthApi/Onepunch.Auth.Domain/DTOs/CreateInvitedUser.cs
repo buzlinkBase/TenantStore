@@ -10,6 +10,8 @@ public class CreateAccount
     public string? Name { get; set; }
     [Required(ErrorMessage = "Invalid Password")]
     public required string Password { get; set; }
+    /// <summary>The Terms of Service version the person ticked "I agree" to on the sign-up page.</summary>
+    public int? TermsVersion { get; set; }
 }
 public class CreateInvitedUser
 {

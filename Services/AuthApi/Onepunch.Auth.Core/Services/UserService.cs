@@ -81,7 +81,7 @@ public class UserService : BaseService<User>
     #endregion
 
     #region Registration
-    public async Task<RegistrationResult> RegisterAccount(CreateAccount payload, string accountApiHost, CancellationToken token)
+    public async Task<RegistrationResult> RegisterAccount(CreateAccount payload, string accountApiHost, CancellationToken token, string? ipAddress = null)
     {
         var existing = await _manager.FindByEmailAsync(payload.Email);
         if (existing != null)
@@ -100,6 +100,7 @@ public class UserService : BaseService<User>
             FullName = payload.Name,
             Status = "Pending"
         }.BeganAs(AccountOrigins.EmailSignup, DateTime.UtcNow);
+        user.AgreedToTerms(payload.TermsVersion, user.CreatedAtUtc!.Value, ipAddress);
 
         var createResult = await _manager.CreateAsync(user, payload.Password);
         if (!createResult.Succeeded)
@@ -554,7 +555,7 @@ public class UserService : BaseService<User>
     /// <summary>
     /// Sign up with Google — creates a new account. Fails if an account already exists for the email.
     /// </summary>
-    public async Task<LoginResponse> SignUpWithGoogleAsync(string code, CancellationToken ct)
+    public async Task<LoginResponse> SignUpWithGoogleAsync(string code, CancellationToken ct, int? termsVersion = null, string? ipAddress = null)
     {
         try
         {
@@ -576,6 +577,7 @@ public class UserService : BaseService<User>
             }.BeganAs(AccountOrigins.GoogleSignup, DateTime.UtcNow);
             user.StampEmailConfirmed(user.CreatedAtUtc!.Value);
             user.StampFirstHrisSignIn(user.CreatedAtUtc.Value);
+            user.AgreedToTerms(termsVersion, user.CreatedAtUtc.Value, ipAddress);
 
             var createResult = await _manager.CreateAsync(user);
             if (!createResult.Succeeded)

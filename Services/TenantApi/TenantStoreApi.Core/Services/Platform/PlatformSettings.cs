@@ -154,6 +154,37 @@ public static class PlatformSettingsCatalog
             Description = "On: deleting an account or company needs a second administrator to approve it. Turn off only for testing: "
                 + "the administrator who asked can then approve their own request.",
         },
+        new BooleanSetting(o => o.TermsLive, (o, v) => o.TermsLive = v)
+        {
+            Key = "legal.terms-live", Label = "Terms of Service live",
+            Description = "On: customers see the published Terms, accept them at sign-up and when a new version asks, and must confirm settings that "
+                + "differ from DOLE standards. Off: none of that is shown or enforced. Publish a version before turning this on.",
+        },
+        new TextSetting(256, o => o.LegalEntityName, (o, v) => o.LegalEntityName = v)
+        {
+            Key = "legal.entity-name", Label = "Legal entity name",
+            Description = "The provider's registered name, as the Terms of Service state it ({{entity_name}}). Takes effect in the next published version.",
+        },
+        new TextSetting(500, o => o.LegalAddress, (o, v) => o.LegalAddress = v)
+        {
+            Key = "legal.address", Label = "Registered address",
+            Description = "The provider's registered address in the Terms ({{address}}).",
+        },
+        new TextSetting(256, o => o.LegalContactEmail, (o, v) => o.LegalContactEmail = v)
+        {
+            Key = "legal.contact-email", Label = "Legal and privacy contact email",
+            Description = "Where customers send legal notices and data privacy requests ({{contact_email}}).",
+        },
+        new TextSetting(128, o => o.LegalVenueCity, (o, v) => o.LegalVenueCity = v)
+        {
+            Key = "legal.venue-city", Label = "Venue for disputes (city)",
+            Description = "The city whose courts hear disputes under the Terms ({{venue_city}}).",
+        },
+        new IntegerSetting(1, 36, o => o.LiabilityCapMonths, (o, v) => o.LiabilityCapMonths = v)
+        {
+            Key = "legal.liability-cap-months", Label = "Liability cap (months of fees)",
+            Description = "The provider's liability is capped at the fees paid in this many months before a claim ({{liability_cap_months}}).",
+        },
     ];
 
     public static PlatformSettingDefinition? Find(string key) => All.FirstOrDefault(s => s.Key == key);

@@ -66,6 +66,21 @@ public sealed class SubscriptionOptions
     public string PaymentInstructions { get; set; } =
         "Pay by bank transfer and email the receipt to billing@onepunch.site with your account email as the reference. Your plan is activated once the payment is confirmed.";
 
+    /// <summary>The provider as the Terms of Service name it ({{entity_name}} and the rest, see
+    /// LegalTokenCatalog). Here rather than in options of their own so the console's settings
+    /// catalog, which edits these options, covers them too. Console settings.</summary>
+    public string LegalEntityName { get; set; } = "[COMPANY LEGAL NAME]";
+    /// <summary>On: the published Terms of Service are in effect -- customers see them, agree at
+    /// sign-up and company setup, accept new versions, and must confirm settings that differ from
+    /// DOLE standards (hrms-api asks legal/terms/current). Off (the default): none of that is shown
+    /// or enforced, while the console can still write and publish versions. A console setting.</summary>
+    public bool TermsLive { get; set; }
+    public string LegalAddress { get; set; } = "[REGISTERED ADDRESS]";
+    public string LegalContactEmail { get; set; } = "[LEGAL CONTACT EMAIL]";
+    public string LegalVenueCity { get; set; } = "[CITY]";
+    /// <summary>The liability cap in the Terms: fees paid in this many months before the claim.</summary>
+    public int LiabilityCapMonths { get; set; } = 12;
+
     /// <summary>Repeat trials from these domains aren't flagged -- anyone can have an address there.</summary>
     public List<string> FreeEmailDomains { get; set; } =
     [

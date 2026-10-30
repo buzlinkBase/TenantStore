@@ -66,7 +66,7 @@ namespace OnePunch.Auth.Api.Controllers
             {
                 return StatusCode(StatusCodes.Status500InternalServerError, "Api URL is not configured.");
             }
-            var result = await _service.RegisterAccount(payload, accountApiHost, token);
+            var result = await _service.RegisterAccount(payload, accountApiHost, token, HttpContext.Connection.RemoteIpAddress?.ToString());
             if (!result.Success)
             {
                 return BadRequest(new CreateAccountErrorResponse
@@ -260,7 +260,8 @@ namespace OnePunch.Auth.Api.Controllers
         public async Task<IActionResult> SignUpWithGoogle([FromBody] GoogleLoginRequest request, CancellationToken token)
         {
             // exchange request.Code with Google to get user info — creates a new account
-            var response = await _service.SignUpWithGoogleAsync(request.Code, token);
+            var response = await _service.SignUpWithGoogleAsync(request.Code, token,
+                request.TermsVersion, HttpContext.Connection.RemoteIpAddress?.ToString());
             if (!string.IsNullOrWhiteSpace(response.ErrorMessage))
                 return Unauthorized(new UnauthorizedResponse { ErrorMessage = response.ErrorMessage });
             return Ok(LoginResponseComposer.ConvertLoginResponse(response, _jwtService.RefreshExpiry, HttpContext.Request.IsHttps, Response));
@@ -337,6 +338,8 @@ namespace OnePunch.Auth.Api.Controllers
     public class GoogleLoginRequest
     {
         public string Code { get; set; } = string.Empty;
+        /// <summary>Sign-up only: the Terms of Service version the person agreed to.</summary>
+        public int? TermsVersion { get; set; }
     }
 
     public record EmailPayload

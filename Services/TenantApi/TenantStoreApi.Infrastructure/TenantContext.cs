@@ -38,6 +38,8 @@ public class TenantContext : DbContext
     public DbSet<RolePermission> RolePermissions { get; set; }
     public DbSet<ClientEntity> ClientEntities { get; set; }
     public DbSet<ClientMembershipRole> ClientMembershipRoles { get; set; }
+    public DbSet<LegalDocument> LegalDocuments { get; set; }
+    public DbSet<TermsAcceptance> TermsAcceptances { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {

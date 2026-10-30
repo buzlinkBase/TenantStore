@@ -33,6 +33,7 @@ public class AuthContext : IdentityDbContext<User, Role, Guid>
         modelBuilder.Entity<User>().HasIndex(x => x.Email).IsUnique();
         modelBuilder.Entity<User>().Property(x => x.Origin).HasMaxLength(24).HasDefaultValue(AccountOrigins.Unknown);
         modelBuilder.Entity<User>().Property(x => x.OriginDetail).HasMaxLength(128);
+        modelBuilder.Entity<User>().Property(x => x.TermsAcceptedIp).HasMaxLength(64);
         // Read by the platform console's acquisition page: accounts created in a date range.
         modelBuilder.Entity<User>().HasIndex(x => x.CreatedAtUtc);
         // One stored result per company + idempotency key (see InvitationService.SendBatchAsync).

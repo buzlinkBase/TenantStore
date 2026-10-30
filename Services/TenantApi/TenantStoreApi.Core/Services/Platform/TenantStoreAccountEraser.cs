@@ -166,6 +166,9 @@ public class TenantStoreAccountEraser
         deleted += await _rows.EraseAsync(All<Role>().Where(r => roleIds.Contains(r.Id)), token);
         deleted += await _rows.EraseAsync(All<ClientEntity>().Where(c => clientIds.Contains(c.Id)), token);
 
+        // The companies' acceptances of the Terms (the Terms themselves are platform data and stay).
+        deleted += await _rows.EraseAsync(All<TermsAcceptance>().Where(a => tenantIds.Contains(a.TenantId)), token);
+
         // The companies themselves.
         deleted += await _rows.EraseAsync(All<TenantDelegation>()
             .Where(d => tenantIds.Contains(d.HostTenantId) || tenantIds.Contains(d.GuestTenantId)), token);

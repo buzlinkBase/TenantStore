@@ -32,6 +32,7 @@ public class ErasureCoverageTests : IDisposable
         typeof(SubIndustry),
         typeof(StorageAddOnOffering), // the storage catalog
         typeof(PlatformSetting),      // console settings
+        typeof(LegalDocument),        // the Terms of Service versions every company is asked to accept
         typeof(Permission),           // the permission catalog
     ];
 
