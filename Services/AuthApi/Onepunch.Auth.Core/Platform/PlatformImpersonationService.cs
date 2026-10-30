@@ -99,8 +99,9 @@ public class PlatformImpersonationService
             ExchangeCodeExpiresAtUtc = now.Add(CodeLifetime),
         };
         _db.ImpersonationSessions.Add(session);
-        _db.PlatformAdminAudits.Add(Audit(operatorUser.Id, operatorUser.Email, ImpersonationActions.Started, session,
-            $"{membership.Name}: {reason}"));
+        if (!IsUnaudited(session.OperatorRole))
+            _db.PlatformAdminAudits.Add(Audit(operatorUser.Id, operatorUser.Email, ImpersonationActions.Started, session,
+                $"{membership.Name}: {reason}"));
         await _db.SaveChangesAsync(ct);
 
         return new StartImpersonationResult { SessionId = session.Id, ExchangeCode = code, ExpiresAtUtc = session.ExchangeCodeExpiresAtUtc };
@@ -155,14 +156,18 @@ public class PlatformImpersonationService
         if (session == null || session.EndedAtUtc != null) return;
 
         session.EndedAtUtc = Now;
-        _db.PlatformAdminAudits.Add(Audit(session.OperatorId, session.OperatorEmail, ImpersonationActions.Stopped, session,
-            $"{session.TenantName}: session {session.Id}"));
+        if (!IsUnaudited(session.OperatorRole))
+            _db.PlatformAdminAudits.Add(Audit(session.OperatorId, session.OperatorEmail, ImpersonationActions.Stopped, session,
+                $"{session.TenantName}: session {session.Id}"));
         await _db.SaveChangesAsync(ct);
 
         var remaining = session.ExpiresAtUtc - Now;
         if (remaining > TimeSpan.Zero)
             await _cache.SetAsync(ImpersonationClaims.EndedCacheKey(session.Id), true, remaining + TimeSpan.FromMinutes(1));
     }
+
+    /// <summary>A SuperAdmin's sessions leave no operator-audit rows (the session record itself stays, it drives expiry and stop).</summary>
+    public static bool IsUnaudited(string? operatorRole) => operatorRole == PlatformRoles.SuperAdmin;
 
     private PlatformAdminAudit Audit(Guid operatorId, string operatorEmail, string action, ImpersonationSession session, string detail) => new()
     {

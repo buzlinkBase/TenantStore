@@ -12,7 +12,7 @@ public class ImpersonationAuditTests
 {
     private static readonly ClaimsAuditActorOptions Options = new();
 
-    private static DefaultHttpContext Context(string method, string path, bool impersonating)
+    private static DefaultHttpContext Context(string method, string path, bool impersonating, string? operatorRole = null)
     {
         var claims = new List<Claim> { new("sub", "user-1"), new("email", "ann@acme.test"), new("tenantId", "t-1") };
         if (impersonating)
@@ -20,6 +20,7 @@ public class ImpersonationAuditTests
             claims.Add(new Claim("act_sub", "operator-1"));
             claims.Add(new Claim("act_email", "ops@platform.test"));
             claims.Add(new Claim("imp_sid", "session-1"));
+            if (operatorRole != null) claims.Add(new Claim("act_role", operatorRole));
         }
 
         var context = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer")) };
@@ -101,6 +102,48 @@ public class ImpersonationAuditTests
         metadata[HttpContextAuditMetadataEnricher.OnBehalfOfUserId].Should().Be("user-1");
         metadata[HttpContextAuditMetadataEnricher.OnBehalfOfName].Should().Be("ann@acme.test");
         metadata[HttpContextAuditMetadataEnricher.ImpersonationSessionId].Should().Be("session-1");
+    }
+
+    [Fact]
+    public async Task ASuperAdminSession_IsNotRecordedByThisMiddleware_ButStillRuns()
+    {
+        var writer = new Mock<IAuditWriter>();
+        var committer = new Mock<IAuditCommitter>();
+        var reached = false;
+        var middleware = Middleware(_ => { reached = true; return Task.CompletedTask; });
+
+        await middleware.InvokeAsync(Context("POST", "/api/v1/employees", true, "SuperAdmin"), writer.Object, committer.Object,
+            NullLogger<ImpersonationRequestAuditMiddleware>.Instance);
+
+        reached.Should().BeTrue();
+        writer.Verify(w => w.WriteAsync(It.IsAny<AuditEvent>(), It.IsAny<CancellationToken>()), Times.Never);
+        committer.Verify(c => c.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ASupportSession_IsStillRecorded()
+    {
+        var writer = new Mock<IAuditWriter>();
+        var middleware = Middleware(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(Context("GET", "/api/v1/employees", true, "Support"), writer.Object, Mock.Of<IAuditCommitter>(),
+            NullLogger<ImpersonationRequestAuditMiddleware>.Instance);
+
+        writer.Verify(w => w.WriteAsync(It.IsAny<AuditEvent>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(true, "SuperAdmin", true)]
+    [InlineData(true, "superadmin", true)]
+    [InlineData(true, "Support", false)]
+    [InlineData(true, null, false)]
+    [InlineData(false, null, false)]
+    public void OnlyASuperAdminImpersonationSession_IsSuppressed(bool impersonating, string? role, bool suppressed)
+    {
+        var accessor = new HttpContextAccessor { HttpContext = Context("POST", "/api/v1/employees", impersonating, role) };
+        var resolver = new ClaimsPrincipalAuditActorResolver(accessor, new AuditEngineOptions(), Options, Mock.Of<IServiceProvider>());
+
+        resolver.IsAuditSuppressed().Should().Be(suppressed);
     }
 
     [Fact]

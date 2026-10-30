@@ -17,6 +17,8 @@ public sealed class EnrichingAuditWriter(
 {
     public Task WriteAsync(AuditEvent auditEvent, CancellationToken token = default)
     {
+        if (actorResolver.IsAuditSuppressed()) return Task.CompletedTask;
+
         var metadata = new Dictionary<string, string?>(StringComparer.Ordinal);
         foreach (var enricher in enrichers)
             enricher.Enrich(metadata);

@@ -20,6 +20,20 @@ public sealed class ClaimsAuditActorOptions
     public string ImpersonationSessionClaimType { get; set; } = "imp_sid";
 
     /// <summary>
+    /// The operator's role inside an impersonation token, and the roles whose sessions are not
+    /// audited at all (no entity changes, no per-request events). Other operators stay fully audited.
+    /// </summary>
+    public string OperatorRoleClaimType { get; set; } = "act_role";
+    public ISet<string> UnauditedOperatorRoles { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "SuperAdmin" };
+
+    /// <summary>True for an impersonation session whose operator role is in <see cref="UnauditedOperatorRoles"/>.</summary>
+    public bool IsUnauditedSession(ClaimsPrincipal? user) =>
+        user?.Identity?.IsAuthenticated == true
+        && user.FindFirst(OperatorIdClaimType) != null
+        && user.FindFirst(OperatorRoleClaimType)?.Value is { } role
+        && UnauditedOperatorRoles.Contains(role);
+
+    /// <summary>
     /// Consulted before the organization claims, for hosts that know the organization some other
     /// way too (a header, or a tenant set by a message consumer where there is no request at
     /// all). Return null to fall back to the claims.
@@ -53,6 +67,8 @@ public class ClaimsPrincipalAuditActorResolver(
 
         return AuditActor.User(userId, FirstClaim(claimOptions.DisplayNameClaimTypes) ?? userId);
     }
+
+    public virtual bool IsAuditSuppressed() => claimOptions.IsUnauditedSession(User);
 
     public virtual string? ResolveOrganizationId() =>
         claimOptions.OrganizationResolver?.Invoke(services) ?? FirstClaim(claimOptions.OrganizationClaimTypes);

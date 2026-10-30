@@ -57,6 +57,12 @@ public interface IAuditActorResolver
     AuditActor ResolveActor();
 
     string? ResolveOrganizationId();
+
+    /// <summary>
+    /// True when nothing done in the current context may be recorded (e.g. a trusted platform
+    /// operator acting as a user). Checked before capturing and again before every write.
+    /// </summary>
+    bool IsAuditSuppressed() => false;
 }
 
 /// <summary>Adds request context (IP, user agent, ...) to every event. Hosts may register several.</summary>

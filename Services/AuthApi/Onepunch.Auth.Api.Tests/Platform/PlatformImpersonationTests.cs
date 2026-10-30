@@ -328,6 +328,21 @@ public class PlatformImpersonationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ASuperAdminSession_StartsAndStops_WithoutOperatorAuditRows()
+    {
+        var rig = await CreateRigAsync(PlatformRoles.SuperAdmin, "Owner");
+
+        var started = await rig.Sut.StartAsync(rig.Operator.Id, Request(rig), Ct);
+        await rig.Sut.ExchangeAsync(started.ExchangeCode, Ct);
+        await rig.Sut.StopAsync(started.SessionId, Ct);
+
+        rig.Db.PlatformAdminAudits.Should().BeEmpty();
+        // The session record itself stays: it drives expiry and the stop guard.
+        (await rig.Db.ImpersonationSessions.SingleAsync()).EndedAtUtc.Should().NotBeNull();
+        rig.Cache.Verify(c => c.SetAsync(ImpersonationClaims.EndedCacheKey(started.SessionId), true, It.IsAny<TimeSpan>()), Times.Once);
+    }
+
+    [Fact]
     public async Task Exchange_RefusesASessionThatWasStopped()
     {
         var rig = await CreateRigAsync(PlatformRoles.Support, "Employee");

@@ -35,6 +35,7 @@ public sealed class AuditSaveChangesInterceptor(IServiceProvider services) : Sav
         if (context == null || _capturing) return;
         var options = services.GetService<AuditEngineOptions>();
         if (options is not { Enabled: true }) return;
+        if (services.GetService<IAuditActorResolver>()?.IsAuditSuppressed() == true) return;
 
         _capturing = true;
         try

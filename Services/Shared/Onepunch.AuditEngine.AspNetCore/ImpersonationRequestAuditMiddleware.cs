@@ -20,7 +20,8 @@ public sealed class ImpersonationRequestAuditMiddleware(RequestDelegate next, Cl
     public async Task InvokeAsync(HttpContext context, IAuditWriter writer, IAuditCommitter committer, ILogger<ImpersonationRequestAuditMiddleware> logger)
     {
         var user = context.User;
-        if (user.Identity?.IsAuthenticated != true || user.FindFirst(claimOptions.OperatorIdClaimType) == null)
+        if (user.Identity?.IsAuthenticated != true || user.FindFirst(claimOptions.OperatorIdClaimType) == null
+            || claimOptions.IsUnauditedSession(user))
         {
             await next(context);
             return;
