@@ -67,11 +67,15 @@ public static class PlatformPermissions
     public const string CompaniesCreate = "platform.companies.create";
     /// <summary>Signing in as a company's user (full access as that person) to help them; every action is attributed to the operator.</summary>
     public const string ImpersonateUsers = "platform.users.impersonate";
+    /// <summary>Seeing which accounts and companies have been purged (their data archived and removed) and when their archives are due to be destroyed.</summary>
+    public const string PurgedDataView = "platform.purged-data.view";
+    /// <summary>Reading a purged company's retained audit trail, downloading its archive, and asking for an archive to be destroyed early (a second operator approves). Each use needs a reason and is recorded.</summary>
+    public const string PurgedDataManage = "platform.purged-data.manage";
 
     public static readonly IReadOnlyList<string> All =
     [
         AccountsRead, SubscriptionsManage, PaymentsRecord, PaymentsRefund, PlansManage, SettingsManage, AuditRead, AdminsManage,
-        AccountsDelete, StorageFilesDelete, CompaniesCreate, ImpersonateUsers,
+        AccountsDelete, StorageFilesDelete, CompaniesCreate, ImpersonateUsers, PurgedDataView, PurgedDataManage,
     ];
 }
 
@@ -99,6 +103,7 @@ public static class PlatformRolePermissions
                 PlatformPermissions.AuditRead,
                 PlatformPermissions.CompaniesCreate,
                 PlatformPermissions.ImpersonateUsers,
+                PlatformPermissions.PurgedDataView,
             ],
         };
 

@@ -195,6 +195,11 @@ public class PlatformAccountDeletionService
             Reason = request.Reason,
             DeletedAtUtc = Now,
         }, token);
+
+        // Published with the erasure (same transaction), so it is only ever sent for an erasure that happened.
+        if (request.SendConfirmationEmail
+            && ErasureEmailComposer.ForAccount(request.OwnerEmail, tenants.Select(t => t.TenantName ?? t.Id.ToString()).ToList(), Now) is { } email)
+            await _publisher.Publish(email, token);
     }
 
     private async Task RequestCompaniesAsync(AccountSubscription subscription, IEnumerable<Guid> tenantIds, CancellationToken token)

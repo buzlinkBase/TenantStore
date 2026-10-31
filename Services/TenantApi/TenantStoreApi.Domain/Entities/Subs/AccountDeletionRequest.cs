@@ -47,6 +47,9 @@ public class AccountDeletionRequest : BaseEntity
     /// <summary>The owner email typed to confirm, kept so the approver sees exactly what was asked for.</summary>
     public string OwnerEmail { get; set; } = string.Empty;
     public string Reason { get; set; } = string.Empty;
+    /// <summary>The requesting operator ticked "email the owner when it's done": a short confirmation goes to
+    /// <see cref="OwnerEmail"/> once the erasure has completed.</summary>
+    public bool SendConfirmationEmail { get; set; }
     public AccountDeletionRequestStatus RequestStatus { get; set; }
 
     /// <summary>The requesting operator's id (token <c>sub</c>) -- what "a different operator" is checked against.</summary>

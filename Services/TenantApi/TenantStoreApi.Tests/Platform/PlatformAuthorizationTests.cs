@@ -106,6 +106,12 @@ public class PlatformAuthorizationTests
     [InlineData(PlatformRoles.Support, PlatformPermissions.PaymentsRecord, false)]
     [InlineData(PlatformRoles.Support, PlatformPermissions.SubscriptionsManage, false)]
     [InlineData(PlatformRoles.Support, PlatformPermissions.PlansManage, false)]
+    [InlineData(PlatformRoles.SuperAdmin, PlatformPermissions.PurgedDataView, true)]
+    [InlineData(PlatformRoles.SuperAdmin, PlatformPermissions.PurgedDataManage, true)]
+    [InlineData(PlatformRoles.Support, PlatformPermissions.PurgedDataView, true)]
+    [InlineData(PlatformRoles.Support, PlatformPermissions.PurgedDataManage, false)]
+    [InlineData(PlatformRoles.Billing, PlatformPermissions.PurgedDataView, false)]
+    [InlineData(PlatformRoles.Billing, PlatformPermissions.PurgedDataManage, false)]
     public async Task ARole_HoldsExactlyItsPermissions(string role, string permission, bool expected)
     {
         (await CanAsync(Operator(role), permission)).Should().Be(expected);

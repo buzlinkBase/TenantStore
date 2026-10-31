@@ -100,11 +100,34 @@ public class SubscriptionLifecycleService
         // come, hrms-api is told to archive and delete. The emails below warn ahead of it.
         DataPurgeSchedule.Reconcile(subscription, now, _options);
         await _purge.RequestDueAsync(subscription, now, token);
+        await AdvanceClosureRequestsAsync(subscription, now, token);
 
         await SendDueEmailsAsync(subscription, now, token);
         await SendStorageAlertsAsync(subscription, now, token);
         await _uow.CommitChangesAsync("", token);
         return transitions;
+    }
+
+    /// <summary>An owner's request to close the account: unconfirmed ones expire, ones whose cooling-off is over go to an operator.</summary>
+    private async Task AdvanceClosureRequestsAsync(AccountSubscription subscription, DateTime now, CancellationToken token)
+    {
+        var requests = await Context.AccountClosureRequests
+            .Where(r => r.OwnerUserId == subscription.OwnerUserId
+                && (r.RequestStatus == AccountClosureStatus.PendingConfirmation || r.RequestStatus == AccountClosureStatus.CoolingOff))
+            .ToListAsync(token);
+        foreach (var request in requests)
+        {
+            if (request.RequestStatus == AccountClosureStatus.PendingConfirmation && request.ConfirmExpiresAtUtc <= now)
+            {
+                request.RequestStatus = AccountClosureStatus.Expired;
+            }
+            else if (request.RequestStatus == AccountClosureStatus.CoolingOff && request.CoolingOffEndsAtUtc <= now)
+            {
+                request.RequestStatus = AccountClosureStatus.ReadyForReview;
+                await _events.AddAsync(subscription, BillingEventTypes.ClosureReady, new { requestId = request.Id }, actor: "system",
+                    dedupeKey: $"{BillingEventTypes.ClosureReady}:{request.Id:N}", token: token);
+            }
+        }
     }
 
     /// <summary>

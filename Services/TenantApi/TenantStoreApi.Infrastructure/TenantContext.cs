@@ -32,6 +32,9 @@ public class TenantContext : DbContext
     public DbSet<StorageAddOnPayment> StorageAddOnPayments { get; set; }
     public DbSet<BillingEvent> BillingEvents { get; set; }
     public DbSet<AccountDeletionRequest> AccountDeletionRequests { get; set; }
+    public DbSet<PurgedCompanyArchive> PurgedCompanyArchives { get; set; }
+    public DbSet<ArchiveDestroyRequest> ArchiveDestroyRequests { get; set; }
+    public DbSet<AccountClosureRequest> AccountClosureRequests { get; set; }
     public DbSet<PlatformSetting> PlatformSettings { get; set; }
     public DbSet<Permission> Permissions { get; set; }
     public DbSet<Role> Roles { get; set; }

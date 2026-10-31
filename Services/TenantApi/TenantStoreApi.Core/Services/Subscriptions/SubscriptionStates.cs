@@ -73,6 +73,24 @@ public static class BillingEventTypes
     public const string LegalHoldSet = "data.legal-hold-set";
     public const string LegalHoldReleased = "data.legal-hold-released";
 
+    // An owner closing their own account (AccountClosureService): asked in the app, confirmed from email,
+    // cooling-off, then an operator approves (lock + purge schedule) or rejects.
+    public const string ClosureRequested = "account.closure-requested";
+    public const string ClosureConfirmed = "account.closure-confirmed";
+    public const string ClosureCanceled = "account.closure-canceled";
+    public const string ClosureReady = "account.closure-ready-for-review";
+    public const string ClosureApproved = "account.closure-approved";
+    public const string ClosureRejected = "account.closure-rejected";
+
+    // An operator using what a purge kept (PurgedDataService, ArchiveDestroyRequestService). Each carries
+    // the reason given and is attributed to the operator; an early destroy needs a second operator.
+    public const string PurgedAuditViewed = "purged.audit-viewed";
+    public const string PurgedArchiveDownloaded = "purged.archive-downloaded";
+    public const string ArchiveDestroyAsked = "purged.archive-destroy-requested";
+    public const string ArchiveDestroyWithdrawn = "purged.archive-destroy-canceled";
+    public const string ArchiveDestroyRejected = "purged.archive-destroy-rejected";
+    public const string ArchiveDestroyApproved = "purged.archive-destroy-approved";
+
     // Platform operator actions (PlatformAccountActionsService).
     public const string SuspendedByAdmin = "subscription.suspended-by-admin";
     public const string Reinstated = "subscription.reinstated";

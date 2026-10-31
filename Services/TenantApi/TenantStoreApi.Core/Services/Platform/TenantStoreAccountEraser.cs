@@ -75,6 +75,9 @@ public class TenantStoreAccountEraser
         // Billing: history, checkouts and payments (Restrict FKs) before the subscription.
         deleted += await _rows.EraseAsync(All<BillingEvent>().Where(e => e.OwnerUserId == owner || e.SubscriptionId == subscriptionId), token);
         deleted += await _rows.EraseAsync(All<AccountDeletionRequest>().Where(r => r.OwnerUserId == owner), token);
+        deleted += await _rows.EraseAsync(All<ArchiveDestroyRequest>().Where(r => r.OwnerUserId == owner), token);
+        deleted += await _rows.EraseAsync(All<AccountClosureRequest>().Where(r => r.OwnerUserId == owner), token);
+        deleted += await _rows.EraseAsync(All<PurgedCompanyArchive>().Where(a => a.OwnerUserId == owner), token);
         deleted += await _rows.EraseAsync(All<PaymentCheckout>().Where(c => c.SubscriptionId == subscriptionId || c.OwnerUserId == owner), token);
         deleted += await _rows.EraseAsync(All<SubscriptionPayment>().Where(p => p.SubscriptionId == subscriptionId), token);
         deleted += await _rows.EraseAsync(All<StorageAddOnPayment>().Where(p => p.SubscriptionId == subscriptionId), token);
@@ -112,6 +115,7 @@ public class TenantStoreAccountEraser
                 && ((e.PayloadJson != null && (e.PayloadJson.Contains(tenant) || e.PayloadJson.Contains(request)))
                     || (e.DedupeKey != null && e.DedupeKey.Contains(scope.TenantId.ToString("N"))))), token);
         deleted += await _rows.EraseAsync(All<AccountDeletionRequest>().Where(r => r.TenantId == scope.TenantId), token);
+        deleted += await _rows.EraseAsync(All<PurgedCompanyArchive>().Where(a => a.TenantId == scope.TenantId), token);
         deleted += await EraseCompaniesAsync([scope.TenantId], token);
         deleted += await EraseLeftoverMembershipsAsync(scope.DeletedUserIds, [scope.TenantId], token);
         return deleted;

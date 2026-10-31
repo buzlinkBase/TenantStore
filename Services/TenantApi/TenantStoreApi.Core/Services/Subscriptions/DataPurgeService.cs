@@ -181,6 +181,8 @@ public class DataPurgeService
             }, actor: "system", dedupeKey: doneKey, token: token);
         }
 
+        await RecordArchiveAsync(subscription, result, destroying, now, token);
+
         if (!destroying && result.LastEntryUtc is { } lastEntry)
         {
             var retainUntil = lastEntry.AddYears(_options.ArchiveRetentionYears);
@@ -206,6 +208,38 @@ public class DataPurgeService
         }
         subscription.ConcurrencyStamp = Guid.NewGuid();
         await _notifier.PublishAsync(subscription.OwnerUserId, doneType, token);
+    }
+
+    /// <summary>
+    /// Keeps what the purge left of one company where an operator can find it (<see cref="PurgedCompanyArchive"/>):
+    /// written once when the company is purged, stamped when its archive is destroyed. A repeat changes nothing.
+    /// </summary>
+    private async Task RecordArchiveAsync(
+        AccountSubscription subscription, CompanyDataPurged result, bool destroying, DateTime now, CancellationToken token)
+    {
+        var record = await Context.PurgedCompanyArchives
+            .FirstOrDefaultAsync(a => a.SubscriptionId == subscription.Id && a.TenantId == result.TenantId, token);
+        if (destroying)
+        {
+            if (record is { DestroyedAtUtc: null }) record.DestroyedAtUtc = now;
+            return;
+        }
+        if (record != null) return;
+
+        var name = await Context.Tenants.AsNoTracking().IgnoreQueryFilters()
+            .Where(t => t.Id == result.TenantId).Select(t => t.TenantName).FirstOrDefaultAsync(token);
+        await Context.PurgedCompanyArchives.AddAsync(new PurgedCompanyArchive
+        {
+            Id = Guid.CreateVersion7(),
+            SubscriptionId = subscription.Id,
+            OwnerUserId = subscription.OwnerUserId,
+            TenantId = result.TenantId,
+            CompanyName = name?.Trim() is { Length: > 0 } trimmed ? trimmed : "(unnamed)",
+            ArchiveKey = result.ArchiveKey,
+            ArchiveSha256 = result.ArchiveSha256,
+            RowsArchived = result.RowsArchived,
+            PurgedAtUtc = now,
+        }, token);
     }
 
     private Task<List<Guid>> OwnerTenantIdsAsync(Guid ownerUserId, CancellationToken token) =>

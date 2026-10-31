@@ -122,6 +122,9 @@ public static class SubscriptionRegistrations
         });
         services.AddScoped(sp =>
             RestService.For<IStorageManagerApi>(sp.GetRequiredService<IHttpClientFactory>().CreateClient(clientName)));
+        // The console's "Purged data" (a purged company's audit trail and archive link): same address and key.
+        services.AddScoped(sp =>
+            RestService.For<IPurgedDataApi>(sp.GetRequiredService<IHttpClientFactory>().CreateClient(clientName)));
     }
 
     // Unconfigured: that service's counts stay unknown, so a downgrade that depends on them is

@@ -42,6 +42,8 @@ public record DeletionRequestBody
     public string? Reason { get; set; }
     /// <summary>The account owner's email, typed by the operator to confirm.</summary>
     public string? ConfirmEmail { get; set; }
+    /// <summary>Email the owner a confirmation once the erasure is done.</summary>
+    public bool SendConfirmationEmail { get; set; }
 }
 
 public record CompanyDeletionRequestBody
@@ -49,6 +51,8 @@ public record CompanyDeletionRequestBody
     public string? Reason { get; set; }
     /// <summary>The company's name, typed by the operator to confirm.</summary>
     public string? ConfirmName { get; set; }
+    /// <summary>Email the owner a confirmation once the erasure is done.</summary>
+    public bool SendConfirmationEmail { get; set; }
 }
 
 public record ApproveDeletionBody
@@ -235,7 +239,7 @@ public class PlatformAccountsController : ControllerBase
         SubscriptionResults.Run(async () =>
         {
             var request = await _deletionRequests.RequestAsync(
-                ownerUserId, body.Reason, body.ConfirmEmail, PlatformActor.Operator(User), token);
+                ownerUserId, body.Reason, body.ConfirmEmail, PlatformActor.Operator(User), token, body.SendConfirmationEmail);
             await _deletionRequests.CommitChangesAsync(token);
             return Ok(request);
         });
@@ -377,7 +381,8 @@ public class PlatformCompaniesController : ControllerBase
     public Task<IActionResult> RequestDeletion(Guid tenantId, [FromBody] CompanyDeletionRequestBody body, CancellationToken token) =>
         SubscriptionResults.Run(async () =>
         {
-            var request = await _deletionRequests.RequestCompanyAsync(tenantId, body.Reason, body.ConfirmName, PlatformActor.Operator(User), token);
+            var request = await _deletionRequests.RequestCompanyAsync(
+                tenantId, body.Reason, body.ConfirmName, PlatformActor.Operator(User), token, body.SendConfirmationEmail);
             await _deletionRequests.CommitChangesAsync(token);
             return Ok(request);
         });

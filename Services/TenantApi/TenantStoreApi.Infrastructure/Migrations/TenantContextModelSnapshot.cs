@@ -1837,6 +1837,86 @@ namespace TenantStoreApi.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.AccountClosureRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("CancelTokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<DateTime>("ConfirmExpiresAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ConfirmTokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<DateTime?>("ConfirmedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("CoolingOffEndsAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DecidedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("DecidedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<string>("DecisionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("OwnerEmail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("RequestStatus")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("varchar(24)");
+
+                    b.Property<DateTime>("RequestedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CancelTokenHash");
+
+                    b.HasIndex("ConfirmTokenHash");
+
+                    b.HasIndex("OwnerUserId", "RequestStatus");
+
+                    b.ToTable("AccountClosureRequests");
+                });
+
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.AccountDeletionRequest", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1906,6 +1986,9 @@ namespace TenantStoreApi.Infrastructure.Migrations
 
                     b.Property<Guid>("RequestedById")
                         .HasColumnType("char(36)");
+
+                    b.Property<bool>("SendConfirmationEmail")
+                        .HasColumnType("tinyint(1)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -2054,6 +2137,78 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.HasIndex("SubStatus");
 
                     b.ToTable("AccountSubscriptions");
+                });
+
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.ArchiveDestroyRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DecidedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("DecidedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<Guid?>("DecidedById")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("DecisionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("OwnerEmail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("RequestStatus")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<DateTime>("RequestedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("RequestedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<Guid>("RequestedById")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerUserId", "RequestStatus");
+
+                    b.ToTable("ArchiveDestroyRequests");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.BillingEvent", b =>
@@ -3124,6 +3279,68 @@ namespace TenantStoreApi.Infrastructure.Migrations
                     b.HasIndex("PlanId", "OwnerUserId");
 
                     b.ToTable("PlanOffers");
+                });
+
+            modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.PurgedCompanyArchive", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("ArchiveKey")
+                        .HasMaxLength(512)
+                        .HasColumnType("varchar(512)");
+
+                    b.Property<string>("ArchiveSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<string>("CompanyName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DestroyedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("PurgedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<long>("RowsArchived")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<Guid>("SubscriptionId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerUserId");
+
+                    b.HasIndex("PurgedAtUtc");
+
+                    b.HasIndex("SubscriptionId", "TenantId")
+                        .IsUnique();
+
+                    b.ToTable("PurgedCompanyArchives");
                 });
 
             modelBuilder.Entity("TenantStoreApi.Domain.Entities.Subs.StorageAddOn", b =>

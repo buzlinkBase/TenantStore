@@ -144,6 +144,8 @@ These Terms of Service ("**Terms**") are an agreement between **{{entity_name}}*
 
 10.6. The Provider may suspend a deletion, and keep data or its archive longer, for as long as needed for a pending audit, tax assessment, payment dispute, labor case, investigation or legal order.
 
+10.7. The owner of an account may ask in the Service to close it. The owner confirms the request from their email and may cancel it during a cooling-off period of several days. Once our team approves it, the account becomes read-only and its data is removed after the notice we give, with records the law requires us to keep held in an archive as described in Section 7.8. Paying for a Plan again before the removal date restores the account. Closing an account is not a refund and does not by itself permanently erase it; permanent erasure is asked for as described in Section 10.5.
+
 ## 11. Term and Termination
 
 11.1. These Terms apply from acceptance until the account is closed.

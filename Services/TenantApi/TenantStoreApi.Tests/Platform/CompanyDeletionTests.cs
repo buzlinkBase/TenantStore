@@ -64,9 +64,10 @@ public class CompanyDeletionTests
             .Select(i => (T)i.Arguments[0])
             .ToList();
 
-        public async Task<AccountDeletionRequestView> RequestAsync()
+        public async Task<AccountDeletionRequestView> RequestAsync(bool sendConfirmationEmail = false)
         {
-            var request = await Requests.RequestCompanyAsync(Test, "Test company", "acme test", Alice);
+            var request = await Requests.RequestCompanyAsync(
+                Test, "Test company", "acme test", Alice, sendConfirmationEmail: sendConfirmationEmail);
             await Host.SaveAsync();
             return request;
         }
@@ -263,6 +264,36 @@ public class CompanyDeletionTests
         done.RequestedBy.Should().Be(Alice.Actor);
         done.ApprovedBy.Should().Be(Bob.Actor);
         f.Published<AccountHardDeleted>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task WhenAskedFor_TheOwnerIsEmailedOnceTheCompanyIsErased()
+    {
+        var f = await new Fixture().SeedAsync();
+        var request = await f.RequestAsync(sendConfirmationEmail: true);
+        request.SendConfirmationEmail.Should().BeTrue();
+        await f.ApproveAsync(request.Id);
+        f.Published<SendEmailRequested>().Should().BeEmpty("nothing is erased yet");
+
+        await f.ReportAsync();
+
+        var email = f.Published<SendEmailRequested>().Should().ContainSingle().Subject;
+        email.To.Should().Be(OwnerEmail);
+        email.Subject.Should().Contain("Acme Test");
+        SendEmailRequested.TryNormalize(email, out _, out var problem).Should().BeTrue(problem);
+    }
+
+    [Fact]
+    public async Task ByDefault_NoEmailIsSentWhenTheCompanyIsErased()
+    {
+        var f = await new Fixture().SeedAsync();
+        var request = await f.RequestAsync();
+        await f.ApproveAsync(request.Id);
+
+        await f.ReportAsync();
+
+        f.Published<CompanyHardDeleted>().Should().ContainSingle();
+        f.Published<SendEmailRequested>().Should().BeEmpty();
     }
 
     // ── Every service confirms ───────────────────────────────────────────────

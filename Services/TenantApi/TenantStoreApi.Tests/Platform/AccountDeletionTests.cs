@@ -54,9 +54,10 @@ public class AccountDeletionTests
             .Select(i => (T)i.Arguments[0])
             .ToList();
 
-        public async Task<AccountDeletionRequestView> RequestAsync(Guid owner)
+        public async Task<AccountDeletionRequestView> RequestAsync(Guid owner, bool sendConfirmationEmail = false)
         {
-            var request = await Requests.RequestAsync(owner, "Test account", OwnerEmail, Alice);
+            var request = await Requests.RequestAsync(
+                owner, "Test account", OwnerEmail, Alice, sendConfirmationEmail: sendConfirmationEmail);
             await Host.SaveAsync();
             return request;
         }
@@ -376,6 +377,53 @@ public class AccountDeletionTests
         done.RequestedBy.Should().Be(Alice.Actor);
         done.ApprovedBy.Should().Be(Bob.Actor);
         done.Reason.Should().Be("Test account");
+    }
+
+    [Fact]
+    public async Task WhenAskedFor_TheOwnerIsEmailedOnceTheAccountIsErased()
+    {
+        var f = new Fixture();
+        var (owner, company) = await f.Host.TrialAccountAsync(OwnerEmail);
+        var request = await f.RequestAsync(owner, sendConfirmationEmail: true);
+        request.SendConfirmationEmail.Should().BeTrue();
+        await f.ApproveAsync(request.Id);
+        f.Published<SendEmailRequested>().Should().BeEmpty("nothing is erased yet");
+
+        await f.ReportAsync(owner, company);
+
+        var email = f.Published<SendEmailRequested>().Should().ContainSingle().Subject;
+        email.To.Should().Be(OwnerEmail);
+        email.Source.Should().Be("tenant");
+        email.HtmlBody.Should().Contain("Acme");
+        SendEmailRequested.TryNormalize(email, out _, out var problem).Should().BeTrue(problem);
+    }
+
+    [Fact]
+    public async Task ByDefault_NoEmailIsSentWhenTheAccountIsErased()
+    {
+        var f = new Fixture();
+        var (owner, company) = await f.Host.TrialAccountAsync(OwnerEmail);
+        var request = await f.RequestAsync(owner);
+        request.SendConfirmationEmail.Should().BeFalse();
+        await f.ApproveAsync(request.Id);
+
+        await f.ReportAsync(owner, company);
+
+        f.Published<AccountHardDeleted>().Should().ContainSingle();
+        f.Published<SendEmailRequested>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task NoEmailIsSent_WhileTheErasureHasFailed()
+    {
+        var f = new Fixture();
+        var (owner, company) = await f.Host.TrialAccountAsync(OwnerEmail);
+        var request = await f.RequestAsync(owner, sendConfirmationEmail: true);
+        await f.ApproveAsync(request.Id);
+
+        await f.ReportAsync(owner, company, succeeded: false);
+
+        f.Published<SendEmailRequested>().Should().BeEmpty();
     }
 
     [Fact]

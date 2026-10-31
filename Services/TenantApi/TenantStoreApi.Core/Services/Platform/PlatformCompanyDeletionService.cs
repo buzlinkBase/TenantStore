@@ -157,6 +157,11 @@ public class PlatformCompanyDeletionService
             Reason = request.Reason,
             DeletedAtUtc = Now,
         }, token);
+
+        // Published with the erasure (same transaction), so it is only ever sent for an erasure that happened.
+        if (request.SendConfirmationEmail
+            && ErasureEmailComposer.ForCompany(request.OwnerEmail, companyName ?? request.CompanyName ?? tenantId.ToString(), Now) is { } email)
+            await _publisher.Publish(email, token);
     }
 
     private Task RequestAsync(AccountSubscription subscription, Guid tenantId, CancellationToken token) =>

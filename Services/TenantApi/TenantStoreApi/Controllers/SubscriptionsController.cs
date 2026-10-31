@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Onepunch.Common.Lib.Subscriptions;
 using TenantStoreApi.Core.Services.Payments;
+using TenantStoreApi.Core.Services.Platform;
 using TenantStoreApi.Core.Services.Subscriptions;
 using TenantStoreApi.Domain.Entities.Subs;
 
@@ -32,6 +33,7 @@ public class SubscriptionsController : ControllerBase
     private readonly UserMembershipService _members;
     private readonly TenantService _tenants;
     private readonly ITenantProvider _tenantProvider;
+    private readonly AccountClosureService _closures;
 
     public SubscriptionsController(
         SubscriptionViewService views,
@@ -40,8 +42,10 @@ public class SubscriptionsController : ControllerBase
         StorageAddOnService storage,
         UserMembershipService members,
         TenantService tenants,
-        ITenantProvider tenantProvider)
+        ITenantProvider tenantProvider,
+        AccountClosureService closures)
     {
+        _closures = closures;
         _views = views;
         _subscriptions = subscriptions;
         _checkouts = checkouts;
@@ -204,6 +208,54 @@ public class SubscriptionsController : ControllerBase
             return Ok();
         });
 
+    // ── Closing the account ──────────────────────────────────────────────────
+    // Only the account's own owner: Billing:Manage can be delegated to someone else, and closing the account isn't a billing task.
+
+    /// <summary>The owner's latest request to close the account (any outcome); 204 when they never made one.</summary>
+    [HttpGet("closure")]
+    [ProducesResponseType(typeof(AccountClosureView), StatusCodes.Status200OK)]
+    public Task<IActionResult> GetClosure(CancellationToken token) =>
+        WithAccountOwner(token, async owner =>
+        {
+            var closure = await _closures.GetForOwnerAsync(owner, token);
+            return closure is null ? NoContent() : Ok(closure);
+        });
+
+    /// <summary>Asks to close the account. Nothing happens until the owner confirms from the email sent to them.</summary>
+    [HttpPost("closure")]
+    [ProducesResponseType(typeof(AccountClosureView), StatusCodes.Status200OK)]
+    public Task<IActionResult> RequestClosure([FromBody] AccountClosureRequestBody body, CancellationToken token) =>
+        WithAccountOwner(token, async owner =>
+        {
+            var closure = await _closures.RequestAsync(owner, body.Reason, body.ConfirmEmail, token);
+            await _closures.CommitChangesAsync(token);
+            return Ok(closure);
+        });
+
+    [HttpPost("closure/cancel")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public Task<IActionResult> CancelClosure(CancellationToken token) =>
+        WithAccountOwner(token, async owner =>
+        {
+            await _closures.CancelAsync(owner, token);
+            await _closures.CommitChangesAsync(token);
+            return Ok();
+        });
+
+    private async Task<IActionResult> WithAccountOwner(CancellationToken token, Func<Guid, Task<IActionResult>> action)
+    {
+        var tenantId = _tenantProvider.TenantId;
+        if (tenantId == Guid.Empty) return BadRequest("Tenant context is required.");
+
+        var userId = User.GetRequiredUserId();
+        var owner = (await _tenants.FindTenantAsync(tenantId, token))?.UserId;
+        if (owner is null || owner != userId) return Forbid();
+        var member = await _members.GetMemberAsync(userId, tenantId, token);
+        if (member is not { Status: "Active" } || !member.HasRole(TenantRoles.Owner)) return Forbid();
+
+        return await SubscriptionResults.Run(() => action(owner.Value));
+    }
+
     private string ActorId => User.GetRequiredUserId().ToString();
 
     private async Task<Guid> OwnerOfAsync(Guid tenantId, CancellationToken token) =>
@@ -224,6 +276,14 @@ public class SubscriptionsController : ControllerBase
 
         return await SubscriptionResults.Run(() => action(tenantId));
     }
+}
+
+public record AccountClosureRequestBody
+{
+    /// <summary>Optional: why the owner is leaving.</summary>
+    public string? Reason { get; set; }
+    /// <summary>The owner's email, typed to confirm.</summary>
+    public string? ConfirmEmail { get; set; }
 }
 
 public record StoragePurchaseRequest

@@ -30,6 +30,14 @@ public sealed class SubscriptionOptions
     /// <summary>On: erasing an account or company from the Platform Console needs a second operator to
     /// approve it. Off only for testing (one operator may approve their own request). A console setting.</summary>
     public bool RequireSecondDeletionApprover { get; set; } = true;
+    /// <summary>How long an owner who asked to close their account can still change their mind, counted from
+    /// when they confirm it from their email. Only then does an operator see the request.</summary>
+    public int ClosureCoolingOffDays { get; set; } = 7;
+    /// <summary>How long the confirmation link in a closure email works.</summary>
+    public int ClosureConfirmHours { get; set; } = 24;
+    /// <summary>The HRIS address the links in closure emails point to (e.g. https://app.onepunch.site). Without it
+    /// the links can't be built and an owner can't close their account in the app.</summary>
+    public string AppBaseUrl { get; set; } = string.Empty;
     /// <summary>The services that must each confirm a company's data is gone before an operator's
     /// erasure finishes, comma-separated (see <c>PurgeSources</c>). Deploy a service's answering
     /// consumer before listing it here, or erasures wait for it until retried.</summary>

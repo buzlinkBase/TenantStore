@@ -39,7 +39,8 @@ public sealed record AccountDeletionRequestView(
     string? DecisionReason,
     bool SecondApproverRequired,
     string? ConfirmWith = null,
-    IReadOnlyList<string>? AwaitingServices = null);
+    IReadOnlyList<string>? AwaitingServices = null,
+    bool SendConfirmationEmail = false);
 
 /// <summary>
 /// The two-person rule in front of <see cref="PlatformAccountDeletionService"/> and
@@ -92,7 +93,8 @@ public class AccountDeletionRequestService
     public Task<bool> CommitChangesAsync(CancellationToken token = default) => _uow.CommitChangesAsync("", token);
 
     public async Task<AccountDeletionRequestView> RequestAsync(
-        Guid ownerUserId, string? reason, string? confirmEmail, PlatformOperator requester, CancellationToken token = default)
+        Guid ownerUserId, string? reason, string? confirmEmail, PlatformOperator requester, CancellationToken token = default,
+        bool sendConfirmationEmail = false)
     {
         reason = RequireReason(reason);
         var subscription = await RequireSubscriptionAsync(ownerUserId, token);
@@ -110,6 +112,7 @@ public class AccountDeletionRequestService
             OwnerUserId = ownerUserId,
             OwnerEmail = ownerEmail,
             Reason = reason,
+            SendConfirmationEmail = sendConfirmationEmail,
             RequestStatus = AccountDeletionRequestStatus.Pending,
             RequestedById = requester.Id,
             RequestedBy = requester.Actor,
@@ -124,7 +127,8 @@ public class AccountDeletionRequestService
 
     /// <summary>Asks for one company of an account to be erased for good; the account and its other companies stay.</summary>
     public async Task<AccountDeletionRequestView> RequestCompanyAsync(
-        Guid tenantId, string? reason, string? confirmName, PlatformOperator requester, CancellationToken token = default)
+        Guid tenantId, string? reason, string? confirmName, PlatformOperator requester, CancellationToken token = default,
+        bool sendConfirmationEmail = false)
     {
         reason = RequireReason(reason);
         var company = await RequireCompanyAsync(tenantId, token);
@@ -146,6 +150,7 @@ public class AccountDeletionRequestService
             CompanyName = companyName,
             OwnerEmail = identities.GetValueOrDefault(company.UserId).Email ?? string.Empty,
             Reason = reason,
+            SendConfirmationEmail = sendConfirmationEmail,
             RequestStatus = AccountDeletionRequestStatus.Pending,
             RequestedById = requester.Id,
             RequestedBy = requester.Actor,
@@ -378,5 +383,6 @@ public class AccountDeletionRequestService
         r.RequestedById, r.RequestedBy, r.RequestedAtUtc, r.ExpiresAtUtc, r.DecidedBy, r.DecidedAtUtc, r.DecisionReason,
         _options.RequireSecondDeletionApprover,
         string.IsNullOrEmpty(confirmWith) ? null : confirmWith,
-        awaiting);
+        awaiting,
+        r.SendConfirmationEmail);
 }
