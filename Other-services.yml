@@ -37,6 +37,7 @@ services:
   redis-commander:
     image: rediscommander/redis-commander:latest
     container_name: redis-commander
+    restart: always
     stop_grace_period: 2s
     environment:
       - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD}
@@ -93,6 +94,7 @@ services:
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
+    restart: always
     ports:
       - "5342:3000"
     environment:

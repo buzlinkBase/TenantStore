@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Onepunch.Common.Lib.Platform;
+using Serilog;
 using TenantStoreApi.Core.Services.Payments;
 using TenantStoreApi.Core.Services.Platform;
 using TenantStoreApi.Domain.Entities.Subs;
@@ -463,8 +464,17 @@ public class PlatformPaymentsController : ControllerBase
     public Task<IActionResult> Refund(Guid paymentId, [FromBody] RefundPaymentRequest request, CancellationToken token) =>
         SubscriptionResults.Run(async () =>
         {
-            var refund = await _actions.RefundPaymentAsync(paymentId, request.Amount, request.Reason, request.Notes, PlatformActor.From(User), token);
-            await _actions.CommitChangesAsync(token);
-            return Ok(refund);
+            try
+            {
+                var refund = await _actions.RefundPaymentAsync(paymentId, request.Amount, request.Reason, request.Notes, PlatformActor.From(User), token);
+                await _actions.CommitChangesAsync(token);
+                return Ok(refund);
+            }
+            catch (PaymentGatewayException ex)
+            {
+                // Operators need the gateway's own reason (not the owner-facing "couldn't open the payment page").
+                Log.Logger.Error(ex, "Payment gateway refund failed for payment {PaymentId}", paymentId);
+                return SubscriptionResults.Problem(StatusCodes.Status400BadRequest, null, ex.Message);
+            }
         });
 }
