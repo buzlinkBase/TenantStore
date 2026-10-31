@@ -136,7 +136,6 @@ public class WorkspaceService : BaseService<User>
         AcquisitionSource = payload.AcquisitionSource,
         AcquisitionSourceOther = payload.AcquisitionSourceOther,
         OtNdCalculationMethod = payload.OtNdCalculationMethod,
-        AcknowledgeOtNdDeviation = payload.AcknowledgeOtNdDeviation,
     };
 
     /// <summary>

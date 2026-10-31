@@ -111,5 +111,4 @@ public class CreateWorkspaceRequest
     // Payroll policy, passed through to HRIS (see CompanyProfile.OtNdCalculationMethod).
     [System.ComponentModel.DataAnnotations.MaxLength(32)]
     public string? OtNdCalculationMethod { get; set; }
-    public bool AcknowledgeOtNdDeviation { get; set; }
 }

@@ -16,11 +16,10 @@ public class TenantSetInitData
 {
     public Guid TenantId { get; set; }
     public string ConnectionString { get; set; }
-    /// <summary>The owner who created the company (recorded on any policy acknowledgment).</summary>
+    /// <summary>The owner who created the company (logged against any DOLE deviation it starts with).</summary>
     public Guid? UserId { get; set; }
     /// <summary>Policy choices from Create Company (see <see cref="CompanyProfile"/>); null = HRIS defaults.</summary>
     public string? OtNdCalculationMethod { get; set; }
-    public bool AcknowledgeOtNdDeviation { get; set; }
 }
 
 public record UserJoinToTenantPayload

@@ -47,12 +47,10 @@ public class TenantProfileTests
         var profile = CompanyProfile.Normalize(new CompanyProfile
         {
             OtNdCalculationMethod = " Additive ",
-            AcknowledgeOtNdDeviation = true,
         });
 
         profile.Should().NotBeNull();
         profile!.OtNdCalculationMethod.Should().Be("Additive");
-        profile.AcknowledgeOtNdDeviation.Should().BeTrue();
     }
 
     [Fact]
