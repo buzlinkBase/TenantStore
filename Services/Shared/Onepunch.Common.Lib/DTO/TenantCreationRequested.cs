@@ -39,6 +39,11 @@ public record CompanyProfile
     public string? AcquisitionSource { get; set; }
     public string? AcquisitionSourceOther { get; set; }
 
+    // Payroll policy (HRIS only). The OtNdCalculationMethod name -- null keeps HRIS's default
+    // (Compounded). Additive is a DOLE deviation: HRIS takes it only with the acknowledgment.
+    public string? OtNdCalculationMethod { get; set; }
+    public bool AcknowledgeOtNdDeviation { get; set; }
+
     /// <summary>Trims every value and turns blanks into null; null when nothing was entered.</summary>
     public static CompanyProfile? Normalize(CompanyProfile? profile)
     {
@@ -65,6 +70,8 @@ public record CompanyProfile
             CompanySize = Clean(profile.CompanySize),
             AcquisitionSource = Clean(profile.AcquisitionSource),
             AcquisitionSourceOther = Clean(profile.AcquisitionSourceOther),
+            OtNdCalculationMethod = Clean(profile.OtNdCalculationMethod),
+            AcknowledgeOtNdDeviation = profile.AcknowledgeOtNdDeviation,
         };
 
         return cleaned == new CompanyProfile() ? null : cleaned;

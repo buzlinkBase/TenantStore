@@ -107,4 +107,9 @@ public class CreateWorkspaceRequest
     public string? AcquisitionSource { get; set; }
     [System.ComponentModel.DataAnnotations.MaxLength(200)]
     public string? AcquisitionSourceOther { get; set; }
+
+    // Payroll policy, passed through to HRIS (see CompanyProfile.OtNdCalculationMethod).
+    [System.ComponentModel.DataAnnotations.MaxLength(32)]
+    public string? OtNdCalculationMethod { get; set; }
+    public bool AcknowledgeOtNdDeviation { get; set; }
 }

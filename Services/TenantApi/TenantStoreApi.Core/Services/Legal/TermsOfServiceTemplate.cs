@@ -46,15 +46,19 @@ These Terms of Service ("**Terms**") are an agreement between **{{entity_name}}*
 
 - the overtime and night-differential computation method (for example, Additive instead of Compounded);
 - overtime, night-differential, rest-day, holiday and special-day rate multipliers, including per-client overrides;
-- the hourly-rate divisor, grace periods, rounding, late and undertime rules, and overtime eligibility and inclusion rules;
+- the hourly-rate divisor, grace periods, rounding, late and undertime rules (including half-day and whole-day late penalties), and overtime eligibility and inclusion rules;
+- overtime thresholds and caps, night-differential thresholds, and paid or unpaid breaks in time shifts;
 - holiday hours basis, local holidays and their coverage;
-- leave types, accrual, conversion and carry-over rules;
-- minimum take-home pay, deduction and loan schedules, cash bonds and their refund;
+- leave types, accrual, conversion and carry-over rules, including Service Incentive Leave;
+- minimum take-home pay (which can stop statutory deductions for a payroll run), the deduction carrier, deduction and loan schedules, cash bonds and their refund;
+- caps on the employee share of SSS, PhilHealth and Pag-IBIG contributions, including per-client caps;
+- each employee's contribution and withholding-tax method (including none or a fixed amount), exclusions from overtime, holiday, night-differential, leave or 13th month pay, and pay rates below the regional minimum wage;
+- the 13th month tax-exempt ceiling, retirement accrual rates, and the items a final pay includes;
 - statutory contribution and withholding-tax tables, minimum wage rates and income classifications.
 
 4.3. **The Customer is responsible for its Configuration.** Every Configuration, and every result produced from it, is the Customer's decision and the Customer's sole responsibility, whether it follows the defaults or not. Before choosing a rule that differs from a statutory default, the Customer is responsible for confirming that the rule is lawful for its employees and situation.
 
-4.4. **Acknowledgments.** When an administrator saves a Configuration that differs from a statutory default, the Service may ask them to confirm it and records that confirmation (who, when, the setting, the default and the chosen value). The Customer agrees that these records are accurate evidence that the Customer chose that Configuration knowingly.
+4.4. **Acknowledgments.** When an administrator saves a Configuration that differs from a statutory default, the Service may ask them to confirm it and records that confirmation (who, when, the setting, the default and the chosen value). The Customer agrees that these records are accurate evidence that the Customer chose that Configuration knowingly. A confirmation is asked once for each setting and value in the Company or Client it applies to, and covers later saves of the same choice, including for other employees.
 
 4.5. **No legal, tax or accounting advice.** Labels, defaults, help articles, warnings, examples and support answers are general information only. They are not legal, tax, accounting or labor-relations advice. The Customer should consult its own counsel or accountant.
 
@@ -78,6 +82,10 @@ These Terms of Service ("**Terms**") are an agreement between **{{entity_name}}*
 
 6.4. When the Customer or its Client locks or verifies records (for example, a client-verified time record or a closed payroll), the Customer accepts that those records are relied on as final.
 
+6.5. Before giving a Client access to employee data through the client portal, the Customer is responsible for having a lawful basis and any agreement the law requires. Billing statements and other documents the Customer produces for its Clients through the Service are the Customer's own.
+
+6.6. Announcement acknowledgments record that an Authorized User opened or confirmed an announcement in the Service. Whether that serves as notice under the law or the Customer's policies is the Customer's responsibility.
+
 ## 7. Data Privacy
 
 7.1. **Roles.** For personal data of the Customer's employees and Clients processed through the Service, the Customer is the Personal Information Controller and the Provider is a Personal Information Processor, under Republic Act No. 10173 (Data Privacy Act of 2012), its implementing rules and National Privacy Commission ("**NPC**") issuances.
@@ -88,13 +96,17 @@ These Terms of Service ("**Terms**") are an agreement between **{{entity_name}}*
 
 7.4. **Security.** The Provider maintains reasonable organizational, physical and technical security measures, including access controls, encryption in transit, tenant separation and audit logs.
 
-7.5. **Sub-processors.** The Customer authorizes the Provider to use sub-processors to run the Service, including cloud hosting and object-storage providers, the payment gateway (PayMongo), Google Sign-In, and email-delivery providers. The Provider remains responsible for its sub-processors' processing under these Terms.
+7.5. **Sub-processors.** The Customer authorizes the Provider to use sub-processors to run the Service, including cloud hosting and object-storage providers, the payment gateway (PayMongo), Google Sign-In, and email-delivery providers. The Provider remains responsible for its sub-processors' processing under these Terms. Customer Data, including photos, attachments and documents, may be stored and processed outside the Philippines by these sub-processors. A list of current sub-processors is available on request.
 
 7.6. **Breach notification.** The Provider will notify the Customer without undue delay after becoming aware of a personal data breach affecting Customer Data, with the information reasonably available, so the Customer can meet its own notification duties to the NPC and data subjects.
 
-7.7. **Support access.** With the Customer's request or consent, authorized Provider support staff may sign in as a Customer user to investigate or resolve an issue. Every such session is recorded and every action is attributed to the support staff member.
+7.7. **Support access.** To give support, investigate abuse or a security issue, or meet a legal duty, authorized Provider support staff may sign in as a Customer user. Each session needs a recorded reason, is time-limited, and every action in it is recorded and attributed to the support staff member. Support staff cannot accept these Terms for the Customer.
 
-7.8. **Retention.** After an account is closed or locked for non-payment, Customer Data is kept as described in Section 10 and then deleted, except records the law requires to be kept, which may be archived and kept for up to {{archive_retention_years}} years before deletion.
+7.8. **Retention.** After an account is closed or locked for non-payment, Customer Data is kept as described in Section 10 and then deleted, except records the law requires to be kept, which may be archived and kept for up to {{archive_retention_years}} years before deletion. Archived records are kept read-only and outside the Service, are released only at the Customer's written request or where the law requires, and are destroyed at the end of that period.
+
+7.9. **Biometric templates.** Fingerprint and face templates are sensitive personal information. The Service stores them and transfers them between the Customer's devices only when the Customer instructs it to, such as when enrolling, syncing or deleting a template.
+
+7.10. **Audit logs.** Audit logs, including records of support sessions, are kept while the account exists and may be kept after deletion where needed for security, legal or accounting purposes.
 
 ## 8. Accounts and Security
 
@@ -108,13 +120,15 @@ These Terms of Service ("**Terms**") are an agreement between **{{entity_name}}*
 
 9.2. **Fees.** The Customer pays the fees of its Plan and add-ons as shown in the Service when ordered. Fees are in Philippine pesos and exclude taxes unless stated otherwise. Storage add-ons are billed separately from the Plan, on their own cycle.
 
-9.3. **Payment.** Payment may be made online through our payment gateway or by bank transfer as instructed in the Service. If the Customer turns on automatic renewal, the Customer authorizes us to charge the saved payment method at each renewal until automatic renewal is turned off.
+9.3. **Payment.** Payment may be made online through our payment gateway or by bank transfer as instructed in the Service. If the Customer turns on automatic renewal, the Customer authorizes us to charge the saved payment method at each renewal until automatic renewal is turned off. Card and payment details are held by the payment gateway, not by us. If a renewal charge fails, we may retry it and will notify the Customer; if it stays unpaid, Section 10 applies.
 
 9.4. **Upgrades and downgrades.** When the Customer upgrades in the middle of a period, unused paid days are credited as shown in the Service. A downgrade, cancellation or storage reduction takes effect at the end of the current paid period.
 
-9.5. **No refunds.** Fees paid are non-refundable, including for unused time, unused features, unused storage, or a period in which the Customer did not use the Service, except where the Provider decides otherwise in writing or where the law requires a refund.
+9.5. **No refunds.** Fees paid are non-refundable, including for unused time, unused features, unused storage, or a period in which the Customer did not use the Service, except where the Provider decides otherwise in writing or where the law requires a refund. An approved refund is returned to the original payment method through the payment gateway, and the access or credit the refunded payment bought ends.
 
 9.6. **Price changes.** We may change prices for future periods with at least 30 days' notice through the Service or by email.
+
+9.7. **Storage.** When Customer Data exceeds the storage in the Plan and add-ons, new uploads may be blocked until storage is added or files are removed. Files the Customer deletes, including through the Storage Manager, are permanently deleted.
 
 ## 10. Non-Payment, Read-Only Access, Lock and Data Deletion
 
@@ -125,6 +139,10 @@ These Terms of Service ("**Terms**") are an agreement between **{{entity_name}}*
 10.3. If an account stays unpaid, canceled or locked, its data may be permanently deleted {{purge_after_days}} days after it was locked, after notice through the Service and by email. The dates that apply to an account are shown on the Billing page.
 
 10.4. The Customer is responsible for exporting any data it needs before deletion. Deleted data, files and records cannot be recovered.
+
+10.5. The Customer may ask for its whole account, or a single Company, to be permanently erased. Erasure happens after the request is verified and approved, cannot be undone, and does not cover records under legal hold or records the law requires us to keep.
+
+10.6. The Provider may suspend a deletion, and keep data or its archive longer, for as long as needed for a pending audit, tax assessment, payment dispute, labor case, investigation or legal order.
 
 ## 11. Term and Termination
 
@@ -145,6 +163,8 @@ The Customer must not, and must not let anyone: copy, resell, sublicense or prov
 13.1. We aim to keep the Service available and to perform maintenance at times of low use, but we do not guarantee uninterrupted or error-free operation, and no service-level commitment applies unless agreed in a separate signed document.
 
 13.2. We are not responsible for failures caused by things outside our control, including the Customer's devices, networks and internet connection, biometric device hardware or firmware, third-party services (such as payment gateways, email providers and Google Sign-In), and government websites or systems.
+
+13.3. Notifications, emails and in-app alerts are a convenience and may be delayed or not delivered. The Customer must not rely on them alone to meet a deadline or give legal notice.
 
 ## 14. Intellectual Property
 

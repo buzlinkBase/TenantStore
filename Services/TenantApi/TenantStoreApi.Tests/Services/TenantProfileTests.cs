@@ -42,6 +42,20 @@ public class TenantProfileTests
     }
 
     [Fact]
+    public void Normalize_KeepsThePayrollPolicyChoice()
+    {
+        var profile = CompanyProfile.Normalize(new CompanyProfile
+        {
+            OtNdCalculationMethod = " Additive ",
+            AcknowledgeOtNdDeviation = true,
+        });
+
+        profile.Should().NotBeNull();
+        profile!.OtNdCalculationMethod.Should().Be("Additive");
+        profile.AcknowledgeOtNdDeviation.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task UpdateProfileAsync_SetsAddressAndContact_BlankClears()
     {
         var (sut, uow) = CreateSut();

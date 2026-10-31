@@ -135,6 +135,8 @@ public class WorkspaceService : BaseService<User>
         CompanySize = payload.CompanySize,
         AcquisitionSource = payload.AcquisitionSource,
         AcquisitionSourceOther = payload.AcquisitionSourceOther,
+        OtNdCalculationMethod = payload.OtNdCalculationMethod,
+        AcknowledgeOtNdDeviation = payload.AcknowledgeOtNdDeviation,
     };
 
     /// <summary>
