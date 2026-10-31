@@ -33,7 +33,7 @@ public sealed class SubscriptionOptions
     /// <summary>The services that must each confirm a company's data is gone before an operator's
     /// erasure finishes, comma-separated (see <c>PurgeSources</c>). Deploy a service's answering
     /// consumer before listing it here, or erasures wait for it until retried.</summary>
-    public string ErasureParticipants { get; set; } = "hrms,adms,portal";
+    public string ErasureParticipants { get; set; } = "hrms,adms";
     /// <summary>How long the compliance archive is kept after the company's last payroll / attendance /
     /// accounting entry. DOLE asks 3 years and BIR 5 (NIRC Sec. 235), so one 5-year clock covers both.</summary>
     public int ArchiveRetentionYears { get; set; } = 5;

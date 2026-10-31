@@ -288,6 +288,7 @@ public class CompanyDeletionTests
     public async Task AFailureFromTheClientPortal_ParksTheRequest_NamingIt()
     {
         var f = await new Fixture().SeedAsync();
+        f.Host.Options.ErasureParticipants = "hrms,adms,portal";
         var request = await f.RequestAsync();
         await f.ApproveAsync(request.Id);
 

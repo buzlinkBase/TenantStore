@@ -402,6 +402,7 @@ public class AccountDeletionTests
     public async Task TheAccountIsErased_OnlyOnceEveryServiceHasConfirmedEveryCompany()
     {
         var f = new Fixture();
+        f.Host.Options.ErasureParticipants = "hrms,adms,portal";
         var (owner, first) = await f.Host.TrialAccountAsync(OwnerEmail);
         var second = f.Host.AddCompany(owner, "Acme Two", OwnerEmail);
         var request = await f.RequestAsync(owner);

@@ -68,6 +68,7 @@ public class CompanyDataPurgedWorkerTests
     public async Task AnErasureAnswer_IsRecordedForTheServiceInItsHeader()
     {
         var f = new Fixture();
+        f.Host.Options.ErasureParticipants = "hrms,adms,portal";
         var (owner, company) = await f.Host.TrialAccountAsync();
         var subscription = f.Host.SubscriptionOf(owner);
         subscription.PurgeState = Domain.Entities.Subs.DataPurgeState.HardDeleting;
@@ -108,5 +109,12 @@ public class CompanyDataPurgedWorkerTests
         host.Options.ErasureParticipants = configured;
 
         host.Confirmations.Participants.Should().Equal(expected);
+    }
+
+    [Fact]
+    public void ByDefault_TheClientPortalIsNotAParticipant()
+    {
+        // The portal doesn't answer erasures yet; an erasure waiting on it would never finish.
+        new SubscriptionTestHost().Confirmations.Participants.Should().Equal(PurgeSources.Hrms, PurgeSources.Adms);
     }
 }
